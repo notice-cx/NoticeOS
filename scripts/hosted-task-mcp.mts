@@ -42,7 +42,7 @@ const BATCH = 25;
 /** The rules for a task's card and change_class: NoticeOS's own, so they hold
  * wherever the installation's tasks live, Ntasks included. */
 export const INSTALLATION_TASK_RULES: readonly string[] = Object.freeze([
-  '- Work meant to change money carries a card: the predicted change in USD a month, how likely it pays off, the operator\'s review minutes and your build minutes, the days until the ledger shows it, how it is measured, and the state and date to give up on it; the Tower ranks tasks by their cards, and a task without one is listed, not ranked.',
+  '- Work meant to change money carries a card: the predicted change in USD a month, how likely it pays off, the operator\'s review minutes and your build minutes, the days until the ledger shows it, how it is measured, and the state and date to give up on it; the card a task closes with is kept as the prediction its outcome is graded against.',
   '- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra, which the autonomy ladder and the likelihood priors are kept by.',
 ]);
 
@@ -71,7 +71,7 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED: readonly string[] = Object.freeze([
-  '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, which the Tower ranks tasks by, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
+  '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
   '2026-10-21: close_task as done keeps the task\'s card as it stood, with the commit its reason names, and get_task returns it as cardShipped; update_task then refuses a card for that task.',
   '2026-11-03: reconcile_task supports answer_mode relayed for local Claude Code sessions and quoted task comments, owner_performed for the owner’s completed action, and no-longer-needed for retirement. Relayed approvals close immediately and can be disputed on Tasks.',
 ]);
@@ -660,7 +660,7 @@ const CARD_LIMITS = TASK_CARD_LIMITS;
 /** Why a task is worth doing (task-card.mts holds the rules the call is checked against). */
 const CARD = Object.freeze({ type: 'object', additionalProperties: false,
   required: ['valuePerMonth', 'likelihood', 'reviewMinutes', 'daysToSignal', 'measurability'],
-  description: 'What the work is worth, for work meant to change money. The Tower ranks tasks by it; a task without one is listed, not ranked. '
+  description: 'What the work is worth, for work meant to change money. The card a task closes with as done is kept as the prediction its outcome is graded against. '
     + 'The server records who wrote it and when.',
   properties: {
     valuePerMonth: { type: 'number', minimum: CARD_LIMITS.valuePerMonth.min, maximum: CARD_LIMITS.valuePerMonth.max,
@@ -668,9 +668,9 @@ const CARD = Object.freeze({ type: 'object', additionalProperties: false,
     likelihood: { type: 'number', minimum: CARD_LIMITS.likelihood.min, maximum: CARD_LIMITS.likelihood.max,
       description: `How likely it pays off, ${CARD_LIMITS.likelihood.min} to ${CARD_LIMITS.likelihood.max}.` },
     reviewMinutes: { type: 'number', minimum: CARD_LIMITS.reviewMinutes.min, maximum: CARD_LIMITS.reviewMinutes.max,
-      description: `The operator's minutes to review and decide it, ${CARD_LIMITS.reviewMinutes.min} to ${CARD_LIMITS.reviewMinutes.max}; the ranking prices them.` },
+      description: `The operator's minutes to review and decide it, ${CARD_LIMITS.reviewMinutes.min} to ${CARD_LIMITS.reviewMinutes.max}, priced at the installation's operator rate.` },
     buildMinutes: { type: 'number', minimum: CARD_LIMITS.buildMinutes.min, maximum: CARD_LIMITS.buildMinutes.max,
-      description: `Your minutes to build it, ${CARD_LIMITS.buildMinutes.min} to ${CARD_LIMITS.buildMinutes.max}; shown beside the ranking, not priced.` },
+      description: `Your minutes to build it, ${CARD_LIMITS.buildMinutes.min} to ${CARD_LIMITS.buildMinutes.max}; recorded, not priced.` },
     daysToSignal: { type: 'integer', minimum: CARD_LIMITS.daysToSignal.min, maximum: CARD_LIMITS.daysToSignal.max,
       description: `Whole days until the ledger shows whether it worked, ${CARD_LIMITS.daysToSignal.min} to ${CARD_LIMITS.daysToSignal.max}.` },
     measurability: { type: 'string', enum: TASK_MEASURABILITIES,

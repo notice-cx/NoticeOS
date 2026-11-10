@@ -1,20 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The inbox's Undo window: an answer is held, never reversed, because none of
-// the three lane verbs has an inverse.
-
-const api = vi.hoisted(() => ({
-  respondToTask: vi.fn(async () => undefined),
-  chooseOnTask: vi.fn(async () => undefined),
-  dismissTask: vi.fn(async () => undefined),
-  closeTask: vi.fn(async () => undefined),
-  resolveGate: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/lib/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api")>()),
-  ...api,
-}));
+// The Undo window: an answer is held, never reversed, because none of the
+// verbs it sends has an inverse.
 
 import {
   UNDO_WINDOW_MS,
@@ -25,7 +12,6 @@ import {
   scheduleAnswer,
   undoAnswer,
 } from "@/lib/answer-queue";
-import { sendInboxAnswer } from "@/hooks/useTasks";
 import { browserOwnerKey, captureBrowserOwner } from '@/lib/browser-owner';
 
 const PRINCIPAL = '11111111-1111-4111-8111-111111111111';
@@ -354,58 +340,6 @@ describe("the Undo window", () => {
     flushAnswers();
     await vi.waitFor(() => expect(answerHides("md-1", new Date(Date.now() - 60_000).toISOString())).toBe(true));
     expect(answerHides("md-1", new Date(Date.now() + 60_000).toISOString())).toBe(false);
-  });
-});
-
-describe("each answer is one call on the lane the inbox always used", () => {
-  it("approve → gate resolve, answer → human respond, dismiss → human dismiss", async () => {
-    await sendInboxAnswer({ kind: "approve", id: "md-gate", title: "Approve" });
-    await sendInboxAnswer({ kind: "answer", id: "md-ask", title: "Ask", text: "Yes" });
-    await sendInboxAnswer({ kind: "dismiss", id: "md-ask2", title: "Ask" });
-    expect(api.resolveGate).toHaveBeenCalledWith("md-gate");
-    expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes");
-    expect(api.dismissTask).toHaveBeenCalledWith("md-ask2");
-  });
-
-  it("asks the browser to finish the call only when the page is leaving", async () => {
-    await sendInboxAnswer({ kind: "answer", id: "md-ask", title: "Ask", text: "Yes" }, true);
-    expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes", { keepalive: true });
-  });
-
-  it("a pick names the option, the note when there is one, and the project it was made in", async () => {
-    await sendInboxAnswer({ kind: "choose", id: "md-pick", title: "Pick", option: "b" });
-    await sendInboxAnswer({ kind: "choose", id: "md-pick2", title: "Pick", option: "a", note: "Ship it Friday", project: "medley" }, true);
-    expect(api.chooseOnTask).toHaveBeenNthCalledWith(1, "md-pick", "b", undefined);
-    expect(api.chooseOnTask).toHaveBeenNthCalledWith(2, "md-pick2", "a", "Ship it Friday", { keepalive: true, project: "medley" });
-  });
-
-  it("a close where nothing shipped closes with its resolution, or declines a question with it, the note as the reason", async () => {
-    await sendInboxAnswer({ kind: "close", id: "md-1", title: "One", resolution: "wont-do", note: "Nobody asked for it" });
-    await sendInboxAnswer({ kind: "close", id: "md-2", title: "Two", resolution: "duplicate", duplicateOf: "md-1", project: "medley" }, true);
-    await sendInboxAnswer({ kind: "close", id: "md-3", title: "Three", resolution: "cant-reproduce" });
-    expect(api.closeTask).toHaveBeenNthCalledWith(1, "md-1", "Nobody asked for it", { resolution: "wont-do" });
-    // With no note, the resolution's words are the reason; a duplicate's name the other task.
-    expect(api.closeTask).toHaveBeenNthCalledWith(2, "md-2", "Duplicate of md-1", { keepalive: true, project: "medley", resolution: "duplicate", duplicateOf: "md-1" });
-    expect(api.closeTask).toHaveBeenNthCalledWith(3, "md-3", expect.stringMatching(/\S/u), { resolution: "cant-reproduce" });
-    await sendInboxAnswer({ kind: "close", id: "md-ask", title: "Ask", resolution: "wont-do", via: "dismiss" });
-    await sendInboxAnswer({ kind: "close", id: "md-ask2", title: "Ask", resolution: "already-handled", note: "md-1 did it", via: "dismiss" });
-    expect(api.dismissTask).toHaveBeenNthCalledWith(1, "md-ask");
-    expect(api.dismissTask).toHaveBeenNthCalledWith(2, "md-ask2", "md-1 did it", { resolution: "already-handled" });
-    expect(api.closeTask).toHaveBeenCalledTimes(3);
-  });
-
-  it("a pick waits out the Undo window like an answer, and an Undo inside it sends nothing", async () => {
-    vi.useFakeTimers();
-    const pick = { kind: "choose", id: "md-pick", title: "Pick", option: "b" } as const;
-    scheduleAnswer({ id: "md-pick", send: (keepalive) => sendInboxAnswer(pick, keepalive) });
-    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS - 1);
-    expect(api.chooseOnTask).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(api.chooseOnTask).toHaveBeenCalledWith("md-pick", "b", undefined);
-    scheduleAnswer({ id: "md-pick2", send: (keepalive) => sendInboxAnswer({ ...pick, id: "md-pick2" }, keepalive) });
-    expect(undoAnswer("md-pick2")).toBe(true);
-    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS * 2);
-    expect(api.chooseOnTask).toHaveBeenCalledOnce();
   });
 });
 

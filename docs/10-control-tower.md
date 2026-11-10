@@ -728,135 +728,22 @@ The Decide output as a ranked, reviewable table. This is where the operator
 
 ## The Tasks page
 
-`/tasks`, in the sidebar as **Tasks** once a task source is connected.
-`/work` is an older address and redirects here: the Tower wrote that link
-into notes and commit messages, and a 404 on a path that used to work is
-worse than two paths for one page.
+`/tasks/*` is the Ntasks web app, rendered from the published
+[`@notice-cx/ntasks-ui`](https://github.com/notice-cx/Ntasks/tree/main/packages/ui#readme)
+package that `apps/tower/package.json` pins (`apps/tower/src/routes/TasksRoute.tsx`).
+Its board, task pages, Focus, Live, Projects, Members and Settings read and
+write the installation's Ntasks from the browser as the person signed in to
+it, with the token `useNtasksSignIn()` holds; the installation's service
+credential stays on the Tower's server and reads only the counts Home, the
+Wall and an asset's Tasks tab show. The route's code, the package and its
+styles load only on `/tasks`. Before the pages draw, the route compares the
+package's `API_VERSION` with the Ntasks's `GET /api/version` and shows one
+sentence in place of the pages when the Ntasks is older. `/work` and
+`/tasks/all`, older addresses, redirect to `/tasks` with their query.
+Dependabot's `ntasks-ui` group opens each new release of the package as its
+own pull request, which runs the Tower's browser journeys against the fixture
+Ntasks (`apps/tower/e2e/ntasks-fixture.ts`).
 
-The one place that shows *what work is in progress across the portfolio right
-now* ([`config/beads.README.md`](../config/beads.README.md)) — and the
-place the operator acts on it, without reading it here and then opening a terminal.
-The word on the page is **task** ([doc 14](14-design.md)): `bd` keeps its own
-noun in the CLI and the ids, where it names the tool's object rather than
-NoticeOS's.
-
-**What it reads.** The newest task snapshot the local runner stored: the Tower
-cannot reach the task database, so the runner reads every project once a minute and
-posts the result ([how](../workers/ingest/README.md#beads-snapshots-the-task-hub-photograph)).
-Only the **latest** snapshot is rendered; falling back to an older row would
-hide exactly the failure the age chip exists to show.
-
-**Layout** (`apps/tower/src/routes/tasks/TasksBoard.tsx`): the filter row, a
-KPI strip, Your decisions, then every other task in one table, each row
-expanding in place. A project the runner could not read is named in one banner
-with Retry; before any snapshot the page links to Connect.
-
-**The local Tower runs `bd` commands for the operator.** An agent still claims and
-closes with `bd`, in the repo where the work is, because that is where the agent has
-the context to report its work accurately. The operator should not need a second tool
-for the most frequent action in the product, so the local Tower runs the
-operator's `bd` commands: a short allowlist of verbs, every write
-signed with the operator's name, nothing reachable from another asset. The
-verbs, the guards and the rejections are written once, in
-[the Tower's task commands](../config/beads.README.md#the-towers-task-lane--the-operators-hands-not-an-agents).
-**A deployed build keeps the snapshot board, and shows why**: it cannot run `bd`,
-so the board falls back to the read-only snapshot rather than breaking, shows this
-once in a banner, and leaves its write controls disabled.
-
-**The operator can act on the board directly.**
-
-- **The inbox is at the top of the page, across every project.** Your decisions sits at
-  the top, because those rows are the only ones on
-  this board that NoticeOS cannot move forward without the operator. Ordering is gate, then
-  priority, then longest untouched, in the warn color. A question's actions are
-  **Answer**, which opens a box under the row and runs `bd human
-  respond`, writing the answer as a comment and closing the question — so an empty
-  answer is never sent — and **Dismiss** (`bd human dismiss`, a permanent
-  decline). A gate's action is neither: it is **Approve** (`bd gate resolve`),
-  because releasing a wait condition is not answering a question. All three
-  take effect after an Undo window (`lib/answer-queue.ts`).
-- **Five filters, all stored in the URL** —
-  `?project=&status=&priority=&label=&assignee=` (`useSearchParams`, the
-  mechanism first used on `/alerts` and extended on `/assets`), so a narrowed board is
-  a link that can be bookmarked or pasted into a task. Project, status, priority
-  and assignee are `<select>`s with a count per option; label is free text. On
-  the snapshot read the label field is not drawn (unless a link already set
-  it) — the snapshot does not include labels, and a field that can never match
-  anything is not a useful filter.
-- **Every row starts with one mark** (✓ closed, ◦ parked or normal, ! for top or
-  high priority in its tone) and **expands in place**: Claim (`bd update
-  --claim`, atomic), Close (an inline REQUIRED reason —
-  completion needs evidence, so the person closing cites what proves it), Defer (a date);
-  its id links to `/tasks/:id`. The actions open in the row rather than a
-  dialog: each one
-  concerns the row the operator is looking at, and a modal would
-  cover it. These writes are not Tower-local, so [doc 14](14-design.md)'s
-  undo-over-confirm does not apply — principle 1 does: the inline field shows
-  the change before the operator confirms it.
-- **A status the board does not recognise** (one `bd` added) renders as its own
-  raw value. The board never maps an unknown status onto a different one.
-- **Live rows come from `bd` run by the local Tower, one read per project**, in
-  `config/beads.json` order — untruncated, with labels, blocker-aware `ready`,
-  and gate metadata. Epic containers are excluded from the rows and the counts,
-  the same exclusion the snapshot makes, so the two reads always give the same
-  numbers. A gate that resolves automatically (timer, `gh:run`) is not listed.
-- **Closed-this-week always comes from the snapshot.** The local `bd` commands can list closed tasks
-  but not "closed in the last seven days" — `bd list --status closed` is all
-  time — so the closed-this-week figure reads the snapshot's seven-day window in
-  both modes, and the figure has one source.
-
-**`/tasks/:id` exists**, because the board links every row there and a link the
-product itself produces must never return 404. **New task** opens the composer (below)
-on `?new=1`.
-
-**One board, two surfaces.** The board is
-`TasksBoard` (`apps/tower/src/routes/tasks/TasksBoard.tsx`), and an
-asset page's **Tasks** tab — `/assets/:id/tasks`, between Alerts and Activity —
-renders that same component with `project` fixed to that asset's task project. It is not a
-second board: the asset tab is the index with one prop set, so a claim, a close,
-an answered question or a filter behaves identically on both, and the two cannot
-diverge. The tab drops only what the page around it already shows —
-the project `<select>`, the project clause in the summary line, the project name
-on each inbox row, and the section's own name heading (the task PREFIX stays,
-because the header does not show it and it is the part of an id the operator types).
-The fixed project never enters the query string: it is set by the page, not by a control,
-so a link copied from the tab includes only the filters the operator actually set.
-An asset with no
-task project gets a designed empty state, *No task project for this asset*, with
-**Add a task project** — "nothing to do" and "this asset was never mapped
-to a repo" are different facts, and only the first is good news.
-The tab LABEL shows the asset's open-task count, with the inbox glyph beside it
-when something there is waiting on the operator; an asset with no task project shows
-no count at all, because an unknown count must not be shown as zero. **New task** is offered on the tab too, on the same `?new=1`: the
-composer opens prefilled with that project and offers only that project,
-so a task filed from an asset page always goes to that asset's project.
-
-**The task page.** `/tasks/:id` is the page every monospace task id in the
-Tower links to — the finding's filing badge, the query and page decision
-rows, the asset timeline's resolved refs, and the task index — because
-`HandoffBeadBadge`'s id is a link. The page shows the whole task —
-description and acceptance criteria
-rendered as Markdown, labels, assignee, priority, defer date, parent epic with
-its `Meter` of children closed, blocked-by and blocks with each dependency's own
-status glyph, the comments oldest-first with a composer, and a compact activity
-timeline (filed, claimed, commented, closed). Status and priority are the
-header's glyph-led chips in the lifecycle vocabulary (`STATUS_FACE`) — open circle,
-in-progress dot, blocked ban, parked snowflake, closed tick — and because that
-chip is the page's one *display* of each fact, the editors below it are controls
-with no second chip beside them (doc 14). Every field saves in place through the
-local `bd` commands with a toast that has **Undo** (doc 14 principle 5, the same pattern as
-`KnobEditor`); **Claim** and **Close** are the two primary actions and a close
-requires its reason, because completion needs evidence. A task filed from a Tower
-handoff also links **back** to the section that produced it — `noticeos_kind` selects
-the anchor (`#insights`, `#query-visibility`, `#page-decisions`) on
-`noticeos_asset`'s page — so the `noticeos_*` metadata format
-([`config/beads.README.md`](../config/beads.README.md) §Handoff metadata) can be
-followed in both directions. Markdown is rendered by a small parser in the route
-that produces React elements and never a string of HTML, so a `<script>` in a
-task's description is always rendered as text, and only `http(s)`, `mailto:` and
-asset-relative links are created; the Tower has no Markdown dependency. A **deployed** build cannot run `bd`: the page renders the row
-the once-a-minute snapshot holds with a note that the rest requires the local Tower, and shows Claim
-and Close disabled with that reason.
 **File a task with a button.** Every handoff the
 Tower copies ends in a `bd create` command, and its last step — paste this into a
 terminal open in the right repo — is the step where mistakes happen: filing from the
@@ -1002,7 +889,7 @@ sections are mounted**, each tab reading its own view.
 | **Codebase** | One sentence on how the code changed in 30 days beside the asset's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), a row of three checks the asset's own workflow sends (**Build**, **Tests**, **Vulnerable packages**), lines of code over time with deploys marked, the languages, and the latest report's findings (repeated blocks, hard-to-change functions, unused, vulnerable packages), each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
 | **Health** | The five facts of Home's Asset health (Up, Speed, Errors, Search, Code) as five word buttons, each opening the readings behind it in place; a fact with no reading shows "Not measured yet" with the link that connects it (`HealthTab.tsx`) |
 | **Alerts** | Open alerts, those no longer current, and history |
-| **Tasks** | The Tasks board pinned to this asset's project |
+| **Tasks** | This asset's open and waiting task counts, with links into the Tasks board on its project |
 | **Activity** | The timeline with its event composer and outcome-check composer, the Watches strip, link outreach — what happened on this asset |
 | **Sources** | Data sources, the setup checklist, the scheduled jobs (on NoticeOS's own page only), daily metrics, asset health |
 | **Settings** | Asset management — see below, including **Tracked search terms** |

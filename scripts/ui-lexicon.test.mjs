@@ -315,7 +315,7 @@ test('the lexicon sweep has files to sweep', () => {
   );
   for (const name of [
     'apps/tower/src/components/AppShell.tsx',
-    'apps/tower/src/routes/tasks/TasksBoard.tsx',
+    'apps/tower/src/routes/TasksRoute.tsx',
     'apps/tower/src/routes/SettingsRoute.tsx',
   ]) {
     assert.ok(FILES.includes(name), `${name} must be in the scan`);

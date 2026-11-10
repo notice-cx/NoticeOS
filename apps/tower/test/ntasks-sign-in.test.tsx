@@ -1,76 +1,11 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { toast } from "sonner";
-import { act, fireEvent, render, screen, within } from "./render";
-import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { LiveTasksPayload, TaskServiceStatus, TasksCapabilities } from "@shared/tasks";
-import type { WorkPayload } from "@shared/work";
+import { createPersonSession, finishSignIn, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
 
-// While this installation's tasks live in Ntasks, a decision, an approval or a
-// dispute is taken only from a person signed in to Ntasks. A browser signed in
-// to it sends them there as the person; one that is not shows Sign in to Ntasks.
+// A person's sign-in to Ntasks from the Tower: the PKCE start and finish, and
+// the tokens this browser keeps and refreshes for them.
 
 const ORIGIN = "https://ntasks.example.com";
 const APP = { origin: ORIGIN, clientId: "tower-client" };
-const NTASKS: TaskServiceStatus = { connected: true, origin: ORIGIN, app: { clientId: APP.clientId, workspaceId: "w-1" },
-  projects: [{ asset: "example.com", prefix: "md", project: { displayName: "Example", logicalKey: "example.com", projectId: "p-md" } }] };
-const UNCONFIGURED: TaskServiceStatus = { connected: true, origin: ORIGIN, projects: null, app: null };
-const LOCAL_HUB: TaskServiceStatus = { connected: false, origin: null, projects: null };
-const TOKENS_KEY = `noticeos:ntasks-person:${ORIGIN}:${APP.clientId}`;
-
-const state = vi.hoisted(() => ({
-  work: null as WorkPayload | null,
-  capabilities: { live: true, reason: null } as TasksCapabilities,
-  boards: {} as Record<string, LiveTasksPayload>,
-  service: undefined as TaskServiceStatus | undefined,
-}));
-const api = vi.hoisted(() => ({
-  respondToTask: vi.fn(async (..._args: unknown[]) => undefined),
-  chooseOnTask: vi.fn(async (..._args: unknown[]) => undefined),
-  dismissTask: vi.fn(async () => undefined),
-  resolveGate: vi.fn(async () => undefined),
-  closeTask: vi.fn(async () => undefined),
-  registerNtasksApp: vi.fn(async (): Promise<{ clientId: string }> => ({ clientId: "tower-registered" })),
-}));
-
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn(), message: vi.fn() } }));
-vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), ...api }));
-vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: { assets: [] } }) }));
-vi.mock("@/hooks/useWork", () => ({ useWork: () => ({ data: state.work, isPending: false, isError: false }) }));
-vi.mock("@/hooks/useSettings", () => ({ useSettings: () => ({ data: undefined }) }));
-vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-08-01T12:00:00.000Z") }));
-vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
-vi.mock("@/hooks/useTaskService", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/hooks/useTaskService")>();
-  return { ...actual, useTaskService: () => ({ data: state.service }), useNeedsNtasks: () => actual.needsNtasks(state.service) };
-});
-vi.mock("@/hooks/useTasks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useTasks")>()),
-  useTasksLive: () => state.capabilities,
-  useTasksLiveRead: () => ({ data: state.capabilities, isPending: false, fetchStatus: "idle" }),
-  useTasksAcross: (projects: string[]) => projects.map((asset) => ({ data: state.boards[asset], isError: false, error: null })),
-}));
-
-import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
-import { flushAnswers, resetAnswerQueue } from "@/lib/answer-queue";
-import { ApiError } from "@/lib/api";
-import { createPersonSession, finishSignIn, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
-import { closableHere } from "@/routes/tasks/close-actions";
-import { FocusRoute } from "@/routes/tasks/FocusRoute";
-import { NextTab } from "@/routes/tasks/next/NextTab";
-import { scenarioBoards, scenarioPayload } from "./tasks-next-fixtures";
-
-function renderAt(element: ReactNode, entry: string) {
-  state.work = scenarioPayload();
-  state.boards = scenarioBoards();
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[entry]}>{element}</MemoryRouter>
-    </QueryClientProvider>,
-  );
-}
 
 function memoryStorage(seed: Record<string, string> = {}): TokenStorage & { values: Map<string, string> } {
   const values = new Map(Object.entries(seed));
@@ -81,9 +16,6 @@ const tokens = (expiresAt: number, access = "access-1", refresh: string | null =
 const NAME = `ntasks-person:${ORIGIN}:${APP.clientId}`;
 
 afterEach(() => {
-  state.service = undefined;
-  resetAnswerQueue();
-  resetPersonSessions();
   window.localStorage.clear();
   window.sessionStorage.clear();
   vi.unstubAllGlobals();
@@ -208,96 +140,5 @@ describe("the person's tokens", () => {
       code_verifier: verifier, redirect_uri: "http://localhost:4173/tasks/signed-in", client_id: APP.clientId });
     expect(holder.snapshot()).toEqual({ signedIn: true, name: "Pat Example" });
     expect(session.getItem("noticeos:ntasks-sign-in")).toBeNull();
-  });
-});
-
-describe("closing a task from its row", () => {
-  it("declines a task waiting on a person here unless the browser must sign in to Ntasks first", () => {
-    const capabilities: TasksCapabilities = { live: true, reason: null };
-    const waiting = { labels: ["human"] };
-    const plain = { labels: [] };
-    expect(closableHere(waiting, capabilities, false)).toBe(true);
-    expect(closableHere(waiting, capabilities, true)).toBe(false);
-    expect(closableHere(plain, capabilities, true)).toBe(true);
-  });
-});
-
-/** Approve, Answer, and the options of the scenario's choice. */
-const DECIDING = [/^Approve/u, /^Answer/u, /Monday|Tuesday|Friday/u];
-
-describe("deciding while tasks live in Ntasks", () => {
-  it("shows Sign in to Ntasks for every decision on the Next tab, and its brief, while this browser is signed out", () => {
-    state.service = NTASKS;
-    renderAt(<NextTab scope={null} />, "/tasks");
-    fireEvent.click(screen.getByRole("button", { name: "Read it as a brief" }));
-    expect(screen.getAllByRole("button", { name: "Sign in to Ntasks" }).length).toBeGreaterThanOrEqual(3);
-    for (const name of DECIDING) expect(screen.queryByRole("button", { name }), String(name)).toBeNull();
-  });
-
-  it("registers the Tower in Ntasks on the press while no Tower client ID is saved, then signs in with the new one", async () => {
-    state.service = UNCONFIGURED;
-    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 2 })));
-    renderAt(<NextTab scope={null} />, "/tasks");
-    expect(screen.queryByRole("button", { name: /Tuesday/u })).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign in to Ntasks" })[0]!);
-    await vi.waitFor(() => expect(window.sessionStorage.getItem("noticeos:ntasks-sign-in")).not.toBeNull());
-    expect(api.registerNtasksApp).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(window.sessionStorage.getItem("noticeos:ntasks-sign-in")!)).toMatchObject({ origin: ORIGIN, clientId: "tower-registered" });
-  });
-
-  it("says why when the Tower could not be registered, and starts no sign-in", async () => {
-    state.service = UNCONFIGURED;
-    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 2 })));
-    const detail = "Ntasks refused to register the Tower (invalid_client_metadata). Nothing was saved.";
-    api.registerNtasksApp.mockRejectedValueOnce(new ApiError(detail, 502, "ntasks_registration_refused"));
-    renderAt(<NextTab scope={null} />, "/tasks");
-    const button = screen.getAllByRole("button", { name: "Sign in to Ntasks" })[0]!;
-    fireEvent.click(button);
-    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
-    expect(button).toBeEnabled();
-    expect(window.sessionStorage.getItem("noticeos:ntasks-sign-in")).toBeNull();
-  });
-
-  it("sends a signed-in person's pick to Ntasks with their own token, never through the Tower's route", async () => {
-    state.service = NTASKS;
-    window.localStorage.setItem(TOKENS_KEY, tokens(Number.MAX_SAFE_INTEGER, "person-token"));
-    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/tasks/projects")
-      ? Response.json({ projects: [{ projectId: "p-md", prefix: "md", logicalKey: "example.com", displayName: "Example" }] })
-      : String(input).endsWith("/api/access/me") ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId: "w-1" } })
-        : Response.json({ task: { id: "md-c1" } }));
-    vi.stubGlobal("fetch", fetch);
-    renderAt(<NextTab scope={null} />, "/tasks");
-    expect(screen.queryByRole("button", { name: "Sign in to Ntasks" })).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: /Tuesday/u })[0]!);
-    act(() => flushAnswers());
-    const toNtasks = () => fetch.mock.calls.filter(([input]) => String(input).startsWith(ORIGIN));
-    await vi.waitFor(() => expect(toNtasks().map(([input]) => String(input))).toContain(`${ORIGIN}/api/tasks/md-c1/choose`));
-    const [, init] = toNtasks().find(([input]) => String(input).endsWith("/choose"))!;
-    expect(init?.headers).toMatchObject({ authorization: "Bearer person-token", "content-type": "application/json" });
-    expect(JSON.parse(String(init?.body))).toEqual({ projectId: "p-md", option: "b" });
-    expect(api.chooseOnTask).not.toHaveBeenCalled();
-  });
-
-  it("keeps every button on the Next tab, on the Tower's own routes, while tasks live in the local hub", () => {
-    state.service = LOCAL_HUB;
-    renderAt(<NextTab scope={null} />, "/tasks");
-    expect(screen.queryByRole("button", { name: "Sign in to Ntasks" })).toBeNull();
-    expect(screen.getAllByRole("button", { name: /^Approve/u }).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: /Tuesday/u })[0]!);
-    act(() => flushAnswers());
-    expect(api.chooseOnTask).toHaveBeenCalledWith("md-c1", "b", undefined);
-  });
-
-  it("in Focus, offers sign-in and leaves the option keys unbound while signed out, so a key press sends nothing", () => {
-    state.service = NTASKS;
-    const { container } = renderAt(<FocusRoute />, "/tasks/focus?task=md-c1");
-    const decision = container.querySelector<HTMLElement>("[data-focus-decision]")!;
-    expect(decision).toHaveAttribute("data-focus-decision", "md-c1");
-    expect(within(decision).getByRole("button", { name: "Sign in to Ntasks" })).toBeVisible();
-    expect(within(decision).queryByRole("button", { name: /Tuesday/u })).toBeNull();
-    fireEvent.keyDown(window, { key: "b" });
-    act(() => flushAnswers());
-    expect(api.chooseOnTask).not.toHaveBeenCalled();
-    expect(container.querySelector("[data-focus-decision]")).toHaveAttribute("data-focus-decision", "md-c1");
   });
 });

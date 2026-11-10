@@ -2,7 +2,7 @@ import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
 import { BUILT_APP, test, expect } from "./journey-test";
-import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, DEV_SERVER, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
+import { DESKTOP_ONLY, DEV_SERVER, JOURNEY_ASSET, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, journeyFindingSnapshot } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { WALL_PRESETS, wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -15,7 +15,6 @@ import { buildWorkflowHistory } from "../vite/workflow-history";
 import { SCHEDULED_JOBS, jobRunName } from "../shared/scheduled-jobs";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
-import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
 import { planWrites, siteDraft } from "@shared/asset-wizard";
 import type { SettingsPayload } from "@shared/settings";
 import { emptyWorkHistory, type WorkPayload } from "@shared/work";
@@ -114,49 +113,6 @@ async function assertContained(locator: Locator) {
   expect(bounds.top).toBeGreaterThanOrEqual(bounds.parentTop - 1);
   expect(bounds.bottom).toBeLessThanOrEqual(bounds.parentBottom + 1);
 }
-
-test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
-  const wall = wallFixturePayload();
-  wall.assets = wall.assets.slice(0, 1).map(asset => ({ ...asset, work: null,
-    activeUsers: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] } }));
-  const asset = wall.assets[0]!;
-  await page.route("**/api/wall", route => route.fulfill({ json: wall }));
-  await page.route("**/api/tasks/capabilities", route => route.fulfill({ json: { live: false, writable: false, reason: READ_ONLY_DEPLOYMENT } }));
-  await page.route("**/api/work", route => route.fulfill({ json: {
-    generatedAt: wall.generatedAt, capturedAt: wall.generatedAt, pollCadenceHours: 1 / 60,
-    owner: "config/beads.json", historyDays: 0,
-    projects: [{ asset: asset.id, prefix: "ex", name: asset.displayName, ok: true, error: null,
-      counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
-      priorities: null, epics: null, deferred: [], waiting: [], ready: [], inProgress: [], recentlyClosed: [], history: emptyWorkHistory() }],
-  } }));
-  // Home and the Sites list name no OS state, so they have no System reason;
-  // Tasks keeps its own.
-  for (const [route, name, evidence] of [
-    ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
-  ]) {
-    await page.goto(route!);
-    const target = page.getByRole("button", { name, exact: true });
-    await keyboardFocus(page, target);
-    await expect(page.getByRole("tooltip")).toContainText(evidence!);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("tooltip")).toHaveCount(0);
-    // A phone's real tap and a desk pointer both pin the same existing panel.
-    if (testInfo.project.name === "mobile") await target.tap();
-    else await target.click();
-    await expect(page.getByRole("tooltip")).toContainText(evidence!);
-    await assertNoPageOverflow(page);
-    const panel = await page.getByRole("tooltip").boundingBox();
-    const viewport = page.viewportSize()!;
-    expect(panel!.x).toBeGreaterThanOrEqual(0);
-    expect(panel!.y).toBeGreaterThanOrEqual(0);
-    expect(panel!.x + panel!.width).toBeLessThanOrEqual(viewport.width);
-    expect(panel!.y + panel!.height).toBeLessThanOrEqual(viewport.height);
-    await page.screenshot({ path: testInfo.outputPath(`state-reason-${route!.slice(1) || "home"}.png`) });
-    await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/" : route}$`));
-  }
-  // The Sites list states each site's one health word; the source states and
-  // their legend are on a site's Data sources tab.
-});
 
 test("desk pages share the same content edges", async ({ page }, testInfo) => {
   await addAssetByApi(page);
@@ -2214,48 +2170,13 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(page).toHaveURL(/\/growth\?range=7/);
   await expect(page.locator("#search-performance")).toContainText("224");
 
+  // Home's decisions open each task's own page in the Ntasks UI under /tasks.
   await page.goto("/?range=7");
-  await keyboardActivate(page, page.getByRole("link", { name: /Review the synthetic launch copy/ }));
-  await expect(page).toHaveURL(/\/tasks\/jt-review$/);
-  await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
-  await keyboardActivate(page, page.getByRole("link", { name: "Back to Home", exact: true }));
-  await expect(page).toHaveURL(/\/\?range=7$/);
-  await keyboardActivate(page, page.getByRole("link", { name: /Approve the synthetic launch/ }));
-  await expect(page).toHaveURL(/\/tasks\/jt-approve$/);
-  await expect(page.getByRole("heading", { name: /Approve the synthetic launch/ })).toBeVisible();
-  // Each decision is answered on its row. Approve is one press; Answer opens
-  // a box, Enter sends. Each reaches `bd` through the real task lane once its
-  // Undo window closes. The ask is not a decision, so the answer hands it back
-  // to ready work: a comment, then open with the human label off.
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  await expect(page.getByRole("link", { name: /Review the synthetic launch copy/ })).toHaveAttribute("href", /\/tasks\/jt-review$/);
+  await expect(page.getByRole("link", { name: /Approve the synthetic launch/ })).toHaveAttribute("href", /\/tasks\/jt-approve$/);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
     tasks: { id: string; status: string; labels?: string[]; assignee?: string | null; comment_count?: number }[]; taskCommands: string[][];
   };
-  const gateRow = page.locator('[data-inbox-row="jt-approve"]');
-  await keyboardActivate(page, gateRow.getByRole("button", { name: "Approve", exact: true }));
-  await expect(gateRow).toHaveCount(0);
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Approved" })).toBeVisible();
-  const askRow = page.locator('[data-inbox-row="jt-review"]');
-  await keyboardActivate(page, askRow.getByRole("button", { name: "Answer", exact: true }));
-  await expect(askRow.getByLabel("Your answer to jt-review")).toBeFocused();
-  await page.keyboard.type("Approved wording: Example headline");
-  await page.keyboard.press("Enter");
-  await expect(askRow).toHaveCount(0);
-  // Neither answer is written inside its Undo window.
-  expect((await status()).tasks.every((row) => row.status === "open" && row.labels?.length !== 0)).toBe(true);
-  await expect.poll(async () => (await status()).tasks.map((row) => `${row.id}:${row.status}:${(row.labels ?? []).join(",")}`).sort(), { timeout: 20_000 })
-    .toEqual(["jt-approve:closed:human", "jt-review:open:"]);
-  const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
-  expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
-  expect(commands.some((line) => line.startsWith("comments add jt-review Answered: Approved wording: Example headline --json --actor"))).toBe(true);
-  expect(commands.some((line) => line.startsWith("update jt-review --status open --assignee  --if-assignee  --remove-label human --json --actor"))).toBe(true);
-  expect(commands.some((line) => line.startsWith("human respond"))).toBe(false);
-  const review = (await status()).tasks.find((row) => row.id === "jt-review")!;
-  expect([review.assignee, review.comment_count]).toEqual([null, 1]);
-  // Said once, in the answer; an emptied queue draws no empty panel.
-  await expect(page.locator("[data-tasks-answer]")).toContainText("No decisions for you");
-  await expect(page.locator("[data-waiting-list]")).toHaveCount(0);
-  await assertNoPageOverflow(page);
 
   // A finding's File task: prefilled from the finding's own fields, filed
   // through the same lane in two presses on the page it is read on.
@@ -2274,39 +2195,6 @@ test("empty install → saved asset → fake connection and mapping → real met
   expect(JSON.parse(created[created.indexOf("--metadata") + 1]!)).toMatchObject({ noticeos_kind: "finding", noticeos_key: "journey-sitemap-drop" });
   await assertNoPageOverflow(page);
 
-  // A task nobody holds closes as Won't do from its All tasks row: Close as,
-  // Won't do, a note and Enter. Undo takes the first one back; the second
-  // reaches the task client once its window closes, with the resolution
-  // recorded beside the closer and the note as the reason.
-  const filedId = (await status()).tasks.find((row) => row.id !== "jt-review" && row.id !== "jt-approve")!.id;
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
-  const filedRow = page.locator(`tr[data-task-row="${filedId}"]`);
-  const closeWontDo = async () => {
-    // A phone's row is folded to its summary line; its press opens the row, Close as included.
-    if (testInfo.project.name === "mobile") await keyboardActivate(page, filedRow.locator("td:first-child button"));
-    await keyboardActivate(page, filedRow.getByRole("button", { name: "Close as", exact: true }));
-    // The menu opens on its first item.
-    await expect(page.getByRole("menuitem", { name: "Won't do", exact: true })).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page.locator('[data-task-form="close-as"]').getByLabel("Note")).toBeFocused();
-    await page.keyboard.type("The sitemap was rebuilt the next day");
-    await page.keyboard.press("Enter");
-  };
-  await closeWontDo();
-  await expect(filedRow).toHaveCount(0);
-  const closedToast = page.locator("[data-sonner-toast]").filter({ hasText: "Closed as Won't do" });
-  await expect(closedToast).toBeVisible();
-  await closedToast.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(filedRow).toHaveCount(1);
-  expect((await status()).taskCommands.some((argv) => argv[2] === "close")).toBe(false);
-  await closeWontDo();
-  await expect.poll(async () => (await status()).tasks.find((row) => row.id === filedId)?.status, { timeout: 20_000 }).toBe("closed");
-  const closing = (await status()).taskCommands.filter((argv) => argv[2] === "close" || (argv[2] === "update" && argv[3] === filedId));
-  expect(closing.map((argv) => argv.slice(2, 6).join(" "))).toEqual([
-    `close ${filedId} --reason The sitemap was rebuilt the next day`,
-    `update ${filedId} --metadata ${JSON.stringify({ noticeos_closed_by: closing[1]![closing[1]!.indexOf("--actor") + 1], noticeos_closed_at: JOURNEY_NOW, noticeos_resolution: "wont-do" })}`,
-  ]);
-  await assertNoPageOverflow(page);
   expect(pageErrors).toEqual([]);
 });
 
@@ -2345,92 +2233,12 @@ async function assertSourcesFit(page: Page, context: string) {
 // Health's list of things to set up; Settings still offers No report. Once the
 // first number turns Home into the dashboard, Home's System does not count the
 // site either.
-test("several approvals are decided in one action: one Undo, each reaches the task client in turn, and a refused one is named and stays", async ({ page }) => {
-  await addAssetByApi(page);
-  for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
-  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
-    tasks: { id: string; status: string }[]; taskCommands: string[][];
-  };
-  const approvals = ["jt-approve", "jt-press", "jt-banner", REFUSED_GATE];
-  await keyboardActivate(page, page.locator("[data-waiting-list]").getByRole("button", { name: "Select", exact: true }));
-  const bar = page.locator("[data-inbox-selection]");
-  await keyboardActivate(page, bar.getByRole("button", { name: "Select all 5", exact: true }));
-  await expect(bar.getByRole("status")).toHaveText("5 selected");
-  // The ask picked with them is not an approval, so Approve leaves it alone.
-  await keyboardActivate(page, bar.getByRole("button", { name: "Approve 4", exact: true }));
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Approved 4" })).toBeVisible();
-  for (const id of approvals) await expect(page.locator(`[data-inbox-row="${id}"]`)).toHaveCount(0);
-  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
-  // Nothing is written inside the Undo window.
-  expect((await status()).tasks.every((row) => row.status === "open")).toBe(true);
-  await expect.poll(async () => (await status()).tasks.map((row) => `${row.id}:${row.status}`).sort(), { timeout: 20_000 })
-    .toEqual(["jt-approve:closed", "jt-banner:closed", "jt-press:closed", `${REFUSED_GATE}:open`, "jt-review:open"]);
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: `Not sent: ${REFUSED_GATE}` })).toBeVisible();
-  await expect(page.locator(`[data-inbox-row="${REFUSED_GATE}"]`)).toHaveCount(1);
-  const resolved = (await status()).taskCommands.map((argv) => argv.slice(2)).filter((argv) => argv[0] === "gate" && argv[1] === "resolve");
-  expect(resolved.map((argv) => argv[2]).sort()).toEqual([...approvals].sort());
-  expect(resolved.every((argv) => argv.includes("--actor"))).toBe(true);
-  await assertNoPageOverflow(page);
-});
-
 // A backlog groomed in one sitting from All tasks: the board narrowed by a
 // label, Select, Select all, then one resolution and one note for every
 // selected task. The task closed already is counted, named in the message and
 // left as it is. Undo takes the whole close back; the second reaches the task
 // client one task at a time once its window closes, each with the resolution
 // beside its closer and the note as its reason.
-test("a filtered backlog is closed as Already handled in one action from All tasks: undone, closed again, and the task closed already is named and kept", async ({ page }) => {
-  await addAssetByApi(page);
-  for (const route of ["/__journey/task-source", "/__journey/backlog"]) expect((await page.request.post(route)).ok()).toBe(true);
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}&label=${BACKLOG_LABEL}`);
-  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
-    tasks: { id: string; status: string; close_reason: string | null; metadata: Record<string, unknown> | null }[]; taskCommands: string[][];
-  };
-  const table = page.locator("[data-tasks-table]");
-  const rowOf = (id: string) => page.locator(`tr[data-task-row="${id}"]`);
-  await expect(table.locator("tr[data-task-row]")).toHaveCount(4);
-  await expect(rowOf(BACKLOG_OUTSIDE)).toHaveCount(0);
-  const closeAll = async () => {
-    await keyboardActivate(page, table.getByRole("button", { name: "Select", exact: true }));
-    const bar = page.locator("[data-tasks-selection]");
-    await keyboardActivate(page, bar.getByRole("button", { name: "Select all 4", exact: true }));
-    await expect(bar.getByRole("status")).toHaveText("4 selected · 1 closed already");
-    await keyboardActivate(page, bar.getByRole("button", { name: "Close 3 as", exact: true }));
-    await page.getByRole("menuitem", { name: "Already handled", exact: true }).click();
-    await expect(bar.locator('[data-task-form="close-as"]').getByLabel("Note")).toBeFocused();
-    await page.keyboard.type("Handled by the spring redesign");
-    await page.keyboard.press("Enter");
-  };
-  await closeAll();
-  for (const id of BACKLOG_OPEN) await expect(rowOf(id)).toHaveCount(0);
-  await expect(rowOf(BACKLOG_CLOSED)).toHaveCount(1);
-  const closedToast = page.locator("[data-sonner-toast]").filter({ hasText: "Closed as Already handled · 3" });
-  await expect(closedToast).toBeVisible();
-  await expect(closedToast).toContainText(`${BACKLOG_CLOSED} closed already`);
-  await assertNoPageOverflow(page);
-  await closedToast.getByRole("button", { name: "Undo", exact: true }).click();
-  for (const id of BACKLOG_OPEN) await expect(rowOf(id)).toHaveCount(1);
-  expect((await status()).taskCommands.some((argv) => argv[2] === "close")).toBe(false);
-
-  await closeAll();
-  await expect.poll(async () => (await status()).tasks.filter((row) => row.id.startsWith("jt-g") || row.id === BACKLOG_OUTSIDE)
-    .map((row) => `${row.id}:${row.status}`).sort(), { timeout: 20_000 })
-    .toEqual([...BACKLOG_OPEN.map((id) => `${id}:closed`), `${BACKLOG_CLOSED}:closed`, `${BACKLOG_OUTSIDE}:open`].sort());
-  const rows = (await status()).tasks;
-  for (const id of BACKLOG_OPEN) {
-    const row = rows.find((entry) => entry.id === id)!;
-    expect(row.close_reason).toBe("Handled by the spring redesign");
-    expect(row.metadata?.noticeos_resolution).toBe("already-handled");
-  }
-  const kept = rows.find((entry) => entry.id === BACKLOG_CLOSED)!;
-  expect([kept.close_reason, kept.metadata]).toEqual(["Fixed in the fixture", null]);
-  // One close per selected open task, and none for the task closed already.
-  const closes = (await status()).taskCommands.filter((argv) => argv[2] === "close").map((argv) => argv[3]);
-  expect(closes.sort()).toEqual([...BACKLOG_OPEN]);
-  await assertNoPageOverflow(page);
-});
-
 test("partial Wall decisions use lower-bound words without comparison chips", async ({ page }, testInfo) => {
   await wallScene(page);
   const partial = wallFixturePayload();
@@ -2450,100 +2258,11 @@ test("partial Wall decisions use lower-bound words without comparison chips", as
   await page.screenshot({ path: testInfo.outputPath("wall-partial-counts.png"), fullPage: true });
 });
 
-test("decision filters keep their whole count and restore the hidden decisions when cleared", async ({ page }, testInfo) => {
-  await addAssetByApi(page);
-  for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
-  await page.goto(`/tasks/all?project=${JOURNEY_ASSET}`);
-  const row = page.locator(`[data-inbox-row="${CHOICE_TASK}"]`);
-  await expect(row).toBeVisible();
-  const title = page.getByText(/^\d+ decisions for you$/, { exact: true });
-  const count = await title.innerText();
-  await page.goto(`/tasks/all?project=${JOURNEY_ASSET}&label=unmatched-fixture-label`);
-  await expect(page.getByText("No decisions match these filters.", { exact: true })).toBeVisible();
-  await expect(page.getByText(count, { exact: true })).toBeVisible();
-  await expect(page.locator("[data-inbox-row]")).toHaveCount(0);
-  await expect(page.getByText("No decisions for you.", { exact: true })).toHaveCount(0);
-  await assertNoPageOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath("decisions-filtered.png"), fullPage: true });
-  if (testInfo.project.name === "mobile") await page.getByRole("button", { name: /^Filters/ }).click();
-  await page.getByRole("link", { name: "Clear filters" }).click();
-  await expect(row).toBeVisible();
-  await expect(page.getByText(count, { exact: true })).toBeVisible();
-  await expect(page.getByText("No decisions match these filters.", { exact: true })).toHaveCount(0);
-  await assertNoPageOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath("decisions-restored.png"), fullPage: true });
-});
-
 // A question an agent filed with three options is one press from its row in
 // Your decisions. Undo takes the first press back; the second reaches the task
 // client once its window closes (the pick recorded, a comment, the hand-back
 // to ready work with the human label off), and the task's page then shows the
 // pick as a fact with the options inert.
-test("a question with choices on plain HTTP is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
-  });
-  await addAssetByApi(page);
-  for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
-  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
-    tasks: { id: string; status: string; labels: string[]; assignee: string | null; metadata: Record<string, unknown> | null }[];
-    taskCommands: string[][];
-  };
-  const row = page.locator(`[data-inbox-row="${CHOICE_TASK}"]`);
-  const group = row.getByRole("group", { name: JOURNEY_CHOICES.question });
-  await expect(group).toBeVisible();
-  await expect(row).toContainText("needs your choice");
-  const options = group.locator("button[data-choice-option]");
-  await expect(options).toHaveCount(3);
-  expect(await options.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-choice-option")))).toEqual(["b", "a", "c"]);
-  await expect(options.first()).toContainText("Recommended");
-  // Each option is a 44 px target; on a phone they stack, each as wide as the others.
-  const boxes = await options.evaluateAll((nodes) => nodes.map((node) => {
-    const box = node.getBoundingClientRect();
-    return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: box.height };
-  }));
-  for (const box of boxes) expect(box.height).toBeGreaterThanOrEqual(44);
-  if (testInfo.project.name === "mobile") {
-    expect(new Set(boxes.map((box) => box.x)).size, "one column").toBe(1);
-    expect(new Set(boxes.map((box) => box.width)).size, "full width each").toBe(1);
-    expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y);
-  }
-  await assertNoPageOverflow(page);
-
-  await keyboardActivate(page, group.getByRole("button", { name: "(a) Keep the old page", exact: true }));
-  const undo = page.locator("[data-sonner-toast]").filter({ hasText: "Chose (a) Keep the old page" });
-  await expect(undo).toBeVisible();
-  await expect(row).toHaveCount(0);
-  await undo.getByRole("button", { name: "Undo" }).click();
-  await expect(group).toBeVisible();
-
-  await group.getByLabel("Note").fill("Keep the redirect for a year.");
-  await keyboardActivate(page, group.getByRole("button", { name: "(b) Redirect to the new page", exact: true }));
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Chose (b) Redirect to the new page" })).toBeVisible();
-  await expect(row).toHaveCount(0);
-  // Nothing is written inside the Undo window.
-  expect((await status()).tasks.find((task) => task.id === CHOICE_TASK)!.metadata).not.toHaveProperty("noticeos_choice");
-  await expect.poll(async () => {
-    const picked = (await status()).tasks.find((task) => task.id === CHOICE_TASK)!;
-    return [picked.status, picked.labels.join(","), (picked.metadata?.noticeos_choice as { option?: string } | undefined)?.option ?? null];
-  }, { timeout: 20_000 }).toEqual(["open", "", "b"]);
-  const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
-  expect(commands.some((line) => line.startsWith(`comments add ${CHOICE_TASK} Chose (b) Redirect to the new page. Keep the redirect for a year.`))).toBe(true);
-  expect(commands.some((line) => line.startsWith(`update ${CHOICE_TASK} --status open --assignee  --if-assignee  --remove-label human`))).toBe(true);
-  expect(commands.filter((line) => line.startsWith("comments add") && line.includes("Chose (a)"))).toEqual([]);
-
-  // The page states the pick, who chose and when, with the options inert.
-  await page.goto(`/tasks/${CHOICE_TASK}`);
-  const header = page.locator("[data-page-header]");
-  await expect(header.getByRole("heading", { name: "Chose (b) Redirect to the new page" })).toBeVisible();
-  await expect(header.locator('[data-choice-option="b"][data-choice-chosen]')).toBeVisible();
-  await expect(header.locator("button[data-choice-option]")).toHaveCount(0);
-  await expect(header.getByText("Keep the redirect for a year.")).toBeVisible();
-  await expect(header.getByText("Needs your choice")).toHaveCount(0);
-  await assertNoPageOverflow(page);
-});
-
 /** Every distinct value `read` gives the page from its first paint, recorded
  * in the page itself on each DOM change, so a value drawn and replaced between
  * two Playwright polls is still caught. */
@@ -2636,7 +2355,7 @@ async function recordDraws(page: Page, read: string) {
   });
 }
 
-test("Home and Tasks draw once from all their reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {
+test("Home draws once from all its reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {
   await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
   // The saved snapshot names a task the live read no longer has, and the live
@@ -2655,15 +2374,6 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   const requests: string[] = [];
   page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/")) requests.push(`${request.method()} ${url.pathname}${url.search}`); });
 
-  // The board's first screen: its answer, counts and the queue of decisions.
-  await recordDraws(page, `() => document.querySelector("[data-tasks-board] [data-surface-hero]")?.innerText ?? null`);
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
-  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
-  await page.waitForTimeout(1_500);
-  const tasksDraws = await page.evaluate(() => (window as unknown as { __draws: string[] }).__draws);
-  expect(tasksDraws).toHaveLength(1);
-  expect(tasksDraws[0]).toContain("5 under 7d");
-
   // Home over six synthetic sites with collected numbers, so it draws the
   // dashboard rather than the first-run guide.
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
@@ -2681,24 +2391,11 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   expect(repeated).toEqual([]);
 });
 
-test("an open page hears of a changed task list and new feed events through the change stream, and reads only what changed", async ({ page }) => {
+test("an open Home hears of new feed events through the change stream, and reads only what changed", async ({ page }) => {
   await addAssetByApi(page);
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
   const reads: string[] = [];
   page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/") && url.pathname !== "/api/changes") reads.push(`${url.pathname}${url.search}`); });
-  const stream = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/changes");
-  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
-  expect((await stream).headers()["content-type"]).toContain("text/event-stream");
-  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
-  // The server's first check, which sets what later checks compare with.
-  await page.waitForTimeout(1_500);
-
-  reads.length = 0;
-  expect((await page.request.post("/__journey/more-decisions")).ok()).toBe(true);
-  await expect(page.locator('[data-inbox-row="jt-press"]')).toHaveCount(1, { timeout: 8_000 });
-  // The snapshot, the project's live read, and the sites' read, which carries
-  // each site's task counts; nothing else.
-  expect(new Set(reads)).toEqual(new Set(["/api/work", `/api/tasks?project=${JOURNEY_ASSET}`, "/api/wall"]));
 
   // New stored events for the live feed, on Home over synthetic sites with
   // numbers, which draws the feed: its read, and no other, follows.
@@ -3513,10 +3210,6 @@ test("a one-asset install hides redundant comparisons and filters with one choic
   await page.goto("/alerts");
   await expect(page.locator("[data-alert-filters]")).toHaveCount(0);
   await expect(page.locator("#alerts-asset")).toHaveCount(0);
-  expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
-  await page.goto("/tasks/all");
-  await expect(page.locator("[data-tasks-filters]")).toBeVisible();
-  await expect(page.locator("#tasks-project")).toHaveCount(0);
 });
 
 // A site whose first source is ad revenue or PostHog opens its Overview on
@@ -3828,61 +3521,6 @@ test("the nav fetches a screen's code when the pointer rests on its link", deskt
 
 // Core work is usable before the first managed site and independent of a
 // delayed snapshot-health request.
-test("core Tasks creates, opens and completes work before any user asset", { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
-  const pageErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.goto("/tasks");
-  await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
-  await expect(page.getByText("No task projects available", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings/task-projects");
-  await expect(page.getByRole("button", { name: "New task", exact: true })).toBeVisible();
-
-  expect((await request.post("/__journey/core-tasks")).ok()).toBe(true);
-  expect((await (await request.get("/api/wall")).json()).assets).toEqual([]);
-  const projects = (await (await request.get("/api/work")).json()).projects;
-  expect(projects).toEqual([expect.objectContaining({ asset: JOURNEY_CORE_PROJECT.asset, name: "System", ok: true })]);
-  // Keep the independent snapshot connection unanswered; the live lane and
-  // its real stored project still own whether filing/reading is available.
-  await page.route("**/api/task-source", (route) => route.fulfill({ json: {
-    connected: null, sources: [{ id: "beads", connected: false, projects: 1, readAt: null, failing: 0 }],
-  } }));
-  await page.goto("/tasks");
-  await expect(page.getByText("Nothing is queued.", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "New task", exact: true }).click();
-  const composer = page.getByRole("dialog", { name: "File a task" });
-  await expect(composer.locator("[data-composer-project]")).toHaveValue(JOURNEY_CORE_PROJECT.asset);
-  await expect(composer.getByRole("option", { name: "System (no-)" })).toHaveCount(1);
-  await composer.locator("[data-composer-title]").fill("Verify the synthetic core task");
-  await composer.locator("[data-composer-submit]").click();
-  await expect(composer).toHaveCount(0);
-  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Filed no-f1" })).toBeVisible();
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  await expect(page).toHaveURL(/\/tasks\/no-f1$/u);
-  await expect(page.getByRole("heading", { name: /Verify the synthetic core task/ })).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("textbox", { name: "Close reason" }).fill("Synthetic proof passed in fixture commit 1a2b3c4");
-  await page.getByRole("button", { name: "Close task", exact: true }).click();
-  await expect(page.locator('[data-page-header]').getByText('Closed', { exact: true })).toBeVisible();
-  const state = await (await request.get("/__journey/status")).json();
-  expect(state.tasks).toEqual([expect.objectContaining({ id: "no-f1", status: "closed", close_reason: "Synthetic proof passed in fixture commit 1a2b3c4" })]);
-  expect(state.taskCommands.some((argv: string[]) => argv[2] === "create")).toBe(true);
-  expect(state.taskCommands.some((argv: string[]) => argv[2] === "show" && argv[3] === "no-f1")).toBe(true);
-  expect(state.taskCommands.some((argv: string[]) => argv[2] === "close" && argv[3] === "no-f1")).toBe(true);
-  expect((await (await request.get("/api/wall")).json()).assets).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath("core-tasks-before-sites.png"), fullPage: true });
-  // A link filed before Settings had tabs still lands on its tab.
-  await page.goto("/settings#task-hub");
-  await expect(page).toHaveURL(/\/settings\/task-projects$/u);
-  await expect(page.getByRole("tab", { name: "Task projects", selected: true })).toBeVisible();
-  await expect(page.locator("#task-projects")).toBeVisible();
-  await expect(page.getByText("Waiting for first read", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Connect Beads", exact: true })).toHaveCount(0);
-  await page.goto("/integrations");
-  await expect(page.locator('[data-integration-tile="beads"]')).toHaveCount(0);
-  await assertNoPageOverflow(page);
-  expect(pageErrors).toEqual([]);
-});
-
 for (const [jobId, label] of [['panel-refresh', 'Local research summaries'], ['portfolio-brief', 'Portfolio briefing'], ['dataforseo', 'Search rankings and backlinks'], ['backup', 'Backups']] as const) {
   const job = SCHEDULED_JOBS.find(entry => entry.id === jobId)!;
   const theme = 'dark' as const;
@@ -4013,21 +3651,15 @@ test("global purpose switching preserves routes, filters and asset tabs while th
     }
   }
 
-  const taskUrl = `/tasks/all?status=open&project=${JOURNEY_ASSET}`;
-  await page.goto(taskUrl);
-  await expect(page.locator("[data-tasks-filters]")).toBeVisible();
-  for (const purpose of ["Growth", "Revenue", "Delivery", "Reliability", "Overview"]) {
-    await choose(purpose);
-    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(taskUrl);
-    await expect(page.locator("[data-tasks-filters]")).toBeVisible();
-    await assertNoPageOverflow(page);
+  // The Tasks pages keep their address, filters and all, under every purpose.
+  for (const taskUrl of [`/tasks?view=active&project=${JOURNEY_ASSET}`, "/tasks/jt-review"]) {
+    await page.goto(taskUrl);
+    for (const purpose of ["Growth", "Delivery", "Overview"]) {
+      await choose(purpose);
+      expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(taskUrl);
+      await assertNoPageOverflow(page);
+    }
   }
-
-  await page.goto("/tasks/jt-review");
-  await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
-  await choose("Delivery");
-  await expect(page).toHaveURL(/\/tasks\/jt-review$/);
-  await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
 
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   const tabs = page.locator('main [role="tablist"]').first();

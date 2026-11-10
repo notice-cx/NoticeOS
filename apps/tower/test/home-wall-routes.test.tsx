@@ -858,7 +858,7 @@ describe("Home and the Wall with an unread core task hub", () => {
 
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
     expect(panelFor("Decisions")).toHaveTextContent("Reading your tasks…");
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
+    expect(screen.getByRole("link", { name: "All decisions →" })).toHaveAttribute("href", "/tasks?view=waiting");
   });
 
   it("shows the Wall's tasks as unknown while keeping specific non-task concerns covered", () => {
@@ -979,7 +979,7 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(screen.getByRole("region", { name: "Problems and activity" })).toHaveTextContent("Last 24 hours");
 
     expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
+    expect(screen.getByRole("link", { name: "All decisions →" })).toHaveAttribute("href", "/tasks?view=waiting");
     expect(screen.getByRole("link", { name: "All assets →" })).toHaveAttribute("href", "/assets");
   });
 
@@ -1237,7 +1237,7 @@ describe("Home — Decide", () => {
     expect(rows[1]).toHaveTextContent("Top-priority ask");
     expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
     expect(within(rows[1]!).queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
+    expect(screen.getByRole("link", { name: "All decisions →" })).toHaveAttribute("href", "/tasks?view=waiting");
   });
 
   it("tells an empty inbox apart from an inbox it has never seen", () => {
@@ -1268,7 +1268,7 @@ describe("Home — Decide", () => {
     expect(title).toHaveClass("line-clamp-2");
     expect(title).toHaveAttribute("title", longTitle);
     expect(within(panel).queryAllByRole("button")).toHaveLength(0);
-    expect(within(panel).getByRole("link", { name: "View all 120 decisions →" })).toHaveAttribute("href", "/tasks/all");
+    expect(within(panel).getByRole("link", { name: "View all 120 decisions →" })).toHaveAttribute("href", "/tasks?view=waiting");
   });
 
   it("labels Home's decision count as a lower bound when another project is unread", () => {
@@ -1544,7 +1544,7 @@ describe("Home and Wall phase scoping", () => {
 
     withSecondSite();
     const home = renderHome();
-    expect(home.container.querySelector('a[href="/tasks/all"]')).not.toBeNull();
+    expect(home.container.querySelector('a[href="/tasks?view=waiting"]')).not.toBeNull();
     expect(home.container.querySelector('a[href="/work"]')).toBeNull();
   });
 });

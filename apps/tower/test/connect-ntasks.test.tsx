@@ -1,46 +1,54 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { API_VERSION } from "@notice-cx/ntasks-ui";
 import { fireEvent, render, screen } from "./render";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { LiveTasksPayload, TaskServiceStatus, TasksCapabilities } from "@shared/tasks";
-import type { WorkPayload } from "@shared/work";
+import type { TaskServiceStatus } from "@shared/tasks";
 
-// An installation's tasks live only in its task service, so while none is
-// connected each Tasks page leads to Settings → Task projects instead of a board.
+// The Tower's /tasks is the Ntasks UI, reading and writing as the person
+// signed in to Ntasks in this browser. While no task service is connected it
+// leads to Settings → Task projects instead.
 
-const state = vi.hoisted(() => ({
-  work: null as WorkPayload | null,
-  capabilities: { live: true, reason: null } as TasksCapabilities,
-  boards: {} as Record<string, LiveTasksPayload>,
-  service: undefined as TaskServiceStatus | undefined,
-}));
+const ORIGIN = "https://ntasks.example.com";
+const CLIENT_ID = "tower-client";
+const TOKENS_KEY = `noticeos:ntasks-person:${ORIGIN}:${CLIENT_ID}`;
+const NOT_CONNECTED: TaskServiceStatus = { connected: false, origin: null, projects: null, required: true };
+const CONNECTED: TaskServiceStatus = { connected: true, origin: ORIGIN, required: true, app: { clientId: CLIENT_ID, workspaceId: "w-1" },
+  projects: [{ asset: "example.com", prefix: "md", project: { displayName: "Example", logicalKey: "example.com", projectId: "p-md" } }] };
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
-vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: { assets: [] } }) }));
-vi.mock("@/hooks/useWork", () => ({ useWork: () => ({ data: state.work, isPending: false, isError: false }) }));
-vi.mock("@/hooks/useSettings", () => ({ useSettings: () => ({ data: undefined }) }));
-vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-08-01T12:00:00.000Z") }));
-vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
+const UNREGISTERED: TaskServiceStatus = { ...CONNECTED, app: null };
+
+const state = vi.hoisted(() => ({ service: undefined as TaskServiceStatus | undefined }));
+const api = vi.hoisted(() => ({ registerNtasksApp: vi.fn(async (): Promise<{ clientId: string }> => ({ clientId: "tower-registered" })) }));
+
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn(), message: vi.fn() }), Toaster: () => null }));
+vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), ...api }));
 vi.mock("@/hooks/useTaskService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useTaskService")>();
-  return { ...actual, useTaskService: () => ({ data: state.service }), useNeedsNtasks: () => actual.needsNtasks(state.service) };
+  return { ...actual, useTaskService: () => ({ data: state.service, isPending: state.service === undefined }) };
 });
-vi.mock("@/hooks/useTasks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useTasks")>()),
-  useTasksLive: () => state.capabilities,
-  useTasksLiveRead: () => ({ data: state.capabilities, isPending: false, fetchStatus: "idle" }),
-  useTasksAcross: (projects: string[]) => projects.map((asset) => ({ data: state.boards[asset], isError: false, error: null })),
-}));
 
+import { toast } from "sonner";
 import { deskRoutes } from "@/App";
-import { resetAnswerQueue } from "@/lib/answer-queue";
-import { scenarioBoards, scenarioPayload } from "./tasks-next-fixtures";
+import { ApiError } from "@/lib/api";
+import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
+import { NEWER_NTASKS, OLDER_NTASKS, versionProblem } from "@/routes/TasksRoute";
 
-const NOT_CONNECTED: TaskServiceStatus = { connected: false, origin: null, projects: null, required: true };
+/** An Ntasks at ORIGIN of the given API version, where nobody is signed in unless a request carries `person-token`. */
+function ntasks(version = API_VERSION) {
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/version") return Response.json({ version, oldest: 1 });
+    const authorization = new Headers(init?.headers).get("authorization");
+    if (authorization !== "Bearer person-token") return Response.json({ error: "invalid_token" }, { status: 401 });
+    if (url.pathname === "/api/workspaces") return Response.json({ workspaces: [] });
+    return Response.json({ error: "not_found" }, { status: 404 });
+  });
+  vi.stubGlobal("fetch", fetch);
+  return fetch;
+}
 
 function renderAt(entry: string) {
-  state.work = scenarioPayload();
-  state.boards = scenarioBoards();
   const table = [
     ...deskRoutes.filter((route) => route.path?.startsWith("/tasks")),
     { path: "/settings/task-projects", element: <output data-testid="task-projects" /> },
@@ -56,37 +64,111 @@ function renderAt(entry: string) {
 }
 
 beforeAll(async () => {
+  // The Ntasks UI's toaster asks for the system's theme.
+  window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: () => {},
+    removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
   await import("@/routes/TasksRoute");
-  await import("@/routes/tasks/FocusRoute");
-  await import("@/routes/TaskRoute");
 }, 60_000);
 
 afterEach(() => {
   state.service = undefined;
-  resetAnswerQueue();
+  resetPersonSessions();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 
 describe("the Tasks pages of an installation with no task service connected", () => {
-  it.each(["/tasks", "/tasks/projects", "/tasks/all", "/tasks/focus", "/tasks/md-c1"])("lead from %s to Settings → Task projects", async (entry) => {
+  it.each(["/tasks", "/tasks/focus", "/tasks/md-c1"])("lead from %s to Settings → Task projects", async (entry) => {
     state.service = NOT_CONNECTED;
     const router = renderAt(entry);
     const step = await screen.findByRole("link", { name: /Task projects/u });
-    expect(screen.queryByRole("tab")).toBeNull();
-    expect(document.querySelector("[data-tasks-board], [data-tasks-next], [data-tasks-focus] [data-focus-decision]")).toBeNull();
+    expect(document.querySelector("[data-ntasks]")).toBeNull();
     fireEvent.click(step);
     expect(await screen.findByTestId("task-projects")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/settings/task-projects");
   });
+});
 
-  it.each([
-    ["a Tower whose tasks come from elsewhere", { connected: false, origin: null, projects: null }],
-    ["a connected installation", { connected: true, origin: "https://ntasks.example.com", projects: null, required: true }],
-    ["an installation whose ingest cannot say", { connected: null, origin: null, projects: null, required: true }],
-  ] as [string, TaskServiceStatus][])("draws the board for %s", async (_label, service) => {
-    state.service = service;
+describe("the Ntasks version", () => {
+  it("is a problem only when the Ntasks is older than the pages, or no longer answers their version", () => {
+    expect(versionProblem({ version: 1, oldest: 1 }, 2)).toBe(OLDER_NTASKS);
+    expect(versionProblem({ version: 4, oldest: 3 }, 2)).toBe(NEWER_NTASKS);
+    expect(versionProblem({ version: 2, oldest: 1 }, 2)).toBeNull();
+    expect(versionProblem(null, 2)).toBeNull();
+  });
+
+  it("shows the sentence in place of the pages when the connected Ntasks is older", async () => {
+    state.service = CONNECTED;
+    ntasks(API_VERSION - 1);
     renderAt("/tasks");
-    expect(await screen.findByRole("tab", { name: "Next" })).toHaveAttribute("aria-selected", "true");
-    expect(document.querySelector("[data-connect-ntasks]")).toBeNull();
+    expect(await screen.findByRole("alert")).toHaveTextContent(OLDER_NTASKS);
+    expect(document.querySelector("[data-ntasks]")).toBeNull();
+  });
+});
+
+describe("the Ntasks UI inside the Tower", () => {
+  it("asks a signed-out person to sign in, and starts the Tower's sign-in to that Ntasks", async () => {
+    state.service = CONNECTED;
+    const fetch = ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    const authorize = new URL(String(assign.mock.calls[0]![0]));
+    expect(`${authorize.origin}${authorize.pathname}`).toBe(`${ORIGIN}/api/auth/oauth2/authorize`);
+    expect(authorize.searchParams.get("client_id")).toBe(CLIENT_ID);
+    expect(fetch.mock.calls.every(([input]) => String(input).startsWith(ORIGIN))).toBe(true);
+  });
+
+  it("sends every request to the connected Ntasks with the signed-in person's own token", async () => {
+    state.service = CONNECTED;
+    window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ access: "person-token", refresh: null, expiresAt: Number.MAX_SAFE_INTEGER, name: "Pat Example" }));
+    const fetch = ntasks();
+    renderAt("/tasks");
+    await vi.waitFor(() => expect(fetch.mock.calls.map(([input]) => new URL(String(input)).pathname)).toContain("/api/workspaces"));
+    const reads = fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname !== "/api/version");
+    expect(reads.every(([input]) => String(input).startsWith(ORIGIN))).toBe(true);
+    expect(reads.every(([, init]) => new Headers(init?.headers).get("authorization") === "Bearer person-token")).toBe(true);
+  });
+
+  it("with no Tower client ID saved, registers the Tower in Ntasks on the press, then signs in with the new one", async () => {
+    state.service = UNREGISTERED;
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(api.registerNtasksApp).toHaveBeenCalledOnce();
+    expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe("tower-registered");
+  });
+
+  it("says why when the Tower could not be registered, and starts no sign-in", async () => {
+    state.service = UNREGISTERED;
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    const detail = "Ntasks refused to register the Tower (invalid_client_metadata). Nothing was saved.";
+    api.registerNtasksApp.mockRejectedValueOnce(new ApiError(detail, 502, "ntasks_registration_refused"));
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("signs in again when Ntasks refuses the token this browser still holds", async () => {
+    state.service = CONNECTED;
+    window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ access: "revoked-token", refresh: null, expiresAt: Number.MAX_SAFE_INTEGER, name: "Pat Example" }));
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe(CLIENT_ID);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

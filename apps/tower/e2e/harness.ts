@@ -1166,10 +1166,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // Tasks live in Ntasks from here, the Tower registered there as a
       // connected app: the Tower's server reaches it with the installation's
       // credential, and a browser through `ntasks-route.mjs`.
+      // `?apiVersion=` makes it an Ntasks that names an older API version;
       // `?app=unregistered` starts with no Tower client id saved; `?app=refused` with an Ntasks that will not register it.
+      const apiVersion = url.searchParams.has("apiVersion") ? Number(url.searchParams.get("apiVersion")) : undefined;
       const app = url.searchParams.get("app");
       ntasks = createFixtureNtasks({ rows: () => tasks, changed: publishTasks, project: () => taskProject, towerOrigin: url.origin, now: JOURNEY_NOW,
-        app: app === "unregistered" || app === "refused" ? app : "registered" });
+        app: app === "unregistered" || app === "refused" ? app : "registered", ...(apiVersion === undefined ? {} : { apiVersion }) });
       response = Response.json({ origin: JOURNEY_NTASKS_ORIGIN });
     } else if (url.pathname.startsWith(`${JOURNEY_NTASKS_PATH}/`)) {
       // What the browser sent to the fixture Ntasks's address, answered as it.

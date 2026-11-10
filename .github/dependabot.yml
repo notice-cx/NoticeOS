@@ -17,12 +17,17 @@ updates:
       - dependency-name: "vitest"
         versions: ["5.x"]
     groups:
+      # The Tower's /tasks pages: each release of the Ntasks UI package in a
+      # pull request of its own, every version step included, so the Tower's
+      # browser journeys run against it before it merges.
+      ntasks-ui:
+        patterns: ["@notice-cx/ntasks-ui"]
       cloudflare-toolchain:
         patterns: ["wrangler", "@cloudflare/vite-plugin", "@cloudflare/vitest-pool-workers"]
         update-types: ["minor", "patch"]
       npm-minor-and-patch:
         patterns: ["*"]
-        exclude-patterns: ["wrangler", "@cloudflare/vite-plugin", "@cloudflare/vitest-pool-workers"]
+        exclude-patterns: ["@notice-cx/ntasks-ui", "wrangler", "@cloudflare/vite-plugin", "@cloudflare/vitest-pool-workers"]
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"

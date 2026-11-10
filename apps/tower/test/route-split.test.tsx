@@ -48,7 +48,7 @@ describe("each screen is its own file", () => {
   });
 
   it("every desk screen, the desk shell and the TV load through the router's lazy, each with its own error frame", () => {
-    const redirects = new Set(["/properties", "/properties/:id/:tab?", "/work"]);
+    const redirects = new Set(["/properties", "/properties/:id/:tab?", "/work", "/tasks/all"]);
     const screens = deskRoutes.filter((route) => !redirects.has(route.path ?? ""));
     expect(screens.length).toBeGreaterThan(12);
     for (const route of [...screens, routes[0]!, routes.find((r) => r.path === "/wall")!]) {
@@ -64,6 +64,8 @@ describe("each screen is its own file", () => {
       deskRoutes.find((route) => route.path === path)?.element as ReactElement<{ to: string }>;
     expect(alias("/work").type).toBe(AliasRedirect);
     expect(alias("/work").props).toEqual({ to: "/tasks" });
+    expect(alias("/tasks/all").type).toBe(AliasRedirect);
+    expect(alias("/tasks/all").props).toEqual({ to: "/tasks" });
     expect(alias("/properties").type).toBe(AliasRedirect);
     expect(alias("/properties").props).toEqual({ to: "/assets" });
     expect(deskRoutes.find((route) => route.path === "/properties/:id/:tab?")?.element).toBeDefined();
@@ -79,8 +81,7 @@ describe("each screen is its own file", () => {
     ["/assets/new", () => import("@/routes/AssetNewRoute")],
     ["/assets/:id/:tab?", () => import("@/routes/AssetDetailRoute")],
     ["/alerts/:tab?", () => import("@/routes/AlertsRoute")],
-    ["/tasks", () => import("@/routes/TasksRoute")],
-    ["/tasks/:id", () => import("@/routes/TaskRoute")],
+    ["/tasks/*", () => import("@/routes/TasksRoute")],
     ["/agents", () => import("@/routes/AgentsRoute")],
     ["/financials", () => import("@/routes/FinancialsRoute")],
     ["/health", () => import("@/routes/HealthRoute")],

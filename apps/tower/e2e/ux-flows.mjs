@@ -375,17 +375,6 @@ FLOWS["connect-calendar"] = {
   },
 };
 
-/** Core Tasks opens without any connection. */
-FLOWS["connect-beads"] = {
-  title: "Open the core Tasks board before adding an asset",
-  async setup(page, fixture) { await fixture("/__journey/core-tasks"); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    await w.waitFor("core task project → Next", () => w.page.locator("[data-tasks-next]").waitFor());
-    await w.end("available");
-  },
-};
-
 /** Empty install → a site added in one screen: Home's Add a site opens one
  * question over Home, the domain, whose name is read off it; Add lands on the
  * new asset's Data sources. */
@@ -470,100 +459,6 @@ FLOWS["configure-sources"] = {
   },
 };
 
-/** The inbox: approve a gate and answer an ask, each on its own row (Linear Triage). */
-FLOWS["inbox"] = {
-  title: "Answer the inbox (approve a gate, answer an ask, on the row)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    const gate = w.page.locator('[data-inbox-row="jt-approve"]');
-    await w.click(gate.getByRole("button", { name: "Approve", exact: true }), "Approve", { role: "commit" });
-    const ask = w.page.locator('[data-inbox-row="jt-review"]');
-    await w.click(ask.getByRole("button", { name: "Answer", exact: true }), "Answer", { role: "choose" });
-    await w.fill(ask.getByLabel("Your answer to jt-review"), "Approved wording: Example headline", "Answer");
-    await w.click(ask.getByRole("button", { name: "Send", exact: true }), "Send", { role: "commit" });
-    await w.end("answered");
-  },
-};
-
-/** A question an agent filed with options, picked with one press on its row:
- * the option is the commit, with nothing to open or type first. */
-FLOWS["inbox-choose"] = {
-  title: "Pick an option from the inbox (one press on the row)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/choice-task"); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    const row = w.page.locator('[data-inbox-row="jt-pick"]');
-    await w.click(row.getByRole("button", { name: "(b) Redirect to the new page", exact: true }), "Redirect to the new page", { role: "commit" });
-    await w.end("chosen");
-  },
-};
-
-/** Several decisions taken at once (Gmail, Linear): Select, Select all,
- * then one verb for every selected approval. */
-FLOWS["inbox-bulk"] = {
-  title: "Approve several decisions at once (select, then one press)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/more-decisions"); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
-    const queue = w.page.locator("[data-waiting-list]");
-    await w.waitFor("All tasks → board", () => queue.waitFor());
-    await w.click(queue.getByRole("button", { name: "Select", exact: true }), "Select", { role: "choose" });
-    const bar = w.page.locator("[data-inbox-selection]");
-    await w.click(bar.getByRole("button", { name: "Select all 5", exact: true }), "Select all", { role: "choose" });
-    await w.click(bar.getByRole("button", { name: "Approve 4", exact: true }), "Approve 4", { role: "commit" });
-    await w.end("approved");
-  },
-};
-
-/** A backlog groomed in one sitting (Linear, Jira bulk change): the board
- * narrowed by a label, Select, Select all, then one resolution and one note
- * for every selected task, with one Undo after. */
-FLOWS["tasks-bulk-close"] = {
-  title: "Close several tasks at once (a label, Select all, Already handled)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/backlog"); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
-    await w.waitFor("All tasks → board", () => w.page.locator("[data-tasks-filters]").waitFor());
-    const fold = w.page.locator("[data-tasks-filters] [data-filter-toggle]");
-    if (await fold.isVisible()) await w.click(fold, "Filters", { role: "choose" });
-    await w.fill(w.page.locator("#tasks-label"), "groom", "Label");
-    const table = w.page.locator("[data-tasks-table]");
-    await w.click(table.getByRole("button", { name: "Select", exact: true }), "Select", { role: "choose" });
-    const bar = w.page.locator("[data-tasks-selection]");
-    await w.click(bar.getByRole("button", { name: "Select all 4", exact: true }), "Select all", { role: "choose" });
-    await w.click(bar.getByRole("button", { name: "Close 3 as", exact: true }), "Close 3 as", { role: "choose" });
-    await w.click(w.page.getByRole("menuitem", { name: "Already handled", exact: true }), "Already handled", { role: "choose" });
-    const line = bar.locator('[data-task-form="close-as"]');
-    await w.fill(line.getByLabel("Note"), "Handled by the spring redesign", "Note");
-    await w.click(line.getByRole("button", { name: "Close 3 tasks", exact: true }), "Close 3 tasks", { role: "commit" });
-    await w.end("closed");
-  },
-};
-
-/** A question declined with a resolution from its row (Jira's resolutions):
- * Close as, the resolution, a one-line note, then the commit, with Undo after.
- * The rows under Next's first decision carry one button each, so the decline
- * is on All tasks, where every decision's row offers Close as. */
-FLOWS["inbox-close-as"] = {
-  title: "Close a question as Won't do (Close as on the row, a note)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
-    await w.waitFor("All tasks → board", () => w.page.locator("[data-waiting-list]").waitFor());
-    const ask = w.page.locator('[data-inbox-row="jt-review"]');
-    await w.click(ask.getByRole("button", { name: "Close as", exact: true }), "Close as", { role: "choose" });
-    await w.click(w.page.getByRole("menuitem", { name: "Won't do", exact: true }), "Won't do", { role: "choose" });
-    const line = w.page.locator('[data-task-form="close-as"]');
-    await w.fill(line.getByLabel("Note"), "The launch copy is already approved", "Note");
-    await w.click(line.getByRole("button", { name: "Close task", exact: true }), "Close task", { role: "commit" });
-    await w.end("closed");
-  },
-};
-
 /** File task on a saved finding's row, prefilled from the finding (PagerDuty
  * → Jira): two presses, on the page it is read on. */
 FLOWS["file-task-from-finding"] = {
@@ -579,24 +474,6 @@ FLOWS["file-task-from-finding"] = {
     const form = w.page.locator("[data-task-composer]");
     await w.click(form.locator("[data-composer-submit]"), "File task", { role: "commit" });
     await awaitSaved(w, "File → filed");
-    await w.end("filed");
-  },
-};
-
-/** A new task from the Tasks page: the composer opens in place. */
-FLOWS["file-task"] = {
-  title: "File a task (Tasks → New task)",
-  async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
-  async run(w) {
-    await nav(w, "Tasks");
-    await w.click(w.page.getByRole("button", { name: /New task|File a task/ }).first(), "New task", { role: "reveal" });
-    const form = w.page.locator("[data-task-composer]");
-    await w.fill(form.locator("[data-composer-title]"), "Fix the sitemap drop on journey.example", "Title");
-    // The project is chosen only when the composer has not already chosen it.
-    const project = form.locator("[data-composer-project]");
-    if (!(await project.inputValue())) await w.select(project, { index: 1 }, "Project");
-    await w.click(form.locator("[data-composer-submit]"), "File task", { role: "commit" });
-    await w.waitFor("File → filed", () => settle(w.page));
     await w.end("filed");
   },
 };
@@ -913,7 +790,7 @@ FLOWS["arrange-sites"] = {
 
 const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/growth`, `/assets/${ASSET}/financials`,
   `/assets/${ASSET}/search`, `/assets/${ASSET}/journeys`, `/assets/${ASSET}/codebase`, `/assets/${ASSET}/health`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
-  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/tasks/projects", "/tasks/all", "/agents", "/integrations",
+  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
   "/health", "/health/operations", "/health/operations/portfolio-brief", "/workflows", "/workflows/watch-windows", "/financials",
   "/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation", "/wall"];

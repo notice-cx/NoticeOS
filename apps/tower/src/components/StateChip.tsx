@@ -54,9 +54,8 @@ export interface StateChipProps {
    * unresolved state (needs-setup), keeping it within the tone's own color. */
   attention?: boolean;
   /**
-   * A glyph in place of the dot, for a state whose vocabulary already owns one
-   * (the task face in `routes/tasks/task-face.tsx`). Inherits the tone's text
-   * colour.
+   * A glyph in place of the dot, for a state whose vocabulary already owns
+   * one. Inherits the tone's text colour.
    */
   glyph?: ReactNode;
 }

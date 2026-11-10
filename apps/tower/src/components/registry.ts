@@ -489,36 +489,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "StateChip",
     file: "components/StateChip.tsx",
     purpose:
-      "A boolean/enum state as a dot glyph + label, colored by meaning. SeverityDot is severity-only; Badge has no meaning-color. `dot=hollow` = the operator-declined notch; `attention` = a soft halo for an unresolved state. `glyph` replaces the dot where the state's own vocabulary already owns a shape — the task lifecycle on /tasks/:id, from the one status face the Tasks board shares (routes/tasks/task-face.tsx) — since a dot there would say the tone twice and the state not at all. STATE_TONE[tone].text is the chip's ink for the same state drawn compact (glyph + word in a table cell).",
+      "A boolean/enum state as a dot glyph + label, colored by meaning. SeverityDot is severity-only; Badge has no meaning-color. `dot=hollow` = the operator-declined notch; `attention` = a soft halo for an unresolved state. `glyph` replaces the dot where the state's own vocabulary already owns a shape, since a dot there would say the tone twice and the state not at all. STATE_TONE[tone].text is the chip's ink for the same state drawn compact (glyph + word in a table cell).",
     variants: ["connected", "affirmative", "caution", "critical", "declined", "na", "neutral", "hollow dot", "attention halo", "lifecycle glyph"],
-  },
-  {
-    name: "FactChip",
-    file: "components/FactChip.tsx",
-    purpose:
-      "A record's fact as its value, sized to its content, that edits where it is read: a press opens a small popover with the choices, a typed value or a date, a choice or Enter saves at once (the caller's save carries the Undo toast) and Escape leaves it as it was. Without write permission it is the same chip with nothing to press. KnobEditor edits a setting with its own Save and range; this is for a record's field that changes now and then (the task page's facts rail).",
-    variants: ["plain", "link", "choice", "choice with a typed value", "text", "date with presets", "split (link + editor)", "quiet (an absence)"],
-  },
-  {
-    name: "ChoiceButtons",
-    file: "components/ChoiceButtons.tsx",
-    purpose:
-      "A question and one button per option, the recommended option first with a star and the word Recommended, each option's detail under its label, a one-line Note and the caller's other verbs beside it; a press hands back the option and the note. With a recorded pick the options are a record with the chosen one filled. FactChip edits a record's field from a list; this is a person's one-press answer to a question an agent asked (the task page's header and the Your decisions row).",
-    variants: ["two options", "three options", "six options", "picked", "unavailable (the reason written under them)"],
-  },
-  {
-    name: "ResolutionChips / CloseAsMenu / CloseNoteForm",
-    file: "components/CloseResolution.tsx",
-    purpose:
-      "How a task's close ends. ResolutionChips is the task page's Close: five chips in one radio group, Done first and picked (Done, Won't do, Duplicate, Can't reproduce, Already handled). CloseAsMenu is a row's quick menu of the four closes where nothing shipped, each with its glyph; with a count it is a selection's Close N as. CloseNoteForm is the one line such a close takes: its resolution named, a Note, and for a duplicate the other task's id first; Enter sends and Escape steps back, and the caller's send carries the Undo. Given several ids it is a selection's line: Close N tasks, and under Duplicate of the sentence that every one becomes a duplicate of that task. ChoiceButtons answers an agent's question; these close a task.",
-    variants: ["Done picked (the page's shipped line under it)", "Won't do picked (one line)", "a row's menu open", "a duplicate's line", "read-only (the reason written beside it)", "a selection's line (shown with SelectionBar)"],
-  },
-  {
-    name: "SelectionBar / SelectToggle / SelectBox",
-    file: "components/SelectionBar.tsx",
-    purpose:
-      "A list's Select, shared by Your decisions and the All tasks table: SelectToggle (Select, then Done) beside the list's heading, SelectBox on each row a person can act on, and SelectionBar over the rows with N selected, Select all N or Clear, the verbs for the picked rows (each naming how many it sends) and the line a verb opens. useSelection holds the picks; the list reads them against the rows it still shows. One action, one Undo.",
-    variants: ["nothing picked", "some picked with a detail beside the count", "all picked (Clear)", "a verb's line open (Close N as, Duplicate)"],
   },
   {
     name: "SiteArrange / ShownOnSwitches / LiveSiteArrange / RetiredChip",
@@ -534,13 +506,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "Where a drag will land, before the drop: a line in the accent colour with a short label on it (Above Assets). Drawn only where the drop moves something, so no refusal is needed. The TV editor's preview and Arrange place it.",
     variants: ["on a row's top edge"],
-  },
-  {
-    name: "TaskTimeline",
-    file: "components/TaskTimeline.tsx",
-    purpose:
-      "What happened to one task, and when: a compact EventTimeline strip ending at now over the same moments as a column in time order (filed, claimed, each comment, the close), each with who did it as the Wall's feed draws an agent, a close's commits and links as chips, and the next comment's box last. EventTimeline alone has no room for who and what was written.",
-    variants: ["filed, claimed, comment, closed", "an undated comment listed last", "with the comment box"],
   },
   {
     name: "UnknownPriceCount",
@@ -874,6 +839,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     ],
     demo:
       "The phone fold is the viewport, not a prop; pinned in test/components.test.tsx.",
+  },
+  {
+    name: "MarkdownText",
+    file: "components/MarkdownText.tsx",
+    purpose: "A task's Markdown as the Tower draws it, in the composer's preview: headings, lists and task lists, tables, code, callouts, task ids and paths as chips. Raw HTML and unsafe links are written out as text.",
+    variants: ["paragraphs and headings", "task list", "table", "code", "callout"],
   },
   {
     name: "TaskComposer / FileTaskButton",
@@ -1443,13 +1414,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["the Sense to Learn loop", "system topology", "task dependencies", "not connected"],
   },
   {
-    name: "DependencyGraph",
-    file: "components/viz/DependencyGraph.tsx",
-    purpose:
-      "One item between its neighbours in a chain of work: what it waits on to its left, what waits on it to its right, each a card that opens its page, the edges routed and drawn by FlowGraph's own `flowRoutes` and `FlowEdgePath`. FlowGraph lays out a whole graph from its nodes' states; this keeps one item in the middle and draws each neighbour in its own status mark.",
-    variants: ["blockers and blocked", "only blockers", "stacked in a narrow column", "a broken and a moving edge"],
-  },
-  {
     name: "IncidentList",
     file: "components/viz/IncidentList.tsx",
     purpose:
@@ -1492,20 +1456,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "A count narrowing step by step on one ruler (tracked → ranking → top 10 → top 3), the figure at each row's end with its share of the step before; a step nobody measured is a hatched track and a word, never a zero.",
     variants: ["rank funnel with shares and an unmeasured step"],
-  },
-  {
-    name: "TaskProgressBar",
-    file: "components/viz/TaskProgressBar.tsx",
-    purpose:
-      "A project's tasks as one row of equal segments, filled from the left: done in ink, in progress half filled, waiting on the operator outlined in warn, blocked filled in warn, ready and waiting as the empty track, parked and unplaced work hatched. Its accessible name is the counts as a sentence; past 40 tasks it draws one run per state.",
-    variants: ["needs you and blocked", "moving with parked work", "finished", "small"],
-  },
-  {
-    name: "ProjectJourneys",
-    file: "components/viz/ProjectJourneys.tsx",
-    purpose:
-      "Every project on one time axis, weeks back and ahead of today: closes as dots, work in progress as a green run to today, a question waiting on the operator as a warn run from the day it was asked, held tasks as hollow circles past today, parked wake-ups and kill dates ahead on a dashed track. Labels move over the track rather than overlap; the box scrolls sideways on a phone.",
-    variants: ["three projects around today"],
   },
   {
     name: "WallHealth",

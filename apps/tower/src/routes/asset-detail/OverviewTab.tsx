@@ -52,6 +52,7 @@ import { FitLabel } from "@/components/viz/FitLabel";
 import { IncidentList, type Incident } from "@/components/viz/IncidentList";
 import { StatTile, type StatRole } from "@/components/viz/StatTile";
 import { watchOutcome } from "@/components/watch-outcome";
+import { isGate } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,6 @@ import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history
 import { useView } from "@/hooks/useView";
 import { useRange } from "@/routes/asset-detail/useRange";
 import { ReadbackLink, watchRef } from "@/routes/asset-detail/WatchComposer";
-import { askFace } from "@/routes/tasks/task-face";
 
 /**
  * The Overview tab, the index tab, so `/assets/:id` is this. It answers one
@@ -649,9 +649,10 @@ export function NeedsYou({
           marks={{ "data-subject": `task:${item.id}` }}
           to={`/tasks/${encodeURIComponent(item.id)}`}
           returnTo={`${location.pathname}${location.search}`}
-          // The Tasks board's own ask face: warn at every priority and a
-          // gate's △. Priority is the order, never the colour.
-          {...askFace(item)}
+          // Warn at every priority, and a gate's △. Priority is the order,
+          // never the colour.
+          tone="warn"
+          glyph={isGate(item) ? "△" : "!"}
           title={item.title}
           caption={
             <>

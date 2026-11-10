@@ -168,8 +168,6 @@ that can be read quickly, and the kit has a component for it:
 | many units × many states | a grid, one cell per pair, the state as fill, the age in the failing cell | `HealthGrid` |
 | events in time | rows on a time axis with the current time marked, problems as spans from onset to now | `EventTimeline` |
 | how things connect or flow | nodes and edges, each node in its state with its live count, the broken one highlighted in place | `FlowGraph` |
-| one item and what it waits on | the item in the middle, what it waits on to its left and what waits on it to its right, each in its state, the edges drawn as `FlowGraph` draws them | `DependencyGraph` |
-| one record's history | its moments on a time axis that ends at now, then the same moments in order with who did each and what they wrote | `TaskTimeline` |
 | where things are | a map, when place is the data (visitors by country), never as decoration | — |
 | a queue | its size, the spread of its items' ages, then the rows with age as a bar length | `DecisionQueue` |
 | a quantity over time and who contributed it | columns split by contributor in neutral colours, each contributor named beside the newest complete column, the current column outlined | `StackedWeeks` |
@@ -180,9 +178,6 @@ that can be read quickly, and the kit has a component for it:
 | session exploration | a 100% session reference, proportional branches across ordered sections, recorded exits, returns, reach of the selected section and weekly history on an adaptive percentage axis; missing paths and incomplete days retain their coverage labels | `SessionExploration` |
 | ordered conversion and its changes over time | a measured visitor reference at 100%, aligned bars with each step's percentage of visitors and its drop-off, the largest absolute step loss highlighted, the selected step’s weekly reach below the funnel on an adaptive percentage axis and an inspectable continuation grid; reports without visitor totals show percentages of journey entrants | `JourneyMonitor` |
 | why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
-| one project's tasks by state | one row of equal segments, one per task, filled from the left as the work finishes, its counts as the bar's accessible sentence | `TaskProgressBar` |
-| projects on a time axis, with what waits on the operator drawn from the day it was asked | one row per project on an axis weeks either side of today: closes as dots, work in progress as a green span to today, the open question as a span in the warning colour from the day it was asked, and held, parked and kill-dated work just ahead of today | `ProjectJourneys` |
-| a queue ranked by what each item is worth, each with its reason | the first item whole, with its figures and its verbs, then one row per item: its rank, its reason in one muted line, the money over its odds and minutes, its age as a bar length and its verb | the Tasks page's Next tab (`NextDecision`, `RankedRows`) |
 
 **Tabs are the only way a page in the Tower is divided into sections.** When
 a page covers more than one subject, `Tabs` divides it: the same bar on a
@@ -506,50 +501,15 @@ closed bars), then one board grouped by asset, worst first, each reading drawn
 on a `NormalBand` against the range its own rule computed, and anything open
 for over a week collapsed under one line.
 
-**Tasks opens on what to do next, and why**, in three tabs. Next is one
-sentence naming the decision to take first and its strongest fact, the line
-of counts, a brief of three to five sentences on request, the first decision
-raised whole (`NextDecision`: its card as `WhyItRanks`, "Why first?" for the
-rest of the card, the same verbs as its queue row), then the other decisions,
-the agents' next work and the held-back work as rows (`RankedRows`,
-`NotNow`), each with its one reason. The decisions and the agents' ready work
-are ranked by policy v1.0 over each task's card ([doc 04](04-decision-policy.md));
-a task with no card is listed after the ranked ones and never scored. Focus
-(`/tasks/focus`) takes the decisions one at a time, full width, with an
-option's letter, Enter and → as its keys. Projects shows each epic as a card
-of its asset, with its tasks as a `TaskProgressBar` and its next step or its
-question on the card, or every project on one `ProjectJourneys` axis.
-**All tasks shows the size and age of the queue**: the answer's figures each with
-its change chip against a week ago or last week by today (`WorkWeekChip`, the
-Wall's own), the tasks waiting for the operator as a `DecisionQueue` with the
-spread of their ages, closed and filed a day over two weeks as two dated
-`BarStrip`s on one scale with this week's closes against last week's on a
-`PaceBar`, each project's week as the Wall's `WorkFlow` chart, and the most
-stuck epic as a `FlowGraph`
-whose blocked edges are drawn as broken lines, with a rail of project cards to
-pick another epic. The full task table follows, with each task's
-assignee on its row.
-
-**A task's page shows one task whole**: a header band in its type's surface
-(the alert tint for an open bug, the neutral one for every other type) with
-the type's mark beside the title, the state, priority and holder chips, an
-epic's tasks as one segment each, and the actions (a question with choices
-draws its options in the band, as `ChoiceButtons`, and the pick stays there as
-a record once made; Close opens the five ways a close ends as one row of
-chips, `ResolutionChips`, Done first, and a close where nothing shipped is
-one line sent through the inbox's Undo, then read in the band as "Closed as
-Won't do"); under it one raised card
-whose sections are divided inside it ("Why it ranks" as `WhyItRanks` when
-the task carries a card, its form opened in place by Edit; the description in
-the task guide's labelled sections; **Done when** as a checklist whose boxes
-write the flipped line back; a `DependencyGraph` when the task waits on
-others or others wait on it; an epic's tasks; and a `TaskTimeline` ending in
-the comment box). The description, Done when and comments are Markdown drawn
-by one renderer (`task-markdown.tsx`) that emits React elements and no raw
-HTML, links only `http(s)`, `mailto:` and asset-relative addresses, and
-loads images only from `http(s)`. Beside the card is a rail of facts, Kind
-among them, each a `FactChip` that edits in place with an Undo. On a phone the
-facts wrap as one row of chips under the header.
+**Tasks is the Ntasks web app**, drawn from the `@notice-cx/ntasks-ui`
+package in Ntasks's own design system, Precise
+([Ntasks docs/design.md](https://github.com/notice-cx/Ntasks/blob/main/docs/design.md)).
+The Tower's sidebar stays beside it, and the app's own navigation opens from
+the Sidebar button at the start of its top bar. The composer the Tower's other
+pages open, **File a task**, previews a task's Markdown with `MarkdownText`,
+one renderer that emits React elements and no raw HTML, links only
+`http(s)`, `mailto:` and asset-relative addresses, and loads images only from
+`http(s)`.
 
 **Agents shows who did the work**: the tasks closed in the last seven days
 against the seven days before, eight weeks of closed tasks as `StackedWeeks`
@@ -827,7 +787,6 @@ from its starting point to its result:
   test message is delivered, the message shown before the press.
 - **Connect calendar feeds** — Integrations: a secret feed address pasted on
   its row, read once before it is saved.
-- **Open the core Tasks board** — Tasks, before any asset exists: the board.
 - **Add an asset** — Add your first asset: the domain, type defaulting to Website, name inferred, ending on
   its Data sources.
 - **New asset to first data** — Add an asset, then its Bing row's Connect: key,
@@ -836,20 +795,8 @@ from its starting point to its result:
   row, open the asset: its clicks on screen.
 - **Configure an asset's data sources** — the asset's Data sources: skip one with
   a reason, set a market.
-- **Answer the inbox** — Tasks: approve a gate and answer a request, on the
-  row.
-- **Pick an option from the inbox** — Tasks: one press on an option, on the
-  question's row.
-- **Approve several decisions at once** — Tasks: Select, Select all, then one
-  Approve for every selected approval, with one Undo.
-- **Close a question as Won't do** — Tasks: Close as on the question's row,
-  Won't do, a note, Close task, with Undo.
-- **Close several tasks at once** — Tasks: a label in the filters, Select
-  beside All tasks, Select all, Close 3 as, Already handled, a note, Close 3
-  tasks, with one Undo.
 - **File a task from a finding** — the asset page: File task on the finding,
   prefilled.
-- **File a task** — Tasks → New task.
 - **Choose a view on the first run** — fresh install, Home: one choice under
   "What do you want to focus on?" saves the personal purpose. Skip dismisses
   it without writes.
@@ -951,20 +898,15 @@ its component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
 `EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue`,
 `IncidentList`, `ChangeRows` and `FunnelBars` in `components/viz/` are the
 kit, shown with invented figures at `/dev/visual-kit`. `WhyItRanks` (a task's
-card as figures), `TaskProgressBar` (one project's tasks by state) and
-`ProjectJourneys` (every project on one time axis), in the same folder, are
-shown in the `/dev/kitchen-sink` gallery. One `Card` with four
+card as figures), in the same folder, is shown in the `/dev/kitchen-sink`
+gallery. One `Card` with four
 kinds. `PageAnswer`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for
 a figure combined with its series; `HeroChart` for a dated chart with keys,
 event marks and keyboard inspection; `Sparkline` and `MinutePulse` for the
 compact shapes. `ListPanel` / `ListRow` for three rows that expand in place or
 link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
-`PriorityBar` for a state or a quantity with its icon. `FactChip` for a
-record's fact that edits where it is read; `ChoiceButtons` for a person's
-one-press pick between the options an agent offered; `ResolutionChips`,
-`CloseAsMenu` and `CloseNoteForm` for how a task's close ends; `DependencyGraph` and
-`TaskTimeline` for one task's neighbours and its history. `EmptyState`,
+`PriorityBar` for a state or a quantity with its icon. `EmptyState`,
 `ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
 designed empty, failed and loading state, `Skeleton` for one block of a
 loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the

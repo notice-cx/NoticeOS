@@ -445,7 +445,7 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
       totalNote={note}
       title="Decisions"
       compact
-      action={{ label: "All tasks →", to: "/tasks/all" }}
+      action={{ label: "All decisions →", to: "/tasks?view=waiting" }}
       limit={DECIDE_ROWS}
       empty={empty}
       className="flex-1"

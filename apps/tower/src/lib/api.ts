@@ -1243,7 +1243,7 @@ export interface NewTask {
   parent?: string;
   acceptance?: string;
   metadata?: Record<string, unknown>;
-  /** What the work is worth, which the Tower ranks by; the lane records who wrote it and when. */
+  /** What the work is worth; the lane records who wrote it and when. */
   card?: TaskCard;
   changeClass?: TaskChangeClass;
 }

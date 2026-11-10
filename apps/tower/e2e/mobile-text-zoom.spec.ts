@@ -32,7 +32,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
       }
       const rows: object[] = [];
       try {
-        for (const [route, name] of [['/', 'home'], ['/assets', 'sites'], ['/alerts', 'alerts'], ['/tasks/all', 'tasks']] as const) {
+        for (const [route, name] of [['/', 'home'], ['/assets', 'sites'], ['/alerts', 'alerts']] as const) {
           await page.goto(route);
           const main = page.getByRole('main');
           const heading = main.getByRole('heading', { level: 1 });
@@ -91,15 +91,6 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             const named = answer.locator('a[data-sites-answer-site]').first();
             await (await named.count() ? named : row.getByRole('link').first()).click();
             await expect(page).toHaveURL(/\/assets\/[^/]+/);
-          }
-          if (state === 'populated' && name === 'tasks') {
-            // The answer leads; its first row still expands in place.
-            const first = main.locator('[data-inbox-row], [data-task-row]').first();
-            const expand = first.getByRole('button').filter({ has: page.locator('[data-row-affordance="expand"]') });
-            await expect(expand).toHaveCount(1);
-            await expand.click();
-            await expect(expand).toHaveAttribute('aria-expanded', 'true');
-            await expect(first.locator('[data-list-row-body]')).toBeVisible();
           }
         }
         expect(errors).toEqual([]);
