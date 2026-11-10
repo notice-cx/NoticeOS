@@ -14,7 +14,7 @@ export interface JourneyReading {
 export function journeyReading(definition: JourneyDefinition, period: JourneyPeriod | null): JourneyReading {
   const missing = { counts: [], rate: null, largestLoss: null, visitors: null, visitorReason: null, rateBasis: "entrants" as const };
   if (definition.kind === "exploration") return { ...missing, reason: "Session paths require separate collection." };
-  if (!period) return { ...missing, reason: "No ordered report has been collected for this period." };
+  if (!period) return { ...missing, reason: definition.source === "first-party" ? "The asset has not reported this journey yet." : "No ordered report has been collected for this period." };
   if (!period.complete || period.quality !== "complete") return { ...missing, reason: period.reason ?? (period.quality === "sampled" ? "This report is sampled. Conversion comparisons are unavailable." : "This period has no complete ordered report.") };
   if (period.steps.length !== definition.steps.length || period.steps.some((step, i) => step.id !== definition.steps[i]?.id || step.users === null || step.users < 0 || (i > 0 && step.users > (period.steps[i - 1]?.users ?? -1)))) {
     return { ...missing, reason: "These step counts cannot be compared." };
@@ -63,6 +63,7 @@ export function journeyStepChange(definition: JourneyDefinition, period: Journey
 }
 
 export function journeyWindow(definition: JourneyDefinition): string {
+  if (definition.source === "first-party") return "In order · steps counted by the asset";
   const limits = definition.steps.slice(1).map((step) => step.withinSeconds).filter((value): value is number => value !== undefined);
   if (limits.length === 0) return "In order · no step time limit";
   const label = (seconds: number) => seconds % 86_400 === 0 ? `${seconds / 86_400} day${seconds === 86_400 ? "" : "s"}` : seconds % 3_600 === 0 ? `${seconds / 3_600} hours` : `${seconds} seconds`;

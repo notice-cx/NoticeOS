@@ -26,7 +26,13 @@ const FIRST_PARTY_JOURNEY = schema({ id: ID, label: LABEL, goal: { type: 'string
     kind: { type: 'string', enum: ['exploration'] }, source: { type: 'string', enum: ['first-party'] },
     reportingLagDays: { type: 'integer', minimum: 1, maximum: 14, description: 'Complete-report delay in days; defaults to one.' },
     status: { type: 'string', enum: ['active', 'planned'] }, steps: { type: 'array', maxItems: 0 } }, ['id', 'label', 'goal', 'kind', 'source', 'status', 'steps']);
-const JOURNEY = { anyOf: [LEGACY_JOURNEY, FIRST_PARTY_JOURNEY] };
+const SITE_STEP = schema({ id: ID, label: LABEL,
+    alternatives: { type: 'array', maxItems: 0, description: 'Always empty: the asset counts this step and reports it under this id.' } }, ['id', 'label', 'alternatives']);
+const FIRST_PARTY_FUNNEL = schema({ id: ID, label: LABEL, goal: { type: 'string', minLength: 1, maxLength: 120 },
+    kind: { type: 'string', enum: ['funnel'] }, source: { type: 'string', enum: ['first-party'] },
+    reportingLagDays: { type: 'integer', minimum: 1, maximum: 14, description: 'Complete-report delay in days; defaults to one.' },
+    status: { type: 'string', enum: ['active', 'planned'] }, steps: { type: 'array', minItems: 2, maxItems: 10, items: SITE_STEP } }, ['id', 'label', 'goal', 'kind', 'source', 'status', 'steps']);
+const JOURNEY = { anyOf: [LEGACY_JOURNEY, FIRST_PARTY_JOURNEY, FIRST_PARTY_FUNNEL] };
 function refuse(message) { throw new McpToolError(message); }
 function only(args, allowed) {
     const unknown = Object.keys(args).filter(key => !allowed.includes(key));
@@ -78,7 +84,7 @@ export const JOURNEY_MCP_TOOLS = Object.freeze([
             return send(context, `/api/assets/${encodeURIComponent(assetOf(args))}/journeys`);
         } },
     { name: 'save_journey',
-        description: 'Create or replace a GA4 journey using exact events, page paths and event parameters, or a first-party session exploration with source first-party and an empty steps list. Use edit_token null to create, or the current token from get_journeys to update. Repeating the same desired state is unchanged. Active GA4 funnels are collected daily; planned journeys are not collected. Saving does not fetch provider data. Set dry_run true to validate without saving.',
+        description: 'Create or replace a GA4 journey using exact events, page paths and event parameters, a first-party session exploration with source first-party and an empty steps list, or a funnel the asset counts itself with source first-party and steps whose alternatives are empty; the asset then sends daily firstPartyFunnels reports under those step ids. Use edit_token null to create, or the current token from get_journeys to update. Repeating the same desired state is unchanged. Active GA4 funnels are collected daily; planned journeys are not collected. Saving does not fetch provider data. Set dry_run true to validate without saving.',
         inputSchema: schema({ asset: ASSET, journey: JOURNEY,
             edit_token: { type: ['string', 'null'], minLength: 1, maxLength: 256, description: 'null for creation, otherwise the edit token returned by get_journeys.' },
             dry_run: { type: 'boolean' } }, ['asset', 'journey', 'edit_token']),

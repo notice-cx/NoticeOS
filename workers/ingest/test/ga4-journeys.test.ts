@@ -82,6 +82,15 @@ describe('GA4 ordered journey collection', () => {
       ] } } },
     ] } });
   });
+  it('sends no GA4 request for a funnel the site reports itself', async () => {
+    let requests = 0;
+    const fetchImpl: typeof fetch = async () => { requests++; return Response.json(response()); };
+    const siteReported: JourneyDefinition = { ...DEFINITION, id: 'contribution', source: 'first-party',
+      steps: DEFINITION.steps.map(({ id, label }) => ({ id, label, alternatives: [] })) };
+    expect(await collect(fetchImpl, { definitions: [siteReported] })).toEqual([]);
+    expect(requests).toBe(0);
+  });
+
   it('collects exact page paths through the filter dimension accepted by Funnel conditions', async () => {
     const fetchImpl: typeof fetch = async (_url, init) => {
       if (String(_url).endsWith(':runReport')) return Response.json(visitorResponse());

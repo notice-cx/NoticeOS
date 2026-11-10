@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { ArrowDown, Plus, Users } from "lucide-react";
-import { type JourneyDefinition, type JourneyPeriod, type JourneySnapshot } from "@noticeos/contract/journeys";
+import { type JourneyDefinition, type JourneyFunnelResult, type JourneyPeriod, type JourneySnapshot } from "@noticeos/contract/journeys";
 import { Button } from "@/components/ui/button";
 import { JourneyDefinitionEditor } from "@/components/JourneyDefinitionEditor";
 import { formatCalendarDate, formatCalendarRange, formatInt, formatTimestamp } from "@/lib/format";
@@ -23,6 +23,8 @@ export interface JourneyMonitorProps {
     definitions: readonly JourneyDefinition[];
     snapshot: JourneySnapshot | null;
     sessionExploration?: readonly SessionExplorationSnapshot[];
+    /** Results for funnels the asset counts itself. */
+    firstPartyFunnels?: readonly JourneyFunnelResult[];
     onSave?: (next: JourneyDefinition[]) => Promise<JourneySaveOutcome>;
     readOnlyReason?: string | null;
     eventNames?: readonly string[];
@@ -60,7 +62,7 @@ function Count({ value }: {
 function Rate({ value }: {
     value: number | null;
 }) { const current = useAnimatedNumber(value); return <>{percent(current)}</>; }
-function JourneySummary({ definition, reading, delta, prior, compare, available, order }: {
+function JourneySummary({ definition, reading, delta, prior, compare, available, order, unit }: {
     order?: readonly JourneySummaryMetric[];
     definition: JourneyDefinition;
     reading: JourneyReading;
@@ -68,12 +70,18 @@ function JourneySummary({ definition, reading, delta, prior, compare, available,
     prior: JourneyPeriod | null;
     compare: boolean;
     available: boolean;
+    unit: string;
 }) {
     const loss = reading.largestLoss;
     const lost = loss === null ? null : reading.counts[loss - 1]! - reading.counts[loss]!;
     const lossRate = lost !== null && loss !== null && reading.counts[loss - 1]! > 0 ? lost / reading.counts[loss - 1]! * 100 : null;
     const metrics = {
-      visitors: (<div key="visitors" className="journey-kpi journey-kpi-visitors">
+      // An asset-reported funnel has no visitor baseline, so its starting tile is the first step.
+      visitors: definition.source === "first-party" ? (<div key="visitors" className="journey-kpi journey-kpi-visitors">
+    <span className="journey-kpi-label"><Users aria-hidden/>Entered</span>
+    <strong className="journey-kpi-number"><Count value={available ? reading.counts[0] ?? null : null}/></strong>
+    <p>{unit} · {definition.steps[0]?.label}</p>
+    </div>) : (<div key="visitors" className="journey-kpi journey-kpi-visitors">
     <span className="journey-kpi-label"><Users aria-hidden/>Visitors</span>
     <strong className="journey-kpi-number"><Count value={available ? reading.visitors : null}/></strong>
     <p>{reading.visitors === null ? "Visitor baseline unavailable" : reading.visitors === 0 ? "No measured visitors" : "100% · all measured visitors"}</p>
@@ -93,7 +101,7 @@ function JourneySummary({ definition, reading, delta, prior, compare, available,
     <strong className="journey-kpi-number">
     <Rate value={available ? lossRate : null}/>
     </strong>
-    <span className="journey-kpi-basis">step drop-off · <Count value={available ? lost : null}/> people</span>
+    <span className="journey-kpi-basis">step drop-off · <Count value={available ? lost : null}/> {unit}</span>
     <p>{loss === null ? "No measured loss" : `${definition.steps[loss - 1]!.label} → ${definition.steps[loss]!.label}`}</p>
     </div>),
       change: (<div key="change" className="journey-kpi journey-kpi-change" data-trend={available && compare ? trend(delta) : "neutral"}>
@@ -105,7 +113,7 @@ function JourneySummary({ definition, reading, delta, prior, compare, available,
     return <div className="journey-summary" data-surface-hero>{(order ?? ["visitors", "completion", "loss", "change"]).map((key) => metrics[key])}</div>;
 }
 /** Ordered users and same-session exploration retain separate measurement states. */
-export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [], summaryOrder }: JourneyMonitorProps) {
+export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [], firstPartyFunnels = [], summaryOrder }: JourneyMonitorProps) {
     const [selectedId, setSelectedId] = useState(definitions[0]?.id ?? "");
     const [days, setDays] = useState<7 | 28>(28);
     const [compare, setCompare] = useState(true);
@@ -114,7 +122,10 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     const [editing, setEditing] = useState<JourneyDefinition | "new" | null>(null);
     const definition = definitions.find((item) => item.id === selectedId) ?? definitions[0] ?? null;
     const sessionSnapshot = sessionExploration.find(item => item.journeyId === definition?.id);
-    const result = definition ? matchingJourneyResult(definition, snapshot?.funnels ?? []) : null;
+    const result = definition ? matchingJourneyResult(definition, [...(snapshot?.funnels ?? []), ...firstPartyFunnels]) : null;
+    const assetReported = definition?.source === "first-party" && definition.kind === "funnel";
+    const unit = assetReported ? result?.unit ?? "entries" : "people";
+    const unitHeading = unit.charAt(0).toUpperCase() + unit.slice(1);
     const weeks = [...(result?.weekly ?? [])].sort((a, b) => a.startDate.localeCompare(b.startDate));
     const weeklyPeriod = weeks.find((week) => week.startDate === weekKey) ?? null;
     const selectedWeek = weeklyPeriod ?? weeks.at(-1) ?? null;
@@ -160,6 +171,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     <p>Conversions use ordered users from one GA4 property and reporting time zone. Independent event totals are not conversion counts.</p>
     <p>Visitors are GA4 active users for the same dates. Visitor percentages show the reach of each ordered step. Step drop-off compares consecutive journey steps.</p>
     <p>Exploration uses eligible sessions reported by the asset. A session counts once in each section it reaches; section audiences can overlap. GA4 visitors and ad impressions are separate measures.</p>
+    <p>Funnels an asset reports use its own daily counts. Each entry counts on the day it reached the first step.</p>
     <p>Changed definitions start a separate series. Incomplete or sampled reports do not receive improvement or regression colours.</p>
     </details>
     </aside>
@@ -168,7 +180,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     <div>
     <div className="journey-eyebrow">{definition?.goal ?? "JOURNEYS"}</div>
     <h2>{definition?.label ?? "Measure a journey"}</h2>
-    <p>{definition?.kind === "exploration" ? "Session paths · visits across sections" : "Google Analytics 4 · ordered users"}</p>
+    <p>{definition?.kind === "exploration" ? "Session paths · visits across sections" : assetReported ? "Reported by the asset · ordered steps" : "Google Analytics 4 · ordered users"}</p>
     </div>
     <div className="journey-heading-actions">{illustrative ? <span className="journey-sample">Illustrative design data</span> : null}{definition ? <Button size="sm" variant="outline" onClick={() => setEditing(definition)}>Definition</Button> : null}</div>
     </div>
@@ -183,14 +195,14 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             </div> : <div className="journey-period" aria-label="Journey reporting period">{([28, 7] as const).map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{value} days</button>)}</div>}{definition.kind === "funnel" ? <label className="journey-compare">
             <input type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)}/>Compare prior period</label> : null}</div>
         {definition.kind === "exploration" && sessionSnapshot ? <SessionExploration key={definition.id} snapshot={sessionSnapshot} rangeDays={days}/> : <>
-        {definition.kind === "funnel" ? <JourneySummary order={summaryOrder} definition={definition} reading={reading} delta={delta} prior={prior} compare={compare} available={!!canRead}/> : null}
+        {definition.kind === "funnel" ? <JourneySummary order={summaryOrder} definition={definition} reading={reading} delta={delta} prior={prior} compare={compare} available={!!canRead} unit={unit}/> : null}
         <section className="journey-chart" aria-label="Journey steps">
         <div className="journey-chart-heading">
         <div>
-        <h3>{definition.kind === "exploration" ? "Session destinations" : "From visitors to outcome"}</h3>
+        <h3>{definition.kind === "exploration" ? "Session destinations" : assetReported ? "From first step to outcome" : "From visitors to outcome"}</h3>
         <p>{scope}</p>
         </div>
-        <span>{definition.kind === "exploration" ? "Sessions" : "People"}</span>
+        <span>{definition.kind === "exploration" ? "Sessions" : unitHeading}</span>
         </div>
           {!canRead || !reading?.counts.length ? <div className="journey-quality" data-surface-hero={definition.kind === "exploration" ? "" : undefined} role="status" data-status-for="read:journeys">
             <strong>{definition.kind === "exploration" ? "Session paths are not collected" : definition.status === "planned" ? "Planned journey" : "Ordered conversion is unavailable"}</strong>
@@ -198,11 +210,11 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             {canRead && period === null && latestReadableWeek ? <Button size="sm" variant="outline" onClick={() => setWeekKey(latestReadableWeek.startDate)}>View week · {formatCalendarRange(latestReadableWeek.startDate, latestReadableWeek.endDate)}</Button> : null}
             <ol>{definition.steps.map((step) => <li key={step.id}>{step.label}</li>)}</ol>
             </div> : <>
-            <div className="journey-baseline" data-available={reading.visitors !== null}>
+            {assetReported ? null : <div className="journey-baseline" data-available={reading.visitors !== null}>
             <span className="journey-baseline-label"><Users aria-hidden/><span>Visitors<small><Count value={reading.visitors}/> people</small></span></span>
             <span className="journey-baseline-plot"><i style={{ width: reading.visitors !== null && reading.visitors > 0 ? "100%" : "0%" }}/></span>
             <span className="journey-step-count"><strong>{reading.visitors !== null && reading.visitors > 0 ? "100%" : "—"}</strong><small>starting point</small></span>
-            </div>
+            </div>}
             <p className="journey-baseline-note">{reading.visitors === null ? `${reading.visitorReason} Step percentages use journey entrants.` : `${formatInt(reading.counts[0] ?? 0)} entered this journey · ${percent(reading.visitors > 0 ? (reading.counts[0] ?? 0) / reading.visitors * 100 : null)} of visitors`}</p>
             <div className="journey-ruler" aria-hidden>{[0,25,50,75,100].map((value) => <span key={value}>{value}%</span>)}</div>
             <div className="journey-bars" ref={listRef}>
@@ -218,10 +230,10 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
                     return <button type="button" key={step.id} data-step-index={index} data-largest-loss={index === reading.largestLoss} data-outcome={index === definition.steps.length - 1} aria-pressed={index === selectedIndex} className="journey-step" onClick={() => setSelectedStep(step.id)} aria-label={`Inspect ${step.label}`}>
                     <span className="journey-step-label">
                     <small>{String(index + 1).padStart(2, "0")}</small>
-                    <span>{step.label}<small><Count value={count}/> people</small>{index === reading.largestLoss ? <small className="journey-loss-label">Largest loss</small> : null}
+                    <span>{step.label}<small><Count value={count}/> {unit}</small>{index === reading.largestLoss ? <small className="journey-loss-label">Largest loss</small> : null}
                     </span>
                     </span>
-                    <span className="journey-step-plot">{lost !== null && count !== null && scale > 0 ? <span className="journey-loss-gap" style={{ left: `${share}%`, width: `${lost / scale * 100}%` }}/> : null}<span className="journey-current" style={{ width: `${share ?? 0}%` }}/>{compare && priorShare !== null && delta !== null ? <span className="journey-prior" style={{ width: `${priorShare}%` }}/> : null}<span className="journey-step-dropoff" data-loss={index === reading.largestLoss}>{index === 0 && reading.visitors === null ? "Journey entry" : <><ArrowDown aria-hidden/><b>{percent(dropoff)} {index === 0 ? "did not enter" : "drop-off"}</b><span>· {lost === null ? "—" : formatInt(lost)} people</span></>}</span></span>
+                    <span className="journey-step-plot">{lost !== null && count !== null && scale > 0 ? <span className="journey-loss-gap" style={{ left: `${share}%`, width: `${lost / scale * 100}%` }}/> : null}<span className="journey-current" style={{ width: `${share ?? 0}%` }}/>{compare && priorShare !== null && delta !== null ? <span className="journey-prior" style={{ width: `${priorShare}%` }}/> : null}<span className="journey-step-dropoff" data-loss={index === reading.largestLoss}>{index === 0 && reading.visitors === null ? "Journey entry" : <><ArrowDown aria-hidden/><b>{percent(dropoff)} {index === 0 ? "did not enter" : "drop-off"}</b><span>· {lost === null ? "—" : formatInt(lost)} {unit}</span></>}</span></span>
                     <span className="journey-step-count">
                     <strong>
                     <Rate value={share}/>
@@ -241,40 +253,46 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
         {canRead ? <section className="journey-chart journey-history" aria-label="Selected step history" data-step-id={definition.steps[selectedIndex]?.id}>
           <div className="journey-chart-heading">
             <div><div className="journey-eyebrow">SELECTED STEP</div><h3>{definition.steps[selectedIndex]?.label} over time</h3><p>Weekly reach · percentage of {historyBasis}</p></div>
-            <span>People</span>
+            <span>{unitHeading}</span>
           </div>
-          {reading.counts.length > 0 ? <StepMapping definition={definition} period={period!} index={selectedIndex}/> : null}
-          <p>Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay.</p>
-          <JourneyHistory definition={definition} weeks={weeks} basis={historyBasis} selectedWeek={selectedWeek} selectedStep={selectedIndex} onSelect={(week, index) => {
+          {reading.counts.length > 0 ? <StepMapping definition={definition} period={period!} index={selectedIndex} unit={assetReported ? unit : null}/> : null}
+          <p>{assetReported ? "Dates mark the start of each Monday–Sunday week. A week with a day the asset has not reported shows no counts." : "Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay."}</p>
+          <JourneyHistory definition={definition} weeks={weeks} basis={historyBasis} selectedWeek={selectedWeek} selectedStep={selectedIndex} unit={unit} onSelect={(week, index) => {
             if (index !== undefined) setSelectedStep(definition.steps[index]!.id);
             else setSelectedStep(definition.steps[selectedIndex]!.id);
             setWeekKey(week.startDate);
           }}/>
         </section> : null}
-        <div className="journey-scope">{definition.kind === "exploration" ? "Session exploration · not an ordered user funnel" : journeyWindow(definition)}{result ? ` · ${result.timeZone} · GA4 active users` : ""}{result ? ` · collected ${formatTimestamp(result.collectedAt, result.timeZone)}` : snapshot?.generatedAt ? ` · snapshot ${formatTimestamp(snapshot.generatedAt)}` : ""}{illustrative ? " · synthetic fixture" : ""}</div>
+        <div className="journey-scope">{definition.kind === "exploration" ? "Session exploration · not an ordered user funnel" : journeyWindow(definition)}{result ? ` · ${result.timeZone} · ${result.identity === "first-party" ? `${unit} reported by the asset` : "GA4 active users"}` : ""}{result ? ` · ${result.identity === "first-party" ? "received" : "collected"} ${formatTimestamp(result.collectedAt, result.timeZone)}` : snapshot?.generatedAt ? ` · snapshot ${formatTimestamp(snapshot.generatedAt)}` : ""}{illustrative ? " · synthetic fixture" : ""}</div>
         </>}
       </>}
       {editing ? <JourneyDefinitionEditor key={editing === "new" ? "new" : editing.id} definition={editing === "new" ? null : editing} definitions={definitions} eventNames={eventNames} onSave={onSave} readOnlyReason={readOnlyReason} onClose={() => setEditing(null)} onSelected={setSelectedId}/> : null}
     </div>
   </div>;
 }
-function StepMapping({ definition, period, index }: {
+function StepMapping({ definition, period, index, unit }: {
     definition: JourneyDefinition;
     period: JourneyPeriod;
     index: number;
+    /** Set for an asset-reported funnel, whose steps have no event conditions. */
+    unit: string | null;
 }) {
     const step = definition.steps[index]!;
+    if (unit !== null) return <details className="journey-mapping">
+    <summary>Step and scope</summary><p>Counted by the asset as <code>{step.id}</code></p><p>{formatCalendarRange(period.startDate, period.endDate)} · {unit}</p>
+    </details>;
     return <details className="journey-mapping">
     <summary>Event mapping and scope</summary>{step.alternatives.map((alternative, i) => <p key={i}>
         <code>{alternative.eventName}</code>{alternative.pagePath ? ` · exact page path ${alternative.pagePath}` : ""}{alternative.parameters?.map((parameter) => ` · ${parameter.name} = ${parameter.value}`).join("")}{i > 0 ? " · OR alternative" : ""}</p>)}<p>{formatCalendarRange(period.startDate, period.endDate)} · ordered users</p>
     </details>;
 }
-function JourneyHistory({ definition, weeks, basis, selectedWeek, selectedStep, onSelect }: {
+function JourneyHistory({ definition, weeks, basis, selectedWeek, selectedStep, unit, onSelect }: {
     definition: JourneyDefinition;
     weeks: JourneyPeriod[];
     basis: JourneyReading["rateBasis"];
     selectedWeek: JourneyPeriod | null;
     selectedStep: number;
+    unit: string;
     onSelect: (week: JourneyPeriod, index?: number) => void;
 }) {
     const ref = useRef<HTMLDivElement>(null);
@@ -308,7 +326,7 @@ function JourneyHistory({ definition, weeks, basis, selectedWeek, selectedStep, 
     return <>
     <div className="journey-history-reading" aria-live="polite">
       <div><strong>{percent(selectedRate)}</strong><span>of {basis} reached this step</span></div>
-      <p>{selectedWeek ? formatCalendarRange(selectedWeek.startDate, selectedWeek.endDate) : "No complete week"} · {selectedReading.counts[selectedStep] === undefined ? "Count unavailable" : `${formatInt(selectedReading.counts[selectedStep]!)} people`}</p>
+      <p>{selectedWeek ? formatCalendarRange(selectedWeek.startDate, selectedWeek.endDate) : "No complete week"} · {selectedReading.counts[selectedStep] === undefined ? "Count unavailable" : `${formatInt(selectedReading.counts[selectedStep]!)} ${unit}`}</p>
       <p data-trend={trend(change)}>{change === null ? "No comparable prior week" : `${change >= 0 ? "+" : ""}${rateNumber(change)} pts vs prior week`}</p>
     </div>
     <div ref={ref} className="journey-history-plot">{width > 0 && real.length > 0 ? <svg viewBox={`0 0 ${w} 225`} height="225" role="img" aria-label={`${definition.steps[selectedStep]?.label}: weekly percentage of ${basis}`} data-rate-min={min} data-rate-max={max}>

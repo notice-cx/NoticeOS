@@ -561,7 +561,7 @@ export async function runGa4JourneyDumps(
   ).filter((target) => target.integration === 'ga4' && selected.has(target.asset)
     && !laneDeclined(target.asset, 'ga4', options.laneRegister)
     && assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset)
-      .some((definition) => definition.kind === 'funnel' && definition.status === 'active'));
+      .some((definition) => definition.kind === 'funnel' && definition.status === 'active' && definition.source !== 'first-party'));
   const budget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
   const outcomes: SignalDumpOutcome[] = [];
   for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {

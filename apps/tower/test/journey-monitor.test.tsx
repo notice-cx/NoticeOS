@@ -5,6 +5,7 @@ import { JourneyDefinitionEditor } from "@/components/JourneyDefinitionEditor";
 import { journeyComparison, journeyRateDomain, journeyReading, journeyStepChange, journeyStepReach, journeyStepReachChange, matchingJourneyResult, previousJourneyWeek } from "@/lib/journey-presentation";
 import { JOURNEY_DEMO_DEFINITIONS, JOURNEY_DEMO_SNAPSHOT } from "@/routes/kitchen-sink/journey-fixture";
 import type { JourneyDefinition, JourneySnapshot } from "@noticeos/contract/journeys";
+import { buildFirstPartyFunnelResult } from "@noticeos/contract/first-party-funnels";
 
 const account = JOURNEY_DEMO_DEFINITIONS[0]!;
 const result = JOURNEY_DEMO_SNAPSHOT.funnels[0]!;
@@ -280,4 +281,39 @@ it("edits first-party exploration without GA4 conditions", async () => {
   expect(screen.getByLabelText("Measurement")).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Save definition" }));
   await waitFor(() => expect(onSave).toHaveBeenCalledWith([definition]));
+});
+
+describe("site-reported funnels", () => {
+  const funnel: JourneyDefinition = { id: "contribution", label: "Contribution offer to payment", goal: "One-time contribution", kind: "funnel", source: "first-party", status: "active", version: 1,
+    steps: [{ id: "offer", label: "Offer seen", alternatives: [] }, { id: "checkout", label: "Checkout opened", alternatives: [] }, { id: "paid", label: "Paid", alternatives: [] }] };
+  const reports = Array.from({ length: 56 }, (_, i) => ({ schemaVersion: 1 as const, source: "first-party" as const, journeyId: "contribution", journeyVersion: 1, definitionId: "offers-v1",
+    date: new Date(Date.parse("2026-09-15") + i * 86_400_000).toISOString().slice(0, 10), timeZone: "UTC", unit: "offers",
+    steps: [{ id: "offer", count: 100 }, { id: "checkout", count: 10 }, { id: "paid", count: 2 }] }));
+  const siteResult = buildFirstPartyFunnelResult(funnel, [{ generatedAt: "2026-11-10T01:00:00Z", receivedAt: "2026-11-10T01:00:00Z", reports }], new Date("2026-11-10T12:00:00Z"))!;
+
+  it("shows the site's own counts from the first step, without a GA4 visitor baseline", () => {
+    const { container } = render(<JourneyMonitor definitions={[funnel]} snapshot={JOURNEY_DEMO_SNAPSHOT} firstPartyFunnels={[siteResult]} />);
+    expect(container.querySelector(".journey-baseline")).toBeNull();
+    expect(container.querySelector('[data-step-index="0"]')!.textContent).toContain("2,800");
+    expect(container.querySelector('[data-step-index="1"]')!.textContent).toContain("90% drop-off");
+    expect(container.querySelector('[data-outcome="true"]')!.textContent).toContain("56");
+    expect(container.querySelector<HTMLElement>('[data-step-index="2"] .journey-current')!.style.width).toBe("2%");
+  });
+
+  it("shows no counts for a site-reported funnel the site has not reported", () => {
+    const { container } = render(<JourneyMonitor definitions={[funnel]} snapshot={JOURNEY_DEMO_SNAPSHOT} />);
+    expect(container.querySelector("[data-step-index]")).toBeNull();
+    expect(container.querySelector('[data-status-for="read:journeys"]')).not.toBeNull();
+  });
+
+  it("edits step labels while keeping the site's step ids, order and empty conditions", async () => {
+    const onSave = vi.fn().mockResolvedValue({ saved: true });
+    render(<JourneyDefinitionEditor definition={funnel} definitions={[funnel]} eventNames={[]} onSave={onSave} onClose={() => {}} onSelected={() => {}}/>);
+    expect(screen.queryByLabelText("GA4 event *")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Move step 1 down" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove step 1" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getAllByLabelText("Business label *")[2]!, { target: { value: "Contribution paid" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save definition" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([{ ...funnel, steps: [funnel.steps[0], funnel.steps[1], { ...funnel.steps[2], label: "Contribution paid" }] }]));
+  });
 });

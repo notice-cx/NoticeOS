@@ -532,6 +532,7 @@ async function pullOne(
             flags: [...(merged.flags ?? []), ...(supplemental.data.flags ?? [])],
             negativeByPage: [...(merged.negativeByPage ?? []), ...(supplemental.data.negativeByPage ?? [])],
             sessionExploration: [...(merged.sessionExploration ?? []), ...(supplemental.data.sessionExploration ?? [])],
+            firstPartyFunnels: [...(merged.firstPartyFunnels ?? []), ...(supplemental.data.firstPartyFunnels ?? [])],
           });
           if (!combined.success) throw new Error(`combined envelope failed contract validation (${summarizeParseError(combined.error)})`);
           merged = combined.data;

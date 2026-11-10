@@ -1585,6 +1585,8 @@ export interface FetchFailure extends FlagReading {
 export interface AssetDetailPayload {
   journeys: import('@noticeos/contract/journeys').JourneySnapshot | null;
   sessionExploration: import('@noticeos/contract/session-exploration').SessionExplorationSnapshot[];
+  /** Funnels the asset counts itself, built from its stored reports. */
+  firstPartyFunnels: import('@noticeos/contract/journeys').JourneyFunnelResult[];
   generatedAt: string;
   asset: AssetInfo;
   /** Complete latest-run matrix on asset #0; null on ordinary assets. */

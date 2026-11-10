@@ -209,6 +209,7 @@ export const WALL_PAYLOAD_INVENTORY = {
  * CurrentConcern's type. */
 export const ASSET_PAYLOAD_INVENTORY = {
   sessionExploration: { class: "material-current", placement: "primary-content", destination: "Journeys tab session paths and history" },
+  firstPartyFunnels: { class: "material-current", placement: "primary-content", destination: "Journeys tab conversion bars and weekly history for asset-reported funnels" },
   journeys: { class: "material-current", placement: "primary-content", destination: "Journeys tab conversion bars and weekly history" },
   generatedAt: { class: "supporting-evidence", placement: "first-viewport", destination: "held-read posture" },
   asset: { class: "material-current", placement: "first-viewport", destination: "AssetHeader identity and source status" },

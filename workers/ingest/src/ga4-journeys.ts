@@ -214,7 +214,7 @@ export async function runGa4Journeys(input: {
   const { env, definitions, nowMs, budget } = input;
   let target = input.target;
   const outcomes: SignalDumpOutcome[] = [];
-  const active = definitions.filter((d) => d.kind === 'funnel' && d.status === 'active');
+  const active = definitions.filter((d) => d.kind === 'funnel' && d.status === 'active' && d.source !== 'first-party');
   if (active.length === 0) return outcomes;
   const observedTimeZone = await previousTimeZone(env.STORE, target.asset, 'ga4', target.propertyRef);
   if (observedTimeZone && isValidTimeZone(observedTimeZone)) target = { ...target, timeZone: observedTimeZone, timeZoneAssumed: false };

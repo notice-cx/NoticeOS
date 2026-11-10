@@ -3273,7 +3273,7 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
 /** The payload fields each section owns — the spec `ASSET_VIEW_SECTIONS` is
  * checked against. `watchHistory` owns `watches.history`, not a key. */
 const SECTION_FIELD_SPEC: Record<string, string[]> = {
-  journeys: ["journeys", "sessionExploration"],
+  journeys: ["journeys", "sessionExploration", "firstPartyFunnels"],
   performance: ["performance"],
   executive: ["executive", "recommendationEvidence"],
   metrics: ["metrics"],
