@@ -147,6 +147,7 @@
   --primary-foreground: var(--brand-on-accent);
   --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
+  --accent-text: var(--brand-accent-text);
   /* The visual kit's furniture: the empty track a bar or a band fills, the
      hairline a grid or an axis is ruled in, and the one elevation a screen's
      hero region may take. Furniture, never a verdict. */
@@ -524,6 +525,7 @@
   --primary-foreground: var(--brand-on-accent);
   --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
+  --accent-text: var(--brand-accent-text);
   --viz-track: oklch(0.94 0.008 255);
   --viz-grid: oklch(0.88 0.01 255 / 0.8);
   --skeleton-shine: oklch(1 0 0 / 0.7);
@@ -539,8 +541,10 @@
 
 @theme inline {
   --font-sans: var(--brand-font);
+  /* Precise's corners: keys and badges, controls, menus and popovers, panels. */
+  --radius-sm: 4px;
   --radius-md: var(--brand-radius-control);
-  --radius-lg: var(--brand-radius-panel);
+  --radius-lg: 8px;
   --radius-xl: var(--brand-radius-panel);
   --color-error-soft: var(--error-soft);
   --color-warn-soft: var(--warn-soft);
@@ -551,6 +555,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-hover: var(--primary-hover);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -714,6 +719,8 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--brand-font);
+    /* Precise's Inter: a tailed l and a serifed I, so l, I and 1 differ. */
+    font-feature-settings: "cv05", "cv08";
     -webkit-font-smoothing: antialiased;
   }
   /* A subtree drawn dark inside a light page (the TV preview) re-resolves

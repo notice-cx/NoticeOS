@@ -58,16 +58,18 @@ The favicon set is the website's: a dark N for light tab bars
 
 ## Color roles
 
-The palette is one file, `apps/tower/public/brand/notice.css`: every role
-(canvas, surface, text, the Notice blue and the action tint, recorded success,
+The palette is `apps/tower/public/brand/notice.css`: every role (canvas,
+surface, text, the Notice blue and the action tint, recorded success,
 failure, attention, the revenue and expense series) in light and dark, as
-custom properties the Tower reads. Read the values there; this page does not
-repeat them, so the two cannot differ.
+custom properties the Tower reads. Its neutrals and its accent are Precise's,
+Ntasks's design system, from `apps/tower/public/brand/precise.css`, which
+`pnpm generate` writes from the installed Ntasks UI package. Read the values
+there; this page does not repeat them, so they cannot differ.
 
-The Notice blue is the website's accent on its light surfaces and the light
-theme's action colour. On the dark canvas it is too dark to read as text, so
-the dark theme's action colour is the tint the website uses for its accent on
-dark surfaces. Blue marks interaction, selection and focus; it does not mean
+The Notice blue is the website's accent and the action colour. The light
+theme fills controls with it. The dark theme fills controls with a lighter
+step of it and colours accent text in the tint the website uses for its
+accent on dark surfaces. Blue marks interaction, selection and focus. It does not mean
 success, and no severity, status or series token may point at it
 ([brand-identity.test.ts](../apps/tower/test/brand-identity.test.ts)).
 Use green only for recorded evidence of success. Failure is red; paused,
@@ -88,8 +90,8 @@ sentence case and regular or medium weights; headings use semibold. Use
 tabular numerals for metrics. The reference shows the display and interface
 ramps separately.
 
-Use spacing in steps of 4px: 4, 8, 12, 16, 24, 32 and 40px. Controls have an
-8px corner radius and panels 14px. Existing dense TV layouts keep their own
+Use spacing in steps of 4px: 4, 8, 12, 16, 24, 32 and 40px. Keys and badges have
+a 4px corner radius, controls 6px, menus and popovers 8px and panels 12px. Existing dense TV layouts keep their own
 dimensions. Use 44px touch targets and a clear keyboard focus ring. Feedback
 animations take 150ms; panel animations take 220ms. Respect the reduced-motion
 setting and avoid decorative animation that never stops.

@@ -92,7 +92,7 @@ function ViewChoiceRow() {
                   onChange={() => commit({ view: spec.id, focus: choice.focus })}
                   className="sr-only"
                 />
-                <span className={cn("text-sm font-medium", checked ? "text-primary" : "text-foreground")}>
+                <span className={cn("text-sm font-medium", checked ? "text-accent-text" : "text-foreground")}>
                   {spec.label}
                 </span>
                 <span className="text-xs leading-snug text-muted-foreground">{spec.detail}</span>

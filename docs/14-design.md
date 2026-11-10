@@ -38,11 +38,23 @@ uses.
 ## Tokens
 
 Colour, type and spacing are defined once, in CSS, and components use them by
-name. The brand identity is defined in `apps/tower/public/brand/notice.css`
-(canvas, surface, raised, ink, muted, line, the accent, success, danger,
-warning, cyan, violet, the two fonts, radii and two motion durations), shared
-with the standalone reference page `public/design-system.html` and described
-in [brand](brand.md). `apps/tower/src/index.css` maps that identity to the
+name. The Tower draws in Precise, Ntasks's design system, with the Notice blue
+as its accent ([Ntasks docs/design.md](https://github.com/notice-cx/Ntasks/blob/main/docs/design.md)
+holds the shared part). Precise's values live in the `@notice-cx/ntasks-ui`
+package's stylesheet; `pnpm generate` writes them, from the installed version,
+into `apps/tower/public/brand/precise.css` as `--precise-*` variables, and
+`pnpm generate -- --check` fails when the file no longer matches the package.
+The brand identity in `apps/tower/public/brand/notice.css` defines its
+neutrals and its accent as those variables: the page and its panels on Precise's
+Background (`canvas`, `surface`), a raised row on Hover (`raised`), the words
+in Text and Text 3 (`ink`, `muted`), the lines in Border and Border strong
+(`line`, `control-line`), the accent, its text tint and its soft fill. The
+same file keeps the Tower's own success, danger, warning, cyan and violet,
+the two fonts with Inter's `cv05` and `cv08` turned on, Precise's corners
+(4 px on keys and badges, 6 px on controls, 8 px on menus and popovers, 12 px
+on panels) and two motion durations. Both files are shared with the
+standalone reference page `public/design-system.html` and described in
+[brand](brand.md). `apps/tower/src/index.css` maps that identity to the
 application's aliases, redefines them for `.light`, and exposes everything
 through `@theme inline` as `--color-*`, `--text-*` and `--spacing-*`
 utilities. In review, look for hex or pixel literals in components: each one
@@ -114,8 +126,9 @@ The families, and what each means:
 - **The Wall's scale.** Every type size on the TV (`text-wall-*`) and every
   gap between its regions (`spacing-wall-*`) is a token, because the Wall is
   the one surface with a fixed height and its whitespace is limited. The
-  brand accent colour is used for primary actions, selection and focus, and
-  no state or series token refers to it.
+  brand accent colour is used for primary actions, selection and focus,
+  `accent-text` sets words in it (a selected item, a link), and no state or
+  series token refers to either.
 
 ## The acceptance checklist
 

@@ -269,7 +269,7 @@ export function ProviderCard({
                   key={item.id}
                   type="button"
                   variant={step === item.id ? "outline" : "ghost"}
-                  className={cn("justify-start gap-2", step === item.id && "bg-accent-soft text-primary")}
+                  className={cn("justify-start gap-2", step === item.id && "bg-accent-soft text-accent-text")}
                   aria-pressed={step === item.id}
                   onClick={() => setStep(item.id)}
                 >

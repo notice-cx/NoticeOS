@@ -1,5 +1,6 @@
-// The palette's measures, read straight from the two stylesheets that define
-// the colours: `public/brand/notice.css` (the Notice identity) and
+// The palette's measures, read straight from the stylesheets that define the
+// colours: `public/brand/precise.css` (Precise's values, generated from the
+// Ntasks UI package), `public/brand/notice.css` (the Notice identity) and
 // `src/index.css` (the application tokens). Shared by brand-identity.test.ts
 // and chart-series-contrast.test.ts, so both read one resolver.
 import { readFileSync } from "node:fs";
@@ -66,18 +67,21 @@ export type Theme = "dark" | "light";
 
 /** A token's colour in a theme, following `var()` through both stylesheets. */
 export function themeColours(): (mode: Theme, token: string) => Rgb {
+  const precise = read("public/brand/precise.css");
   const brand = read("public/brand/notice.css");
   const theme = read("src/index.css");
+  const dark = /:root\s*\{([^}]+)\}/, light = /\.light,\s*:root\[data-theme="light"\]\s*\{([^}]+)\}/;
   const blocks = {
-    dark: { brand: block(brand, /:root\s*\{([^}]+)\}/), app: block(theme, /\n:root\s*\{([^}]+)\}/) },
-    light: { brand: block(brand, /\.light,\s*:root\[data-theme="light"\]\s*\{([^}]+)\}/), app: block(theme, /\n\.light\s*\{([^}]+)\}/) },
+    dark: [block(theme, /\n:root\s*\{([^}]+)\}/), block(brand, dark), block(precise, dark)],
+    light: [block(theme, /\n\.light\s*\{([^}]+)\}/), block(brand, light), block(precise, light)],
   };
+  const lookup = (mode: Theme, name: string) => blocks[mode].map((tokens) => tokens.get(name)).find((value) => value !== undefined);
   return (mode, token) => {
-    let value = blocks[mode].app.get(token) ?? blocks[mode].brand.get(token);
+    let value = lookup(mode, token);
     for (let hops = 0; value?.startsWith("var("); hops += 1) {
-      const next = value.match(/^var\((--[a-z-]+)\)$/)?.[1];
+      const next = value.match(/^var\((--[a-z0-9-]+)\)$/)?.[1];
       if (!next || hops > 5) throw new Error(`${token} does not resolve`);
-      value = blocks[mode].app.get(next) ?? blocks[mode].brand.get(next);
+      value = lookup(mode, next);
     }
     if (!value) throw new Error(`${mode}: no ${token}`);
     return linearRgb(value);

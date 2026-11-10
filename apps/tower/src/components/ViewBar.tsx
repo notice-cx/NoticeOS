@@ -51,7 +51,7 @@ export function ViewBar({ value, onChosen, className }: {
                   onClick={() => { choose(view.id); setOpen(false); }}
                   className={cn("flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", selected === view.id && "bg-accent-soft")}>
                   <span className="flex-1"><span className="block text-sm font-medium">{view.label}</span><span className="block text-xs text-muted-foreground">{view.detail}</span></span>
-                  {selected === view.id ? <Check className="size-4 text-primary" aria-hidden /> : null}
+                  {selected === view.id ? <Check className="size-4 text-accent-text" aria-hidden /> : null}
                 </button>
               ))}
             </div>
