@@ -149,6 +149,7 @@
   --input: var(--brand-control-line);
   --primary: var(--brand-accent);
   --primary-foreground: var(--brand-on-accent);
+  --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
   --accent-text: var(--brand-accent-text);
   /* The visual kit's furniture: the empty track a bar or a band fills, the
@@ -530,6 +531,7 @@
   --input: var(--brand-control-line);
   --primary: var(--brand-accent);
   --primary-foreground: var(--brand-on-accent);
+  --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
   --accent-text: var(--brand-accent-text);
   --viz-track: oklch(0.94 0.008 255);
@@ -559,6 +561,7 @@
   --color-input: var(--input);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-accent-soft: var(--accent-soft);
   --color-accent-text: var(--accent-text);
   --color-background: var(--background);

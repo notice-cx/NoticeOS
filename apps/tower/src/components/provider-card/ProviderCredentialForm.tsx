@@ -324,6 +324,7 @@ function AssetKeyFields({
                   autoComplete="off"
                   aria-label={`${field.label} — ${row.id}`}
                   aria-describedby={field.required ? requirementId : undefined}
+                  aria-invalid={error ? true : undefined}
                   data-asset-key-input={row.id}
                   onChange={(event) => update(row.id, event.target.value)}
                   className={cn(

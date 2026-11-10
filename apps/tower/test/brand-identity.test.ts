@@ -67,7 +67,7 @@ describe("the Notice blue is a brand colour, never a state", () => {
   });
 
   it("recolours no severity, status or series token", () => {
-    const BRAND_ROLES = new Set(["--primary", "--primary-foreground", "--accent-soft", "--accent-text", "--ring"]);
+    const BRAND_ROLES = new Set(["--primary", "--primary-foreground", "--primary-hover", "--accent-soft", "--accent-text", "--ring"]);
     for (const t of themes) {
       const leaks = [...t.app].filter(([name, value]) => !BRAND_ROLES.has(name) && /--brand-(?:blue|accent)/.test(value));
       expect(leaks, `${t.name}: tokens that borrow the brand blue`).toEqual([]);
