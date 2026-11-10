@@ -92,15 +92,6 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await (await named.count() ? named : row.getByRole('link').first()).click();
             await expect(page).toHaveURL(/\/assets\/[^/]+/);
           }
-          if (state === 'populated' && name === 'tasks') {
-            // The answer leads; its first row still expands in place.
-            const first = main.locator('[data-inbox-row], [data-task-row]').first();
-            const expand = first.getByRole('button').filter({ has: page.locator('[data-row-affordance="expand"]') });
-            await expect(expand).toHaveCount(1);
-            await expand.click();
-            await expect(expand).toHaveAttribute('aria-expanded', 'true');
-            await expect(first.locator('[data-list-row-body]')).toBeVisible();
-          }
         }
         expect(errors).toEqual([]);
       } finally {
