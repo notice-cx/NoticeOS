@@ -5,11 +5,14 @@
 
 import { workspaceProfile } from '../../../../scripts/product-env.mjs';
 import { authenticateOperator } from '../auth.js';
-import { resolveCredential } from '../credentials.js';
-import { callNtasks, NTASKS_URL, ntasksAppClientId, ntasksOrigin, ON_BEHALF_OF, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
+import { resolveCredential, saveNtasksAppClientId } from '../credentials.js';
+import { callNtasks, NTASKS_URL, ntasksAppClientId, ntasksOrigin, ON_BEHALF_OF, registerNtasksApp, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
 import { json } from '../responses.js';
 
 export const TASK_SERVICE_PATH = '/api/task-service';
+export const TASK_SERVICE_APP_PATH = '/api/task-service/app';
+/** Where Ntasks returns a person's browser: the Tower's sign-in page, at the origin it is served from. */
+const SIGNED_IN_PATH = '/tasks/signed-in';
 const REQUEST_BYTES = 512 * 1024;
 const METHODS = new Set(['GET', 'POST', 'PATCH']);
 /** The Ntasks routes a caller may name: the MCP endpoint, the task routes, the change feed and the backup route. */
@@ -58,5 +61,58 @@ export async function handleTaskService(request: Request, env: IngestEnv, fetchI
   } catch (error) {
     const failure = error instanceof TaskServiceError ? error.failure : { kind: 'network' as const };
     return json({ answered: false, reason: failure.kind, ...(failure.status === undefined ? {} : { status: failure.status }) } satisfies TaskServiceAnswer);
+  }
+}
+
+/** The Tower's sign-in page address, or null when it is not one: http or
+ * https, the origin and the sign-in path alone. */
+function redirectUriOf(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 2048) return null;
+  let url: URL;
+  try { url = new URL(value); } catch { return null; }
+  return ['http:', 'https:'].includes(url.protocol) && value === `${url.origin}${SIGNED_IN_PATH}` ? value : null;
+}
+
+/** What POST /api/task-service/app answers, always with 200. */
+export type TaskServiceAppAnswer =
+  | { readonly clientId: string; readonly registered: boolean }
+  | { readonly refused: { readonly status: number; readonly error: string } }
+  | { readonly answered: false; readonly reason: 'not-connected' | 'changed' | TaskServiceError['failure']['kind']; readonly status?: number };
+
+/**
+ * POST /api/task-service/app ({ redirectUri }): the Tower's client id as a
+ * connected app of this installation's Ntasks, for a person's browser to sign
+ * in with. The saved one when there is one; otherwise Ntasks registers the
+ * Tower with the service credential, and the client id is saved with the
+ * connection. Guarded as GET and POST /api/task-service are.
+ */
+export async function handleTaskServiceApp(request: Request, env: IngestEnv, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  if (workspaceProfile(env) !== 'standalone' || request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
+  if (!env.OPERATOR_TOKEN || !(await authenticateOperator(request, env.OPERATOR_TOKEN))) return json({ error: 'unauthorized' }, 401);
+  if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  let redirectUri: string | null = null;
+  try {
+    const body: unknown = await request.json();
+    const keys = body && typeof body === 'object' && !Array.isArray(body) ? Object.keys(body) : [];
+    redirectUri = keys.length === 1 && keys[0] === 'redirectUri' ? redirectUriOf((body as { redirectUri: unknown }).redirectUri) : null;
+  } catch { redirectUri = null; }
+  if (redirectUri === null) return json({ error: 'invalid_request' }, 400);
+  const resolved = await resolveCredential(env, 'ntasks', 'store-only');
+  if (resolved.source !== 'store') return json({ answered: false, reason: 'not-connected' } satisfies TaskServiceAppAnswer);
+  const saved = ntasksAppClientId(resolved.fields);
+  if (saved !== null) return json({ clientId: saved, registered: false } satisfies TaskServiceAppAnswer);
+  try {
+    const registration = await registerNtasksApp(resolved.fields, redirectUri, fetchImpl);
+    if (!registration.registered) {
+      return json({ refused: { status: registration.status, error: registration.error } } satisfies TaskServiceAppAnswer);
+    }
+    // Ntasks answers the same app again for the same address, so a save lost here costs no second app.
+    if (!(await saveNtasksAppClientId(env, resolved, registration.clientId))) {
+      return json({ answered: false, reason: 'changed' } satisfies TaskServiceAppAnswer);
+    }
+    return json({ clientId: registration.clientId, registered: true } satisfies TaskServiceAppAnswer);
+  } catch (error) {
+    if (!(error instanceof TaskServiceError)) throw error;
+    return json({ answered: false, reason: error.failure.kind, ...(error.failure.status === undefined ? {} : { status: error.failure.status }) } satisfies TaskServiceAppAnswer);
   }
 }

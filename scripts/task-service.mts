@@ -11,6 +11,8 @@ import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
 export const TASK_SERVICE_ROUTE = 'api/task-service';
+/** The ingest's route that registers the Tower in Ntasks, or answers the client id saved. */
+export const TASK_SERVICE_APP_ROUTE = 'api/task-service/app';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
 /** How long Ntasks's project list and workspace id serve the calls after them. */
@@ -44,6 +46,11 @@ export class TaskServiceUnavailable extends Error {
   override name = 'TaskServiceUnavailable';
   constructor(readonly reason: string, readonly status?: number) { super(`The task service did not answer (${reason}).`); }
 }
+/** Ntasks refused to register the Tower as a connected app: its RFC 7591 code and HTTP status. */
+export class TaskServiceAppRefused extends Error {
+  override name = 'TaskServiceAppRefused';
+  constructor(readonly code: string, readonly status: number) { super(`Ntasks refused to register the Tower (${code}).`); }
+}
 /** An Ntasks tool refused the call; the message is its sentence for the agent. */
 export class TaskServiceToolRefused extends Error {
   override name = 'TaskServiceToolRefused';
@@ -66,6 +73,11 @@ export interface TaskService {
   /** The Tower's client id as a connected app of the task service, when one is saved:
    * the id a person's browser signs in to Ntasks with. */
   appClientId(): Promise<string | null>;
+  /** The Tower's client id as a connected app, registering the Tower in Ntasks
+   * first, returning to `redirectUri`, when none is saved. Throws
+   * TaskServiceAppRefused when Ntasks refuses, TaskServiceUnavailable when it
+   * or the ingest gave no answer. */
+  registerApp(redirectUri: string): Promise<string>;
   /** Where the tasks live and the task service's address, waiting for the
    * ingest at most `within` milliseconds, or until it answers or fails when
    * `within` is absent; then its last answer, or `unknown` when it never gave one. */
@@ -99,10 +111,10 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   let workspace: { at: number; id: string } | null = null;
 
   /** One request to the ingest door, through the one door client that carries the operator bearer. */
-  async function door_(method: 'GET' | 'POST', body?: unknown): Promise<Record<string, unknown>> {
+  async function door_(method: 'GET' | 'POST', body?: unknown, route = TASK_SERVICE_ROUTE): Promise<Record<string, unknown>> {
     let reply: { status: number; body: unknown };
     try {
-      reply = await configStoreRequest(TASK_SERVICE_ROUTE, { door, method, ...(body === undefined ? {} : { body }),
+      reply = await configStoreRequest(route, { door, method, ...(body === undefined ? {} : { body }),
         ...(token ? { token: await token() } : {}),
         fetchImpl: (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS) }) });
     } catch { throw new TaskServiceUnavailable('ingest'); }
@@ -175,6 +187,17 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     },
     async origin() { return (await read()).origin; },
     async appClientId() { return (await read()).appClientId; },
+    async registerApp(redirectUri) {
+      const answer = await door_('POST', { redirectUri }, TASK_SERVICE_APP_ROUTE);
+      if (typeof answer.clientId === 'string') {
+        // The next status read asks the ingest again, so it names the client id just saved.
+        status = null;
+        return answer.clientId;
+      }
+      const refused = row(answer.refused);
+      if (refused) throw new TaskServiceAppRefused(typeof refused.error === 'string' ? refused.error : 'refused', typeof refused.status === 'number' ? refused.status : 0);
+      throw new TaskServiceUnavailable(typeof answer.reason === 'string' ? answer.reason : 'invalid-response', typeof answer.status === 'number' ? answer.status : undefined);
+    },
     async home(within) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = within === undefined ? [] : [new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); })];
