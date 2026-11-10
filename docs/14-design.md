@@ -44,8 +44,8 @@ holds the shared part). Precise's values live in the `@notice-cx/ntasks-ui`
 package's stylesheet; `pnpm generate` writes them, from the installed version,
 into `apps/tower/public/brand/precise.css` as `--precise-*` variables, and
 `pnpm generate -- --check` fails when the file no longer matches the package.
-The brand identity in `apps/tower/public/brand/notice.css` points its
-neutrals and its accent at them: the page and its panels on Precise's
+The brand identity in `apps/tower/public/brand/notice.css` defines its
+neutrals and its accent as those variables: the page and its panels on Precise's
 Background (`canvas`, `surface`), a raised row on Hover (`raised`), the words
 in Text and Text 3 (`ink`, `muted`), the lines in Border and Border strong
 (`line`, `control-line`), the accent, its text tint and its soft fill. The
