@@ -12,11 +12,12 @@ export interface ActorIdentity {
 
 type Names = readonly (readonly [RegExp, string])[];
 
-/** The names an agent's client registers under, each shown as its product. */
+/** The names an agent's client registers under, or a service names the agent it acts for by, each shown as its product. */
 const PRODUCTS: Names = [
   [/^claude[ _-]?code$/iu, 'Claude Code'],
   [/^codex(?:[ _-](?:cli|mcp(?:[ _-]client)?))?$/iu, 'Codex'],
   [/^claude(?:\.ai)?$/iu, 'Claude'],
+  [/^tower$/iu, 'Tower'],
 ];
 /**
  * The bare names the old task hub recorded for the agents that wrote to it,
