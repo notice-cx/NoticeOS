@@ -979,7 +979,7 @@ function InlineCell({
             className={cn(
               fieldClass,
               "w-full min-w-24",
-              error ? "border-error" : "border-border",
+              error ? "ring-error" : null,
             )}
             aria-invalid={error ? true : undefined}
           />
@@ -1120,7 +1120,7 @@ function AddRow({
                 aria-describedby={refused(field) ? errorId : undefined}
                 disabled={saving}
                 onChange={(e) => type(field, e.target.value)}
-                className={cn(fieldClass, refused(field) ? "border-error" : null)}
+                className={cn(fieldClass, refused(field) ? "ring-error" : null)}
               >
                 {field.type === "boolean" ? (
                   <>
@@ -1149,7 +1149,7 @@ function AddRow({
                   disabled={saving}
                   list={fieldOptions?.[field.name] === undefined ? undefined : `${listId}-${field.name}`}
                   onChange={(e) => type(field, e.target.value)}
-                  className={cn(fieldClass, refused(field) ? "border-error" : "border-border")}
+                  className={cn(fieldClass, refused(field) ? "ring-error" : null)}
                 />
                 <OptionList
                   id={`${listId}-${field.name}`}

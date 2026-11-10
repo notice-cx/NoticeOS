@@ -11,6 +11,7 @@ describe("shared field layout", () => {
       "max-sm:min-h-11",
       "disabled:opacity-45",
       "focus-visible:ring-primary",
+      "aria-[invalid=true]:ring-error",
     ]) {
       expect(fieldClass).toContain(utility);
     }

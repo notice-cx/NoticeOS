@@ -549,7 +549,7 @@ function BufferedInput({
           className={cn(
             fieldClass,
             "w-64 max-w-full",
-            error ? "border-error" : "border-border",
+            error ? "ring-error" : null,
             control.type === "text" && control.mono && "font-mono text-xs",
           )}
           aria-invalid={error ? true : undefined}
