@@ -1696,9 +1696,18 @@ async function fetchWorkflowsRequest(fetch: ApiTransport, runId?: string, signal
   if (!response.ok) throw new ApiError(`GET /api/workflows failed: ${response.status}`, response.status);
   return response.json() as Promise<WorkflowsPayload>;
 }
-async function runLocalJobRequest(fetch: ApiTransport, id: string): Promise<{ job: string; outcome: string; detail?: string }> {
-  const response = await fetch('/api/workflows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
-  const result = await response.json() as { job: string; outcome: string; error?: string; detail?: string };
+async function runLocalJobRequest(fetch: ApiTransport, id: string, background = false): Promise<{ job: string; outcome: string; detail?: string; runId?: string }> {
+  const resultUnconfirmed = 'Couldn’t confirm the start. Check the latest run before starting again.';
+  const response = await fetch('/api/workflows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, ...(background ? { background } : {}) }) }).catch((error: unknown) => {
+    throw background ? new Error(resultUnconfirmed) : error;
+  });
+  const result = await response.json().catch((error: unknown) => {
+    throw background ? new Error(resultUnconfirmed) : error;
+  }) as { job: string; outcome: string; error?: string; detail?: string; runId?: string };
+  if (background && (!result || result.error === 'runner_unavailable' || response.status === 202 &&
+      (result.outcome !== 'running' || typeof result.runId !== 'string' || !result.runId.startsWith(`${id}@manual/`)))) {
+    throw new Error(resultUnconfirmed);
+  }
   if (!response.ok) {
     const messages: Record<string, string> = {
       job_busy: 'This job is already running.',

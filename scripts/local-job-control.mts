@@ -3,13 +3,15 @@ import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { LOCAL_JOB_SOCKET, manualScheduledJob, type LocalJobReply } from './scheduled-jobs.mjs';
+import { LOCAL_JOB_SOCKET, manualScheduledJob, parseLocalJobRequest, type LocalJobReply } from './scheduled-jobs.mjs';
 import type { ScheduledJobRunner } from './scheduled-job-runner.mjs';
 import { redactLogText } from './os-log.mjs';
 
+/** Background callers get a receipt once the run enters history. The scheduler
+ * holds ownership until completion regardless of which reply the caller needs. */
 export async function invokeLocalJob(id: unknown, {
   scheduler, ready, stopped,
-}: { scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean }): Promise<LocalJobReply> {
+}: { scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean }, background = false): Promise<LocalJobReply> {
   const job = manualScheduledJob(id);
   if (!job) return { status: 422, body: { error: 'local_job_not_allowed' } };
   // Initialization may start recovery and first-snapshot work. Only the
@@ -18,7 +20,19 @@ export async function invokeLocalJob(id: unknown, {
   // A just-saved pause must take effect before a manual invocation.
   await scheduler.refresh();
   if (stopped() || !ready()) return { status: 503, body: { error: 'runner_unavailable' } };
-  const invocation = await scheduler.runOnce(job.id, { manual: true });
+  if (background) {
+    return new Promise(resolve => {
+      void scheduler.runOnce(job.id, {
+        manual: true,
+        onStart: runId => resolve({ status: 202, body: { job: job.id, outcome: 'running', runId } }),
+      }).then(invocation => resolve(invocationReply(job.id, invocation)),
+        () => resolve({ status: 500, body: { error: 'local_job_failed' } }));
+    });
+  }
+  return invocationReply(job.id, await scheduler.runOnce(job.id, { manual: true }));
+}
+
+function invocationReply(id: string, invocation: Awaited<ReturnType<ScheduledJobRunner['runOnce']>>): LocalJobReply {
   if (invocation.status !== 'ran') {
     const status = invocation.status === 'busy' || invocation.status === 'paused' ? 409 : 503;
     return { status, body: { error: `job_${invocation.status}` } };
@@ -26,7 +40,7 @@ export async function invokeLocalJob(id: unknown, {
   const result = invocation.result as { outcome?: string; detail?: unknown } | null;
   const outcome = result?.outcome ?? 'failed';
   const detail = typeof result?.detail === 'string' ? redactLogText(result.detail).replace(/\s+/gu, ' ').trim().slice(0, 500) : null;
-  return { status: outcome === 'failed' ? 500 : 200, body: { job: job.id, outcome, ...(detail ? { detail } : {}) } };
+  return { status: outcome === 'failed' ? 500 : 200, body: { job: id, outcome, ...(detail ? { detail } : {}) } };
 }
 
 /** Remove only a dead Unix socket, never another live runner's admission. */
@@ -64,12 +78,11 @@ export async function startLocalJobControl({ root, ...deps }: {
         body += String(chunk);
         if (Buffer.byteLength(body) > 256) { reply({ status: 413, body: { error: 'payload_too_large' } }); return; }
       }
-      let input: unknown;
-      try { input = JSON.parse(body); } catch { input = null; }
-      if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id') {
+      const input = parseLocalJobRequest(body);
+      if (!input) {
         reply({ status: 422, body: { error: 'local_job_not_allowed' } }); return;
       }
-      reply(await invokeLocalJob((input as { id: unknown }).id, deps));
+      reply(await invokeLocalJob(input.id, deps, input.background));
     })().catch(() => reply({ status: 500, body: { error: 'local_job_failed' } }));
   });
   server.requestTimeout = 5_000;
@@ -87,8 +100,8 @@ export async function startLocalJobControl({ root, ...deps }: {
 }
 
 /** The socket path comes from the installation, never from a request body. */
-export async function requestLocalJob(id: string, { root, timeoutMs = 20 * 60_000 }: {
-  root: string; timeoutMs?: number;
+export async function requestLocalJob(id: string, { root, background = false, timeoutMs = background ? 15_000 : 20 * 60_000 }: {
+  root: string; timeoutMs?: number; background?: boolean;
 }): Promise<LocalJobReply> {
   if (!manualScheduledJob(id)) return { status: 422, body: { error: 'local_job_not_allowed' } };
   return new Promise((resolve) => {
@@ -109,6 +122,6 @@ export async function requestLocalJob(id: string, { root, timeoutMs = 20 * 60_00
     const deadline = setTimeout(() => req.destroy(new Error('Runner request timed out.')), timeoutMs);
     req.once('close', () => clearTimeout(deadline));
     req.once('error', unavailable);
-    req.end(JSON.stringify({ id }));
+    req.end(JSON.stringify({ id, ...(background ? { background: true } : {}) }));
   });
 }

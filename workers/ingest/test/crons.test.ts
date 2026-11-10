@@ -139,6 +139,13 @@ describe('each scheduled job’s own expression', () => {
     expect(network).not.toHaveBeenCalled();
   });
 
+  it('reports a scheduled archive collection failure to the job history', async () => {
+    const job = INGEST_JOBS.find(job => job.id === 'signal-dumps')!;
+    const answer = await runScheduledCron(job.cron, env);
+    expect(answer.outcome).toBe('failed');
+    expect(answer.steps?.find(step => step.id === 'archives')).toMatchObject({ state: 'failed' });
+  });
+
   it.each(INGEST_JOBS.map((job) => [job.label, job] as const))('%s runs its own steps, each one in the run record', async (_label, job) => {
     const answer = await runScheduledCron(job.cron, env, job.manualOnly ? 'manual' : 'recovery');
 

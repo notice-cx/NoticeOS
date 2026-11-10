@@ -27,6 +27,42 @@ import {
 beforeEach(reset);
 
 describe('analysis-grade signal dumps', () => {
+  it('retries a timed-out Search Console appearance request once and keeps a persistent failure', async () => {
+    const provider = providerDumpFetch();
+    const detailCalls = new Map<string, AbortSignal[]>();
+    const fetchImpl = (async (input, init) => {
+      const url = String(input);
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+      if (url.includes('/searchAnalytics/query') && body?.dimensionFilterGroups) {
+        const asset = url.includes('meadow.example') ? 'meadow.example' : 'northwind.example';
+        const signals = detailCalls.get(asset) ?? [];
+        signals.push(init!.signal!);
+        detailCalls.set(asset, signals);
+        if (asset === 'northwind.example') {
+          return new Response(new ReadableStream({
+            start: controller => controller.error(new DOMException('deadline elapsed', 'TimeoutError')),
+          }));
+        }
+        if (signals.length === 1) throw new DOMException('deadline elapsed', 'TimeoutError');
+      }
+      return provider.fetchImpl(input, init);
+    }) as typeof fetch;
+    const result = await runSignalDumps(env, {
+      nowMs: NOW, revisionDays: 1,
+      fetchImpl: cutUplink(fetchImpl, { beaconUp: true, through: () => true }),
+    });
+    const appearance = result.outcomes.filter(outcome => outcome.report === 'search-appearance-pages');
+    expect(appearance.map(({ asset, status, errorCode }) => ({ asset, status, errorCode }))).toEqual([
+      { asset: 'meadow.example', status: 'success', errorCode: null },
+      { asset: 'northwind.example', status: 'error', errorCode: 'request_timeout' },
+    ]);
+    for (const signals of detailCalls.values()) {
+      expect(signals).toHaveLength(2);
+      expect(signals[0]).not.toBe(signals[1]);
+    }
+    expect(provider.calls.filter(call => call.body?.dimensions?.toString() === 'searchAppearance')).toHaveLength(2);
+  });
+
   describe('when the OS is what is down', () => {
     const ALL_PROPERTIES = [
       'meadow.example',

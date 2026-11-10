@@ -171,6 +171,12 @@ describe('named scheduled job submission on the existing workflows boundary', ()
       .toEqual({ status: 200, body: { job: id, outcome: 'ran' } });
     expect(runJob).toHaveBeenCalledExactlyOnceWith(id);
   });
+  it('forwards archive start mode and the runner’s tracking ID', async () => {
+    const reply = { status: 202, body: { job: 'signal-dumps', outcome: 'running', runId: 'signal-dumps@manual/2026-09-09T16:15:00.000Z' } };
+    const runJob = vi.fn(async () => reply);
+    expect(await handleScheduledJobsRequest({ ...request, body: JSON.stringify({ id: 'signal-dumps', background: true }) }, { runJob })).toEqual(reply);
+    expect(runJob).toHaveBeenCalledExactlyOnceWith('signal-dumps', true);
+  });
   it('rejects cross-origin, non-JSON and malformed or unapproved jobs before contacting the runner', async () => {
     const runJob = vi.fn();
     const attempts = [

@@ -4,9 +4,11 @@ import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { LOCAL_JOB_SOCKET, manualScheduledJob } from './scheduled-jobs.mjs';
+import { LOCAL_JOB_SOCKET, manualScheduledJob, parseLocalJobRequest } from './scheduled-jobs.mjs';
 import { redactLogText } from './os-log.mjs';
-export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
+/** Background callers get a receipt once the run enters history. The scheduler
+ * holds ownership until completion regardless of which reply the caller needs. */
+export async function invokeLocalJob(id, { scheduler, ready, stopped, }, background = false) {
     const job = manualScheduledJob(id);
     if (!job)
         return { status: 422, body: { error: 'local_job_not_allowed' } };
@@ -18,7 +20,17 @@ export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
     await scheduler.refresh();
     if (stopped() || !ready())
         return { status: 503, body: { error: 'runner_unavailable' } };
-    const invocation = await scheduler.runOnce(job.id, { manual: true });
+    if (background) {
+        return new Promise(resolve => {
+            void scheduler.runOnce(job.id, {
+                manual: true,
+                onStart: runId => resolve({ status: 202, body: { job: job.id, outcome: 'running', runId } }),
+            }).then(invocation => resolve(invocationReply(job.id, invocation)), () => resolve({ status: 500, body: { error: 'local_job_failed' } }));
+        });
+    }
+    return invocationReply(job.id, await scheduler.runOnce(job.id, { manual: true }));
+}
+function invocationReply(id, invocation) {
     if (invocation.status !== 'ran') {
         const status = invocation.status === 'busy' || invocation.status === 'paused' ? 409 : 503;
         return { status, body: { error: `job_${invocation.status}` } };
@@ -26,7 +38,7 @@ export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
     const result = invocation.result;
     const outcome = result?.outcome ?? 'failed';
     const detail = typeof result?.detail === 'string' ? redactLogText(result.detail).replace(/\s+/gu, ' ').trim().slice(0, 500) : null;
-    return { status: outcome === 'failed' ? 500 : 200, body: { job: job.id, outcome, ...(detail ? { detail } : {}) } };
+    return { status: outcome === 'failed' ? 500 : 200, body: { job: id, outcome, ...(detail ? { detail } : {}) } };
 }
 /** Remove only a dead Unix socket, never another live runner's admission. */
 async function clearStaleSocket(socketPath) {
@@ -77,18 +89,12 @@ export async function startLocalJobControl({ root, ...deps }) {
                     return;
                 }
             }
-            let input;
-            try {
-                input = JSON.parse(body);
-            }
-            catch {
-                input = null;
-            }
-            if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id') {
+            const input = parseLocalJobRequest(body);
+            if (!input) {
                 reply({ status: 422, body: { error: 'local_job_not_allowed' } });
                 return;
             }
-            reply(await invokeLocalJob(input.id, deps));
+            reply(await invokeLocalJob(input.id, deps, input.background));
         })().catch(() => reply({ status: 500, body: { error: 'local_job_failed' } }));
     });
     server.requestTimeout = 5_000;
@@ -110,7 +116,7 @@ export async function startLocalJobControl({ root, ...deps }) {
         } };
 }
 /** The socket path comes from the installation, never from a request body. */
-export async function requestLocalJob(id, { root, timeoutMs = 20 * 60_000 }) {
+export async function requestLocalJob(id, { root, background = false, timeoutMs = background ? 15_000 : 20 * 60_000 }) {
     if (!manualScheduledJob(id))
         return { status: 422, body: { error: 'local_job_not_allowed' } };
     return new Promise((resolve) => {
@@ -136,6 +142,6 @@ export async function requestLocalJob(id, { root, timeoutMs = 20 * 60_000 }) {
         const deadline = setTimeout(() => req.destroy(new Error('Runner request timed out.')), timeoutMs);
         req.once('close', () => clearTimeout(deadline));
         req.once('error', unavailable);
-        req.end(JSON.stringify({ id }));
+        req.end(JSON.stringify({ id, ...(background ? { background: true } : {}) }));
     });
 }

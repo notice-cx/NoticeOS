@@ -50,6 +50,7 @@ export const FEED_TAIL_ROWS = 500;
 export const FEED_SNAPSHOT_STEP_MINUTES = 15;
 /** Slack on the tables whose index is on the START of a run. */
 const RUN_START_SLACK_MS = 2 * 86_400_000;
+const GOOGLE_ARCHIVES = "Google archives";
 
 // ─── the statements ─────────────────────────────────────────────────────────
 
@@ -641,8 +642,7 @@ function runsOf<T extends { atMs: number }>(rows: readonly T[]): T[][] {
   return runs;
 }
 
-/** The newest run of each provider as one "Collected" line. Failures are
- * their own events elsewhere; this line counts them only to say "none". */
+/** The newest run of each collection as one "Collected" line. */
 function collectedLines(attempts: readonly Attempt[]): FeedEvent[] {
   const byProvider = new Map<string, Attempt[]>();
   for (const attempt of attempts) {
@@ -659,17 +659,21 @@ function collectedLines(attempts: readonly Attempt[]): FeedEvent[] {
     const from = newest.at(-1)!.atMs - WALL_FEED_FOLD_MS;
     const to = top.atMs + WALL_FEED_FOLD_MS;
     const ok = new Set(newest.map((attempt) => attempt.asset));
-    const failed = new Set(
-      list.filter((attempt) => !attempt.ok && attempt.atMs >= from && attempt.atMs <= to && !ok.has(attempt.asset)).map((attempt) => attempt.asset),
-    );
+    const failed = new Set(list.filter((attempt) => !attempt.ok && attempt.atMs >= from && attempt.atMs <= to).map((attempt) => attempt.asset));
+    const partial = [...failed].filter(asset => ok.has(asset)).length;
+    const failedOnly = failed.size - partial;
     const sites = siteCount(ok.size);
+    const result = partial > 0
+      ? `${sites} collected · ${failedOnly ? `${partial} partial · ${failedOnly} failed` : `${partial} with failures`}`
+      : failedOnly > 0 ? `${ok.size} of ${siteCount(ok.size + failedOnly)}`
+        : provider === GOOGLE_ARCHIVES ? `${sites} collected` : `${sites}, none failed`;
     lines.push({
       // Its own namespace: a source coming back shares the run's id.
       id: `collected:${top.id}`,
       atMs: top.atMs,
       kind: "collected",
       asset: ok.size === 1 ? top.asset : null,
-      text: failed.size === 0 ? `${provider} · ${sites}, none failed` : `${provider} · ${ok.size} of ${siteCount(ok.size + failed.size)}`,
+      text: `${provider} · ${result}`,
       tone: "neutral",
       count: newest.length,
       foldKey: null,
@@ -934,6 +938,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     const id = line ? `${line}:${row.evidenceId}` : `health:${row.eventId}`;
     const label = monitorLabel(row.provider, row.capability);
     const back = row.kind === "recovered";
+    const searchArchive = !back && row.capability === "gsc-archive";
     add({
       id,
       atMs: ms(row.at),
@@ -941,15 +946,17 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       asset: known(row.asset),
       text: back ? `${label} working again` : `${label}: ${FAILURE_WORDS[row.failureKind ?? ""] ?? "failed"}`,
       tone: back ? "healthy" : "error",
-      foldKey: back ? "source-back" : "source-failed",
-      many: back ? (n, s) => across(`${plural(n, "source")} back`, s) : (n, s) => across(`${plural(n, "source")} failed`, s),
+      foldKey: back ? "source-back" : searchArchive ? "source-failed:gsc-archive" : "source-failed",
+      many: back ? (n, s) => across(`${plural(n, "source")} back`, s)
+        : searchArchive ? (n, s) => across(`Search Console · ${plural(n, "archive report")} failed`, s)
+          : (n, s) => across(`${plural(n, "source")} failed`, s),
     });
   }
 
   // Collections: every failure is an event; successes are one line per
   // provider, its newest run.
   const attempts: Attempt[] = [];
-  const failure = (id: string, asset: string, at: string, what: string) =>
+  const failure = (id: string, asset: string, at: string, what: string, searchArchive = false) =>
     add({
       id,
       atMs: ms(at),
@@ -957,8 +964,8 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       asset,
       text: `${what} failed`,
       tone: "error",
-      foldKey: "source-failed",
-      many: (n, s) => across(`${plural(n, "source")} failed`, s),
+      foldKey: searchArchive ? "source-failed:gsc-archive" : "source-failed",
+      many: (n, s) => across(searchArchive ? `Search Console · ${plural(n, "archive report")} failed` : `${plural(n, "source")} failed`, s),
     });
   for (const row of active(signalFailures)) {
     failure(`signal_runs:${row.id}`, row.asset, row.at, `${collector(row.integration)} ${row.integration === "gsc" ? "Search Console" : row.integration === "ga4" ? "Analytics" : "report"}`);
@@ -969,8 +976,10 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   }
   for (const row of active(dumps)) {
     const ok = row.status !== "error";
-    if (!ok) failure(`signal_dump_runs:${row.id}`, row.asset, row.at, `${collector(row.integration)} report`);
-    attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: collector(row.integration), atMs: ms(row.at), ok });
+    const provider = collector(row.integration);
+    const searchArchive = row.integration === "gsc";
+    if (!ok) failure(`signal_dump_runs:${row.id}`, row.asset, row.at, searchArchive ? "Search Console report archive" : `${provider} report`, searchArchive);
+    attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: provider === "Google" ? GOOGLE_ARCHIVES : provider, atMs: ms(row.at), ok });
   }
   for (const row of active(mediavine)) {
     const ok = row.outcome === "success";

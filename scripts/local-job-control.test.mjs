@@ -13,7 +13,7 @@ import { runLocalLane } from './runner/scheduler.mjs';
 import { createScheduledJobRunner } from './scheduled-job-runner.mjs';
 import { LOCAL_JOB_SOCKET, SCHEDULED_JOBS, jobRunName, manualLocalJob } from './scheduled-jobs.mjs';
 import { actionArgs, stackControl } from './stack-control.mjs';
-import { createWorkflowHistory, WORKFLOW_HISTORY_FILE } from './workflow-history.mjs';
+import { createWorkflowHistory, WORKFLOW_ACTIVE_FILE, WORKFLOW_HISTORY_FILE } from './workflow-history.mjs';
 
 const execute = promisify(execFile);
 const selector = { project: 'synthetic-job', files: ['/fixture/compose.yaml'], envFile: '/fixture/installation.env', dockerHost: 'unix:///fixture/docker.sock' };
@@ -37,8 +37,8 @@ async function fixture(t, body = async () => ({ checked: 1 })) {
   const deps = { file, ship: async (record) => { shipped.push(record); }, emit: (level, text) => lines.push({ level, text }),
     begin: history.beginRun };
   scheduler = createScheduledJobRunner({
-    run: (job, manual) => {
-      const work = runLocalLane(jobRunName(job), { run: async () => { calls.push(job.id); return body(job); } }, manual, deps);
+    run: (job, manual, onStart) => {
+      const work = runLocalLane(jobRunName(job), { run: async () => { calls.push(job.id); return body(job); } }, manual, { ...deps, onStart });
       pending.add(work);
       void work.finally(() => pending.delete(work));
       return work;
@@ -50,7 +50,8 @@ async function fixture(t, body = async () => ({ checked: 1 })) {
   const admission = { scheduler, ready: () => ready, stopped: () => stopped };
   control = await startLocalJobControl({ root, ...admission });
   return { root, file, calls, shipped, lines, scheduler, admission,
-    request: (id) => requestLocalJob(id, { root }),
+    request: (id, options = {}) => requestLocalJob(id, { root, ...options }),
+    finished: () => Promise.all([...pending]),
     tick: (id) => timers.find(timer => timer.cron === SCHEDULED_JOBS.find(job => job.id === id).cron).callback(),
     records: async () => parseJobRuns(await readFile(file, 'utf8')),
     pause: (id) => { overrides = { [id]: { enabled: false, cron: SCHEDULED_JOBS.find(job => job.id === id).cron } }; },
@@ -59,6 +60,50 @@ async function fixture(t, body = async () => ({ checked: 1 })) {
     blockRead: () => { readGate = barrier(); return readGate; },
   };
 }
+
+test('a background request returns the observed run ID before a slow failure and excludes duplicates', { timeout: 5000 }, async (t) => {
+  const release = barrier();
+  const own = await fixture(t, async () => { await release.promise; return { failed: 1 }; });
+  const request = own.request('panel-refresh', { background: true, timeoutMs: 3000 });
+  let runId;
+  try {
+    const accepted = await request;
+    assert.equal(accepted.status, 202);
+    assert.equal(accepted.body.outcome, 'running');
+    runId = accepted.body.runId;
+    const active = JSON.parse(await readFile(path.join(own.root, WORKFLOW_ACTIVE_FILE), 'utf8')).runs;
+    assert.equal(active.find(run => run.id === runId)?.state, 'running');
+    assert.equal((await own.request('panel-refresh', { background: true })).body.error, 'job_busy');
+    assert.deepEqual(own.calls, ['panel-refresh']);
+  } finally {
+    release.resolve();
+    await own.finished();
+  }
+  const run = JSON.parse((await readFile(path.join(own.root, WORKFLOW_HISTORY_FILE), 'utf8')).trim());
+  assert.equal(run.id, runId);
+  assert.equal(run.state, 'failed');
+});
+
+test('a failed active-history write withholds the start receipt but the job still records its result', { timeout: 5000 }, async (t) => {
+  const entered = barrier(), release = barrier();
+  const own = await fixture(t, async () => {
+    entered.resolve();
+    await release.promise;
+    return { failed: 1 };
+  });
+  await mkdir(path.join(own.root, WORKFLOW_ACTIVE_FILE));
+  const request = own.request('panel-refresh', { background: true, timeoutMs: 3000 });
+  try {
+    await entered.promise;
+    assert.equal((await own.request('panel-refresh', { background: true })).body.error, 'job_busy');
+  } finally {
+    release.resolve();
+    await own.finished();
+  }
+  assert.deepEqual(await request, { status: 500, body: { job: 'panel-refresh', outcome: 'failed' } });
+  assert.deepEqual(own.calls, ['panel-refresh']);
+  assert.equal(JSON.parse(await readFile(path.join(own.root, WORKFLOW_HISTORY_FILE), 'utf8')).state, 'failed');
+});
 
 test('the stack command reaches the live scheduler from a separate CLI process and runs exactly the selected job', async (t) => {
   const own = await fixture(t);

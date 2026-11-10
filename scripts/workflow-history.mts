@@ -20,10 +20,11 @@ export const WORKFLOW_ACTIVE_FILE: string = '.local/workflow-active.json';
 export const WORKFLOW_SESSION_ID: string = randomUUID();
 
 export interface WorkflowRunTrace {
+  id: string; observed: Promise<boolean>;
   local: boolean; run: WorkflowRecorder['run']; verdict(outcome: string): 'failed' | 'skipped' | 'succeeded'; adopt(steps?: WorkflowStepRun[]): void; finish(outcome: string): Promise<void>;
 }
 export interface WorkflowHistory {
-  publishHeartbeat(): Promise<void>;
+  publishHeartbeat(): Promise<boolean>;
   beginRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace;
 }
 
@@ -35,13 +36,16 @@ export interface WorkflowHistory {
  */
 export function createWorkflowHistory(root: string): WorkflowHistory {
   const active = new Map<string, WorkflowRun>();
-  let writes: Promise<void> = Promise.resolve();
+  let writes = Promise.resolve(true);
   let completed = 0;
 
   // Telemetry failure cannot change the operation's outcome. Writes are ordered
   // so concurrent workflows cannot overwrite each other's active observations.
-  function queueWrite(fn: () => Promise<void>): Promise<void> { writes = writes.then(fn).catch(() => {}); return writes; }
-  function publishHeartbeat(): Promise<void> {
+  function queueWrite(fn: () => Promise<void>): Promise<boolean> {
+    writes = writes.then(fn).then(() => true, () => false);
+    return writes;
+  }
+  function publishHeartbeat(): Promise<boolean> {
     const body = JSON.stringify({ sessionId: WORKFLOW_SESSION_ID, updatedAt: new Date().toISOString(), runs: [...active.values()] });
     return queueWrite(async () => {
       const file = path.join(root, WORKFLOW_ACTIVE_FILE);
@@ -59,8 +63,10 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
       ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' as const } } : {}) };
     const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });
     active.set(run.id, run);
-    void publishHeartbeat();
+    const observed = publishHeartbeat();
     return {
+      id: run.id,
+      observed,
       local: Boolean(definition.local),
       run: recorder.run,
       verdict: (outcome: string) => workflowResult(recorder.steps, outcome),
@@ -102,7 +108,7 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
 
 // The stack's runner's history: this code folder's `.local/`.
 const checkoutHistory = createWorkflowHistory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));
-export function publishWorkflowHeartbeat(): Promise<void> { return checkoutHistory.publishHeartbeat(); }
+export function publishWorkflowHeartbeat(): Promise<boolean> { return checkoutHistory.publishHeartbeat(); }
 export function beginWorkflowRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace { return checkoutHistory.beginRun(job, startedAtMs, trigger); }
 
 /** Bounded tail read; a torn first/last JSONL line is never an invented run. */

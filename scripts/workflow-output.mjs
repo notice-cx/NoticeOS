@@ -21,6 +21,9 @@ const COUNTS = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progr
 const REASONS = {
     'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
 };
+const REQUEST_FAILURES = {
+    request_timeout: 'Request timed out', request_failed: 'Request failed', os_egress_down: 'NoticeOS could not reach the internet',
+};
 const DETAILS = ['No Mediavine report is due.', 'Mediavine needs to be reconnected.'];
 const VERDICTS = ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'];
 const LABELS = { ...METRICS, ...COUNTS, projects: 'Projects', projectsRead: 'Projects read', projectsFailed: 'Projects unavailable', savedSettings: 'Saved settings', defaultSettings: 'Default settings', ok: 'Operation confirmed', providerTruncated: 'Provider limited the result', check: 'Check', finding: 'Finding', dataState: 'Data', status: 'HTTP status', reportDate: 'Reporting date', date: 'Reporting date', integration: 'Integration', report: 'Report', reason: 'Reason', outcome: 'Dispatch result', verdict: 'Outcome', id: 'Window' };
@@ -66,6 +69,9 @@ function fields(value) {
     const reason = Object.hasOwn(REASONS, value?.skipped) ? value.skipped : value?.reason;
     if (Object.hasOwn(REASONS, reason))
         result.push(entry('reason', 'Reason', REASONS[reason]));
+    else if (value?.status === 'error' && Object.hasOwn(REQUEST_FAILURES, value.errorCode)) {
+        result.push(entry('reason', 'Reason', REQUEST_FAILURES[value.errorCode]));
+    }
     if (DETAILS.includes(value?.detail))
         result.push(entry('reason', 'Reason', value.detail));
     if (['ran', 'failed', 'skipped'].includes(value?.outcome))
@@ -96,11 +102,14 @@ export function captureWorkflowOutput(value) {
     const primary = Array.isArray(value.outcomes) ? value.outcomes : Array.isArray(value.projects) ? value.projects : Array.isArray(value.closed) ? value.closed : [];
     const failures = Array.isArray(value.failed) ? value.failed : [];
     const collection = [...primary, ...failures.filter((item) => !primary.includes(item))];
-    const items = collection.slice(0, 50).map((item, index) => ({
+    const rows = collection.map((item, index) => ({
         label: name(item?.asset) ?? name(item?.id) ?? `Item ${index + 1}`,
         state: failures.includes(item) ? 'failed' : primary === value.closed ? 'succeeded' : itemState(item),
-        fields: [...fields(item), ...numbers(item, METRICS), ...numbers(item?.counts, COUNTS), ...numbers(item?.result, METRICS)].slice(0, 24),
+        item,
     }));
+    const kept = rows.length <= 50 ? rows : [...rows.filter(row => row.state === 'failed'), ...rows.filter(row => row.state !== 'failed')].slice(0, 50);
+    const items = kept
+        .map(({ item, ...row }) => ({ ...row, fields: [...fields(item), ...numbers(item, METRICS), ...numbers(item?.counts, COUNTS), ...numbers(item?.result, METRICS)].slice(0, 24) }));
     if (Array.isArray(value.projects)) {
         metrics.unshift(entry('projects', 'Projects', value.projects.length), entry('projectsRead', 'Projects read', value.projects.filter((item) => item?.ok === true).length), entry('projectsFailed', 'Projects unavailable', value.projects.filter((item) => item?.ok === false).length));
     }
@@ -128,7 +137,7 @@ export function isWorkflowStepOutput(value) {
         if (['reportDate', 'date'].includes(item.key))
             return typeof item.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.value);
         if (item.key === 'reason')
-            return [...Object.values(REASONS), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
+            return [...Object.values(REASONS), ...Object.values(REQUEST_FAILURES), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
         if (item.key === 'finding')
             return ['ok', 'warn', 'error', 'unreachable'].includes(item.value);
         if (item.key === 'outcome')

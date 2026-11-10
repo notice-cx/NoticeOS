@@ -130,7 +130,17 @@ export async function runJobLane(
       deps.onRecord?.(record);
       await ship(record);
     },
-    begin: begin ? (name, at) => begin(name, at, deps.trigger) : null,
+    begin: begin ? (name, at) => {
+      const trace = begin(name, at, deps.trigger);
+      if (trace && deps.onStart) {
+        void trace.observed.then(observed => {
+          if (observed) return deps.onStart(trace.id);
+          emit('WARN', 'Could not save the running workflow to history.');
+        })
+          .catch(() => emit('WARN', 'Could not send the run start receipt.'));
+      }
+      return trace;
+    } : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),
   });
   pendingRuns.add(pending);

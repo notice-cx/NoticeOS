@@ -18,12 +18,14 @@ export interface ScheduledJobRunner {
   snapshot(): ScheduleStatus;
   apply(overrides: ScheduleOverrides | null): void;
   current(id: string): JobSchedule | null;
-  runOnce(id: string, options?: { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown> }): Promise<JobInvocation>;
+  runOnce(id: string, options?: JobRunOptions): Promise<JobInvocation>;
   refresh(): Promise<void>;
   stop(): void;
 }
 
 export type JobInvocation = { status: 'ran'; result: unknown } | { status: 'busy' | 'paused' | 'unavailable' | 'unknown' };
+type OnStart = (runId: string) => void;
+interface JobRunOptions { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown>; onStart?: OnStart }
 
 export async function readStoredSchedules(request: typeof configStoreRequest = configStoreRequest): Promise<ScheduleOverrides | null> {
   const result = await request(CONFIG_DOCUMENTS_PATH, {
@@ -53,7 +55,7 @@ export function createScheduledJobRunner({
   now = () => new Date(),
 }: {
   jobs?: ScheduledJob[];
-  run: (job: ScheduledJob, manual?: boolean) => Promise<unknown>;
+  run: (job: ScheduledJob, manual?: boolean, onStart?: OnStart) => Promise<unknown>;
   read?: () => Promise<ScheduleOverrides | null>;
   publish?: (status: ScheduleStatus) => Promise<void>;
   onReady?: () => void;
@@ -67,7 +69,7 @@ export function createScheduledJobRunner({
   let error: string | null = null;
   let initialized = false;
 
-  async function runOnce(id: string, { manual = false, wait = false, execute }: { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown> } = {}): Promise<JobInvocation> {
+  async function runOnce(id: string, { manual = false, wait = false, execute, onStart }: JobRunOptions = {}): Promise<JobInvocation> {
     const job = jobs.find((candidate) => candidate.id === id);
     if (!job) return { status: 'unknown' };
     if (job.manualOnly && !manual) return { status: 'unavailable' };
@@ -78,11 +80,11 @@ export function createScheduledJobRunner({
       // Recovery must outlast a regular tick's held-record bookkeeping.
       // Manual requests never wait for another invocation.
       await inFlight.get(id);
-      return runOnce(id, { manual, wait, execute });
+      return runOnce(id, { manual, wait, execute, onStart });
     }
     let release!: () => void;
     inFlight.set(id, new Promise<void>((resolve) => { release = resolve; }));
-    try { return { status: 'ran', result: await (execute ? execute() : run(job, manual)) }; }
+    try { return { status: 'ran', result: await (execute ? execute() : run(job, manual, onStart)) }; }
     finally { inFlight.delete(id); release(); }
   }
 

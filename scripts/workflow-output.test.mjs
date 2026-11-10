@@ -60,6 +60,22 @@ test('keeps archive unchanged distinct from skipped and preserves exact measured
   assert.equal(output.metrics[0].value, 0.000153);
 });
 
+test('keeps late archive failures and their safe reasons within bounded output', () => {
+  const output = captureWorkflowOutput({ failed: 1, outcomes: [
+    ...Array.from({ length: 60 }, () => ({ asset: 'meadow.example', status: 'unchanged' })),
+    { asset: 'northwind.example', integration: 'gsc', report: 'search-appearance-pages', reportDate: '2026-09-08',
+      status: 'error', errorCode: 'request_timeout', error: 'private response' },
+  ] });
+  assert.ok(isWorkflowStepOutput(output));
+  assert.equal(output.totalItems, 61);
+  assert.equal(output.items.length, 50);
+  assert.equal(output.items[0].label, 'northwind.example');
+  assert.equal(output.items[0].state, 'failed');
+  assert.equal(output.items[0].fields.find(field => field.key === 'reportDate').value, '2026-09-08');
+  assert.equal(output.items[0].fields.find(field => field.key === 'reason').value, 'Request timed out');
+  assert.ok(!JSON.stringify(output).includes('private response'));
+});
+
 test('separates health findings from check execution and retains failed checks', () => {
   const output = captureWorkflowOutput({ assets: 1, checks: 2, outcomes: [
     { asset: 'northwind.example', check: 'sitemap', status: 'ok', value: 25 },

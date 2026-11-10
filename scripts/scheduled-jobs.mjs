@@ -15,6 +15,22 @@ export function manualScheduledJob(id) {
     return SCHEDULED_JOBS.find((job) => job.id === id) ?? null;
 }
 export const manualLocalJob = manualScheduledJob;
+/** The browser route and private runner socket admit the same named jobs. */
+export function parseLocalJobRequest(body) {
+    let input;
+    try {
+        input = JSON.parse(body);
+    }
+    catch {
+        return null;
+    }
+    if (!input || typeof input !== 'object' || !['id', 'background,id'].includes(Object.keys(input).sort().join(',')))
+        return null;
+    const job = manualScheduledJob(input.id);
+    if (!job || ('background' in input && input.background !== true))
+        return null;
+    return { id: job.id, ...('background' in input ? { background: true } : {}) };
+}
 export const WORKFLOW_GROUPS = [
     { label: 'Business signals' },
     { label: 'Asset health' },

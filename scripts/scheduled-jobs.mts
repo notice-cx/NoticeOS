@@ -83,9 +83,19 @@ export function manualScheduledJob(id: unknown): ScheduledJob | null {
 
 export const manualLocalJob = manualScheduledJob;
 
+/** The browser route and private runner socket admit the same named jobs. */
+export function parseLocalJobRequest(body: string): { id: string; background?: true } | null {
+  let input: unknown;
+  try { input = JSON.parse(body); } catch { return null; }
+  if (!input || typeof input !== 'object' || !['id', 'background,id'].includes(Object.keys(input).sort().join(','))) return null;
+  const job = manualScheduledJob((input as { id?: unknown }).id);
+  if (!job || ('background' in input && input.background !== true)) return null;
+  return { id: job.id, ...('background' in input ? { background: true } : {}) };
+}
+
 export interface LocalJobReply {
   status: number;
-  body: { job?: string; outcome?: string; error?: string; detail?: string };
+  body: { job?: string; outcome?: string; error?: string; detail?: string; runId?: string };
 }
 
 export const WORKFLOW_GROUPS: { label: string }[] = [

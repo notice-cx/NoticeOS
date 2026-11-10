@@ -58,9 +58,12 @@ export function createWorkflowHistoryReader(repoRoot: string, readManual: Manual
     const jobsFile = path.join(repoRoot, '.local/logs/job-runs.jsonl');
     const traceFile = path.join(repoRoot, WORKFLOW_HISTORY_FILE);
     try {
-      const [jobsStat, traceStat, activeText] = await Promise.all([stat(jobsFile), stat(traceFile).catch(() => null), readFile(path.join(repoRoot, WORKFLOW_ACTIVE_FILE), 'utf8').catch(() => '{}')]);
-      const key = `${jobsStat.mtimeMs}:${traceStat?.mtimeMs}`;
-      if (cache?.key !== key) cache = { key, records: await readJobRecords(jobsFile, now), traces: traceStat ? await readJsonLines(traceFile) : [] };
+      const [jobsStat, traceStat, activeText] = await Promise.all([
+        stat(jobsFile).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return null; throw error; }),
+        stat(traceFile).catch(() => null), readFile(path.join(repoRoot, WORKFLOW_ACTIVE_FILE), 'utf8').catch(() => '{}'),
+      ]);
+      const key = `${jobsStat?.mtimeMs}:${traceStat?.mtimeMs}`;
+      if (cache?.key !== key) cache = { key, records: jobsStat ? await readJobRecords(jobsFile, now) : [], traces: traceStat ? await readJsonLines(traceFile) : [] };
       let active: unknown[] = [];
       let observationsFresh = !sessionId;
       try {

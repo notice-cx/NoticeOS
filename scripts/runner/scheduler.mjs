@@ -152,11 +152,11 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
   const jobs = SCHEDULED_JOBS.filter((job) => job.local || job.manualOnly || configured.has(job.cron));
   scheduledJobRunner = createScheduledJobRunner({
     jobs,
-    run: async (job, manual = false) => {
-      if (job.local) return runLocalLane(job.id, lanes[job.id], manual);
+    run: async (job, manual = false, onStart) => {
+      if (job.local) return runLocalLane(job.id, lanes[job.id], manual, { onStart });
       return runWorkerLane(job, runtime, manual, { retry: () => scheduledJobRunner?.current(job.id)?.enabled
         ? runJobLane(jobRunName(job), () => fireScheduled(job.cron, runtime), retryOutcome((fired) => fired))
-        : null });
+        : null, onStart });
     },
     onReady: () => {
       fireFirstBeadsPoll(runtime, lanes);
@@ -208,12 +208,12 @@ export function retryFailedFiring(job, result, { retry, schedule = setTimeout, p
 }
 
 export async function runWorkerLane(job, runtime, manual = false, {
-  fire = fireScheduled, record = runRegularLane, retry = () => null, scheduleRetry = retryFailedFiring,
+  fire = fireScheduled, record = runRegularLane, retry = () => null, scheduleRetry = retryFailedFiring, onStart,
 } = {}) {
   const name = jobRunName(job);
   let recorded;
   const result = await record(name, () => fire(job.cron, runtime, manual ? 'manual' : undefined), (fired) => fired,
-    manual ? { trigger: { kind: 'manual' }, onRecord: value => { recorded = value; } } : {});
+    manual ? { trigger: { kind: 'manual' }, onStart, onRecord: value => { recorded = value; } } : {});
   if (!manual) { scheduleRetry(name, result, { retry }); return result; }
   const state = recorded?.workflowState ?? recorded?.outcome ?? result?.outcome ?? 'failed';
   return { ...(result && typeof result === 'object' ? result : {}), outcome: state === 'failed' || state === 'skipped' ? state : 'ran' };
