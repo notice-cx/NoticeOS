@@ -4,6 +4,7 @@ import { loadIntegrationEvidence, serpPanelAssets } from './integration-evidence
 // store. A ledger row is current when nothing supersedes it; net = revenue −
 // cost over the current rows for a period.
 
+import { actorIdentity, actorKey, modelIdentity } from "@noticeos/contract/actor-names";
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { readSites } from "./asset-registry";
@@ -262,20 +263,24 @@ export function cardWorkOf(snapshot: BeadsSnapshot | null, weeks: ReadonlyMap<st
 }
 
 /** The Agents widget's standings from the newest snapshot: each agent and
- * model's closes and held work summed across the projects read. Null until a
+ * model's closes and held work summed across the projects read, every
+ * spelling of one agent and of one model as one standing. Null until a
  * worker has named a model. */
 export function wallAgentsOf(snapshot: BeadsSnapshot | null): WallAgents | null {
   if (!snapshot) return null;
   const rows = snapshot.projects.filter((project) => project.ok).flatMap((project) => project.workers ?? []);
-  const agents = new Set(rows.filter((row) => row.model !== null).map((row) => row.id));
+  const agents = new Set(rows.filter((row) => row.model !== null).map((row) => actorKey(row.id)));
   if (agents.size === 0) return null;
   const merged = new Map<string, WallAgentStanding>();
-  for (const row of rows.filter((entry) => agents.has(entry.id))) {
-    const key = `${row.id}\0${row.model ?? ""}`;
-    const entry = merged.get(key) ?? { id: row.id, model: row.model, closed: 0, inProgress: 0 };
+  for (const row of rows) {
+    const id = actorKey(row.id);
+    if (!agents.has(id)) continue;
+    const model = modelIdentity(row.model);
+    const key = `${id}\0${model?.id ?? model?.name ?? ""}`;
+    const entry = merged.get(key) ?? { id, name: actorIdentity(row.id).name, model: model?.name ?? null, closed: 0, inProgress: 0 };
     merged.set(key, { ...entry, closed: entry.closed + row.closedRecent, inProgress: entry.inProgress + row.inProgress });
   }
-  const standings = [...merged.values()].sort((a, b) => b.closed - a.closed || b.inProgress - a.inProgress || a.id.localeCompare(b.id));
+  const standings = [...merged.values()].sort((a, b) => b.closed - a.closed || b.inProgress - a.inProgress || a.name.localeCompare(b.name));
   return {
     standings: standings.slice(0, WALL_AGENT_ROWS),
     closed: standings.reduce((sum, entry) => sum + entry.closed, 0),

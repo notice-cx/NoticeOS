@@ -977,7 +977,11 @@ export function unreadOperatorPosture(): OperatorPosture {
 
 /** One agent and the model it named, over the snapshot's closed window. */
 export interface WallAgentStanding {
+  /** The agent's `actorKey`, which every spelling of the agent shares. */
   id: string;
+  /** The agent's display name. */
+  name: string;
+  /** The model's display name, or null when the agent named none. */
   model: string | null;
   closed: number;
   inProgress: number;

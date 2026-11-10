@@ -5778,9 +5778,9 @@ export function KitchenSinkRoute() {
           <Section title="WallAgents (agents and models ranked by closes / no agent yet)">
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
               <WallAgents agents={{ closed: 31, inProgress: 7, capturedAt: iso(0), standings: [
-                { id: "claude", model: "Sonnet 5.5", closed: 11, inProgress: 2 },
-                { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 3 },
-                { id: "codex", model: "GPT-5-Codex", closed: 5, inProgress: 2 },
+                { id: "agent:Claude Code", name: "Claude Code", model: "Claude Sonnet 5.5", closed: 11, inProgress: 2 },
+                { id: "agent:Claude Code", name: "Claude Code", model: "Claude Opus 5.5", closed: 10, inProgress: 3 },
+                { id: "agent:Codex", name: "Codex", model: "GPT-5 Codex", closed: 5, inProgress: 2 },
               ] }} />
             </div>
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
