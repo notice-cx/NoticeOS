@@ -22,13 +22,13 @@ const IMPORTED_SERVICES = [[/^beads$/iu, 'Old task hub']];
 /** The labels a client adds to the name it registers, such as the ` (ntasks)` in `Claude Code (ntasks)`. */
 const CLIENT_SUFFIX = /(?:\s+\([^()]*\))+$/u;
 /**
- * An agent's display name: the name without its client's labels, as the
- * product it spells when it spells one. Every display name maps to itself,
- * so an actor's key reads back as the same key.
+ * An agent's display name: the product its name spells, with or without the
+ * labels a client adds, as in `Claude Code (ntasks)`; else the name as
+ * registered, so `Worker (EU)` and `Worker (US)` stay apart. Every display
+ * name maps to itself, so an actor's key reads back as the same key.
  */
 function agentName(name, ...tables) {
-    const bare = name.replace(CLIENT_SUFFIX, '') || name;
-    return lookUp(bare, ...tables) ?? bare;
+    return lookUp(name, ...tables) ?? lookUp(name.replace(CLIENT_SUFFIX, ''), ...tables) ?? name;
 }
 function lookUp(name, ...tables) {
     for (const table of tables) {

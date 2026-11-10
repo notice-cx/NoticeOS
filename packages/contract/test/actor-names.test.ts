@@ -13,6 +13,7 @@ describe('actorIdentity', () => {
     expect(actorKey('service:demo/claude')).toBe(actorKey('claude'));
     expect(actorKey('person:Claude Code')).not.toBe(actorKey('agent:Claude Code'));
     expect(actorKey('agent:Claude')).not.toBe(actorKey('agent:Claude Code'));
+    expect(actorKey('agent:Worker (EU)')).not.toBe(actorKey('agent:Worker (US)'));
   });
 
   it.each(naming.actors)('keys $actor so that its key reads back as the same key', ({ actor }) => {
