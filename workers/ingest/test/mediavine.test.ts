@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dates, MEDIAVINE_REPORTING_CLOCK, type Period } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { discoverMediavineSites, withMediavineLease } from '../src/mediavine-connection.js';
-import { disconnectMediavine, putMediavineCredential, runMediavine, saveMediavineSettings, syncMediavine } from '../src/mediavine.js';
+import { disconnectMediavine, mediavineStatus, putMediavineCredential, runMediavine, saveMediavineSettings, syncMediavine, UNPUBLISHED_RETRY_MS } from '../src/mediavine.js';
 import { connectCredential } from '../src/credential-connect.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { runCollectNow } from '../src/dispatch.js';
@@ -19,7 +19,7 @@ const ASSET = 'meadow.example';
 const SITE = { id: 'synthetic-site', title: 'Test publisher', domain: 'example.test' };
 const SECRET = 'synthetic-private-password';
 const reportPeriod = (value: string) => `${value.slice(6)}-${value.slice(0, 2)}-${value.slice(3, 5)}`;
-function transport(options: { revenue?: number | null; status?: number; retryAfter?: string } = {}) {
+function transport(options: { revenue?: number | null; revenueOn?: (date: string) => number | null; status?: number; retryAfter?: string } = {}) {
   return vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, string | null> };
     if (body.query.includes('unidashSignIn')) return Response.json({ data: { unidashSignIn: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresIn: 3600, twoFactorRequired: false } } });
@@ -29,7 +29,9 @@ function transport(options: { revenue?: number | null; status?: number; retryAft
     const period: Period = { start: reportPeriod(body.variables.startDate!), end: reportPeriod(body.variables.endDate!) };
     const days = dates(period);
     const value = options.revenue === undefined ? 1.25 : options.revenue;
-    return Response.json({ data: { internalSite: SITE, metricsSummary: { summary: { earnings: days.length * (value ?? 0) + 0.02 } }, earningsReport: { earnings: days.map(date => ({ date: date.replaceAll('-', '/'), revenue: value })) } } });
+    const on = options.revenueOn ?? (() => value);
+    const earnings = days.map(date => ({ date: date.replaceAll('-', '/'), revenue: on(date) }));
+    return Response.json({ data: { internalSite: SITE, metricsSummary: { summary: { earnings: earnings.reduce((sum, day) => sum + (day.revenue ?? 0), 0) + 0.02 } }, earningsReport: { earnings } } });
   });
 }
 async function connect() {
@@ -365,6 +367,62 @@ describe('daily accounting', () => {
     await syncMediavine(env, { asset: ASSET }, { fetchImpl: transport(), nowMs: NOW });
     const result = await syncMediavine(env, { asset: ASSET, start: '2026-09-01', end: '2026-09-08' }, { fetchImpl: transport({ revenue: null }), nowMs: NOW + 3_600_000 });
     expect(result.ok).toBe(false); expect(await total()).toEqual({ amount: 1000, rows: 1 });
+  });
+});
+// Mediavine answers $0, not null, for a day it has not published yet. At NOW
+// (06:10 Pacific on 09-09) its newest reporting day is 09-08.
+describe('a day Mediavine has not published yet', () => {
+  const YESTERDAY = '2026-09-08';
+  const HOUR = 3_600_000;
+  const reports = (fetchImpl: ReturnType<typeof transport>) =>
+    fetchImpl.mock.calls.filter(([, init]) => String(init?.body).includes('earningsReport')).length;
+  async function storedDays() {
+    const rows = await env.STORE.read((tx) => tx.query<{ date: string; amount: bigint }>(
+      'SELECT revenue_date::text AS date, amount_minor AS amount FROM noticeos.current_revenue WHERE asset_id = $1 ORDER BY revenue_date', [ASSET]));
+    return rows.map((row) => [row.date, Number(row.amount)]);
+  }
+
+  it('stores the days before it, keeps it unknown, and asks again each hour until its figure arrives', async () => {
+    await connect();
+    let published = false;
+    const fetchImpl = transport({ revenueOn: (date) => (date === YESTERDAY && !published ? 0 : 1.25) });
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('ran');
+    expect((await storedDays()).map(([date]) => date)).toEqual(dates({ start: '2026-09-01', end: '2026-09-07' }));
+    expect(await mediavineStatus(env, ASSET)).toMatchObject({ reportedThrough: '2026-09-07',
+      nextAttemptAt: new Date(NOW + UNPUBLISHED_RETRY_MS).toISOString(), error: expect.stringContaining(YESTERDAY) });
+    await runMediavine(env, { fetchImpl, nowMs: NOW + 20 * 60_000 });
+    expect(reports(fetchImpl)).toBe(1);
+    // An hour on Mediavine still shows $0: asked again, nothing stored, and the scheduled job has not failed.
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW + HOUR })).outcome).toBe('skipped');
+    expect(reports(fetchImpl)).toBe(2);
+    expect(await storedDays()).toHaveLength(7);
+    published = true;
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 2 * HOUR })).outcome).toBe('ran');
+    expect(await storedDays()).toContainEqual([YESTERDAY, 125]);
+    await runMediavine(env, { fetchImpl, nowMs: NOW + 3 * HOUR });
+    expect(reports(fetchImpl)).toBe(3);
+  });
+
+  it('stores a $0 on a day before yesterday as a reported zero', async () => {
+    await connect();
+    const result = await syncMediavine(env, { asset: ASSET, start: '2026-09-07', end: '2026-09-07' }, { fetchImpl: transport({ revenue: 0 }), nowMs: NOW });
+    expect(result.ok).toBe(true);
+    expect(await storedDays()).toEqual([['2026-09-07', 0]]);
+  });
+
+  it('keeps asking past three tries, stops when Mediavine’s reporting day ends, and the next morning stores the day as Mediavine then reports it', async () => {
+    await connect();
+    const fetchImpl = transport({ revenueOn: (date) => (date === YESTERDAY ? 0 : 1.25) });
+    for (const hours of [0, 1, 2, 3, 17]) await runMediavine(env, { fetchImpl, nowMs: NOW + hours * HOUR });
+    expect(reports(fetchImpl)).toBe(5);
+    expect((await storedDays()).map(([date]) => date)).not.toContain(YESTERDAY);
+    // 00:10 and 05:10 Pacific on 09-10: Mediavine's 09-09 has ended and the next report is not due yet.
+    for (const hours of [18, 23]) await runMediavine(env, { fetchImpl, nowMs: NOW + hours * HOUR });
+    expect(reports(fetchImpl)).toBe(5);
+    // 06:10 on 09-10: 09-08 is no longer the newest day, so its $0 is Mediavine's figure.
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 24 * HOUR })).outcome).toBe('ran');
+    expect(await storedDays()).toEqual(expect.arrayContaining([[YESTERDAY, 0], ['2026-09-09', 125]]));
+    expect(JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]!.body)).variables).toMatchObject({ startDate: '09/08/2026', endDate: '09/09/2026' });
   });
 });
 describe('request budget and scheduling', () => {

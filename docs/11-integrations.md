@@ -197,12 +197,19 @@ loader is unnecessary for this integration.
 The scheduled target is **06:10 Pacific time**, including daylight saving
 changes. Yesterday is requested explicitly, regardless of portal presets. The
 06:00 availability observation comes from the operator; missing/null days are
-treated as incomplete and retried, never recorded as zero. Scheduler ticks at
-minutes 10, 30 and 50 merely check whether work is due. A successful day causes
-no more automatic provider calls that day. After downtime, collection catches
-up missing days in one bounded request (at most 366 days).
+treated as incomplete and retried, never recorded as zero. Mediavine also
+reports $0 for a day it has not published yet, so a $0 for yesterday is not
+stored: the days before it are stored and yesterday stays unknown. A $0 for an
+earlier day is stored as zero. Scheduler ticks at minutes 10, 30 and 50 merely
+check whether work is due. A successful day causes no more automatic provider
+calls that day. After downtime, collection catches up missing days in one
+bounded request (at most 366 days).
 
-There are at most three automatic report attempts per day. Failures back off
+An incomplete report, yesterday's $0 included, is requested again once an hour
+until Mediavine's reporting day ends at midnight Pacific. The next 06:10 run
+requests the day again with the new yesterday, and stores the day as Mediavine
+then reports it, a $0 included. Other failures allow at most three automatic
+report attempts per day and back off
 20 then 40 minutes, with provider `Retry-After` taking precedence. Authentication
 failure stops automatic attempts until reconnection. Manual attempts are at
 least 15 minutes apart. Asset discovery caches successful results for 15 minutes

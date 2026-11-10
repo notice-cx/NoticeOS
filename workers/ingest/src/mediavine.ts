@@ -1,6 +1,6 @@
 import { resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection, type HealthConnection } from './integration-health-context.js';
-import { MediavineClient, MediavineError, dates, pacificDay, shiftDate, type Report, type Session, type Site } from '@noticeos/mediavine';
+import { MediavineClient, MediavineError, dates, pacificDay, publishedPart, shiftDate, type Report, type Session, type Site } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import type { ConnectFacts, MediavineResult, MediavineSettings, MediavineStatus, MediavineSync, PutCredentialInput, PutCredentialResult, DeleteCredentialResult, ScheduledRunResult } from '@noticeos/contract';
 import { mediavineSyncOn } from '@noticeos/contract';
@@ -248,10 +248,16 @@ export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string
   return runId;
 }
 
-export async function syncMediavine(env: IngestEnv, input: MediavineSync, options: MediavineOptions & { automatic?: boolean } = {}): Promise<MediavineResult<MediavineStatus> & Pick<ScheduledRunResult, 'outcome'>> {
+/** How long after Mediavine answers without a figure for a day it is asked
+ * again: under an hour, so the retry lands on the Mediavine tick an hour on. */
+export const UNPUBLISHED_RETRY_MS = 55 * 60_000;
+
+/** `unfinished`: Mediavine answered, and a requested day has no figure yet. */
+export async function syncMediavine(env: IngestEnv, input: MediavineSync, options: MediavineOptions & { automatic?: boolean } = {}): Promise<MediavineResult<MediavineStatus> & Pick<ScheduledRunResult, 'outcome'> & { unfinished?: true }> {
 
   const now = options.nowMs ?? Date.now(); const clock = pacificDay(now);
-  let outcome: ScheduledRunResult['outcome'] = 'skipped';
+  // Set inside the lease's callback, so declared wide rather than narrowed.
+  let outcome = 'skipped' as ScheduledRunResult['outcome'];
   let monitoringAvailable = true;
   try {
     await withMediavineLease(env, async (assertLease) => {
@@ -291,6 +297,9 @@ export async function syncMediavine(env: IngestEnv, input: MediavineSync, option
         'SELECT attempted_at FROM noticeos.mediavine_runs WHERE asset_id = $1 ORDER BY attempted_at DESC LIMIT 1', [input.asset]));
       if (recent && epochMs(recent.attempted_at)! > now - 900_000) throw new MediavineError('busy', 'A sync was attempted recently. Wait 15 minutes before another refresh.');
       const at = new Date(now).toISOString();
+      // When this attempt is recorded as missing a day; after a stored part it
+      // is that part's instant, so the missing day reads as the latest run.
+      let missedAt = at;
       let health: HealthConnection | null = null;
       try {
         const credential = await resolveCredential(env, 'mediavine');
@@ -308,41 +317,60 @@ export async function syncMediavine(env: IngestEnv, input: MediavineSync, option
         await assertLease();
         await validateSiteAssignment(env, await register(env), input.asset, siteId);
         if (!report.complete) throw new MediavineError('incomplete', 'Mediavine has not reported every requested day yet. Saved revenue is unchanged.');
-        const runId = await persistReport(env, input.asset, report);
-        monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset: input.asset, target: siteId, observedAt: report.fetchedAt, attemptId: runId, evidenceSource: 'mediavine_runs', ok: true });
-        outcome = 'ran';
+        // The days before an unpublished one are stored now; the unpublished
+        // day stays unknown and is asked for again (`UNPUBLISHED_RETRY_MS`).
+        const published = publishedPart(report);
+        const runId = published === null ? null : await persistReport(env, input.asset, published);
+        if (runId !== null) { outcome = 'ran'; missedAt = report.fetchedAt; await recordCredentialOutcome(env, 'mediavine', { ok: true, at }); }
+        if (published !== report) throw new MediavineError('incomplete', `Mediavine has not published revenue for ${report.unpublishedDates.join(', ')} yet. It is checked again every hour.`);
+        monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset: input.asset, target: siteId, observedAt: report.fetchedAt, attemptId: runId!, evidenceSource: 'mediavine_runs', ok: true });
         await env.STORE.write((tx) => tx.execute(
           `INSERT INTO noticeos.mediavine_state (workspace_id, asset_id, site_id, target_date, attempts) VALUES ($1::uuid, $2, $3, $4::date, 0)
            ON CONFLICT (workspace_id, asset_id) DO UPDATE SET site_id = excluded.site_id, target_date = excluded.target_date,
              attempts = 0, next_attempt_at = NULL, last_error = NULL, auth_blocked = false`,
           [tx.workspaceId, input.asset, siteId, clock.yesterday]));
-        await recordCredentialOutcome(env, 'mediavine', { ok: true, at });
       } catch (error) {
         if (error instanceof MediavineError && error.kind === 'busy') return;
         const message = mediavineMessage(error);
         const auth = error instanceof MediavineError && (error.kind === 'auth' || error.kind === 'permission');
-        const next = auth || attempts + 1 >= 3 ? null : Math.max(now + (attempts === 0 ? 20 : 40) * 60_000, error instanceof MediavineError ? error.retryAt ?? 0 : 0);
+        // A report Mediavine has not finished is no failure: it is asked for
+        // again every hour, uncounted, until its reporting day ends and the
+        // next morning's run asks for the day again. Failures back off 20
+        // then 40 minutes, three a day.
+        const unfinished = error instanceof MediavineError && error.kind === 'incomplete';
+        const failures = unfinished ? attempts : attempts + 1;
+        const next = auth || failures >= 3 ? null : Math.max(now + (unfinished ? UNPUBLISHED_RETRY_MS : (attempts === 0 ? 20 : 40) * 60_000), error instanceof MediavineError ? error.retryAt ?? 0 : 0);
         const runId = crypto.randomUUID();
         await env.STORE.write(async (tx) => {
           await tx.execute(
             `INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, message)
              VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, $8, $9)`,
-            [tx.workspaceId, runId, input.asset, siteId, start, end, at,
+            [tx.workspaceId, runId, input.asset, siteId, start, end, missedAt,
               error instanceof MediavineError && error.kind === 'incomplete' ? 'incomplete' : 'failed', message]);
           await tx.execute(
             `INSERT INTO noticeos.mediavine_state (workspace_id, asset_id, site_id, target_date, attempts, next_attempt_at, last_error, auth_blocked)
              VALUES ($1::uuid, $2, $3, $4::date, $5, $6::timestamptz, $7, $8)
              ON CONFLICT (workspace_id, asset_id) DO UPDATE SET target_date = excluded.target_date, attempts = excluded.attempts,
                next_attempt_at = excluded.next_attempt_at, last_error = excluded.last_error, auth_blocked = excluded.auth_blocked`,
-            [tx.workspaceId, input.asset, siteId, clock.yesterday, attempts + 1, next === null ? null : new Date(next), message, auth]);
+            [tx.workspaceId, input.asset, siteId, clock.yesterday, failures, next === null ? null : new Date(next), message, auth]);
         });
-        monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset: input.asset, target: siteId, observedAt: at, attemptId: runId, evidenceSource: 'mediavine_runs', ok: false, code: error instanceof MediavineError ? error.kind : 'network', nextAttemptAt: next ? new Date(next).toISOString() : null });
+        monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset: input.asset, target: siteId, observedAt: missedAt, attemptId: runId, evidenceSource: 'mediavine_runs', ok: false, code: error instanceof MediavineError ? error.kind : 'network', nextAttemptAt: next ? new Date(next).toISOString() : null });
         if (auth) await recordCredentialOutcome(env, 'mediavine', { ok: false, error: message, at });
         throw error;
       }
     }, options);
     return { ok: true, value: await mediavineStatus(env, input.asset), outcome, ...(!monitoringAvailable ? { monitoringAvailable: false } : {}) };
-  } catch (error) { return { ok: false, message: mediavineMessage(error), ...(!monitoringAvailable ? { monitoringAvailable: false } : {}), outcome: error instanceof MediavineError && error.kind === 'busy' ? 'skipped' : 'failed' }; }
+  } catch (error) {
+    const unfinished = error instanceof MediavineError && error.kind === 'incomplete';
+    // Days before the unpublished one were stored: the sync worked, and the
+    // status names the day still to come and when it is asked for again.
+    if (unfinished && outcome === 'ran') {
+      try { return { ok: true, value: await mediavineStatus(env, input.asset), outcome, ...(!monitoringAvailable ? { monitoringAvailable: false } : {}) }; } catch { /* reported below */ }
+    }
+    return { ok: false, message: mediavineMessage(error), ...(!monitoringAvailable ? { monitoringAvailable: false } : {}),
+      ...(unfinished ? { unfinished: true as const } : {}),
+      outcome: error instanceof MediavineError && error.kind === 'busy' ? 'skipped' : 'failed' };
+  }
 }
 
 export async function runMediavine(env: IngestEnv, options: MediavineOptions = {}): Promise<ScheduledRunResult> {
@@ -354,12 +382,16 @@ export async function runMediavine(env: IngestEnv, options: MediavineOptions = {
   const [connection] = await env.STORE.read((tx) => tx.query<{ auth_blocked: boolean }>(
     'SELECT auth_blocked FROM noticeos.integration_leases WHERE lease_key = $1', [MEDIAVINE_LEASE]));
   if (connection?.auth_blocked) return { outcome: 'skipped', detail: 'Mediavine needs to be reconnected.' };
-  let ran = 0; let failed = 0;
+  let ran = 0; let failed = 0; let waiting = 0;
   for (const [asset] of targets) {
     const result = await syncMediavine(env, { asset }, { ...options, automatic: true });
     if (result.outcome === 'ran') ran++;
-    if (result.outcome === 'failed') failed++;
+    // Mediavine not having published a day yet is no failure of this job.
+    else if (!result.ok && result.unfinished) waiting++;
+    else if (result.outcome === 'failed') failed++;
     console.log(JSON.stringify({ event: 'mediavine_sync', asset, outcome: result.outcome, ...(result.ok ? {} : { message: result.message }) }));
   }
-  return failed ? { outcome: 'failed', detail: `${failed} Mediavine syncs failed; ${ran} completed.` } : ran ? { outcome: 'ran', detail: `${ran} Mediavine syncs completed.` } : skipped;
+  if (failed) return { outcome: 'failed', detail: `${failed} Mediavine syncs failed; ${ran} completed.` };
+  if (ran) return { outcome: 'ran', detail: `${ran} Mediavine syncs completed.` };
+  return waiting ? { outcome: 'skipped', detail: `Mediavine has not published yesterday’s revenue for ${waiting} ${waiting === 1 ? 'site' : 'sites'} yet; checked again every hour.` } : skipped;
 }
