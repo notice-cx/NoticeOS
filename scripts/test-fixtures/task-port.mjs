@@ -41,7 +41,7 @@ export async function reserveTaskPort({ block = TASK_PORT_BLOCK, start } = {}) {
     `Task server ports ${block.low}-${block.low + 2 * block.size - 1} overlap the kernel's ports ${range?.join('-')}`);
   const first = (start ?? block.low + randomInt(block.size)) - block.low;
   for (let i = 0; i < block.size; i += 1) {
-    const port = block.low + (first + i) % block.size;
+    const port = block.low + (((first + i) % block.size) + block.size) % block.size;
     const lock = await listening(port + block.size);
     if (!lock) continue;
     const probe = await listening(port);
