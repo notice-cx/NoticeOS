@@ -158,4 +158,17 @@ describe("the Ntasks UI inside the Tower", () => {
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
     expect(assign).not.toHaveBeenCalled();
   });
+
+  it("signs in again when Ntasks refuses the token this browser still holds", async () => {
+    state.service = CONNECTED;
+    window.localStorage.setItem(TOKENS_KEY, JSON.stringify({ access: "revoked-token", refresh: null, expiresAt: Number.MAX_SAFE_INTEGER, name: "Pat Example" }));
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe(CLIENT_ID);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
 });
