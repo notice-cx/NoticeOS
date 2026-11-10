@@ -164,6 +164,14 @@ export function actorName(actor: string): string {
 }
 export { actorKey };
 
+/** A holder's label among others: its name, with its kind beside it when a
+ * holder of another kind is shown by the same name, so a person and an agent
+ * both called `nightly-triage` read apart. */
+export function holderLabel(actor: string, name: string, others: readonly (readonly [actor: string, name: string])[]): string {
+  const { kind } = actorIdentity(actor);
+  return others.some(([other, otherName]) => otherName === name && actorIdentity(other).kind !== kind) ? `${name} (${kind})` : name;
+}
+
 /** The sender a filter's assignee names among the recorded holders: its own
  * key, or, for a bare name no holder is recorded under, the holder shown by
  * that name, as a link from before `actorKey` wrote an agent's name alone. */

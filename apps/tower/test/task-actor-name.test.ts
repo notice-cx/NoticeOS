@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { actorName, taskActorLabel } from "@shared/tasks";
+import { actorName, holderLabel, taskActorLabel } from "@shared/tasks";
 
 describe("the name an actor is shown under", () => {
   it("shows every spelling of one agent by one name, a service acting for an agent as that agent", () => {
@@ -17,5 +17,12 @@ describe("the name an actor is shown under", () => {
     expect(taskActorLabel("service:demo/claude", actors)).toBe("Claude Code");
     expect(taskActorLabel(member, actors)).toBe("Dana");
     expect(taskActorLabel("9a8b7c6d-1b2c-4d5e-8f90-123456789abc", actors)).toBe("Unknown actor");
+  });
+});
+
+describe("a holder's label among others", () => {
+  it("adds the kind only where holders of different kinds share a name", () => {
+    const holders = [["service:ci/nightly-triage", "nightly-triage"], ["nightly-triage", "nightly-triage"], ["claude", "Claude Code"]] as const;
+    expect(holders.map(([actor, name]) => holderLabel(actor, name, holders))).toEqual(["nightly-triage (agent)", "nightly-triage (person)", "Claude Code"]);
   });
 });

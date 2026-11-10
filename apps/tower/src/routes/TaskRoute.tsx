@@ -28,6 +28,7 @@ import {
   taskActorLabel,
   actorKey,
   actorName,
+  holderLabel,
   modelName,
   claimedModel,
   closeAttribution,
@@ -1731,7 +1732,10 @@ const KIND_CHOICES: FactChoice[] = [
 function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly Holder[]): FactChoice[] {
   // The current holder keeps its own spelling of a name it shares, so it stays the pick.
   const named = actors === undefined
-    ? people.map((holder) => ({ value: current !== null && actorKey(current) === actorKey(holder.actor) ? current : holder.actor, label: holder.name }))
+    ? people.map((holder) => ({
+      value: current !== null && actorKey(current) === actorKey(holder.actor) ? current : holder.actor,
+      label: holderLabel(holder.actor, holder.name, people.map((other) => [other.actor, other.name] as const)),
+    }))
     : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
   const held = current && !named.some((choice) => choice.value === current)
     ? [{ value: current, label: taskActorLabel(current, actors) }] : [];

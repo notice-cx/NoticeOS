@@ -7,7 +7,7 @@ import { LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorKey, assigneeFilterKey } from "@shared/tasks";
+import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorKey, assigneeFilterKey, holderLabel } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
@@ -553,6 +553,7 @@ function Filters({
   const nameOf = (actor: string) => assigneeNames.get(actorKey(actor)) ?? actor;
   const assignees = [...assigneeCounts.keys()].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   // An old link may name another spelling of a sender the board offers.
+  const labelled = assignees.map((actor) => [actor, nameOf(actor)] as const);
   const picked = value.assignee === "all" ? "all"
     : assignees.find((actor) => actorKey(actor) === assigneeFilterKey(value.assignee, assignees)) ?? value.assignee;
   // What the fold's one press carries on a phone: how many of these are
@@ -655,7 +656,7 @@ function Filters({
         <option value="all">Anyone</option>
         {assignees.map((actor) => (
           <option key={actor} value={actor}>
-            {nameOf(actor)} · {assigneeCounts.get(actor) ?? 0}
+            {holderLabel(actor, nameOf(actor), labelled)} · {assigneeCounts.get(actor) ?? 0}
           </option>
         ))}
       </select>

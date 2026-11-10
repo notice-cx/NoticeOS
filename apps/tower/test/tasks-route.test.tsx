@@ -721,6 +721,20 @@ describe("/tasks — the filters are the URL", () => {
     expect(row(container, "md-88x")).toBeInTheDocument();
   });
 
+  it("tells apart a person and an agent shown by the same name in the assignee filter", () => {
+    const { container } = renderBoard({
+      live: true,
+      boards: {
+        "meadow.example": board([
+          liveTask({ id: "md-1w2", assignee: "service:ci/nightly-triage" }),
+          liveTask({ id: "md-88x", title: "Rewrite the FAQ", assignee: "nightly-triage" }),
+        ]),
+      },
+    });
+    const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
+    expect([...assignee.options].map((option) => option.textContent).sort()).toEqual(["Anyone", "nightly-triage (agent) · 1", "nightly-triage (person) · 1"]);
+  });
+
   it("filters by label on the live read", () => {
     const { container } = renderBoard({
       live: true,
