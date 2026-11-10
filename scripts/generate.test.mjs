@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'node:test';
-import { generatorSteps, main } from './generate.mjs';
+import { main } from './generate.mjs';
 
 const ran = (statuses = {}) => {
   const calls = [];
@@ -18,7 +18,7 @@ test('generate runs the compiled pairs, then the config docs, then the command i
   assert.deepEqual(write.calls, [['generate-config-contract.mjs'], ['config-docs.mjs', '--write'], ['scripts-index.mjs', '--write'], ['precise-tokens.mjs', '--write']]);
   const check = ran();
   assert.equal(main(['--', '--check'], { run: check.run }), 0);
-  assert.deepEqual(check.calls, generatorSteps(true).map(([script, flags]) => [script, ...flags]));
+  assert.deepEqual(check.calls, [['generate-config-contract.mjs', '--check'], ['config-docs.mjs', '--check'], ['scripts-index.mjs', '--check'], ['precise-tokens.mjs', '--check']]);
 });
 
 test('a failed rewrite stops before the steps that read it; a check reports every stale step', () => {
