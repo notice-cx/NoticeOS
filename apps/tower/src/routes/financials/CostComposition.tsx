@@ -50,7 +50,7 @@ export function CostComposition({
   const total = sumMoneyFigures(lines.map((line) => ({ currency: line.currency, revenue: 0, cost: line.amount, net: -line.amount })));
   const ranked = [...lines].sort((a, b) => b.amount - a.amount);
   return (
-    <section aria-labelledby={id} data-cost-composition="" className={cn("@container flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70", className)}>
+    <section aria-labelledby={id} data-cost-composition="" className={cn("@container flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border", className)}>
       <SectionLabel
         id={id}
         title="Where the cost goes"

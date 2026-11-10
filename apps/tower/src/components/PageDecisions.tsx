@@ -182,7 +182,7 @@ export function PageDecisions({
           <h3
             id="page-decisions-title"
             className={cn(
-              "font-semibold uppercase text-muted-foreground",
+              "font-semibold text-muted-foreground",
               collapsed
                 ? "text-[11px] tracking-[0.08em]"
                 : "text-wall-label tracking-widest",
@@ -335,7 +335,7 @@ function PageDecisionTable({
         <div
           role="row"
           className={cn(
-            "hidden gap-4 border-b border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:grid",
+            "hidden gap-4 border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground lg:grid",
             PAGE_DECISION_GRID,
           )}
         >
@@ -465,7 +465,7 @@ function PageDecisionRow({
             <span className="block text-[13px] font-semibold tabular-nums text-foreground">
               {formatInt(row.currentClicks)}
             </span>
-            <span className="block text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="block text-xs text-muted-foreground">
               clicks
             </span>
           </span>
@@ -566,7 +566,7 @@ function LikelyCause() {
   return (
     <span
       data-likely-cause
-      className="ml-1.5 inline-flex items-center rounded-sm bg-muted px-1 align-[1px] text-[10px] font-medium uppercase tracking-[0.04em] text-foreground"
+      className="ml-1.5 inline-flex items-center rounded-sm bg-muted px-1 align-[1px] text-xs font-medium text-foreground"
     >
       Likely cause
     </span>

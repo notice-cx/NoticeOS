@@ -926,7 +926,7 @@ describe("Asset Overview — the two lists", () => {
     );
   });
 
-  it("gives every ask the Tasks board's face — warn at every priority, a gate's △", async () => {
+  it("draws every ask with the waiting mark at every priority, named by its kind", async () => {
     const base = payload();
     stubJsonFetch(payload({
       operator: {
@@ -941,16 +941,13 @@ describe("Asset Overview — the two lists", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    const rings = [...container.querySelectorAll('section[aria-label="Needs attention"] ul > li')].map(
-      (row) => row.querySelector("[aria-hidden]")!,
+    const marks = [...container.querySelectorAll('section[aria-label="Needs attention"] ul > li')].map(
+      (row) => row.querySelector("svg[data-task-status]")!,
     );
-    // A task's priority is not a severity: every ask is warn, a top one too;
-    // the gate keeps the △ that says it holds other work.
-    expect(rings.map((ring) => ring.textContent)).toEqual(["!", "△", "!"]);
-    for (const ring of rings) {
-      expect(ring.className).toContain("text-warn");
-      expect(ring.className).not.toMatch(/\btext-(error|muted-foreground)\b/);
-    }
+    // A task's priority is not a severity: every ask wears Precise's waiting
+    // mark, a top one too, and its name says whether it is an approval.
+    expect(marks.map((mark) => mark.getAttribute("data-task-status"))).toEqual(["waiting", "waiting", "waiting"]);
+    expect(marks.map((mark) => mark.getAttribute("aria-label"))).toEqual(["Question", "Approval", "Question"]);
   });
 
   it("keeps core task surfaces visible with an honestly unread inbox", async () => {

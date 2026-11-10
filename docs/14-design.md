@@ -65,7 +65,12 @@ declared as a token for that mark.
 The families, and what each means:
 
 - **Attention: `error` / `warn` / `info`.** The severity of a flag, and
-  nothing else uses these colours. `info` is a slate grey rather than a blue,
+  nothing else uses these colours. This is the Tower's one exception to
+  Precise's colour rule: on an alert, a problem and a health mark, amber is
+  a warning and red an error, always beside a word or a symbol that says the
+  same. A task's state keeps Precise's own colours and marks
+  (`TaskStatusMark`): amber only for waiting for you, red only for blocked,
+  green only for done. `info` is a slate grey rather than a blue,
   so it is never confused with the accent. `urgent` is one measured colour
   step between `warn` and `error`, so the countdown's colour can escalate as a
   deadline nears without a separate colour scale; it is not a fourth severity
@@ -98,12 +103,11 @@ The families, and what each means:
   scale for a *completed* like-for-like comparison, at three intensities.
   `pace-on` / `pace-behind` / `pace-far-behind` are aliases of those and
   `warn` for comparison colour. The Wall's known traffic changes use green for any increase, yellow for declines below 10%, orange from 10% to below 25%, and red from 25%. Zero and unavailable comparisons are neutral. `wallTrafficTone` maps the existing magnitude steps to these colours; a recorded reporting-timezone change does not remove the colour from a visible percentage. Other intraday comparisons retain `paceTone` in `components/DeltaChip.tsx`.
-- **Surface kinds: `surface-money` / `-alert` / `-win` / `-neutral`.** A
-  card's *subject*, as a low-chroma tint on its top edge with one inner
-  highlight line. A tint never shows severity: an alert card has the alert
-  tint whether its alert is warn or error, and the severity is shown by the
-  dot and the word. `glass` is for chrome only, never for a surface showing
-  numbers.
+- **Panels are flat.** A card or a panel is Precise's: Background with a
+  1 px inset Border ring and 12 px corners, never a tint or a shadow; a
+  menu or popover takes `shadow-pop`, and only a secondary button is
+  raised (`shadow-raise`). `glass` is for chrome only, never for a surface
+  showing numbers.
 - **Chart tokens.** `chart-week-band` for alternating calendar weeks,
   `chart-distorted` for estimated reporting-day boundaries after a timezone change
   (an annotation, never an alert), and
@@ -114,8 +118,7 @@ The families, and what each means:
   `trend-positive` and `trend-negative` only for comparable percentage-point
   changes; unavailable comparisons remain neutral.
 - **The visual kit's tokens.** `viz-track` is the empty track a bar or a band
-  fills, `viz-grid` the thin line a grid or an axis is drawn with, and
-  `shadow-raised` the one shadow a screen's main region may have. The Tower's
+  fills and `viz-grid` the thin line a grid or an axis is drawn with. The Tower's
   type sizes above Tailwind's steps (`text-display`, `text-figure`,
   `text-figure-sm`, `text-micro`) are listed in `THEME_TEXT_SIZES`
   (`lib/utils.ts`) so a class merge never drops them.
@@ -202,7 +205,7 @@ the arrow keys and Home/End move between tabs, and on a phone the tab strip
 scrolls within its own row. A page never adds its own navigation beside the
 app's sidebar, and an address from before a page had tabs still opens the tab
 that holds its section. Inside a tab, the groups are panels, each starting
-with a small uppercase section label.
+with a sentence-case section label.
 
 Redesign a region around what it shows, not one component at a time: five
 alert cards may become one grid and one ranked list, six asset cards one
@@ -298,11 +301,10 @@ that deploys, spends money or acts outside the Tower.
 
 **Boxes by role, depth by rank.** A panel holds a group (a board, a grid, a
 comparison), never one fact; a region that is already distinct is not wrapped
-in another box. The main region may be raised (`shadow-raised`) with a faint
-tint of its identity colour; everything else is flat, with thin outlines.
-Panel sizes differ because importance differs: the main region spans more of
-the grid than the modules beside it. Section titles are small muted labels
-(`SectionLabel`) and the numbers use the large type. The top line of a
+in another box. Every panel is flat, with a thin inset ring; panel sizes
+differ because importance differs: the main region spans more of the grid
+than the modules beside it. Section titles are sentence-case semibold labels
+in Text (`SectionLabel`), never capitals, and the numbers use the large type. The top line of a
 `StatTile` marks its role on the screen (context, a problem, a win, money,
 people), so a row of tiles is read in order: context, then the problem, then
 what to do.
@@ -914,8 +916,7 @@ its component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
 `IncidentList`, `ChangeRows` and `FunnelBars` in `components/viz/` are the
 kit, shown with invented figures at `/dev/visual-kit`. `WhyItRanks` (a task's
 card as figures), in the same folder, is shown in the `/dev/kitchen-sink`
-gallery. One `Card` with four
-kinds. `PageAnswer`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for
+gallery. One flat `Card`. `PageAnswer`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for
 a figure combined with its series; `HeroChart` for a dated chart with keys,
 event marks and keyboard inspection; `Sparkline` and `MinutePulse` for the
 compact shapes. `ListPanel` / `ListRow` for three rows that expand in place or

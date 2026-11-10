@@ -347,7 +347,7 @@ function IntegrationViewCoverage({ cards, items, view }: { cards: readonly Integ
   const coverage = connectionCoverage(relevant.map((status) => connectionStatus(status.provider.id, status.credential, items)));
   const context = SOURCE_CONTEXT[view];
   return (
-    <section data-integration-view={view} aria-label={context.title} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
+    <section data-integration-view={view} aria-label={context.title} className="overflow-hidden rounded-xl bg-card ring-1 ring-inset ring-border">
       <SectionLabel title={context.title} className="px-5 pt-4 pb-3" />
       <KpiStrip columns={3}>
         <Kpi label="Working connections" value={`${coverage.working} / ${coverage.total}`} explanation="Observed collection, not just saved keys" />

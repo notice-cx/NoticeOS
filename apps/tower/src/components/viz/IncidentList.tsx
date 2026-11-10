@@ -77,7 +77,7 @@ export function IncidentList({ id, tabIndex, items, nowMs, marker = null, title 
   const warnings = items.length - errors;
 
   return (
-    <section id={id} tabIndex={tabIndex} aria-label={title} data-incident-list="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section id={id} tabIndex={tabIndex} aria-label={title} data-incident-list="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-5 pb-3 pt-4">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className={cn("m-0 whitespace-nowrap", eyebrowClass)}>{title}</h2>

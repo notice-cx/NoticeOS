@@ -141,7 +141,7 @@ function ClarityLead({ snapshot, aside }: { snapshot: ClaritySnapshot; aside?: R
   const value = (count: number | null) => count === null ? "Unknown" : formatInt(count);
   const observed = snapshot.collectedAt?.slice(0, 10) ?? snapshot.reportDate;
   return (
-    <section aria-labelledby={id} data-site-lead="clarity" className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <section aria-labelledby={id} data-site-lead="clarity" className="overflow-hidden rounded-xl border border-border bg-card">
       <SectionLabel id={id} title="Session report · 72 hours"
         caption={`${snapshot.collectedAt ? "Collected" : "Reported"} ${formatCalendarDate(observed)}${snapshot.truncated ? " · Limited export" : ""}`}
         className="border-b border-border/60 px-4 py-3">{aside}</SectionLabel>
@@ -192,7 +192,7 @@ function TrafficLead({
       aria-labelledby={id}
       data-traffic-window
       data-site-lead={source === "posthog" ? "posthog" : undefined}
-      className="overflow-hidden rounded-[10px] border border-border bg-card"
+      className="overflow-hidden rounded-xl border border-border bg-card"
     >
       {/* No explanation beside the title: each KPI names its own aggregate
           and its plotted method, and the chart legend names the provider. */}
@@ -251,7 +251,7 @@ function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapsho
   const { rankings } = snapshot;
   const reason = "Only the latest weekly report is kept";
   return (
-    <section aria-labelledby={id} data-site-lead="rankings" className="overflow-hidden rounded-[10px] border border-border bg-card">
+    <section aria-labelledby={id} data-site-lead="rankings" className="overflow-hidden rounded-xl border border-border bg-card">
       <SectionLabel
         id={id}
         title="Search position"

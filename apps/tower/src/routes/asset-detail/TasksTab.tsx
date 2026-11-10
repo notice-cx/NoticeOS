@@ -28,7 +28,7 @@ export function TasksTab({ data }: { data: AssetDetailFor<"tasks"> }) {
   const waiting = spoke?.ok ? (spoke.counts.waiting ?? 0) : 0;
   if (work && spoke === null) {
     return (
-      <section id="tasks" aria-label="Tasks" className="flex scroll-mt-4 flex-col items-start gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70" data-tasks-unwired="">
+      <section id="tasks" aria-label="Tasks" className="flex scroll-mt-4 flex-col items-start gap-3 rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-tasks-unwired="">
         <p className="m-0 text-sm font-medium">No task project for this asset</p>
         <Button asChild size="sm" variant="outline">
           <Link to={TASK_SOURCES_PATH}>Add a task project</Link>
@@ -37,7 +37,7 @@ export function TasksTab({ data }: { data: AssetDetailFor<"tasks"> }) {
     );
   }
   return (
-    <section id="tasks" aria-label="Tasks" className="flex scroll-mt-4 flex-col items-start gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70" data-asset-tasks="">
+    <section id="tasks" aria-label="Tasks" className="flex scroll-mt-4 flex-col items-start gap-3 rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-asset-tasks="">
       {open === null ? null : (
         <p className="m-0 text-sm">
           {open === 0 ? "No open tasks." : `${plural(open, "open task")}${waiting > 0 ? `, ${waiting} for you to decide` : ""}.`}

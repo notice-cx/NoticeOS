@@ -60,7 +60,7 @@ export function AlertBoard({
   const hasReadings = shown.some((item) => alertNormal(item) !== null);
 
   return (
-    <section aria-label="Open alerts" data-alert-board="" className="@container flex flex-col rounded-xl bg-card pt-2 ring-1 ring-border/70">
+    <section aria-label="Open alerts" data-alert-board="" className="@container flex flex-col rounded-xl bg-card pt-2 ring-1 ring-inset ring-border">
       {/* No title: the tab above already says Open. The answer owns the
           total, so a count appears only when a filter has made the board
           show fewer. */}

@@ -660,7 +660,7 @@ function Panel({ id, role, label, below, align, children }: {
   return (
     <div id={id} role={role} aria-label={label} data-event-timeline-panel
       className={clsx(
-        "absolute z-30 grid w-max max-w-64 gap-0.5 rounded-md border border-border bg-card px-3 py-2 text-left text-xs leading-snug text-foreground shadow-raised",
+        "absolute z-30 grid w-max max-w-64 gap-0.5 rounded-md border border-border bg-card px-3 py-2 text-left text-xs leading-snug text-foreground shadow-pop",
         below ? "top-full mt-1.5" : "bottom-full mb-1.5",
         align === "start" ? "left-0" : align === "end" ? "right-0" : "left-1/2 -translate-x-1/2",
       )}>
@@ -820,14 +820,14 @@ function MarkGroup({ group, index, below, open, panelId, bind, onPress, still }:
       </Trigger>
       {open && single ? (
         <Panel id={panelId} role="tooltip" below={below} align={alignFor(group.x)}>
-          <span className="text-micro font-medium uppercase tracking-wide text-muted-foreground">{eventWord(single.event)}</span>
+          <span className="text-xs font-medium text-muted-foreground">{eventWord(single.event)}</span>
           <span className="font-medium">{single.event.label}</span>
           <span className="tabular-nums text-muted-foreground">{single.detail}</span>
         </Panel>
       ) : null}
       {open && !single ? (
         <Panel id={panelId} role="group" label={group.name} below={below} align={alignFor(group.x)}>
-          <span className="text-micro font-medium uppercase tracking-wide text-muted-foreground">{group.events.length} events</span>
+          <span className="text-xs font-medium text-muted-foreground">{group.events.length} events</span>
           <ul className="grid gap-1.5 pt-1">
             {group.events.map((mark) => (
               <li key={mark.event.id} className="flex items-start gap-2">

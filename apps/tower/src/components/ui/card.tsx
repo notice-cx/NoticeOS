@@ -2,22 +2,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The one card shape: `rounded-[10px]`, one border, no shadow, so hierarchy
- * comes from scale rather than from cards lifting off the page. A `kind` tints
- * the card by its subject, never its verdict: an alert card is tinted alert
- * whether warn or error. Only highlight cards and heroes use kinds.
+ * The one card shape, as Precise draws a panel: flat on the page, a 1px
+ * inset Border ring and 12px corners, so hierarchy comes from scale rather
+ * than from cards lifting off the page. `kind` names the card's subject on
+ * `data-surface-kind`; it changes nothing drawn.
  */
 export type CardKind = "money" | "alert" | "win" | "neutral";
 
-const KIND_CLASS: Record<CardKind, string> = {
-  money: "border-surface-money-line bg-linear-to-b from-surface-money to-card to-70% shadow-[inset_0_1px_0_0_var(--surface-highlight)]",
-  alert: "border-surface-alert-line bg-linear-to-b from-surface-alert to-card to-70% shadow-[inset_0_1px_0_0_var(--surface-highlight)]",
-  win: "border-surface-win-line bg-linear-to-b from-surface-win to-card to-70% shadow-[inset_0_1px_0_0_var(--surface-highlight)]",
-  neutral: "border-border bg-linear-to-b from-surface-neutral to-card to-60% shadow-[inset_0_1px_0_0_var(--surface-highlight)]",
-};
-
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  /** The card's subject, as a tint. Absent, the plain card. */
+  /** The card's subject. */
   kind?: CardKind;
 }
 
@@ -25,11 +18,7 @@ export function Card({ className, kind, ...props }: CardProps) {
   return (
     <div
       data-surface-kind={kind}
-      className={cn(
-        "rounded-[10px] border text-card-foreground",
-        kind ? KIND_CLASS[kind] : "border-border bg-card",
-        className,
-      )}
+      className={cn("rounded-xl bg-card text-card-foreground ring-1 ring-inset ring-border", className)}
       {...props}
     />
   );
@@ -43,7 +32,7 @@ export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivE
   return (
     <div
       className={cn(
-        "font-semibold uppercase tracking-widest text-muted-foreground",
+        "font-semibold text-muted-foreground",
         className,
       )}
       {...props}

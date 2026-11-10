@@ -78,7 +78,7 @@ export function ListPanel({
 
   return (
     <section
-      className={cn("flex flex-col rounded-[10px] border border-border bg-card", className)}
+      className={cn("flex flex-col rounded-xl border border-border bg-card", className)}
       aria-label={title}
     >
       <SectionLabel
@@ -250,7 +250,7 @@ export function ListRow({
             {value}
           </span>
           {valueLabel ? (
-            <span className="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">
+            <span className="max-w-48 text-xs text-muted-foreground whitespace-normal">
               {valueLabel}
             </span>
           ) : null}

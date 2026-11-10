@@ -64,7 +64,7 @@ export function AlertsTab({
       <Hero id="alerts">
         <div className="flex flex-col gap-3.5">
           {timeline.spans.length > 0 ? (
-            <section aria-label={`The last ${WINDOW_DAYS} days`} data-site-alert-timeline="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
+            <section aria-label={`The last ${WINDOW_DAYS} days`} data-site-alert-timeline="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-inset ring-border">
               <h2 className={cn("m-0 pb-1", eyebrowClass)}>Last {WINDOW_DAYS} days</h2>
               <EventTimeline
                 lanes={timeline.lanes}

@@ -63,7 +63,7 @@ function FactCard({ fact, card, data, nowMs }: { fact: TechFact; card: AssetCard
   const evidenceId = useId();
   const observed = asOf(fact.key, card);
   const label = fact.key === 'reachable' ? 'Availability' : FACT_LABEL[fact.key];
-  return <section aria-label={label} className={cn('min-w-0 self-start overflow-hidden rounded-[10px] border border-border bg-card', fact.state === 'unknown' && 'border-dashed')} data-health-card={fact.key}>
+  return <section aria-label={label} className={cn('min-w-0 self-start overflow-hidden rounded-xl border border-border bg-card', fact.state === 'unknown' && 'border-dashed')} data-health-card={fact.key}>
     <button type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded(open => !open)}
       data-health-fact={fact.key} data-fact-state={fact.state}
       className="flex w-full flex-col items-start gap-1 p-4 text-start outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">

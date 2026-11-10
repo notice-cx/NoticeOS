@@ -113,7 +113,7 @@ function SystemMap({ credentials, items, nowMs }: { credentials: Parameters<type
   const wall = useWall();
   const graph = systemFlow({ credentials, items, system: wall.data?.system ?? null, nowMs });
   return (
-    <section aria-label="How the System runs" className="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="" data-system-map="">
+    <section aria-label="How the System runs" className="rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-surface-hero="" data-system-map="">
       <SectionLabel title="How the System runs" className="mb-4" />
       <FlowGraph nodes={graph.nodes} edges={graph.edges} nowMs={nowMs} ariaLabel="How the System runs: data sources, collectors, store, the Tower and backups" />
     </section>
@@ -209,7 +209,7 @@ function HealthViewInputs({ matrix, credentials, items, nowMs }: {
   const unverified = rows.filter(({ status }) => status.kind === "unknown" || status.kind === "not-checked").length;
   const shown = [...rows].sort((a, b) => connectionUrgency(b.status.kind) - connectionUrgency(a.status.kind)).slice(0, 5);
   return (
-    <section aria-label={context.title} data-health-view={choice.view} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
+    <section aria-label={context.title} data-health-view={choice.view} className="overflow-hidden rounded-xl bg-card ring-1 ring-inset ring-border">
       <SectionLabel title={context.title} className="px-5 pt-4 pb-3" />
       {rows.length > 0 ? <KpiStrip columns={4}>
         <Kpi label="Applicable sources" value={rows.length} caption="asset and source pairs" />

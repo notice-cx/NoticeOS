@@ -227,9 +227,8 @@
 .journey-chart {
   padding: 20px 18px 15px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--card);
-  box-shadow: var(--shadow-raised);
 }
 
 .journey-chart-heading {

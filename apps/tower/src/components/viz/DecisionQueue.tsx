@@ -1,7 +1,7 @@
-import { CircleHelp, Triangle } from "lucide-react";
 import { Children, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { TaskStatusMark } from "@/components/TaskStatusMark";
 import { formatInt } from "@/lib/format";
 import { countLabel } from "@/lib/count-label";
 import { cn } from "@/lib/utils";
@@ -37,9 +37,9 @@ export interface AgeBucket {
 
 const BUCKETS: readonly { key: AgeBucket["key"]; label: string; upTo: number; fill: string }[] = [
   { key: "fresh", label: "under 7d", upTo: 7, fill: "bg-muted-foreground/35" },
-  { key: "week", label: "7–30d", upTo: 30, fill: "bg-warn/45" },
-  { key: "month", label: "30–60d", upTo: 60, fill: "bg-warn/75" },
-  { key: "old", label: "over 60d", upTo: Number.POSITIVE_INFINITY, fill: "bg-warn" },
+  { key: "week", label: "7–30d", upTo: 30, fill: "bg-task-wait/45" },
+  { key: "month", label: "30–60d", upTo: 60, fill: "bg-task-wait/75" },
+  { key: "old", label: "over 60d", upTo: Number.POSITIVE_INFINITY, fill: "bg-task-wait" },
 ];
 
 /** The queue's age spread over the items whose age is known. */
@@ -102,7 +102,7 @@ export function DecisionQueue({ items, total = null, partial = false, totalNote,
   const shown = open && !compact ? rows : rows.slice(0, limit);
 
   return (
-    <section aria-label={title} data-decision-queue="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section aria-label={title} data-decision-queue="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
       <header className="flex flex-col gap-3 px-5 pb-3 pt-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>
@@ -117,7 +117,7 @@ export function DecisionQueue({ items, total = null, partial = false, totalNote,
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-figure tabular-nums text-foreground">{countLabel(count, partial)}</span>
             <span className="text-sm text-muted-foreground">
-              for you to decide{oldest !== null ? <> · oldest{compact ? " known" : ""} <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
+              for you to decide{oldest !== null ? <> · oldest{compact ? " known" : ""} <b className="font-semibold text-task-wait-text">{ageLabel(oldest)}</b></> : null}
               {totalNote ? ` · ${totalNote}` : null}
             </span>
           </div>
@@ -177,7 +177,6 @@ export function DecisionQueue({ items, total = null, partial = false, totalNote,
 /** One waiting item: its kind, title, project and age as a length, and its
  * verbs, quiet until the row is pointed at or focused. */
 export function QueueRow({ item, index, compact = false }: { item: QueueItem; index: number; compact?: boolean }) {
-  const Glyph = item.kind === "approval" ? Triangle : CircleHelp;
   const age = item.ageDays;
   const title = item.to ? (
     <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className={cn("font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring", compact && "line-clamp-2 [overflow-wrap:anywhere]")} title={item.title}>
@@ -192,7 +191,8 @@ export function QueueRow({ item, index, compact = false }: { item: QueueItem; in
       className="viz-arrive group grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30 focus-within:bg-muted/30 @lg:grid-cols-[auto_minmax(0,1fr)_auto]"
       style={{ ["--viz-i" as string]: index }}
     >
-      <Glyph aria-label={item.kind === "approval" ? "Approval" : "Question"} className="size-4 shrink-0 text-warn" />
+      {/* Precise's mark for a task waiting for you; its name says which kind. */}
+      <TaskStatusMark status="waiting" label={item.kind === "approval" ? "Approval" : "Question"} className="mt-0.5" />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex min-w-0 text-sm">{title}</span>
         <span className="flex min-w-0 items-center gap-2 text-micro text-muted-foreground">
@@ -200,9 +200,9 @@ export function QueueRow({ item, index, compact = false }: { item: QueueItem; in
           {age !== null ? (
             <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${ageLabel(age)}`}>
               <span aria-hidden className={cn("h-1 w-16 overflow-hidden rounded-full bg-viz-track", compact && "hidden")}>
-                <span className={cn("block h-full rounded-full", age >= 30 ? "bg-warn" : "bg-muted-foreground/60")} style={{ width: `${ageLength(age) * 100}%` }} />
+                <span className={cn("block h-full rounded-full", age >= 30 ? "bg-task-wait" : "bg-muted-foreground/60")} style={{ width: `${ageLength(age) * 100}%` }} />
               </span>
-              <span className={cn("w-8 text-end", age >= 30 && "font-semibold text-warn")}>{ageLabel(age)}</span>
+              <span className={cn("w-8 text-end", age >= 30 && "font-semibold text-task-wait-text")}>{ageLabel(age)}</span>
             </span>
           ) : (
             <span className="ms-auto shrink-0">age unknown</span>

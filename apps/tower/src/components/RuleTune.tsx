@@ -283,7 +283,7 @@ export function RuleTunePanel({
   return (
     <div className="flex flex-col gap-3" data-rule-tune={ruleId}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+        <span className="text-sm font-semibold text-foreground">
           Tune rule
         </span>
         {/* The rule named, with its id in the hover. */}
@@ -306,7 +306,7 @@ export function RuleTunePanel({
           measurement, and the replay is a projection. */}
       {stats ? (
         <div className="flex flex-col gap-1" data-rule-tune-rate={ruleId}>
-          <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+          <span className="text-sm font-semibold text-foreground">
             Answered by tuning
           </span>
           <TuneRate
@@ -317,7 +317,7 @@ export function RuleTunePanel({
       ) : null}
 
       <div className="flex flex-col gap-1" data-rule-tune-replay>
-        <span className="truncate text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+        <span className="truncate text-sm font-semibold text-foreground">
           Replay · {asset}
           {metric ? ` · ${metric}` : ""}
         </span>

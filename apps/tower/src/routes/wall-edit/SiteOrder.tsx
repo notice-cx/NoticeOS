@@ -15,7 +15,7 @@ export function SiteOrder({ assets, disabled }: { assets: Pick<AssetCard, 'id' |
     void move(asset, to);
   };
   return <section aria-labelledby="site-order-heading" className="flex flex-col gap-2">
-    <h2 id="site-order-heading" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Asset order</h2>
+    <h2 id="site-order-heading" className="text-xs font-semibold text-muted-foreground">Asset order</h2>
     <Link to={SITES_ARRANGE_ITEM.to} data-site-order-arrange
       className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0">
       Drag them, and choose where each shows, in Arrange

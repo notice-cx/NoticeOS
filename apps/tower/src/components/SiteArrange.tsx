@@ -142,7 +142,7 @@ export function SiteArrange({
           {disabledReason ?? CONFIG_READ_ONLY_FALLBACK}
         </p>
       ) : null}
-      <ol aria-label="Your order" className="m-0 flex list-none flex-col rounded-[10px] border border-border bg-card p-0">
+      <ol aria-label="Your order" className="m-0 flex list-none flex-col rounded-xl border border-border bg-card p-0">
         {sites.map((site, index) => (
           <SiteArrangeRow
             key={site.id}

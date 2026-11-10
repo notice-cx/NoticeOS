@@ -693,7 +693,7 @@ function SortButton({
     <button
       type="button"
       onClick={onSort}
-      className="-mx-1 flex items-center gap-1 rounded px-1 py-0.5 uppercase tracking-wider hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="-mx-1 flex items-center gap-1 rounded px-1 py-0.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {label}
       <Glyph

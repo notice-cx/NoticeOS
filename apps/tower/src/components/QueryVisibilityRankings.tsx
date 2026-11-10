@@ -191,7 +191,7 @@ export function QueryVisibilityRankings({
           <h3
             id="query-visibility-title"
             className={cn(
-              "font-semibold uppercase text-muted-foreground",
+              "font-semibold text-muted-foreground",
               collapsed
                 ? "text-[11px] tracking-[0.08em]"
                 : "text-wall-label tracking-widest",
@@ -414,7 +414,7 @@ function DecisionTable({
         <div
           role="row"
           className={cn(
-            "hidden gap-4 border-b border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:grid",
+            "hidden gap-4 border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground lg:grid",
             DECISION_GRID,
           )}
         >
@@ -689,7 +689,7 @@ function QueryRowValue({ row }: { row: UnifiedQueryRow }) {
         <span className="block text-[13px] font-semibold tabular-nums text-foreground">
           {formatInt(observed.currentImpressions)}
         </span>
-        <span className="block text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="block text-xs text-muted-foreground">
           impressions
         </span>
       </span>
@@ -701,7 +701,7 @@ function QueryRowValue({ row }: { row: UnifiedQueryRow }) {
         <span className="block text-[13px] font-semibold tabular-nums text-foreground">
           {organicPositionLabel(row.dataforseo.organicPosition)}
         </span>
-        <span className="block text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+        <span className="block text-xs text-muted-foreground">
           position
         </span>
       </span>
@@ -1298,7 +1298,7 @@ function SourceNotes({ trends }: { trends: SearchQueryTrends }) {
                     key={`${row.label}-${row.value}`}
                     className="flex flex-wrap items-baseline gap-x-1.5"
                   >
-                    <dt className="uppercase tracking-wider">{row.label}</dt>
+                    <dt className="">{row.label}</dt>
                     <dd className="font-medium tabular-nums text-foreground">
                       {row.value}
                     </dd>

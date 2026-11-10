@@ -62,6 +62,14 @@
   --brand-sidebar: var(--precise-canvas);
   --brand-panel: var(--precise-surface);
   --brand-shadow-raise: var(--precise-shadow-raise);
+  --brand-shadow-pop: var(--precise-shadow-pop);
+  /* A task's state, as Precise draws it: amber only for waiting for you, red
+     only for blocked, green only for done. Alerts keep the warning and danger
+     colours above. */
+  --brand-task-wait: var(--precise-wait);
+  --brand-task-wait-text: var(--precise-wait-text);
+  --brand-task-block: var(--precise-block);
+  --brand-task-done: var(--precise-done);
   /* The Notice blue: the website's accent on its paper surfaces. Precise
      fills with a lighter step of it on dark, and sets words in its tint, the
      one the website draws on its dark surfaces. */
@@ -98,6 +106,14 @@
   --brand-sidebar: var(--precise-canvas);
   --brand-panel: var(--precise-surface);
   --brand-shadow-raise: var(--precise-shadow-raise);
+  --brand-shadow-pop: var(--precise-shadow-pop);
+  /* A task's state, as Precise draws it: amber only for waiting for you, red
+     only for blocked, green only for done. Alerts keep the warning and danger
+     colours above. */
+  --brand-task-wait: var(--precise-wait);
+  --brand-task-wait-text: var(--precise-wait-text);
+  --brand-task-block: var(--precise-block);
+  --brand-task-done: var(--precise-done);
   --brand-blue: #2745d4;
   --brand-accent: var(--precise-accent);
   --brand-accent-text: var(--precise-accent-text);

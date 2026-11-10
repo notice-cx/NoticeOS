@@ -65,7 +65,7 @@ export function laneLabel(lane: DecisionLane): string {
 
 export function MobileCellLabel({ children }: { children: string }) {
   return (
-    <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground lg:hidden">
+    <div className="mb-1 text-xs font-semibold text-muted-foreground lg:hidden">
       {children}
     </div>
   );

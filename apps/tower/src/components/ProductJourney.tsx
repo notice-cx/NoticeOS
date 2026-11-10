@@ -84,7 +84,7 @@ function ProductEmpty({ connection }: { connection: ProductConnection }) {
         ? "Product data is not collected for this asset."
         : "Product data is not connected for this asset.";
   return (
-    <p className="m-0 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty={connection}>
+    <p className="m-0 flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty={connection}>
       <span aria-hidden className="font-semibold">—</span>
       {line}
     </p>
@@ -200,7 +200,7 @@ function FunnelPanel({ funnels }: { funnels: ProductFunnel[] }) {
   const hidden = funnels.length - FUNNELS_SHOWN;
   return (
     <section
-      className="flex min-w-0 flex-col rounded-[10px] border border-border bg-card"
+      className="flex min-w-0 flex-col rounded-xl border border-border bg-card"
       aria-label="Funnels"
       data-product-funnels
     >
@@ -262,7 +262,7 @@ function FunnelBlock({ funnel }: { funnel: ProductFunnel }) {
           </span>
         )}
       </div>
-      <div className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground sm:text-end">
+      <div className="text-xs text-muted-foreground sm:text-end">
         {funnel.sampled ? "Observed people · conversion unavailable with sampling" : "People · share of the step before"}
       </div>
       <ol className="m-0 grid list-none gap-1.5 p-0">
@@ -568,7 +568,7 @@ function Facts({ facts }: { facts: ReadonlyArray<readonly [string, string]> }) {
     <dl className="m-0 grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-x-4 gap-y-1.5" data-product-facts>
       {facts.map(([label, value]) => (
         <div key={label} className="grid gap-0.5">
-          <dt className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">{label}</dt>
+          <dt className="text-xs text-muted-foreground">{label}</dt>
           <dd className="m-0 text-xs font-medium tabular-nums text-foreground">{value}</dd>
         </div>
       ))}

@@ -48,7 +48,7 @@ export function AlertWeek({
     };
   });
   return (
-    <section aria-label="The last 7 days" data-alert-week="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
+    <section aria-label="The last 7 days" data-alert-week="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-inset ring-border">
       <h2 className={cn("m-0 pb-1", eyebrowClass)}>Last 7 days</h2>
       <EventTimeline
         lanes={lanes}

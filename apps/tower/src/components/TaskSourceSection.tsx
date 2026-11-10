@@ -182,7 +182,7 @@ export function CommandBlock({
   return (
     <div className="flex min-w-0 flex-col gap-1 rounded-md border border-border bg-background p-2" data-command-block>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="min-w-0 break-all text-[11px] uppercase tracking-wide text-muted-foreground">
+        <span className="min-w-0 break-all text-xs text-muted-foreground">
           {label}
         </span>
         <Button
@@ -221,7 +221,7 @@ export function CommandBlock({
 /** An installation with no task service connected: its one step to having tasks. */
 export function ConnectNtasks() {
   return (
-    <div className="rounded-[10px] border border-border bg-card p-4" data-connect-ntasks>
+    <div className="rounded-xl border border-border bg-card p-4" data-connect-ntasks>
       <EmptyState
         title="Connect Ntasks"
         hint={
@@ -249,7 +249,7 @@ export function ConnectNtasks() {
  */
 export function TaskHubUnavailable() {
   return (
-    <div className="rounded-[10px] border border-border bg-card p-4" data-task-hub-unavailable>
+    <div className="rounded-xl border border-border bg-card p-4" data-task-hub-unavailable>
       <EmptyState
         title="No task projects available"
         hint={

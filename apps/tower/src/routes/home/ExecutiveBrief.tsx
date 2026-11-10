@@ -91,7 +91,7 @@ function BriefingFindings({ brief, assets, warning, failed, refresh }: { brief: 
   const identities = [...new Set(insight.evidenceIds.flatMap(id => { const source = sources.get(id); const asset = source && sourceAsset(source); return asset ? [asset] : []; }))]
     .map(id => assets.find(asset => asset.id === id) ?? { id, displayName: id, icons: null });
   const destination = insight.evidenceIds.map(id => sources.get(id)).find(source => source && actionDestination(source.href));
-  return <section aria-label="Portfolio briefing" aria-roledescription="carousel" className="w-full min-w-0 rounded-xl bg-card p-5 ring-1 ring-border/70"
+  return <section aria-label="Portfolio briefing" aria-roledescription="carousel" className="w-full min-w-0 rounded-xl bg-card p-5 ring-1 ring-inset ring-border"
     data-executive-brief="" data-brief-cycle={cycling ? 'running' : 'paused'}
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
@@ -107,7 +107,7 @@ function BriefingFindings({ brief, assets, warning, failed, refresh }: { brief: 
             </span> : <span role="img" aria-label="Portfolio finding" title="Portfolio" className="shrink-0 text-muted-foreground"><Layers3 aria-hidden className="size-7" /></span>}
             <h2 className="m-0 min-w-0 text-figure-sm [text-wrap:balance]">{insight.title}</h2>
           </div>
-          <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next</p><p className="mt-1 max-w-prose text-sm leading-relaxed">{insight.action}</p></div>
+          <div><p className="text-xs font-medium text-muted-foreground">Next</p><p className="mt-1 max-w-prose text-sm leading-relaxed">{insight.action}</p></div>
           <details onToggle={event => setDetailsOpen(event.currentTarget.open)}>
             <summary className="w-fit cursor-pointer text-sm text-muted-foreground underline underline-offset-4">Details<span className="sr-only">: {insight.title}</span></summary>
             <div className="mt-3 max-w-prose space-y-3">

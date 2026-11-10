@@ -38,7 +38,7 @@ export function Panel({
     <section
       id={id}
       aria-labelledby={heading}
-      className={cn("flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card", className)}
+      className={cn("flex scroll-mt-4 flex-col rounded-xl border border-border bg-card", className)}
       {...marks}
     >
       <SectionLabel

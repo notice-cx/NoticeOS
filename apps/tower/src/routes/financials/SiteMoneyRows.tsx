@@ -71,7 +71,7 @@ export function SiteMoneyRows({
   const portfolio = sumMoneyFigures([...owned.map((property) => property.figure), overhead]);
 
   return (
-    <section aria-labelledby={id} data-money-sites="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section aria-labelledby={id} data-money-sites="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
       <SectionLabel id={id} title="By asset" caption={`${formatPeriodMonthYear(period)} · ${MONEY_VIEW_CONTEXT[view].order}`} className="px-5 pt-4 pb-2" />
       <div role="table" aria-labelledby={id} className="flex flex-col pb-1">
         <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS)}>

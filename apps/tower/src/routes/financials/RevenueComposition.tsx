@@ -29,7 +29,7 @@ export function RevenueComposition({
   const total = sumMoneyFigures(lines.map((line) => ({ currency: line.currency, revenue: line.amount, cost: 0, net: line.amount })));
   const ranked = [...lines].sort((a, b) => b.amount - a.amount);
   return (
-    <section aria-labelledby={id} data-revenue-composition="" className={cn("@container flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70", className)}>
+    <section aria-labelledby={id} data-revenue-composition="" className={cn("@container flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border", className)}>
       <SectionLabel
         id={id}
         title="By source"

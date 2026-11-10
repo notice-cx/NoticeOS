@@ -106,7 +106,7 @@ export function sourcesLive(sources: readonly PortfolioSource[]): { live: number
 
 export function PortfolioRows({ rows, formatMoney, title = "Portfolio", action, showSources = true, className, columnOrder }: PortfolioRowsProps) {
   return (
-    <section aria-label={title} data-portfolio-rows="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section aria-label={title} data-portfolio-rows="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
       <header className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-4">
         <div className="flex items-baseline gap-3">
           <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>

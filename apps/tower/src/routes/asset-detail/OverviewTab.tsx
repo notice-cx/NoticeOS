@@ -53,6 +53,7 @@ import { IncidentList, type Incident } from "@/components/viz/IncidentList";
 import { StatTile, type StatRole } from "@/components/viz/StatTile";
 import { watchOutcome } from "@/components/watch-outcome";
 import { isGate } from "@/lib/task-board-read";
+import { TaskStatusMark } from "@/components/TaskStatusMark";
 import { cn } from "@/lib/utils";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
@@ -321,7 +322,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
   };
   if (measures.length === 0) {
     return (
-      <section aria-label="The asset's numbers" data-overview-numbers="empty" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70">
+      <section aria-label="The asset's numbers" data-overview-numbers="empty" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-5 py-4 ring-1 ring-inset ring-border">
         <span className="text-sm text-muted-foreground">No numbers reported yet</span>
         <Link to={assetTabPath(id, "sources")} className={quietLink}>Data sources →</Link>
       </section>
@@ -378,7 +379,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
       </div>
 
       {charted ? (
-        <div className="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="">
+        <div className="rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-surface-hero="">
           <DailyMeasureChart
             measure={charted}
             landmarks={landmarks(charted)}
@@ -560,7 +561,7 @@ function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; a
   const falling = [...movers].filter((mover) => mover.positionImprovement < 0).sort((a, b) => a.positionImprovement - b.positionImprovement).slice(0, 3);
   const position = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
   return (
-    <section aria-label="Search movers" className="@container flex flex-col rounded-[10px] border border-border bg-card" data-search-movers>
+    <section aria-label="Search movers" className="@container flex flex-col rounded-xl border border-border bg-card" data-search-movers>
       <SectionLabel
         title="Search movers"
         caption={lane ? `${formatCalendarDate(lane.currentStart)} – ${formatCalendarDate(lane.currentEnd)}` : undefined}
@@ -573,7 +574,7 @@ function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; a
         <div className="grid gap-x-6 gap-y-1 px-4 pb-3 @lg:grid-cols-2">
           {[{ word: "Rising", rows: rising, tone: "text-trend-positive", arrow: "▲" }, { word: "Falling", rows: falling, tone: "text-trend-negative", arrow: "▼" }].map((column) => (
             <ul key={column.word} className="m-0 list-none p-0" data-movers={column.word.toLowerCase()}>
-              <li className="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{column.word}</li>
+              <li className="m-0 py-1 text-xs font-semibold text-muted-foreground">{column.word}</li>
               {column.rows.length === 0 ? <li className="m-0 py-1 text-xs text-muted-foreground">none</li> : column.rows.map((mover) => (
                 <li key={mover.query} className="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject={`query:${mover.query}`}>
                   <span className="min-w-0 break-words">{mover.query}</span>
@@ -649,10 +650,10 @@ export function NeedsYou({
           marks={{ "data-subject": `task:${item.id}` }}
           to={`/tasks/${encodeURIComponent(item.id)}`}
           returnTo={`${location.pathname}${location.search}`}
-          // Warn at every priority, and a gate's △. Priority is the order,
-          // never the colour.
+          // Precise's mark for a task waiting for you; its name says which
+          // kind. Priority is the order, never the colour.
           tone="warn"
-          glyph={isGate(item) ? "△" : "!"}
+          glyph={<TaskStatusMark status="waiting" label={isGate(item) ? "Approval" : "Question"} />}
           title={item.title}
           caption={
             <>
@@ -895,8 +896,8 @@ function FullFindings({
  *
  * The nightly report names its own counters (`plansSaved`, `recipes_saved`) and
  * every other surface prints the key verbatim, which is right in a table cell.
- * Here it is set in an uppercase 11px eyebrow, where `PLANSSAVED` is one word
- * nobody can read — the case boundary IS the space, so it becomes one.
+ * Here it is a section's heading, where `plansSaved` reads as one word:
+ * the case boundary is the space, so it becomes one.
  */
 function metricLabel(name: string): string {
   const words = name

@@ -398,14 +398,14 @@ function LaneExplainer({ lane }: { lane: IntegrationCatalogRow }) {
       <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-lane-facts={lane.id}>
         {laneFacts(lane, collectionCadenceHours(lane.id)).map((fact) => (
           <div key={fact.key} className="flex items-baseline gap-1.5" data-lane-fact={fact.key}>
-            <dt className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">{fact.name}</dt>
+            <dt className="text-xs text-muted-foreground">{fact.name}</dt>
             <dd className="font-medium tabular-nums text-foreground">{fact.value}</dd>
           </div>
         ))}
         {/* Whose account unlocks it, only where a provider credential is involved. */}
         {lane.layer === "provider" ? (
           <div className="flex items-baseline gap-1.5" data-lane-fact="credential">
-            <dt className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">Credential</dt>
+            <dt className="text-xs text-muted-foreground">Credential</dt>
             <dd className="font-medium text-foreground">{lane.credential === "shared" ? "Shared" : "Per asset"}</dd>
           </div>
         ) : null}

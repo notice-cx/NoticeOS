@@ -194,7 +194,7 @@ export function TrendPanel({
 
   return (
     <article
-      className="min-w-0 rounded-[10px] border border-border bg-card p-4"
+      className="min-w-0 rounded-xl border border-border bg-card p-4"
       data-growth-chart={title}
     >
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">

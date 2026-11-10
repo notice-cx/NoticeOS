@@ -28,7 +28,7 @@ export function MoneyHero({ money, yesterday, className, wordLevel = "operationa
     <section
       aria-label={`Revenue, ${month} so far`}
       data-money-hero=""
-      className={cn("relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-xl bg-card p-6 shadow-raised ring-1 ring-border/70", className)}
+      className={cn("relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-xl bg-card p-6 ring-1 ring-inset ring-border", className)}
     >
       <span aria-hidden className="pointer-events-none absolute -end-24 -top-32 size-80 rounded-full bg-financial-revenue/10 blur-3xl" />
       <div className="flex flex-wrap items-end justify-between gap-6">

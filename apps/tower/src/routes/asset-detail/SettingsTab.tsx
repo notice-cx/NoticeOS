@@ -657,7 +657,7 @@ function PanelSettings({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-3">
           <div
-            className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-background/40 p-3"
+            className="flex flex-col gap-1.5 rounded-xl border border-border bg-background/40 p-3"
             data-panel-spend
           >
             <Meter
@@ -806,7 +806,7 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
   const estimateUsd = last?.costUsd ?? null;
   const overCap = spend !== null && capReserveExceeded(spend.spentUsd, 1, spend.capUsd);
   return (
-    <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-background/40 p-3" data-collect-now data-collect-estimate>
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-3" data-collect-now data-collect-estimate>
       {spend ? (
         <>
           <Meter

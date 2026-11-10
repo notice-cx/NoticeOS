@@ -7,7 +7,7 @@ import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** The page's panels share one frame: flat, on a hairline ring. */
-export const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70";
+export const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border";
 
 /** Active model groups: recent closes, work in progress or blocked work. */
 export function WorkerRows({ workers, emphasis }: { workers: readonly ModelStats[]; emphasis?: "blocked" | "inHand" }) {
@@ -19,7 +19,7 @@ export function WorkerRows({ workers, emphasis }: { workers: readonly ModelStats
       {workers.length === 0 ? <EmptyState size="sm" title="No work in progress or closed in the last 7 days" /> : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-micro uppercase text-muted-foreground">
+            <thead className="text-xs text-muted-foreground">
               <tr><th scope="col" className="pb-2">Model</th><th scope="col" className="pb-2 text-right">In progress</th><th scope="col" className="px-3 pb-2">Closed, 7 days</th><th scope="col" className="pb-2 text-right">Claim to close</th><th scope="col" className="pl-3 pb-2 text-right">Blocked</th></tr>
             </thead>
             <tbody>

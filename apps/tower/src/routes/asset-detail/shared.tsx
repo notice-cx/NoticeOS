@@ -167,7 +167,7 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 
 export function SubHeading({ children }: { children: ReactNode }) {
   return (
-    <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+    <span className="text-sm font-semibold text-foreground">
       {children}
     </span>
   );

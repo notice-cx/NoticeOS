@@ -40,7 +40,7 @@ export function MonthHero({ equation, days, lastMonth, pace, className }: MonthH
       aria-labelledby={id}
       data-surface-hero=""
       data-money-answer={open ? "open" : "closed"}
-      className={cn("@container relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70 @md:p-6", className)}
+      className={cn("@container relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-xl bg-card p-5 ring-1 ring-inset ring-border @md:p-6", className)}
     >
       <span aria-hidden className="pointer-events-none absolute -end-24 -top-32 size-80 rounded-full bg-financial-revenue/10 blur-3xl" />
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
