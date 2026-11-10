@@ -256,7 +256,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             <span>{unitHeading}</span>
           </div>
           {reading.counts.length > 0 ? <StepMapping definition={definition} period={period!} index={selectedIndex} unit={assetReported ? unit : null}/> : null}
-          <p>{assetReported ? "Dates mark the start of each Monday–Sunday week. A week appears once the asset has reported all seven days." : "Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay."}</p>
+          <p>{assetReported ? "Dates mark the start of each Monday–Sunday week. A week with a day the asset has not reported shows no counts." : "Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay."}</p>
           <JourneyHistory definition={definition} weeks={weeks} basis={historyBasis} selectedWeek={selectedWeek} selectedStep={selectedIndex} unit={unit} onSelect={(week, index) => {
             if (index !== undefined) setSelectedStep(definition.steps[index]!.id);
             else setSelectedStep(definition.steps[selectedIndex]!.id);
