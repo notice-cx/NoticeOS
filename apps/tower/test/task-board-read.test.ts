@@ -250,6 +250,14 @@ describe("task board read", () => {
     const narrowed = read({ reads, filters: { ...filters, assignee: "claude" } });
     expect(narrowed.rows.map(row => row.id).sort()).toEqual(["md-a", "md-b"]);
   });
+
+  it("keeps an older link that names a service's agent by its name alone, and a person of that name apart", () => {
+    const agent = liveTask({ id: "md-a", status: "in_progress", assignee: "service:ci/nightly-triage" });
+    const person = liveTask({ id: "md-p", status: "in_progress", assignee: "nightly-triage" });
+    const byName = { ...filters, assignee: "nightly-triage" };
+    expect(read({ reads: new Map([["meadow.example", success(board([agent]))]]), filters: byName }).rows.map(row => row.id)).toEqual(["md-a"]);
+    expect(read({ reads: new Map([["meadow.example", success(board([agent, person]))]]), filters: byName }).rows.map(row => row.id)).toEqual(["md-p"]);
+  });
 });
 
 // The one rule the board's Your decisions and a task's own page both read:

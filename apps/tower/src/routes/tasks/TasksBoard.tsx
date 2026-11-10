@@ -7,7 +7,7 @@ import { LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorKey } from "@shared/tasks";
+import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorKey, assigneeFilterKey } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
@@ -554,7 +554,7 @@ function Filters({
   const assignees = [...assigneeCounts.keys()].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   // An old link may name another spelling of a sender the board offers.
   const picked = value.assignee === "all" ? "all"
-    : assignees.find((actor) => actorKey(actor) === actorKey(value.assignee)) ?? value.assignee;
+    : assignees.find((actor) => actorKey(actor) === assigneeFilterKey(value.assignee, assignees)) ?? value.assignee;
   // What the fold's one press carries on a phone: how many of these are
   // narrowing the board now.
   const active = [scoped ? "all" : value.project, value.status, value.priority, value.assignee].filter((pick) => pick !== "all").length

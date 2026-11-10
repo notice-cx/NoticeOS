@@ -6,7 +6,7 @@
 // board. `LiveTask` extends `WorkItem` rather than restating it. Tasks are
 // coordination state, not signals.
 
-import { actorIdentity, modelIdentity } from "@noticeos/contract/actor-names";
+import { actorIdentity, actorKey, modelIdentity } from "@noticeos/contract/actor-names";
 import { recordsClose, TASK_METADATA } from "@noticeos/contract/task-metadata";
 import type { TaskCardShipped } from "@noticeos/contract/task-card";
 import type { WorkItem } from "./work";
@@ -162,7 +162,17 @@ export interface TaskActor {
 export function actorName(actor: string): string {
   return actorIdentity(actor).name;
 }
-export { actorKey } from "@noticeos/contract/actor-names";
+export { actorKey };
+
+/** The sender a filter's assignee names among the recorded holders: its own
+ * key, or, for a bare name no holder is recorded under, the holder shown by
+ * that name, as a link from before `actorKey` wrote an agent's name alone. */
+export function assigneeFilterKey(assignee: string, recorded: readonly string[]): string {
+  const own = actorKey(assignee);
+  if (recorded.some(actor => actorKey(actor) === own)) return own;
+  const shown = recorded.find(actor => actorName(actor) === assignee);
+  return shown === undefined ? own : actorKey(shown);
+}
 
 /** The name a model is shown under, or null when none was named. */
 export function modelName(model: string | null | undefined): string | null {

@@ -1,4 +1,4 @@
-import { actorKey, type LiveTask, type LiveTasksPayload, type TasksCapabilities, type TaskProject, type TaskActor } from "@shared/tasks";
+import { actorKey, assigneeFilterKey, type LiveTask, type LiveTasksPayload, type TasksCapabilities, type TaskProject, type TaskActor } from "@shared/tasks";
 import { PRIORITY_BANDS, sumWorkWeeks, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
 import { TASK_BLOCKING_DEPENDENCIES, waitsOnPerson } from "@noticeos/contract/task-gate";
 import { taskSearch } from "./task-search";
@@ -464,13 +464,15 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   const projects = availableProjects.filter(project => projectFilter === "all" || project.asset === projectFilter);
   const allTasks = projects.flatMap(project => project.tasks);
   const matchesSearch = taskSearch(filters.q ?? "");
+  const holders = [...allTasks, ...projects.flatMap(project => project.waiting)].flatMap(task => task.assignee ? [task.assignee] : []);
+  const assigneeKey = filters.assignee === "all" ? null : assigneeFilterKey(filters.assignee, holders);
   const matches = (task: BoardTask): boolean =>
     matchesSearch(task) &&
     (projectFilter === "all" || task.project === projectFilter) &&
     (filters.status === "all" || STORED_TO_KEY.get(isWork(task) ? task.workStatus ?? task.status : task.status) === filters.status) &&
     (filters.priority === "all" || PRIORITY_BANDS[clampBand(task.priority)] === filters.priority) &&
     (filters.label === "" || task.labels.some(label => label.toLowerCase().includes(filters.label.toLowerCase()))) &&
-    (filters.assignee === "all" || actorKey(task.assignee ?? "") === actorKey(filters.assignee));
+    (assigneeKey === null || actorKey(task.assignee ?? "") === assigneeKey);
 
   const statusCounts = new Map<string, number>();
   const priorityCounts = new Map<string, number>();
