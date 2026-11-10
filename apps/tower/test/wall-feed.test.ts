@@ -719,6 +719,30 @@ needsPostgres("buildWallFeed with independent stores", () => {
       .toEqual(["Google · 2 of 3 assets"]);
   });
 
+  it("keeps partial daily collection and archive failures visible on the same asset", async () => {
+    const store = await createTestStore();
+    try {
+      const site = "example.com";
+      await asset(store, site, "Example");
+      await signalRun(store.call, "analytics-success", site, "ga4", at("19:19"));
+      await signalRun(store.call, "search-failure", site, "gsc", at("19:18"), false);
+      await writeArchiveRuns(store.call, [
+        dump("archive-success", site, "ga4", at("19:17"), 0),
+        dump("archive-failure-1", site, "gsc", at("19:16"), 0, false),
+        dump("archive-failure-2", site, "gsc", at("19:15"), 0, false),
+      ]);
+      const { items } = await buildWallFeed(store.call, DEPS);
+      expect(items.filter(item => item.kind === "collected").map(item => [item.text, item.count])).toEqual([
+        ["Google · 1 asset collected · 1 with failures", 1],
+        ["Google archives · 1 asset collected · 1 with failures", 1],
+      ]);
+      expect(items.filter(item => item.kind === "source-failed").map(item => [item.text, item.count])).toEqual([
+        ["Google Search Console failed", 1],
+        ["Search Console · 2 archive reports failed", 2],
+      ]);
+    } finally { await store.close(); }
+  });
+
   it("an empty store is an empty feed, not an invented one", async () => {
     const emptyPg = await createTestStore();
     try {
