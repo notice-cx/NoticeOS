@@ -69,7 +69,7 @@ const headerStatuses = (heading: HTMLElement) =>
   [...heading.closest("header")!.querySelectorAll("[data-source]")].map((mark) => mark.getAttribute("aria-label"));
 
 /** The card this text sits in, as a selector (`[` and `]` are CSS syntax). */
-const CARD = ".rounded-\\[10px\\]";
+const CARD = ".rounded-xl";
 
 /** Open one of the Activity tab's composers. Idempotent. */
 async function openComposer(
@@ -874,7 +874,9 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const preview = materialAsset(container, "human-gates");
     expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 shown");
     expect(preview).toHaveTextContent("Approve the nutrition-source change");
-    expect(preview).toHaveTextContent("△");
+    const mark = preview.querySelector("svg[data-task-status]");
+    expect(mark).toHaveAttribute("data-task-status", "waiting");
+    expect(mark).toHaveAttribute("aria-label", "Approval");
     expect(within(preview).getByRole("link", { name: /Approve the nutrition-source change/ })).toHaveAttribute("href", "/tasks/md-gate");
     expect(within(preview).getByRole("link", { name: /All tasks/ })).toHaveAttribute("href", "/assets/meadow.example/tasks");
   });
