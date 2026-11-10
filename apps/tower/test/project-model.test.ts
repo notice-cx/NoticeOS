@@ -118,7 +118,7 @@ describe("a project's state", () => {
     ]);
     expect(record.next?.task.id).toBe("md-2");
     expect(record.next?.who).toBeNull();
-    expect(record.working).toMatchObject({ who: "claude-code" });
+    expect(record.working).toMatchObject({ who: "Claude Code" });
     expect(one([task({ status: "in_progress", assignee: "Ada" })]).next).toMatchObject({ who: "Ada" });
   });
 

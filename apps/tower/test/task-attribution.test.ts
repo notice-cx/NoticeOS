@@ -8,11 +8,11 @@ describe("closeAttribution", () => {
   const closed = {
     status: "closed",
     closedAt: "2026-10-15T16:00:00Z",
-    metadata: { noticeos_closed_by: "claude", noticeos_closed_model: "Opus 5.5", noticeos_closed_at: "2026-10-15T16:00:00.000Z" },
+    metadata: { noticeos_closed_by: "claude", noticeos_closed_model: "claude-opus-5.5", noticeos_closed_at: "2026-10-15T16:00:00.000Z" },
   };
 
-  it("names the closer and model recorded for this close", () => {
-    expect(closeAttribution(closed)).toEqual({ by: "claude", model: "Opus 5.5" });
+  it("names the closer as recorded and the model recorded for this close by its display name", () => {
+    expect(closeAttribution(closed)).toEqual({ by: "claude", model: "Claude Opus 5.5" });
     expect(closeAttribution({ ...closed, metadata: { ...closed.metadata, noticeos_closed_model: undefined } })).toEqual({ by: "claude", model: null });
   });
 
@@ -22,8 +22,8 @@ describe("closeAttribution", () => {
     expect(closeAttribution({ ...closed, closedAt: "2026-10-16T09:00:00Z" })).toBeNull();
   });
 
-  it("reads the claimer's model", () => {
-    expect(claimedModel({ metadata: { noticeos_claimed_model: "Sonnet 5.5" } })).toBe("Sonnet 5.5");
+  it("reads the claimer's model by its display name", () => {
+    expect(claimedModel({ metadata: { noticeos_claimed_model: "Sonnet 5.5" } })).toBe("Claude Sonnet 5.5");
     expect(claimedModel({ metadata: { noticeos_claimed_model: " " } })).toBeNull();
     expect(claimedModel({ metadata: null })).toBeNull();
   });

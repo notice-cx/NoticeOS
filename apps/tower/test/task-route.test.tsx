@@ -629,7 +629,7 @@ describe("every task row opens its task from anywhere on the row", () => {
     await waitFor(() => expect(container.querySelector(`[data-epic-task="${ID}"]`)).not.toBeNull());
     const item = container.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement;
     const row = within(item).getByRole("link", { name: `${ID} A task has a page` });
-    const holder = within(row).getByText("claude/task-page-agent");
+    const holder = within(row).getByText("Claude Code");
     fireEvent.click(holder);
     await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith(ID, expect.any(AbortSignal)));
   });
@@ -807,21 +807,21 @@ describe("the task page", () => {
     expect(within(comment).getByText("Ship the facts panel first.")).toBeInTheDocument();
     expect(comment.querySelector("[data-entry-label]")).toHaveTextContent("Comment from Example Operator");
     expect(within(activity).getByText("Filed")).toBeInTheDocument();
-    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude/task-page-agent");
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by Claude Code");
   });
 
-  it("names who claimed and who closed it, with the models they named", async () => {
+  it("names who claimed and who closed it, with the models they named, each by its display name", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({
-      status: "closed", assignee: "claude", closedAt: "2026-09-04T11:30:00Z", closeReason: "Facts render · abc1234",
-      metadata: { noticeos_claimed_model: "Opus 5.5", noticeos_closed_by: "claude", noticeos_closed_model: "Opus 5.5",
+      status: "closed", assignee: "agent:Claude Code (ntasks)", closedAt: "2026-09-04T11:30:00Z", closeReason: "Facts render · abc1234",
+      metadata: { noticeos_claimed_model: "claude-opus-5.5", noticeos_closed_by: "agent:Claude Code (ntasks)", noticeos_closed_model: "claude-opus-5-5",
         noticeos_closed_at: "2026-09-04T11:30:00Z" },
     }) }));
     const { container } = renderTask();
     await waitFor(() => expect(container.querySelector('[data-entry="closed"]')).not.toBeNull());
     const activity = container.querySelector("[data-task-activity]") as HTMLElement;
     const closed = activity.querySelector('[data-entry="closed"]') as HTMLElement;
-    expect(closed.querySelector("[data-entry-label]")).toHaveTextContent("Closed by claude · Opus 5.5");
-    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude · Opus 5.5");
+    expect(closed.querySelector("[data-entry-label]")).toHaveTextContent("Closed by Claude Code · Claude Opus 5.5");
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by Claude Code · Claude Opus 5.5");
     // The agent's own mark, as the Wall's feed draws it.
     expect(closed.querySelector("[data-entry-agent]")).toHaveAttribute("data-entry-agent", "anthropic");
     // The reason's sentence, and its commit as a chip.
@@ -918,8 +918,8 @@ describe("the task page", () => {
     renderTask();
 
     // A local read carries no member list, so a typed name is offered too.
-    const editor = await openFact("Assignee: claude/task-page-agent");
-    expect(within(editor).getByRole("option", { name: "claude/task-page-agent" })).toHaveAttribute("aria-selected", "true");
+    const editor = await openFact("Assignee: Claude Code");
+    expect(within(editor).getByRole("option", { name: "Claude Code" })).toHaveAttribute("aria-selected", "true");
     const other = within(editor).getByRole("textbox", { name: "Someone else" });
     fireEvent.change(other, { target: { value: "operator" } });
     fireEvent.keyDown(other, { key: "Enter" });
@@ -938,6 +938,23 @@ describe("the task page", () => {
         assignee: "claude/task-page-agent",
       }),
     );
+  });
+
+  it("offers each holder in the project once by its name, and assigns a spelling it recorded", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open" }) }));
+    api.fetchTasks.mockResolvedValue({ ...board(), tasks: [
+      task({ status: "open" }),
+      task({ id: "ro-l1ed.6", assignee: "agent:Claude Code (ntasks)" }),
+      task({ id: "ro-l1ed.7", assignee: "agent:Codex (ntasks)" }),
+    ] });
+    renderTask();
+
+    const editor = await openFact("Assignee: Claude Code");
+    await waitFor(() => expect(within(editor).getByRole("option", { name: "Codex" })).toBeInTheDocument());
+    expect(within(editor).getAllByRole("option").map((option) => option.getAttribute("data-value")))
+      .toEqual(["claude/task-page-agent", "agent:Codex (ntasks)", ""]);
+    fireEvent.click(within(editor).getByRole("option", { name: "Codex" }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: "agent:Codex (ntasks)" }));
   });
 
   it("saves the priority as a number on choose and undoes it to the band it came from", async () => {
@@ -991,7 +1008,7 @@ describe("the task page", () => {
 
   it("closes a fact's editor on Escape without a write", async () => {
     renderTask();
-    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label"]) {
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: Claude Code", "Parked until: Not parked", "Add a label"]) {
       const editor = await openFact(name);
       fireEvent.keyDown(editor, { key: "Escape" });
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -1046,7 +1063,7 @@ describe("the task page", () => {
     await waitFor(() => expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument());
     expect(facts.querySelectorAll("select, input, textarea")).toHaveLength(0);
     expect(within(facts).queryByRole("button", { name: /^Save/ })).toBeNull();
-    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label", "Change parent epic"]) {
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: Claude Code", "Parked until: Not parked", "Add a label", "Change parent epic"]) {
       expect(within(facts).getByRole("button", { name })).toHaveAttribute("aria-haspopup", "dialog");
     }
   });
@@ -1550,7 +1567,7 @@ describe("the header reads in one look", () => {
     expect(head.getByText("In progress")).toBeInTheDocument();
     expect(head.getByText("high priority")).toBeInTheDocument();
     const holder = header().querySelector("[data-task-holder]") as HTMLElement;
-    expect(holder).toHaveTextContent("claude/task-page-agent· Opus 5.5· claimed 2h ago");
+    expect(holder).toHaveTextContent("Claude Code· Claude Opus 5.5· claimed 2h ago");
     // Somebody holds it, so closing it with its evidence is what comes next.
     expect(firstAction()).toHaveTextContent("Close");
     expect(firstAction()).toHaveAttribute("data-primary-action");
@@ -1596,7 +1613,7 @@ describe("the header reads in one look", () => {
     const closed = header().querySelector("[data-task-closed]") as HTMLElement;
     expect(closed).not.toBeNull();
     expect(within(closed).getByText("Facts render · abc1234")).toBeInTheDocument();
-    expect(within(closed).getByText("claude · Opus 5.5")).toBeInTheDocument();
+    expect(within(closed).getByText("Claude Code · Claude Opus 5.5")).toBeInTheDocument();
     expect(within(closed).getByText("30m ago")).toBeInTheDocument();
     expect(within(header()).getByText("Closed")).toHaveAttribute("data-task-status", "closed");
     expect(within(header()).queryAllByRole("button")).toHaveLength(0);
@@ -1641,7 +1658,7 @@ describe("the header reads in one look", () => {
     renderTask();
     await screen.findByText("A task has a page");
     expect(within(header()).getByText("Task")).toHaveAttribute("data-task-type", "task");
-    expect(header().querySelector("[data-task-holder]")).toHaveTextContent("claude");
+    expect(header().querySelector("[data-task-holder]")).toHaveTextContent("Claude Code");
     expect(firstAction()).toHaveTextContent("Close");
     expect(firstAction()).toBeDisabled();
   });
@@ -1692,7 +1709,7 @@ describe("an epic's page and its tasks", () => {
     const ready = within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement);
     expect(ready.getByRole("link", { name: /ro-l1ed\.5/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
     // Who holds a task in progress is on its row.
-    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText("claude/task-page-agent")).toBeInTheDocument();
+    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText("Claude Code")).toBeInTheDocument();
     // The read holds a week of closes; the epic's all-time count names the rest.
     expect(within(list).getByText("1 more, closed over 7 days ago")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "Epic graph →" })).toHaveAttribute("href", `/tasks?epic=${EPIC}`);
@@ -1782,7 +1799,7 @@ it('shows the exact relayed approval and lets the owner dispute it', async () =>
       source: 'claude-code:session/synthetic-session', scope: 'Upload 12 new files to example-images', outcome: 'approved',
     } } }) }));
   renderTask();
-  expect(await screen.findByText('Approved, relayed by claude.')).toBeInTheDocument();
+  expect(await screen.findByText('Approved, relayed by Claude Code.')).toBeInTheDocument();
   expect(screen.getByText('Question: Approve the 12 new files?')).toBeInTheDocument();
   expect(screen.getByText('Reply: Yes')).toBeInTheDocument();
   expect(screen.getByText('Source: claude-code:session/synthetic-session')).toBeInTheDocument();
@@ -1797,6 +1814,6 @@ it('shows who performed the approved action and who recorded it', async () => {
       source: 'comment:synthetic-completion', outcome: 'owner-performed',
     } } }) }));
   renderTask();
-  expect(await screen.findByText('Approved and done by Example Operator; recorded by claude.')).toBeInTheDocument();
+  expect(await screen.findByText('Approved and done by Example Operator; recorded by Claude Code.')).toBeInTheDocument();
   expect(screen.getByText('Result: UPLOAD DONE: all 12 files sent and read back.')).toBeInTheDocument();
 });

@@ -126,8 +126,8 @@ describe("NextUp", () => {
     const bolt = within(rows[0] as HTMLElement).getByRole("img", { name: "Urgent" });
     expect(bolt.getAttribute("class")).toContain("text-urgent");
     expect(rows[1]!.querySelector("[data-next-dot]")!.className).toContain("bg-healthy");
-    expect(rows[0]!.textContent).toContain("Orchard Notes · claude · 2h in");
-    expect(rows[1]!.textContent).toContain("Meadow Board · codex · 5h in");
+    expect(rows[0]!.textContent).toContain("Orchard Notes · Claude Code · 2h in");
+    expect(rows[1]!.textContent).toContain("Meadow Board · Codex · 5h in");
     expect(rows[2]!.textContent).toContain("Rewrite the about page");
     expect(rows[2]!.textContent).toMatch(/Meadow Board$/);
 

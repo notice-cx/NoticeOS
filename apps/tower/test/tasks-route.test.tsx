@@ -715,7 +715,7 @@ describe("/tasks — the filters are the URL", () => {
       entry: "/tasks?assignee=service%3Ademo%2Fclaude",
     });
     const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
-    expect([...assignee.options].map((option) => option.textContent)).toEqual(["Anyone", "claude · 2"]);
+    expect([...assignee.options].map((option) => option.textContent)).toEqual(["Anyone", "Claude Code · 2"]);
     expect(assignee.value).toBe("claude");
     expect(row(container, "md-1w2")).toBeInTheDocument();
     expect(row(container, "md-88x")).toBeInTheDocument();

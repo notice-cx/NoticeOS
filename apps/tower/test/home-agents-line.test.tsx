@@ -39,14 +39,14 @@ describe("AgentsLine", () => {
       { workers: [agent("claude-reviewer", 4), { ...agent("worker-1", 3), model: "unrecognized-model" }, { ...agent("worker-2", 2), model: "GPT-5-Codex" }] },
       { workers: [{ ...agent("worker-1", 1), model: "Opus 5.5" }] },
     ])} /></MemoryRouter>);
-    const named = screen.getByRole("listitem", { name: "claude-reviewer: 4 closed, 0 in progress" });
+    const named = screen.getByRole("listitem", { name: "Claude Code: 4 closed, 0 in progress" });
     const inferred = screen.getByRole("listitem", { name: "worker-1: 4 closed, 0 in progress" });
     for (const row of [named, inferred]) {
       expect(row.querySelector('[data-agent-maker="anthropic"]')).toHaveAttribute("aria-hidden", "true");
       expect(row.querySelector("img")).toHaveAttribute("src", "/agents/claude.svg");
       expect(row.querySelector("img")).toHaveAttribute("alt", "");
     }
-    expect(within(named).getByText("claude-reviewer")).toBeVisible();
+    expect(within(named).getByText("Claude Code")).toBeVisible();
     expect(within(inferred).getByText("worker-1")).toBeVisible();
     expect(screen.getByRole("listitem", { name: "worker-2: 2 closed, 0 in progress" }).querySelector("img")).toHaveAttribute("src", "/agents/openai.png");
   });

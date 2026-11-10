@@ -26,7 +26,9 @@ import {
   taskFieldAvailable,
   taskOperationAvailable,
   taskActorLabel,
+  actorKey,
   actorName,
+  modelName,
   claimedModel,
   closeAttribution,
   TASK_PROJECTS_PATH,
@@ -1082,7 +1084,7 @@ function Facts({
   epics: readonly LiveEpic[];
   /** Who holds work in this project, offered as assignees where the read
    * carries no member list. */
-  people: readonly string[];
+  people: readonly Holder[];
   /** The parent's title from the board read, when it is not an epic the
    * board's progress read covers. */
   parentTitle: string | null;
@@ -1628,7 +1630,7 @@ function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; proje
   const resolution = item.resolution ?? close?.resolution ?? "done";
   const note = close?.evidence ? closeNote(close.evidence, resolution, item.duplicateOf ?? null) : null;
   return (
-    <ClosedSummary by={close ? taskActorLabel(close.by) : null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}
+    <ClosedSummary by={close ? taskActorLabel(close.by) : null} model={modelName(close?.model)} at={close?.at ?? item.closedAt} nowMs={nowMs}
       resolution={resolution} duplicate={item.duplicateOf ? <TaskIdLink id={item.duplicateOf} /> : null}>
       {note ? (
         <MarkdownText source={note} />
@@ -1726,10 +1728,10 @@ const KIND_CHOICES: FactChoice[] = [
 
 /** Who a task can be given to: a hosted workspace's members, else the names
  * that hold work in this project; the current holder always, and nobody. */
-function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly string[]): FactChoice[] {
+function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly Holder[]): FactChoice[] {
   // The current holder keeps its own spelling of a name it shares, so it stays the pick.
   const named = actors === undefined
-    ? people.map((name) => ({ value: current !== null && actorName(current) === name ? current : name, label: name }))
+    ? people.map((holder) => ({ value: current !== null && actorKey(current) === actorKey(holder.actor) ? current : holder.actor, label: holder.name }))
     : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
   const held = current && !named.some((choice) => choice.value === current)
     ? [{ value: current, label: taskActorLabel(current, actors) }] : [];
@@ -1819,9 +1821,19 @@ function relatedRows(task: LiveTask, known: readonly LiveTask[], actors: readonl
   return rows;
 }
 
-/** Who holds work in a project's read, each name once, as `actorName` shows it. */
-function holders(rows: readonly BoardTask[]): string[] {
-  return [...new Set(rows.flatMap((row) => (row.assignee ? [actorName(row.assignee)] : [])))].sort((a, b) => a.localeCompare(b));
+/** One holder of work: the name shown and one recorded spelling, which is what an assignment sends. */
+interface Holder {
+  actor: string;
+  name: string;
+}
+
+/** Who holds work in a project's read, each sender once (`actorKey`). */
+function holders(rows: readonly BoardTask[]): Holder[] {
+  const byKey = new Map<string, Holder>();
+  for (const row of rows) {
+    if (row.assignee && !byKey.has(actorKey(row.assignee))) byKey.set(actorKey(row.assignee), { actor: row.assignee, name: actorName(row.assignee) });
+  }
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** What this task blocks. `bd show` reports only the edges pointing out of a

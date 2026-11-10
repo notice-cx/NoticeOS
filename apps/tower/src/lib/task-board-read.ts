@@ -1,4 +1,4 @@
-import { actorName, type LiveTask, type LiveTasksPayload, type TasksCapabilities, type TaskProject, type TaskActor } from "@shared/tasks";
+import { actorKey, type LiveTask, type LiveTasksPayload, type TasksCapabilities, type TaskProject, type TaskActor } from "@shared/tasks";
 import { PRIORITY_BANDS, sumWorkWeeks, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
 import { TASK_BLOCKING_DEPENDENCIES, waitsOnPerson } from "@noticeos/contract/task-gate";
 import { taskSearch } from "./task-search";
@@ -470,15 +470,21 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     (filters.status === "all" || STORED_TO_KEY.get(isWork(task) ? task.workStatus ?? task.status : task.status) === filters.status) &&
     (filters.priority === "all" || PRIORITY_BANDS[clampBand(task.priority)] === filters.priority) &&
     (filters.label === "" || task.labels.some(label => label.toLowerCase().includes(filters.label.toLowerCase()))) &&
-    (filters.assignee === "all" || actorName(task.assignee ?? "") === actorName(filters.assignee));
+    (filters.assignee === "all" || actorKey(task.assignee ?? "") === actorKey(filters.assignee));
 
   const statusCounts = new Map<string, number>();
   const priorityCounts = new Map<string, number>();
   const assigneeCounts = new Map<string, number>();
+  const spellings = new Map<string, string>();
   for (const task of allTasks) {
     // Assignees also filter the inbox, including people assigned only approvals;
-    // one name's spellings count together (`actorName`).
-    if (task.assignee) assigneeCounts.set(actorName(task.assignee), (assigneeCounts.get(actorName(task.assignee)) ?? 0) + 1);
+    // one sender's spellings (`actorKey`) count together under the first one seen.
+    if (task.assignee) {
+      const key = actorKey(task.assignee);
+      const actor = spellings.get(key) ?? task.assignee;
+      spellings.set(key, actor);
+      assigneeCounts.set(actor, (assigneeCounts.get(actor) ?? 0) + 1);
+    }
     if (!isWork(task)) continue;
     const status = STORED_TO_KEY.get(task.workStatus ?? task.status);
     if (status !== undefined) statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
