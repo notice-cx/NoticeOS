@@ -10,6 +10,7 @@ import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { CopyCommand } from "@/components/CopyCommand";
 import { returnAddress } from "@/lib/ntasks-sign-in";
+import { NtasksSignedInAs, SignInToNtasks } from "@/routes/tasks/ntasks-sign-in";
 import { useConnections } from "@/hooks/useConnections";
 import { INTEGRATION_HEALTH_KEY } from "@/hooks/useIntegrationHealth";
 import { INTEGRATION_PROVIDERS_KEY, useIntegrationProviders } from "@/hooks/useIntegrationProviders";
@@ -56,16 +57,25 @@ export function NtasksConnection() {
   );
 }
 
-/** How people sign in to Ntasks on the Tasks page: the Tower is registered
- * in Ntasks as a connected app with this address, and its client ID is saved
- * with the connection (Manage). */
+/** The person's own sign-in to Ntasks, the same as on the Tasks page: Sign in
+ * to Ntasks registers the Tower there the first time. While no client ID is
+ * saved, registering the Tower by hand stays behind a disclosure, for an
+ * Ntasks that cannot register it. */
 function NtasksSignInSetup({ signIn }: { signIn: "set" | "not-set" }) {
-  const address = returnAddress(window.location.origin);
   return (
     <div className="flex basis-full flex-wrap items-center gap-2 text-sm" data-ntasks-sign-in-setup={signIn}>
-      <span className="text-muted-foreground">Sign-in address</span>
-      <CopyCommand command={address} mark={{ "data-ntasks-return-address": "" }} label="the sign-in address" />
-      <StateChip tone={signIn === "set" ? "affirmative" : "na"} label={signIn === "set" ? "Tower client ID saved" : "No Tower client ID"} subject="tasks:ntasks-sign-in" />
+      <SignInToNtasks />
+      <NtasksSignedInAs />
+      {signIn === "not-set" ? (
+        <details className="basis-full text-muted-foreground" data-ntasks-register-by-hand>
+          <summary className="w-fit cursor-pointer">Register the Tower by hand</summary>
+          <div className="mt-2 grid gap-1">
+            <p>For an Ntasks that cannot register the Tower: add it under Connected apps in Ntasks with this redirect address, then save its client ID under Manage.</p>
+            <span>Redirect address (copy only)</span>
+            <CopyCommand command={returnAddress(window.location.origin)} mark={{ "data-ntasks-return-address": "" }} label="the redirect address" />
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

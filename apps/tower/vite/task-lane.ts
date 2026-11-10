@@ -23,7 +23,7 @@ import type {
   LiveTaskDetail,
   LiveTasksPayload,
 } from "../shared/tasks";
-import { isTaskId, TASK_SERVICE_NOT_CONNECTED, TASK_SERVICE_STATUS_PATH, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
+import { isTaskId, TASK_SERVICE_APP_PATH, TASK_SERVICE_NOT_CONNECTED, TASK_SERVICE_STATUS_PATH, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
 import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
@@ -38,7 +38,7 @@ import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scr
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
 import type { TaskService } from "../../../scripts/task-service.mjs";
 import { taskCacheDir } from "../../../scripts/task-service-cache.mjs";
-import { handleTaskServiceRequest, taskServiceStatus } from "./task-service-lane";
+import { handleTaskServiceRequest, registerTowerApp, taskServiceStatus } from "./task-service-lane";
 import {
   DEFAULT_REPO_ROOT,
   crossOrigin,
@@ -1040,6 +1040,7 @@ export async function handleTasksRequest(
     if (request.method !== "GET") return { status: 405, body: { error: "method_not_allowed" } };
     return { status: 200, body: { ...await taskServiceStatus(opts.taskService, opts.readProjects) } };
   }
+  if (pathname === TASK_SERVICE_APP_PATH) return await registerTowerApp(opts.taskService, request);
 
   // An installation's tasks live only in its task service; `bd` runs here for
   // the synthetic viewer alone, which has none.

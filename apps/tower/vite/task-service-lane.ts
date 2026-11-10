@@ -11,9 +11,9 @@
 
 import { randomUUID } from "node:crypto";
 import type { LaneReply, LaneRequest } from "./lane";
-import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, type TaskServiceStatus } from "../shared/tasks";
+import { isTaskId, NTASKS_SIGNED_IN_PATH, TASK_SERVICE_NOT_CONNECTED, TASKS_CLOSED_HISTORY_DAYS, type TaskServiceStatus } from "../shared/tasks";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
-import { mapTaskProjects, TaskServiceUnavailable, unavailableSentence, withNoticeosRecords, type MappedTaskProject, type NtasksProject,
+import { mapTaskProjects, TaskServiceAppRefused, TaskServiceUnavailable, unavailableSentence, withNoticeosRecords, type MappedTaskProject, type NtasksProject,
   type TaskService } from "../../../scripts/task-service.mjs";
 import { ALL_STATUSES, boardKey, readCached, taskKey, writeCached } from "../../../scripts/task-service-cache.mjs";
 
@@ -192,6 +192,49 @@ export async function taskServiceStatus(service: TaskService | null,
   } catch (error) {
     return { connected, origin, projects: null, required: true, app, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
       : "The saved task projects could not be read." };
+  }
+}
+
+/** The sentence a person reads when Ntasks refused to register the Tower. */
+function refusedSentence(error: TaskServiceAppRefused, redirectUri: string): string {
+  if (error.code === "invalid_redirect_uri") {
+    return `Ntasks does not accept ${redirectUri} as a sign-in address. Open the Tower at an https address, or at localhost on this machine.`;
+  }
+  if (error.code === "invalid_token") {
+    return "Ntasks did not take this installation's service credential to register the Tower. Update Ntasks, or replace the credential in Settings → Task projects.";
+  }
+  return `Ntasks refused to register the Tower (${error.code}). Nothing was saved.`;
+}
+
+/**
+ * POST /api/tasks/service/app: the client id a person's browser signs in to
+ * Ntasks with. When none is saved, the installation registers the Tower in
+ * Ntasks with its service credential, returning to this page's origin, and
+ * saves the client id (scripts/task-service.mts registerApp). The origin is the
+ * browser's own, which the lane's same-origin check has already compared
+ * with the host it reached.
+ */
+export async function registerTowerApp(service: TaskService | null, request: LaneRequest): Promise<LaneReply> {
+  if (request.method !== "POST") return { status: 405, body: { error: "method_not_allowed" } };
+  let origin: string | null = null;
+  try { origin = request.headers.origin ? new URL(request.headers.origin).origin : null; } catch { origin = null; }
+  if (origin === null || origin === "null") return { status: 400, body: { error: "origin_required", detail: "Sign in to Ntasks from a Tower page." } };
+  if (!service || (await service.connected().catch(() => null)) !== true) {
+    return { status: 409, body: { error: TASK_SERVICE_NOT_CONNECTED, detail: "No task service is connected; connect Ntasks in Settings → Task projects." } };
+  }
+  const redirectUri = `${origin}${NTASKS_SIGNED_IN_PATH}`;
+  try {
+    return { status: 200, body: { clientId: await service.registerApp(redirectUri) } };
+  } catch (error) {
+    if (error instanceof TaskServiceAppRefused) {
+      return { status: 502, body: { error: "ntasks_registration_refused", code: error.code, detail: refusedSentence(error, redirectUri) } };
+    }
+    if (error instanceof TaskServiceUnavailable) {
+      const detail = error.reason === "changed" ? "The Ntasks connection changed while the Tower registered. Try again."
+        : unavailableSentence(error, await service.origin().catch(() => null));
+      return { status: 503, body: { error: "task_service_unreachable", detail } };
+    }
+    throw error;
   }
 }
 

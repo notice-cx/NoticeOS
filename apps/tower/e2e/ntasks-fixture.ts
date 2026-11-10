@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { readTaskChoices } from "@noticeos/contract/task-choices";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { toLiveTask } from "../../../scripts/task-row.mjs";
-import type { NtasksProject, TaskService } from "../../../scripts/task-service.mjs";
+import { TaskServiceAppRefused, type NtasksProject, type TaskService } from "../../../scripts/task-service.mjs";
 import { JOURNEY_NTASKS_ORIGIN } from "./ntasks-origin.mjs";
 
 // A fixture Ntasks for the journeys that sign a person in to it: the routes
@@ -57,9 +57,15 @@ export interface FixtureNtasks {
   /** What the Tower's server reaches Ntasks through. */
   service: TaskService;
   decisions(): readonly NtasksDecision[];
+  /** How many times the installation registered the Tower here. */
+  registrations(): number;
   /** Every token the person holds stops working, as after Revoke in Ntasks. */
   revoke(): void;
 }
+
+/** The Tower as an app of this Ntasks: registered with its client id saved,
+ * not registered yet, or not registered because Ntasks refuses to. */
+export type FixtureAppState = "registered" | "unregistered" | "refused";
 
 function base64url(bytes: Buffer): string {
   return bytes.toString("base64").replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "");
@@ -74,8 +80,13 @@ export function createFixtureNtasks(options: {
   /** The Tower's origin: the one redirect origin of the app it is registered as. */
   towerOrigin: string;
   now: string;
+  app?: FixtureAppState;
 }): FixtureNtasks {
   const redirectUri = `${options.towerOrigin}/tasks/signed-in`;
+  // What the installation keeps beside its connection, and what Ntasks has registered.
+  let savedClientId: string | null = (options.app ?? "registered") === "registered" ? JOURNEY_NTASKS_CLIENT_ID : null;
+  let registered = savedClientId !== null;
+  let registrations = 0;
   const codes = new Map<string, { challenge: string; redirectUri: string }>();
   const access = new Map<string, Principal>();
   const refresh = new Set<string>();
@@ -151,9 +162,24 @@ export function createFixtureNtasks(options: {
     if (origin !== null && origin !== options.towerOrigin && request.method !== "GET") return Response.json({ error: "origin_not_allowed" }, { status: 403 });
 
     if (path === "/api/version") return answer(request, { version: API_VERSION, oldest: 1 });
+    if (path === "/api/auth/oauth2/register" && request.method === "POST") {
+      // RFC 7591 with the service credential as the initial access token.
+      if (principalOf(request)?.kind !== "service") return answer(request, { error: "invalid_token" }, { status: 401 });
+      const metadata = await request.json().catch(() => ({})) as { client_name?: unknown; redirect_uris?: unknown };
+      if (options.app === "refused") return answer(request, { error: "invalid_client_metadata", error_description: "refused by the fixture" }, { status: 400 });
+      if (typeof metadata.client_name !== "string" || JSON.stringify(metadata.redirect_uris) !== JSON.stringify([redirectUri])) {
+        return answer(request, { error: "invalid_redirect_uri" }, { status: 400 });
+      }
+      registrations += 1;
+      const repeat = registered;
+      registered = true;
+      return answer(request, { client_id: JOURNEY_NTASKS_CLIENT_ID, client_name: metadata.client_name, redirect_uris: [redirectUri],
+        token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
+        scope: [...SCOPES, "offline_access"].join(" ") }, { status: repeat ? 200 : 201 });
+    }
     if (path === "/api/auth/oauth2/authorize" || path === "/api/auth/oauth2/allow") {
       const asked = url.searchParams;
-      if (asked.get("client_id") !== JOURNEY_NTASKS_CLIENT_ID || asked.get("redirect_uri") !== redirectUri || asked.get("response_type") !== "code"
+      if (!registered || asked.get("client_id") !== JOURNEY_NTASKS_CLIENT_ID || asked.get("redirect_uri") !== redirectUri || asked.get("response_type") !== "code"
         || asked.get("code_challenge_method") !== "S256" || !asked.get("code_challenge") || asked.get("resource") !== `${JOURNEY_NTASKS_ORIGIN}/api/mcp`) {
         return new Response("This sign-in request does not match a registered app.", { status: 400 });
       }
@@ -226,7 +252,18 @@ export function createFixtureNtasks(options: {
     connected: async () => true,
     backend: async () => "ntasks",
     origin: async () => JOURNEY_NTASKS_ORIGIN,
-    appClientId: async () => JOURNEY_NTASKS_CLIENT_ID,
+    appClientId: async () => savedClientId,
+    // The ingest's part: the saved client id, or Ntasks's answer to registering, then saved.
+    async registerApp(sentRedirect) {
+      if (savedClientId !== null) return savedClientId;
+      const reply = await handle(new Request(`${JOURNEY_NTASKS_ORIGIN}/api/auth/oauth2/register`, { method: "POST",
+        headers: { authorization: `Bearer ${SERVICE_CREDENTIAL}`, "content-type": "application/json" },
+        body: JSON.stringify({ client_name: JOURNEY_NTASKS_APP_NAME, redirect_uris: [sentRedirect], token_endpoint_auth_method: "none" }) }));
+      const body = await reply.json() as { client_id?: string; error?: string };
+      if (!reply.ok || typeof body.client_id !== "string") throw new TaskServiceAppRefused(body.error ?? "refused", reply.status);
+      savedClientId = body.client_id;
+      return savedClientId;
+    },
     home: async () => ({ backend: "ntasks", origin: JOURNEY_NTASKS_ORIGIN }),
     async call(call) {
       const reply = await handle(new Request(`${JOURNEY_NTASKS_ORIGIN}${call.path}`, { method: call.method,
@@ -243,6 +280,7 @@ export function createFixtureNtasks(options: {
     handle,
     service,
     decisions: () => decided,
+    registrations: () => registrations,
     revoke() { access.clear(); refresh.clear(); },
   };
 }

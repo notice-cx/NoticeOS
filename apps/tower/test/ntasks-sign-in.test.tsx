@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { act, fireEvent, render, screen, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +31,7 @@ const api = vi.hoisted(() => ({
   dismissTask: vi.fn(async () => undefined),
   resolveGate: vi.fn(async () => undefined),
   closeTask: vi.fn(async () => undefined),
+  registerNtasksApp: vi.fn(async (): Promise<{ clientId: string }> => ({ clientId: "tower-registered" })),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn(), message: vi.fn() } }));
@@ -52,6 +54,7 @@ vi.mock("@/hooks/useTasks", async (importOriginal) => ({
 
 import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
 import { flushAnswers, resetAnswerQueue } from "@/lib/answer-queue";
+import { ApiError } from "@/lib/api";
 import { createPersonSession, finishSignIn, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
 import { closableHere } from "@/routes/tasks/close-actions";
 import { FocusRoute } from "@/routes/tasks/FocusRoute";
@@ -231,11 +234,28 @@ describe("deciding while tasks live in Ntasks", () => {
     for (const name of DECIDING) expect(screen.queryByRole("button", { name }), String(name)).toBeNull();
   });
 
-  it("leads to Settings → Task projects while no Tower client ID is saved", () => {
+  it("registers the Tower in Ntasks on the press while no Tower client ID is saved, then signs in with the new one", async () => {
     state.service = UNCONFIGURED;
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 2 })));
     renderAt(<NextTab scope={null} />, "/tasks");
-    for (const link of screen.getAllByRole("link", { name: "Set up Ntasks sign-in" })) expect(link).toHaveAttribute("href", "/settings/task-projects#ntasks");
     expect(screen.queryByRole("button", { name: /Tuesday/u })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in to Ntasks" })[0]!);
+    await vi.waitFor(() => expect(window.sessionStorage.getItem("noticeos:ntasks-sign-in")).not.toBeNull());
+    expect(api.registerNtasksApp).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(window.sessionStorage.getItem("noticeos:ntasks-sign-in")!)).toMatchObject({ origin: ORIGIN, clientId: "tower-registered" });
+  });
+
+  it("says why when the Tower could not be registered, and starts no sign-in", async () => {
+    state.service = UNCONFIGURED;
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 2 })));
+    const detail = "Ntasks refused to register the Tower (invalid_client_metadata). Nothing was saved.";
+    api.registerNtasksApp.mockRejectedValueOnce(new ApiError(detail, 502, "ntasks_registration_refused"));
+    renderAt(<NextTab scope={null} />, "/tasks");
+    const button = screen.getAllByRole("button", { name: "Sign in to Ntasks" })[0]!;
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
+    expect(button).toBeEnabled();
+    expect(window.sessionStorage.getItem("noticeos:ntasks-sign-in")).toBeNull();
   });
 
   it("sends a signed-in person's pick to Ntasks with their own token, never through the Tower's route", async () => {

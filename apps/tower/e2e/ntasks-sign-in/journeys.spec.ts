@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "../journey-test";
 import { CHOICE_TASK, JOURNEY_ASSET, JOURNEY_CHOICES, PR_SMOKE } from "../fixtures";
-import { JOURNEY_NTASKS_CLIENT_ID, JOURNEY_NTASKS_PERSON, type NtasksDecision } from "../ntasks-fixture";
+import { JOURNEY_NTASKS_CLIENT_ID, JOURNEY_NTASKS_PERSON, type FixtureAppState, type NtasksDecision } from "../ntasks-fixture";
 import { installFixtureNtasks } from "../ntasks-route.mjs";
 
 // While tasks live in Ntasks, a person signs in to it once in this browser
@@ -9,15 +9,17 @@ import { installFixtureNtasks } from "../ntasks-route.mjs";
 // The Tower's server keeps the installation's service credential, which
 // Ntasks never lets decide. Ntasks here is the fixture's (ntasks-fixture.ts).
 
-type Status = { tasks: { id: string; labels: string[]; metadata: Record<string, unknown> | null }[]; ntasksDecisions: NtasksDecision[] };
+type Status = { tasks: { id: string; labels: string[]; metadata: Record<string, unknown> | null }[]; ntasksDecisions: NtasksDecision[];
+  ntasksRegistrations: number };
 const status = async (page: Page) => (await (await page.request.get("/__journey/status")).json()) as Status;
 const BOARD = `/tasks/all?project=${JOURNEY_ASSET}`;
+const SETTINGS = "/settings/task-projects";
 
-async function prepare(page: Page, baseURL: string | undefined) {
+async function prepare(page: Page, baseURL: string | undefined, { app = "registered", at = BOARD }: { app?: FixtureAppState; at?: string } = {}) {
   expect((await page.request.post("/__journey/reset")).ok()).toBe(true);
-  for (const control of ["task-source", "choice-task", "ntasks"]) expect((await page.request.post(`/__journey/${control}`)).ok()).toBe(true);
+  for (const control of ["task-source", "choice-task", `ntasks?app=${app}`]) expect((await page.request.post(`/__journey/${control}`)).ok()).toBe(true);
   await installFixtureNtasks(page.context(), baseURL!);
-  await page.goto(BOARD);
+  await page.goto(at);
 }
 
 /** The choice's row, with its options while signed in and Sign in to Ntasks while not. */
@@ -86,4 +88,31 @@ test("a decision sent with the installation's service credential is still refuse
   const task = after.tasks.find((entry) => entry.id === CHOICE_TASK)!;
   expect(task.labels).toContain("human");
   expect(task.metadata).not.toHaveProperty("noticeos_choice");
+});
+
+test("with no Tower client ID saved, one press registers the Tower in Ntasks, and a later sign-in reuses it", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
+  await prepare(page, baseURL, { app: "unregistered" });
+  await signIn(page);
+  expect((await status(page)).ntasksRegistrations).toBe(1);
+
+  await page.locator("[data-ntasks-signed-in]").getByRole("button", { name: "Sign out of Ntasks" }).click();
+  await signIn(page);
+  expect((await status(page)).ntasksRegistrations).toBe(1);
+});
+
+test("Settings offers Sign in to Ntasks, never a link to the sign-in address, and a refused registration says why", async ({ page, baseURL }) => {
+  await prepare(page, baseURL, { app: "refused", at: SETTINGS });
+  const row = page.locator("[data-ntasks-sign-in-setup]");
+  await expect(row.getByRole("button", { name: "Sign in to Ntasks" })).toBeVisible();
+  await expect(page.locator('a[href*="/tasks/signed-in"]')).toHaveCount(0);
+  const address = row.locator("[data-ntasks-return-address]");
+  await expect(address).toBeHidden();
+  await row.getByText("Register the Tower by hand").click();
+  await expect(address).toHaveText(new URL("/tasks/signed-in", baseURL).toString());
+
+  await row.getByRole("button", { name: "Sign in to Ntasks" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Not signed in to Ntasks" }).filter({ hasText: "invalid_client_metadata" })).toBeVisible();
+  await expect(page).toHaveURL((url) => url.pathname === SETTINGS);
+  expect((await status(page)).ntasksRegistrations).toBe(0);
+  await expect(row.getByRole("button", { name: "Sign in to Ntasks" })).toBeEnabled();
 });

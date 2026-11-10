@@ -43,7 +43,7 @@ import {
 import { getConfigDocument } from './config-store.js';
 import { localModelBaseUrl } from './local-model.js';
 import { LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
-import { NTASKS_URL, ntasksOrigin } from './ntasks.js';
+import { NTASKS_APP_CLIENT_ID, NTASKS_URL, ntasksOrigin } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
@@ -1482,6 +1482,22 @@ export async function setModelOutputTokens(env: IngestEnv, input: SetModelOutput
     if (error instanceof CredentialKeyError) return { ok: false, error: 'key_missing' };
     throw error;
   }
+}
+
+/** Saves the Tower's connected-app client id beside the Ntasks connection it
+ * was registered with. Guarded on the fields it read, so a connection
+ * replaced or removed meanwhile is never given another's client id: false then. */
+export async function saveNtasksAppClientId(env: IngestEnv, captured: ResolvedCredential, clientId: string): Promise<boolean> {
+  await assertCredentialOwner(env, captured, 'ntasks');
+  const row = await readRow(env.STORE, 'ntasks');
+  if (!row || row.connection_id !== captured.connectionId || captured.source !== 'store') return false;
+  const current = await open(env, row);
+  if (!await sameCredentialFields(current, captured.fields)) return false;
+  const fields = { ...current, [NTASKS_APP_CLIENT_ID]: clientId };
+  const sealed = await seal(env, fields);
+  return env.STORE.write(async tx => replaceSecret(tx, row.connection_id, row.secret_version, {
+    ciphertext: sealed.ciphertext, iv: sealed.iv, keyVersion: await currentKeyVersion(tx), fieldNames: Object.keys(fields), assetIds: row.asset_ids,
+  }, new Date().toISOString()));
 }
 
 /** Internal session persistence. Guarded on the secret version it read, so a

@@ -109,7 +109,7 @@ import { handleAnnotations } from './routes/annotations.js';
 import { handleOpenReclamationTargets, handleReclamationTargets } from './routes/reclamation-targets.js';
 import { handleAssetState, handleAssetStateEdit } from './routes/asset-state.js';
 import { handleBeadsSnapshot } from './routes/beads-snapshot.js';
-import { handleTaskService, TASK_SERVICE_PATH } from './routes/task-service.js';
+import { handleTaskService, handleTaskServiceApp, TASK_SERVICE_APP_PATH, TASK_SERVICE_PATH } from './routes/task-service.js';
 import { handleCapacity } from './routes/capacity.js';
 import {
   CONFIG_DOCUMENTS_PREFIX,
@@ -203,6 +203,7 @@ async function route(request: Request, env: IngestEnv): Promise<Response> {
     return handleConfigDocuments(request, env);
   }
   if (pathname === TASK_SERVICE_PATH) return handleTaskService(request, env);
+  if (pathname === TASK_SERVICE_APP_PATH) return handleTaskServiceApp(request, env);
   if (request.method === 'POST' && pathname === '/api/beads-snapshot') {
     return handleBeadsSnapshot(request, env);
   }
