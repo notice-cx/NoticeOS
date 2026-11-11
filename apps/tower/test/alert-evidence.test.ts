@@ -68,7 +68,7 @@ describe("alert evidence is separate from lifecycle", () => {
   });
   it("recorded closure is not verified recovery and decisions remain actionable", () => {
     expect(deriveAlertEvidence({ ...base, resolvedAt: FRESH }, NOW_MS).verification.state).toBe("recorded-closed");
-    const decision = deriveAlertEvidence({ ...base, ruleId: "watch-window-closed" }, NOW_MS, null, { outcome: "inconclusive", readbackBead: "ex-12" });
+    const decision = deriveAlertEvidence({ ...base, ruleId: "watch-window-closed" }, NOW_MS, null, { outcome: "inconclusive", readbackTask: "ex-12" });
     expect(decision.verification.state).toBe("not-applicable");
     expect(decision.liveness).toEqual({ state: "awaiting-decision", verdict: "inconclusive", decisionHome: "ex-12" });
     expect(isAttentionEligible(decision.liveness)).toBe(true);

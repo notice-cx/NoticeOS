@@ -25,7 +25,7 @@ interface WatchWindowStoreRow extends Record<string, unknown> {
   outcomeNote: string | null;
   closedAt: string | null;
   note: string | null;
-  readbackBead: string | null;
+  readbackTask: string | null;
 }
 
 /** A few recent answers contextualize open watches without becoming history. */
@@ -58,7 +58,7 @@ function toWatchWindowItem(row: WatchWindowStoreRow): WatchWindowItem {
     outcomeNote: watchVerdictFigures(row.outcomeNote, row.metricIntegration, row.metric),
     closedAt: row.closedAt,
     note: row.note,
-    ...(isTaskId(row.readbackBead) ? { readbackTaskId: row.readbackBead } : {}),
+    ...(isTaskId(row.readbackTask) ? { readbackTaskId: row.readbackTask } : {}),
   };
 }
 
@@ -69,7 +69,7 @@ const WATCH_WINDOW_COLUMNS = `w.window_id AS id, w.metric_integration AS "metric
               WHERE r.workspace_id = w.workspace_id AND r.window_id = w.window_id
               ORDER BY r.offset_days) AS "readOffsets",
        w.status, w.outcome, w.outcome_note AS "outcomeNote", w.closed_at AS "closedAt", w.note,
-       w.readback_bead AS "readbackBead"`;
+       w.readback_bead AS "readbackTask"`;
 
 /** One asset's full read for its detail-page timeline, on its (site, ref)
  * index; each window's read offsets through the readings' key. */

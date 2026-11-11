@@ -81,13 +81,13 @@ export async function handleWatchReadbacks(
 function isReviewLink(value: unknown): value is WatchReviewLink {
   const row = asRecord(value);
   return row !== null && (row.previousPostedAt === null || typeof row.previousPostedAt === 'string'
-    && Number.isFinite(Date.parse(row.previousPostedAt))) && row.previousBead !== row.bead && ['windowId', 'asset', 'previousBead', 'bead'].every(key =>
+    && Number.isFinite(Date.parse(row.previousPostedAt))) && row.previousTaskId !== row.taskId && ['windowId', 'asset', 'previousTaskId', 'taskId'].every(key =>
     typeof row[key] === 'string' && row[key].trim().length > 0 && row[key].length <= 2048 && !row[key].includes('\u0000'));
 }
 
 function isCompletedReview(value: unknown): value is CompletedWatchReview {
   const row = asRecord(value);
   return row !== null && typeof row.flagNumber === 'number' && Number.isSafeInteger(row.flagNumber) && row.flagNumber > 0
-    && ['windowId', 'asset', 'bead', 'postedAt', 'closedAt', 'checkedAt', 'reason'].every((key) =>
+    && ['windowId', 'asset', 'taskId', 'postedAt', 'closedAt', 'checkedAt', 'reason'].every((key) =>
       typeof row[key] === 'string' && row[key].trim().length > 0 && row[key].length <= 2048 && !row[key].includes('\u0000'));
 }

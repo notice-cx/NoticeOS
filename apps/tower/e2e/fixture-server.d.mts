@@ -1,4 +1,4 @@
-// Types for fixture-server.mjs (bead ro-ujb9.167), which the TypeScript journey
+// Types for fixture-server.mjs (task ro-ujb9.167), which the TypeScript journey
 // fixture imports and the plain-JS flow gate and harness test share.
 import type { ChildProcess } from "node:child_process";
 import type { TestClusterHandle } from "../../../scripts/postgres-test-copies.mjs";
@@ -10,9 +10,9 @@ export interface FixtureServer {
   readonly child: ChildProcess;
   output(): string;
   violations(from?: number): string[];
-  /** Why each handler that failed since `from` failed (bead ro-ujb9.76.56). */
+  /** Why each handler that failed since `from` failed (task ro-ujb9.76.56). */
   failures(from?: number): string[];
-  /** Rejects unless the server exits 0 (bead ro-ujb9.192). */
+  /** Rejects unless the server exits 0 (task ro-ujb9.192). */
   stop(): Promise<void>;
 }
 

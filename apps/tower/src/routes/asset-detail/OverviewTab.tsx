@@ -509,7 +509,7 @@ function Bets({ watches, handoffs, assetId, nowMs }: {
   nowMs: number;
 }) {
   const assetTabPath = useAssetTabPath();
-  const byId = new Map((handoffs ?? []).map((bead) => [bead.beadId, bead]));
+  const byId = new Map((handoffs ?? []).map((handoff) => [handoff.taskId, handoff]));
   const rows = [
     ...watches.open.map((watch) => ({ watch, open: true })),
     ...watches.closed.map((watch) => ({ watch, open: false })),
@@ -849,7 +849,7 @@ function FindingActions({
             subject: insight.title,
             series: watchSeriesForSources(insight.sources) ?? WATCH_SERIES[0]!,
             query: null,
-            beadId: null,
+            taskId: null,
           })
         }
       >

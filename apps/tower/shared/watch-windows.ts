@@ -402,7 +402,7 @@ export interface WatchSeed {
    * means shipped, not proven. `null` when nothing was filed or the register
    * could not be asked, which leaves the ref as the operator's own words.
    */
-  beadId: string | null;
+  taskId: string | null;
 }
 
 /** The exact query selector a GSC series keeps from a seeded query, or null. */

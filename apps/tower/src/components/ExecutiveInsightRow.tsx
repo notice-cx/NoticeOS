@@ -19,11 +19,11 @@ import { useState } from "react";
 import type {
   ExecutiveInsight,
   ExecutiveInsightKind,
-  HandoffBead,
+  HandoffTask,
 } from "@shared/asset-detail";
 import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { watchSeriesForSources, type WatchSeed } from "@shared/watch-windows";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { RecommendationReview, useRecommendationValidity } from "@/components/AnalysisEvidence";
 import { findingBasis, recommendationHandoffCaveat, type RecommendationValidity } from "@shared/recommendation-validity";
 import { FileTaskButton } from "@/components/TaskComposer";
@@ -98,7 +98,7 @@ export interface ExecutiveInsightRowProps {
   /** The task filed from this finding's handoff, or null when none has been
    * filed or the register could not be asked. Both render nothing: the row
    * shows work that exists, never asserts that none does. */
-  bead?: HandoffBead | null;
+  handoff?: HandoffTask | null;
   /** Open the asset page's outcome-check composer, seeded from this finding.
    * Absent renders no action. */
   onWatch?: (seed: WatchSeed) => void;
@@ -126,7 +126,7 @@ export function ExecutiveInsightRow({
   insight,
   asset,
   rank,
-  bead = null,
+  handoff = null,
   onWatch,
   marked = false,
   dismissed = false,
@@ -150,7 +150,7 @@ export function ExecutiveInsightRow({
   );
   // Until filed, File task sits beside the figure, two presses from any row;
   // once filed the row carries the task's badge there instead.
-  const fileOnRow = prefill !== null && bead === null;
+  const fileOnRow = prefill !== null && handoff === null;
 
   async function copyMarkdown() {
     try {
@@ -177,7 +177,7 @@ export function ExecutiveInsightRow({
       data-insight-tone={insight.kind}
       data-insight-marked={marked || undefined}
       data-insight-dismissed={dismissed || undefined}
-      data-insight-filed={bead?.status ?? undefined}
+      data-insight-filed={handoff?.status ?? undefined}
     >
       <details
         className="group/finding"
@@ -234,7 +234,7 @@ export function ExecutiveInsightRow({
                 {savedEvidenceLabel(insight.primary.label)}
               </span>
             </span>
-            <HandoffBeadBadge bead={bead} />
+            <HandoffTaskBadge handoff={handoff} />
             {fileOnRow ? (
               // Pressing it must not also toggle the row. A click inside the
               // composer's portal bubbles here through React too; only this
@@ -320,7 +320,7 @@ export function ExecutiveInsightRow({
                       watchSeriesForSources(insight.sources) ??
                       WATCH_SERIES[0]!,
                     query: null,
-                    beadId: bead?.beadId ?? null,
+                    taskId: handoff?.taskId ?? null,
                   })
                 }
                 title="Pre-register how this finding's fix will be judged, before doing it"

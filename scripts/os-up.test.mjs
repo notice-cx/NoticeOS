@@ -1269,17 +1269,17 @@ test('a row’s snake_case fields land as the camelCase the store speaks', () =>
     createdAt: '2026-08-01T16:30:53.000Z',
     // `parent` is the row's own field, and null means un-epiced rather than unknown.
     parent: null,
-    // Only a deferred bead carries one.
+    // Only a deferred task carries one.
     deferUntil: null,
     // Its links to other tasks, from the list read: none, which is not "not recorded".
     dependencies: [],
   });
-  // An unassigned bead reports null, not an empty string the UI would render.
+  // An unassigned task reports null, not an empty string the UI would render.
   assert.equal(entry.ready[1].assignee, null);
   assert.equal(entry.recentlyClosed[0].closedAt, '2026-08-01T16:30:59.000Z');
 });
 
-test('a bead with no title still renders as something', () => {
+test('a task with no title still renders as something', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     ready: [{ id: 'zz-abc', title: '   ', priority: 99 }],
@@ -1431,7 +1431,7 @@ const DEFERRED_ROWS = [
 ];
 
 test('epic structure groups the live children and keeps the all-time progress', () => {
-  // Every active bead in the fixture hangs off the one epic.
+  // Every active task in the fixture hangs off the one epic.
   const parented = ACTIVE_ROWS.map((issue) => ({ ...issue, parent: 'zz-epc' }));
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
@@ -1455,7 +1455,7 @@ test('epic structure groups the live children and keeps the all-time progress', 
   assert.deepEqual(epic.priorities, [1, 1, 1, 1, 0]);
 });
 
-test('a bead with no epic is remainder, not a hidden row', () => {
+test('a task with no epic is remainder, not a hidden row', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     epics: EPICS_ROWS,
@@ -1531,7 +1531,7 @@ const HUMAN_ROWS = [
   { id: 'zz-4qr', title: 'Decide the Korea trip', status: 'open', priority: 1, issue_type: 'task', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
   // Every tempting false positive the live hub exposed.
   { id: 'zz-h2', title: 'Export the Bing report later', status: 'deferred', priority: 3, issue_type: 'task', defer_until: '2026-09-01T00:00:00Z', updated_at: '2026-07-20T10:00:00Z', labels: ['human'] },
-  { id: 'zz-hfl', title: 'Human ask behind another bead', status: 'open', priority: 3, issue_type: 'task', updated_at: '2026-07-20T10:00:00Z', labels: ['human'] },
+  { id: 'zz-hfl', title: 'Human ask behind another task', status: 'open', priority: 3, issue_type: 'task', updated_at: '2026-07-20T10:00:00Z', labels: ['human'] },
   { id: 'zz-h4', title: 'Agent is already doing this', status: 'in_progress', priority: 1, issue_type: 'task', assignee: 'claude-areas', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
   { id: 'zz-h3', title: 'Already answered', status: 'closed', priority: 1, issue_type: 'task', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
 ];
@@ -1556,7 +1556,7 @@ test('the operator inbox is ready human tasks plus gates that wait on a person',
   // other work. This count is over the full set, not the truncated list.
   assert.equal(entry.waitingUrgent, 2);
   // The label alone proves none of these are actionable now: deferred wakes
-  // later, blocked waits on a bead, in-progress is already owned, and closed
+  // later, blocked waits on a task, in-progress is already owned, and closed
   // has already been answered. The timer gate resolves itself too.
   assert.equal(entry.waiting.some((i) => i.id === 'zz-g2'), false);
   assert.equal(entry.waiting.some((i) => i.id === 'zz-h2'), false);
@@ -1658,9 +1658,9 @@ test('projecting ready human work into the inbox never changes queue counts', ()
   assert.equal(entry.counts.ready, base.counts.ready);
   assert.equal(entry.counts.highPriority, base.counts.highPriority);
   assert.deepEqual(entry.priorities, base.priorities);
-  // The one human bead is already one of the two ready/open tasks. Waiting is
+  // The one human task is already one of the two ready/open tasks. Waiting is
   // a view over that row, never another unit of work to add to it.
-  assert.equal(entry.counts.waiting, 2); // one ready human bead + one human gate
+  assert.equal(entry.counts.waiting, 2); // one ready human task + one human gate
 });
 
 test('a missing inbox list leaves no zero behind', () => {
@@ -1753,7 +1753,7 @@ test('both inbox lists must return before empty totals are exact again', () => {
 test('lists are truncated but counts stay true', () => {
   const many = Array.from({ length: 25 }, (_, i) => ({
     id: `zz-${i}`,
-    title: `Bead ${i}`,
+    title: `Task ${i}`,
     status: 'open',
     priority: 2,
     issue_type: 'task',
@@ -1780,23 +1780,23 @@ test('recently closed is ordered by when it closed, newest first', () => {
 });
 
 test('recently filed work is sent newest first and capped, whatever became of it', () => {
-  const bead = (id, createdAt, extra = {}) => ({
+  const taskRow = (id, createdAt, extra = {}) => ({
     id, title: id, status: 'open', priority: 2, issue_type: 'task', created_at: createdAt, ...extra,
   });
   const active = [
-    bead('zz-1', '2026-07-20T00:00:00Z'),
-    bead('zz-2', '2026-07-31T09:00:00Z'),
-    bead('zz-3', '2026-07-31T08:00:00Z'),
-    bead('zz-4', '2026-07-30T00:00:00Z'),
-    bead('zz-5', '2026-07-29T00:00:00Z'),
+    taskRow('zz-1', '2026-07-20T00:00:00Z'),
+    taskRow('zz-2', '2026-07-31T09:00:00Z'),
+    taskRow('zz-3', '2026-07-31T08:00:00Z'),
+    taskRow('zz-4', '2026-07-30T00:00:00Z'),
+    taskRow('zz-5', '2026-07-29T00:00:00Z'),
     // An epic is structure and a gate an ask for approval: neither is a task.
-    bead('zz-epic', '2026-07-31T11:00:00Z', { issue_type: 'epic' }),
-    bead('zz-gate', '2026-07-31T11:30:00Z', { issue_type: 'gate' }),
+    taskRow('zz-epic', '2026-07-31T11:00:00Z', { issue_type: 'epic' }),
+    taskRow('zz-gate', '2026-07-31T11:30:00Z', { issue_type: 'gate' }),
     // No filing time is no claim to be new.
-    bead('zz-none', undefined),
+    taskRow('zz-none', undefined),
   ];
-  const closed = [bead('zz-quick', '2026-07-31T10:00:00Z', { status: 'closed', closed_at: '2026-07-31T10:05:00Z' })];
-  const deferred = [bead('zz-later', '2026-07-31T07:00:00Z', { status: 'deferred' })];
+  const closed = [taskRow('zz-quick', '2026-07-31T10:00:00Z', { status: 'closed', closed_at: '2026-07-31T10:05:00Z' })];
+  const deferred = [taskRow('zz-later', '2026-07-31T07:00:00Z', { status: 'deferred' })];
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: active,
@@ -1806,8 +1806,8 @@ test('recently filed work is sent newest first and capped, whatever became of it
   assert.equal(entry.recentlyCreated.length, TASK_CREATED_LIMIT);
   assert.deepEqual(entry.recentlyCreated.map((i) => i.id), ['zz-quick', 'zz-2', 'zz-3', 'zz-later', 'zz-4']);
   assert.equal(entry.recentlyCreated[0].createdAt, '2026-07-31T10:00:00.000Z');
-  // The same bead from two reads is one entry.
-  const twice = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: [bead('zz-2', '2026-07-31T09:00:00Z')], closed: [], deferred: [bead('zz-2', '2026-07-31T09:00:00Z')] });
+  // The same task from two reads is one entry.
+  const twice = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: [taskRow('zz-2', '2026-07-31T09:00:00Z')], closed: [], deferred: [taskRow('zz-2', '2026-07-31T09:00:00Z')] });
   assert.deepEqual(twice.recentlyCreated.map((i) => i.id), ['zz-2']);
 });
 
@@ -2079,7 +2079,7 @@ const review = (overrides = {}) => ({
   ...overrides,
 });
 
-test('a review bead names the panel day where an operator can read it', () => {
+test('a review task names the panel day where an operator can read it', () => {
   assert.equal(panelReviewTitle('northwind.example', '2026-08-02'), 'Triage the 2026-08-02 serp panel for northwind.example');
 });
 
@@ -2098,7 +2098,7 @@ test('a panel day we cannot read is no deadline at all, never a guessed one', ()
   assert.equal(panelReviewDueDate(''), null);
 });
 
-test('a review bead is recognized by its metadata', () => {
+test('a review task is recognized by its metadata', () => {
   assert.equal(panelReviewPanelDate(review()), '2026-08-02');
 });
 
@@ -2109,7 +2109,7 @@ test('a review without metadata is still read from its title', () => {
   assert.equal(panelReviewPanelDate(review({ metadata: {} })), '2026-08-02');
 });
 
-test('a bead that is not one of ours is not mistaken for a review', () => {
+test('a task that is not one of ours is not mistaken for a review', () => {
   assert.equal(panelReviewPanelDate({ id: 'nw-1', title: 'Triage the serp panel' }), null);
   assert.equal(panelReviewPanelDate({ id: 'nw-1', title: 'Triage the 2026-08-02 serp panel for ' }), null);
   assert.equal(panelReviewPanelDate({ id: 'nw-1' }), null);
@@ -2277,7 +2277,7 @@ const handoff = (overrides = {}) => ({
   ...overrides,
 });
 
-/** The same bead as one filed before the NoticeOS rename carries it: the
+/** The same task as one filed before the NoticeOS rename carries it: the
  * `reindex-handoff` label and `reindex_*` metadata, exactly as
  * apps/tower/src/lib/task-handoff.ts wrote them then. */
 const legacyHandoff = (overrides = {}) => ({
@@ -2332,20 +2332,20 @@ test('a saturated property loses its oldest shipped work, never its open work', 
   const entries = handoffEntries(rows, 'meadow.example');
   assert.equal(entries.length, HANDOFF_LIMIT);
   assert.ok(entries.some((e) => e.beadId === 'md-live'));
-  // The bead that fell off is the one whose work shipped longest ago — the
+  // The task that fell off is the one whose work shipped longest ago — the
   // least useful marker on a page, and a rendering bound rather than a claim
   // that nothing was ever filed for it.
   assert.equal(entries.some((e) => e.key === 'shipped-0'), false);
 });
 
-test('a filed bead is joined to the finding by its exact key', () => {
+test('a filed task is joined to the finding by its exact key', () => {
   assert.deepEqual(handoffEntries([handoff()], 'meadow.example'), [
     { kind: 'finding', key: 'item-openers', beadId: 'md-1w2', status: 'open', closedAt: null },
   ]);
 });
 
-test('a bead filed before the rename still joins its finding, and still dedupes against a new one', () => {
-  // The filed-task badge reads this entry: the old bead renders exactly as it did.
+test('a task filed before the rename still joins its finding, and still dedupes against a new one', () => {
+  // The filed-task badge reads this entry: the old task renders exactly as it did.
   assert.deepEqual(handoffEntries([legacyHandoff()], 'meadow.example'), [
     { kind: 'finding', key: 'item-openers', beadId: 'md-0ld', status: 'open', closedAt: null },
   ]);
@@ -2354,7 +2354,7 @@ test('a bead filed before the rename still joins its finding, and still dedupes 
   assert.deepEqual(handoffEntries([closedNew, legacyHandoff()], 'meadow.example'), [
     { kind: 'finding', key: 'item-openers', beadId: 'md-0ld', status: 'open', closedAt: null },
   ]);
-  // The old bead's asset still guards against a bead filed in the wrong repo.
+  // The old task's asset still guards against a task filed in the wrong repo.
   assert.deepEqual(handoffEntries([legacyHandoff()], 'northwind.example'), []);
 });
 
@@ -2419,20 +2419,20 @@ test('a task’s richer statuses collapse to whether the work has landed', () =>
   );
 });
 
-test('a bead filed in the wrong repo never lands on a stranger’s finding', () => {
+test('a task filed in the wrong repo never lands on a stranger’s finding', () => {
   // Finding keys are RULE ids, so `item-openers` exists on every property. The
   // handoff text warns about filing from the wrong directory by name; when it
   // happens, the metadata is the only thing that catches it.
   assert.deepEqual(handoffEntries([handoff()], 'northwind.example'), []);
 });
 
-test('a bead that predates the asset key is still read from the repo it is in', () => {
+test('a task that predates the asset key is still read from the repo it is in', () => {
   const metadata = { ...handoff().metadata };
   delete metadata[HANDOFF_ASSET_FIELD];
   assert.equal(handoffEntries([handoff({ metadata })], 'meadow.example').length, 1);
 });
 
-test('a labelled bead nothing can be joined to is dropped, never guessed', () => {
+test('a labelled task nothing can be joined to is dropped, never guessed', () => {
   const cases = [
     handoff({ metadata: undefined }),
     handoff({ metadata: {} }),
@@ -2445,7 +2445,7 @@ test('a labelled bead nothing can be joined to is dropped, never guessed', () =>
   }
 });
 
-test('one finding shows one bead: open work wins over shipped work', () => {
+test('one finding shows one task: open work wins over shipped work', () => {
   const entries = handoffEntries(
     [
       handoff({ id: 'md-old', status: 'closed', closed_at: '2026-08-01T10:00:00Z' }),
@@ -2751,7 +2751,7 @@ test('a landed panel with no review becomes one task in the property’s project
   const result = await runPanelReviewFiler(UP, deps);
   assert.equal(fetched[0].url, serpPanelLandingsUrl(CONFIG));
   assert.equal(fetched[0].init.headers.authorization, 'Bearer operator-secret');
-  assert.deepEqual(result.filed, [{ asset: 'northwind.example', panelDate: '2026-08-02', beadId: 'nw-1' }]);
+  assert.deepEqual(result.filed, [{ asset: 'northwind.example', panelDate: '2026-08-02', taskId: 'nw-1' }]);
   // The read that decided it, then the write it decided on — in that order.
   assert.deepEqual(ntasks.calls.map((call) => call.method), ['GET', 'POST']);
   assert.equal(ntasks.creates[0].body.projectId, 'p-nw');
@@ -3094,7 +3094,7 @@ function readbackDeps(overrides = {}) {
   const pending = overrides.pending ?? [
     {
       windowId: 'w-1',
-      bead: 'md-w1n.2',
+      taskId: 'md-w1n.2',
       asset: 'meadow.example',
       outcome: 'kill_confirmed',
       comment: 'Watch window kill_confirmed — meadow.example\n\nReading: …',
@@ -3177,7 +3177,7 @@ test('comments that landed but could not be stamped say so in one line', async (
             pending: [
               {
                 windowId: 'w-1',
-                bead: 'md-w1n.2',
+                taskId: 'md-w1n.2',
                 asset: 'meadow.example',
                 outcome: 'ship_confirmed',
                 comment: 'Watch window ship_confirmed — meadow.example',

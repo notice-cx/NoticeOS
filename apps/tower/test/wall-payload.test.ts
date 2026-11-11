@@ -41,7 +41,7 @@ import { addSites } from "./sites";
 import {
   insertDataForSeoCollection,
   insertPanelRun,
-  panelReviewBead,
+  panelReviewTask,
   seedSnapshot,
   workCounts,
   workProject,
@@ -2355,7 +2355,9 @@ describe("buildWallPayload — the card's work slice", () => {
     ]);
     const statements: string[] = [];
     const wall = await buildWallPayload(recordingStore(ctx.call, statements), OPTIONS);
-    expect(wall.attention.find((item) => item.id === latest)).toMatchObject({ occurrences: 2, handoffTasks: [handoff, closed] });
+    // The stored `beadId` reaches the Wall as `taskId`.
+    expect(wall.attention.find((item) => item.id === latest)).toMatchObject({ occurrences: 2,
+      handoffTasks: [handoff, closed].map(({ beadId, ...task }) => ({ ...task, taskId: beadId })) });
     expect(wall.attention.find((item) => item.id === unrelated)?.handoffTasks).toEqual([]);
     expect(statements.filter((statement) => statement.includes('noticeos.task_snapshots'))).toHaveLength(1);
   });
@@ -2726,7 +2728,7 @@ describe("panelReviewState — four states over one clock", () => {
   const DUE = "2026-07-08T06:00:00.000Z";
   const dueMs = Date.parse(DUE);
   const open: PanelReview = {
-    beadId: "md-4a2",
+    taskId: "md-4a2",
     panelDate: PANEL_DAY,
     dueAt: DUE,
     status: "open",
@@ -2757,7 +2759,7 @@ describe("panelReviewState — four states over one clock", () => {
     expect(panelReviewState(open, PANEL_DAY, dueMs + 3 * DAY)).toBe("overdue");
   });
 
-  it("is reviewed once the bead for the newest panel day is closed", () => {
+  it("is reviewed once the task for the newest panel day is closed", () => {
     expect(panelReviewState(closed, PANEL_DAY, NOW_MS)).toBe("reviewed");
     expect(panelReviewState(closed, PANEL_DAY, dueMs + 30 * DAY)).toBe("reviewed");
   });
@@ -2801,9 +2803,9 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   const cardFor = async (asset: string) =>
     (await buildWallPayload(ctx.call, OPTIONS)).assets.find((a) => a.id === asset)!;
 
-  const review = panelReviewBead;
+  const review = panelReviewTask;
 
-  it("carries the review bead and the panel day it has to be about", async () => {
+  it("carries the review task and the panel day it has to be about", async () => {
     await insertDataForSeoCollection(
       ctx,
       "meadow.example",
@@ -2817,7 +2819,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
 
     const card = await cardFor("meadow.example");
     expect(card.panelReview).toEqual({
-      beadId: "md-4a2",
+      taskId: "md-4a2",
       panelDate: "2026-07-01",
       dueAt: "2026-07-08T06:00:00.000Z",
       status: "open",
@@ -2844,7 +2846,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
 
     const card = await cardFor("northwind.example");
     expect(card.panelReview?.panel).toBe(false);
-    expect(card.panelReview?.beadId).toBe("nw-f1c");
+    expect(card.panelReview?.taskId).toBe("nw-f1c");
     expect(card.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
   });
@@ -2979,7 +2981,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     expect((await cardFor("meadow.example")).panelReview).toBeNull();
   });
 
-  it("drops a review whose row cannot name a bead or a status", async () => {
+  it("drops a review whose row cannot name a task or a status", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: { panelDate: "2026-07-01", status: "open" } }),
     ]);

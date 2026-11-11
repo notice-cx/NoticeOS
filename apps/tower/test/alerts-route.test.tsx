@@ -257,8 +257,8 @@ function openRow(name: RegExp | string): HTMLElement {
 describe("/alerts — the portfolio's open exceptions", () => {
   it('links filed open and closed tasks inside the alert without changing its severity', () => {
     renderAlerts([alert({ handoffTasks: [
-      { kind: 'alert', key: '1', beadId: 'md-repair', status: 'open', closedAt: null },
-      { kind: 'alert', key: '1', beadId: 'md-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
+      { kind: 'alert', key: '1', taskId: 'md-repair', status: 'open', closedAt: null },
+      { kind: 'alert', key: '1', taskId: 'md-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
     ] })]);
     const row = openRow(/Signups well below normal/);
     const open = within(row).getByRole('link', { name: 'Filed as work, still open, task md-repair' });
@@ -266,14 +266,14 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(open.closest('button')).toBeNull();
     const closed = within(row).getByRole('link', { name: 'Task recorded closed; outcome not verified, task md-review' });
     expect(closed).toHaveAttribute('href', '/tasks/md-review');
-    expect(row.querySelector('[data-handoff-bead="closed"]')).not.toHaveClass('text-healthy');
+    expect(row.querySelector('[data-handoff-task="closed"]')).not.toHaveClass('text-healthy');
     expect(within(row).getByRole('button', { name: 'Resolve alert' })).toBeInTheDocument();
   });
 
   it.each([undefined, []])('shows no task marker without a recorded handoff (%j)', (handoffTasks) => {
     renderAlerts([alert({ handoffTasks })]);
     const row = openRow(/Signups well below normal/);
-    expect(row.querySelector('[data-handoff-bead]')).toBeNull();
+    expect(row.querySelector('[data-handoff-task]')).toBeNull();
     expect(within(row).getByRole('button', { name: /^File task for/ })).toBeInTheDocument();
   });
   it("gives each alert one line, with Snooze and Resolve on the row and the rest behind it", () => {

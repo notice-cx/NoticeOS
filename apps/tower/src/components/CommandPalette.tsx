@@ -34,7 +34,7 @@ const RECENT_LIMIT = 5;
  * A task id as the operator types it, e.g. `abc-12x` or `abc-12x.1`: two to
  * four letters of prefix, then digits, letters and dots.
  */
-const BEAD_ID = /^[a-z]{2,4}-[a-z0-9.]+$/;
+const TASK_ID_PATTERN = /^[a-z]{2,4}-[a-z0-9.]+$/;
 
 /** cmdk needs one stable, unique string per row; these are also what recents
  * store, so the prefix is what tells a remembered page from a remembered asset. */
@@ -192,7 +192,7 @@ function PaletteBody({
   // remembered item is lifted out of its own group so it never renders twice.
   const recentItems = trimmed === "" ? recent.filter((value) => destinations.has(value)) : [];
   const recentSet = new Set(recentItems);
-  const beadId = BEAD_ID.test(trimmed) ? trimmed : null;
+  const taskId = TASK_ID_PATTERN.test(trimmed) ? trimmed : null;
 
   return (
     <>
@@ -288,24 +288,24 @@ function PaletteBody({
           ))}
         </CommandGroup>
 
-        {beadId ? (
+        {taskId ? (
           // A typed id opens its task page. `forceMount` on both, because cmdk
           // scores the row's own words, which are not the typed id.
           <CommandGroup heading="Open task" forceMount>
             <CommandItem
               forceMount
-              value={`task:${beadId}`}
-              onSelect={() => go(`task:${beadId}`, `/tasks/${beadId}`, false)}
+              value={`task:${taskId}`}
+              onSelect={() => go(`task:${taskId}`, `/tasks/${taskId}`, false)}
             >
               <ListTodo className="size-4" />
               <span className="text-foreground">
-                Open task <span className="font-mono">{beadId}</span>
+                Open task <span className="font-mono">{taskId}</span>
               </span>
               <CommandShortcut>Enter</CommandShortcut>
             </CommandItem>
           </CommandGroup>
         ) : null}
-        {trimmed && !beadId ? (
+        {trimmed && !taskId ? (
           <CommandGroup heading="Find tasks" forceMount>
             <CommandItem
               forceMount

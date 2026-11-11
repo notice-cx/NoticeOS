@@ -900,7 +900,7 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
     message: "watch window kill_confirmed — gsc/clicks at +7d: 10/day → 7/day (-30%)",
     ruleInputs: {
       outcome: "kill_confirmed",
-      refKind: "bead",
+      refKind: "decision",
       ref: "md-123",
       integration: "gsc",
       metric: "clicks",
@@ -919,7 +919,7 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
       {
         polarity: "supporting",
         source: "Watched change",
-        detail: "bead md-123",
+        detail: "decision md-123",
         at: "2026-07-01T03:30:00.000Z",
         // The task the evidence names, which the panel links.
         task: "md-123",

@@ -12,7 +12,7 @@ import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-r
 import { taskCardOf } from "@noticeos/contract/task-card";
 import { isTaskChangeClass } from "@noticeos/contract/task-change-class";
 import { BEADS_ATTENTION_TASKS_MAX, BEADS_PRIORITY_MAX } from "@noticeos/contract/task-snapshot";
-import type { HandoffBead } from "../shared/asset-detail";
+import type { HandoffTask } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
 import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkDependency, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
 
@@ -68,7 +68,7 @@ export interface SnapshotProject {
    * poller never asked the register; `[]` = it asked and nobody has filed
    * anything. Only the second licenses a finding card to present itself as
    * untouched work. */
-  handoffs: HandoffBead[] | undefined;
+  handoffs: HandoffTask[] | undefined;
   /** Who did the work; absent when the snapshot carries none. */
   workers?: WorkWorker[];
   recentWork?: WorkEvent[];
@@ -95,11 +95,11 @@ export function scopeTaskSnapshot(snapshot: TaskSnapshot | null, sites: readonly
 }
 
 /** A condition can include several firings; work filed from any of them still belongs to it. */
-export function alertHandoffsOf(snapshot: TaskSnapshot | null, asset: string, flagIds: readonly number[]): HandoffBead[] | undefined {
+export function alertHandoffsOf(snapshot: TaskSnapshot | null, asset: string, flagIds: readonly number[]): HandoffTask[] | undefined {
   const project = snapshot?.projects.find((entry) => entry.asset === asset);
   if (!project?.ok || project.handoffs === undefined) return undefined;
   const keys = new Set(flagIds.map(String));
-  return project.handoffs.filter((bead) => bead.kind === 'alert' && keys.has(bead.key));
+  return project.handoffs.filter((handoff) => handoff.kind === 'alert' && keys.has(handoff.key));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -241,18 +241,19 @@ function readPriorities(value: unknown): number[] | null {
  * The asset's panel-review task. An explicit JSON `null` is the one value
  * that means "measured, and this asset has no review task"; anything else
  * that is not a readable review travels as `undefined`. Two fields are
- * load-bearing: `beadId` and a `status` in the pinned vocabulary. The dates
+ * load-bearing: the stored `beadId`, read as `taskId`, and a `status` in the
+ * pinned vocabulary. The dates
  * ride through as whatever arrived; `panelReviewState` treats an unreadable
  * one as the quiet state.
  */
 function readPanelReview(value: unknown): SnapshotPanelReview | null | undefined {
   if (value === null) return null;
   if (!isRecord(value)) return undefined;
-  const beadId = text(value.beadId);
+  const taskId = text(value.beadId);
   const status = text(value.status);
-  if (!beadId || (status !== "open" && status !== "closed")) return undefined;
+  if (!taskId || (status !== "open" && status !== "closed")) return undefined;
   return {
-    beadId,
+    taskId,
     panelDate: nullableText(value.panelDate),
     dueAt: nullableText(value.dueAt),
     status,
@@ -262,19 +263,19 @@ function readPanelReview(value: unknown): SnapshotPanelReview | null | undefined
 
 /**
  * One handoff task, or null when this entry cannot be joined to anything.
- * Four fields are load-bearing: `key`, `kind`, `beadId` and a status in the
- * pinned pair. `closedAt` rides through as whatever arrived.
+ * Four fields are load-bearing: `key`, `kind`, the stored `beadId` (read as
+ * `taskId`) and a status in the pinned pair. `closedAt` rides through as whatever arrived.
  */
-function readHandoff(value: unknown): HandoffBead | null {
+function readHandoff(value: unknown): HandoffTask | null {
   if (!isRecord(value)) return null;
   const kind = text(value.kind);
   const key = text(value.key);
-  const beadId = text(value.beadId);
+  const taskId = text(value.beadId);
   const status = text(value.status);
   if (kind !== "query" && kind !== "finding" && kind !== "page" && kind !== "alert") return null;
-  if (!key || !beadId) return null;
+  if (!key || !taskId) return null;
   if (status !== "open" && status !== "closed") return null;
-  return { kind, key, beadId, status, closedAt: nullableText(value.closedAt) };
+  return { kind, key, taskId, status, closedAt: nullableText(value.closedAt) };
 }
 
 /**
@@ -284,9 +285,9 @@ function readHandoff(value: unknown): HandoffBead | null {
  * containers and priority bands follow, because this renders one marker per
  * finding and a garbled entry costs exactly the finding it belonged to.
  */
-function readHandoffs(value: unknown): HandoffBead[] | undefined {
+function readHandoffs(value: unknown): HandoffTask[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  const out: HandoffBead[] = [];
+  const out: HandoffTask[] = [];
   for (const entry of value) {
     const handoff = readHandoff(entry);
     if (handoff) out.push(handoff);

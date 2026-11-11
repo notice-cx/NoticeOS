@@ -3337,7 +3337,7 @@ test("each main address loads its own screen and no other", { tag: DEV_SERVER },
 // the rest in behind it. The TV draws its widgets from read-only modules and
 // must download none of these.
 const DESK_ONLY_MODULE =
-  /\/(src\/components\/(RuleTune|KnobEditor|TaskComposer|Timeline|HandoffBeadBadge)\.tsx|src\/hooks\/useTasks\.ts|(scripts|shared)\/config-registers\.(mjs|ts))$/;
+  /\/(src\/components\/(RuleTune|KnobEditor|TaskComposer|Timeline|HandoffTaskBadge)\.tsx|src\/hooks\/useTasks\.ts|(scripts|shared)\/config-registers\.(mjs|ts))$/;
 
 // The desk's relatives of widgets the Wall no longer draws: the alert rows,
 // the countdown's face and form, the source mark row. The TV must never

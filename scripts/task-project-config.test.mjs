@@ -118,7 +118,7 @@ test('an acknowledged empty map clears the board; an unreadable map never clears
 test('pending readbacks report a configuration outage without claiming projects are unconfigured', async () => {
   const emitted = [];
   const result = await runWatchReadbackFiler({ taskService: ntasks([current.prefix]), readToken: async () => 'op',
-    fetchImpl: async (_url, init) => { assert.notEqual(init.method, 'POST'); return Response.json({ pending: [{ asset: 'current.example', bead: 'cur-aaa' }] }); },
+    fetchImpl: async (_url, init) => { assert.notEqual(init.method, 'POST'); return Response.json({ pending: [{ asset: 'current.example', taskId: 'cur-aaa' }] }); },
     readConfig: async () => { throw new Error('store unavailable'); }, emit: (_level, text) => emitted.push(text),
   });
   assert.deepEqual(result.posted, []);

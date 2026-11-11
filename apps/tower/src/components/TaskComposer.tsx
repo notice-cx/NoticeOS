@@ -221,7 +221,7 @@ export interface TaskComposerProps {
   onClose: () => void;
   prefill?: TaskComposerPrefill | null;
   /** Called after the id exists, so a row can invalidate the read that
-   * carries its `HandoffBeadBadge`. */
+   * carries its `HandoffTaskBadge`. */
   onFiled?: (created: TaskCreated) => void;
   /** File somewhere other than the lane; the component gallery passes a fake. */
   onFile?: (input: NewTask) => Promise<TaskCreated>;
@@ -240,7 +240,7 @@ export type ComposerProject = Pick<TaskHubSpoke, "asset" | "prefix">;
  * task is a commitment somebody made, so this opens with the values filled
  * in, shows what it is about to file, and files only on a press. The handoff
  * labels and metadata are locked: they are the join the poller reads and the
- * `HandoffBeadBadge` renders. Title, project and priority are the first
+ * `HandoffTaskBadge` renders. Title, project and priority are the first
  * screen and Enter files; the rest waits under More, which opens by itself
  * when a handoff filled any of it. Why the task is worth doing is optional as
  * a whole: an empty section files no card, and a started one files only once

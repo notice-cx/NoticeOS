@@ -181,7 +181,7 @@ export interface NewWindow extends WatchBet {
   /** JSON text, or null. */
   thresholdsJson: string | null;
   note: string | null;
-  readbackBead: string | null;
+  readbackTask: string | null;
 }
 
 /** Register a window; the stored row. */
@@ -208,7 +208,7 @@ export async function insertWindow(tx: Transaction, window: NewWindow): Promise<
       window.offsets,
       window.thresholdsJson,
       window.note,
-      window.readbackBead,
+      window.readbackTask,
     ],
   );
   const [row] = await withReadings(tx, records);

@@ -65,7 +65,7 @@ import type {
   ExecutiveSnapshot,
   FlagRecord,
   FlagsSection,
-  HandoffBead,
+  HandoffTask,
   HygieneBotAccess,
   HygieneCheckHistory,
   HygieneCheckId,
@@ -2055,7 +2055,7 @@ async function assembleAssetDetail(
  * not answer for it, or the snapshot predates the field. None is a measurement, and
  * "nothing was filed" is only earned by an empty list.
  */
-function handoffTasksOf(snapshot: TaskSnapshot | null, asset: string): HandoffBead[] | null {
+function handoffTasksOf(snapshot: TaskSnapshot | null, asset: string): HandoffTask[] | null {
   const project = snapshot?.projects.find((entry) => entry.asset === asset);
   if (!project || !project.ok) return null;
   return project.handoffs ?? null;

@@ -26,7 +26,7 @@ function request(init: RequestInit & { token?: string } = {}): Request {
 }
 
 async function pending(): Promise<
-  { windowId: string; bead: string; asset: string; outcome: string; comment: string }[]
+  { windowId: string; taskId: string; asset: string; outcome: string; comment: string }[]
 > {
   const res = await call(request({ token: OPERATOR_TOKEN }));
   expect(res.status).toBe(200);
@@ -73,7 +73,7 @@ async function observeClicks(baseline: number, post: number): Promise<void> {
 async function closedWindow(
   overrides: {
     id?: string;
-    bead?: string | null;
+    taskId?: string | null;
     status?: string;
     outcome?: string | null;
     posted?: string | null;
@@ -101,7 +101,7 @@ async function closedWindow(
         overrides.status ?? 'closed',
         closed ? (overrides.outcome ?? 'kill_confirmed') : null,
         closed ? '2026-08-21T03:30:00.000Z' : null,
-        overrides.bead === undefined ? 'md-w1n.2' : overrides.bead,
+        overrides.taskId === undefined ? 'md-w1n.2' : overrides.taskId,
         overrides.posted ?? null,
       ],
     ),
@@ -109,12 +109,12 @@ async function closedWindow(
   return id;
 }
 
-describe('GET /api/watch-readbacks — what has not reached its bead', () => {
+describe('GET /api/watch-readbacks — what has not reached its task', () => {
   it('refuses without the operator token (401)', async () => {
     expect((await call(request())).status).toBe(401);
   });
 
-  it('enqueues a verdict when the sweep closes a window that named a bead', async () => {
+  it('enqueues a verdict when the sweep closes a window that named a task', async () => {
     await observeClicks(10, 13);
     const registration = await writeWatchWindow(env, {
       asset: 'meadow.example',
@@ -140,7 +140,7 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
 
     const queue = await pending();
     expect(queue).toHaveLength(1);
-    expect(queue[0]).toMatchObject({ bead: 'md-w1n.2', asset: 'meadow.example', outcome: 'ship_confirmed' });
+    expect(queue[0]).toMatchObject({ taskId: 'md-w1n.2', asset: 'meadow.example', outcome: 'ship_confirmed' });
     // The comment carries the bet, the reading and where the same numbers live.
     expect(queue[0]?.comment).toContain('Watch window ship_confirmed — meadow.example');
     expect(queue[0]?.comment).toContain('F14 — water-intake depth + snippet');
@@ -156,7 +156,7 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
   });
 
   it('leaves out a window nobody claimed, and one already reported', async () => {
-    await closedWindow({ bead: null });
+    await closedWindow({ taskId: null });
     await closedWindow({ posted: '2026-08-21T04:00:00.000Z' });
     await closedWindow({ status: 'open' });
     expect(await pending()).toEqual([]);
@@ -180,7 +180,7 @@ describe('POST /api/watch-readbacks — what actually landed', () => {
 
   it('will not stamp a window that has no verdict to report', async () => {
     const open = await closedWindow({ status: 'open' });
-    const unclaimed = await closedWindow({ bead: null });
+    const unclaimed = await closedWindow({ taskId: null });
     expect(await post([open, unclaimed, 'not-a-window'])).toMatchObject({ posted: [] });
   });
 
@@ -235,7 +235,7 @@ async function reviewFixture(outcome = 'inconclusive') {
     [tx.workspaceId, windowId]));
   const id = await outcomeAlert(windowId, 'watch-window-closed', outcome);
   const review = (await reviews()).reviews.find(row => row.flagNumber === id)!;
-  expect(review).toMatchObject({ flagNumber: id, windowId, bead: 'md-w1n.2' });
+  expect(review).toMatchObject({ flagNumber: id, windowId, taskId: 'md-w1n.2' });
   return { windowId, id, review };
 }
 
@@ -264,15 +264,15 @@ describe('outcome review completion', () => {
       `SELECT to_jsonb(w) - 'readback_bead' - 'readback_posted_at' AS measurement
          FROM noticeos.watch_windows w WHERE window_id=$1`, [windowId]));
     const before = await reading();
-    const link = { windowId, asset: 'meadow.example', previousBead: 'md-w1n.2', bead: 'md-review', previousPostedAt: posted };
+    const link = { windowId, asset: 'meadow.example', previousTaskId: 'md-w1n.2', taskId: 'md-review', previousPostedAt: posted };
     expect(await linkReview(link)).toEqual({ linked: [windowId], skipped: [] });
     expect(await linkReview(link)).toEqual({ linked: [windowId], skipped: [] });
     expect(await reading()).toEqual(before);
-    expect((await pending()).find(row => row.windowId === windowId)?.bead).toBe('md-review');
+    expect((await pending()).find(row => row.windowId === windowId)?.taskId).toBe('md-review');
     expect((await reviews()).reviews).toEqual([]);
-    const stamp = async (bead: string) => {
+    const stamp = async (taskId: string) => {
       const res = await call(request({ method: 'POST', token: OPERATOR_TOKEN,
-        body: JSON.stringify({ posted: [windowId], expectedTasks: { [windowId]: bead } }) }));
+        body: JSON.stringify({ posted: [windowId], expectedTasks: { [windowId]: taskId } }) }));
       expect(res.status).toBe(200);
       return res.json();
     };
@@ -281,7 +281,7 @@ describe('outcome review completion', () => {
     // A late retry cannot clear the new delivery receipt.
     expect(await linkReview(link)).toEqual({ linked: [], skipped: [windowId] });
     const [review] = (await reviews()).reviews;
-    expect(review).toMatchObject({ flagNumber: id, bead: 'md-review', outcome: 'unmeasurable' });
+    expect(review).toMatchObject({ flagNumber: id, taskId: 'md-review', outcome: 'unmeasurable' });
     expect(await complete([completion(review!, { closedAt: new Date(Date.now() - 1000).toISOString() })]))
       .toEqual({ reviewed: [], skipped: [id] });
     expect(await reading()).toEqual(before);
@@ -289,20 +289,20 @@ describe('outcome review completion', () => {
 
   it('accepts only one competing review link and preserves the winner', async () => {
     const { review, windowId } = await reviewFixture();
-    const base = { windowId, asset: review.asset, previousBead: review.bead, previousPostedAt: review.postedAt };
-    const result = await Promise.all([linkReview({ ...base, bead: 'md-review1' }), linkReview({ ...base, bead: 'md-review2' })]);
+    const base = { windowId, asset: review.asset, previousTaskId: review.taskId, previousPostedAt: review.postedAt };
+    const result = await Promise.all([linkReview({ ...base, taskId: 'md-review1' }), linkReview({ ...base, taskId: 'md-review2' })]);
     expect(result.flatMap(row => row.linked)).toEqual([windowId]);
     const rows = await pending();
-    expect(['md-review1', 'md-review2']).toContain(rows[0]?.bead);
+    expect(['md-review1', 'md-review2']).toContain(rows[0]?.taskId);
     expect(await complete([completion(review)])).toEqual({ reviewed: [], skipped: [review.flagNumber] });
   });
 
   it('refuses stale link ownership and malformed link or delivery evidence', async () => {
     const { review, windowId } = await reviewFixture();
-    const link = { windowId, asset: review.asset, previousBead: review.bead, bead: 'md-review', previousPostedAt: review.postedAt };
+    const link = { windowId, asset: review.asset, previousTaskId: review.taskId, taskId: 'md-review', previousPostedAt: review.postedAt };
     expect(await linkReview({ ...link, previousPostedAt: null })).toEqual({ linked: [], skipped: [windowId] });
     expect(await linkReview({ ...link, asset: 'northwind.example' })).toEqual({ linked: [], skipped: [windowId] });
-    for (const body of [{ linked: [{ ...link, bead: review.bead }] }, { linked: [{ windowId }] },
+    for (const body of [{ linked: [{ ...link, taskId: review.taskId }] }, { linked: [{ windowId }] },
       { linked: Array(51).fill(link) }, { posted: [windowId], expectedTasks: {} }]) {
       const res = await call(request({ method: 'POST', token: OPERATOR_TOKEN, body: JSON.stringify(body) }));
       expect(res.status).toBe(400);
@@ -313,7 +313,7 @@ describe('outcome review completion', () => {
   it.each(['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'])(
     'settles only the associated %s alert, retaining its result and measurements', async (outcome) => {
     const { review, id, windowId } = await reviewFixture(outcome);
-    const other = await closedWindow({ posted: '2026-08-21T04:00:00.000Z', bead: 'md-w1n.3', outcome: 'unmeasurable' });
+    const other = await closedWindow({ posted: '2026-08-21T04:00:00.000Z', taskId: 'md-w1n.3', outcome: 'unmeasurable' });
     const otherAlert = await outcomeAlert(other, 'watch-window-closed', 'unmeasurable');
     const unrelated = await outcomeAlert(windowId, 'another-rule');
     const before = await evidence();
@@ -331,7 +331,7 @@ describe('outcome review completion', () => {
   it('does not queue a result before delivery or without its exact alert association', async () => {
     const unposted = await closedWindow();
     await outcomeAlert(unposted);
-    const noTask = await closedWindow({ bead: null, posted: '2026-08-21T04:00:00.000Z' });
+    const noTask = await closedWindow({ taskId: null, posted: '2026-08-21T04:00:00.000Z' });
     await outcomeAlert(noTask);
     const missingAlert = await closedWindow({ posted: '2026-08-21T04:00:00.000Z' });
     await outcomeAlert(missingAlert, 'another-rule');
@@ -345,7 +345,7 @@ describe('outcome review completion', () => {
       { closedAt: review.postedAt }, { closedAt: '2026-08-20T04:00:00.000Z' },
       { closedAt: 'invalid' }, { checkedAt: new Date(now - 600_000).toISOString() },
       { checkedAt: new Date(now + 600_000).toISOString() }, { closedAt: new Date(now + 600_000).toISOString() },
-      { asset: 'northwind.example' }, { bead: 'md-w1n.9' }, { windowId: 'another-window' },
+      { asset: 'northwind.example' }, { taskId: 'md-w1n.9' }, { windowId: 'another-window' },
       { postedAt: '2026-08-21T04:01:00.000Z' },
     ]) {
       expect(await complete([completion(review, bad)])).toEqual({ reviewed: [], skipped: [id] });

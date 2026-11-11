@@ -68,7 +68,7 @@ Options:
   --height PX       viewport height (default 1080)
   --viewports LIST  several screens, one after another, the worst exit wins:
                     comma-separated WxH; "laptops" in the list stands for the
-                    screens that draw the TV's layout scaled (bead ro-trai.31):
+                    screens that draw the TV's layout scaled:
                     ${LAPTOP_VIEWPORTS.join(", ")}
   --samples N       measurements to take; the WORST wins (default 3). Live
                     users and the feed land after first paint, so one snapshot is not the wall.

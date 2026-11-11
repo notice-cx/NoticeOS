@@ -113,8 +113,8 @@ export function RecommendationFacts({ validity, subject, heading }: { validity: 
         {tasks.outdated ? <StateChip tone="caution" label="Outdated" subject="tasks:snapshot" className="px-1.5 py-0 text-[10.5px]" /> : null}
       </span>
       {tasks.linked.map((task) => (
-        <span key={task.beadId} className="flex flex-wrap items-center gap-x-1.5 pl-5" data-fact="task" data-task-status={task.status}>
-          <span className="font-mono text-foreground">{task.beadId}</span>
+        <span key={task.taskId} className="flex flex-wrap items-center gap-x-1.5 pl-5" data-fact="task" data-task-status={task.status}>
+          <span className="font-mono text-foreground">{task.taskId}</span>
           <span>{task.status === "closed" ? `closed${task.closedAt ? ` ${monthDay(task.closedAt.slice(0, 10))}` : ""}` : "open"}</span>
           {task.closedSinceAnalysis ? <span className="text-foreground">· since analysis</span> : null}
           {task.releases.map((at) => (

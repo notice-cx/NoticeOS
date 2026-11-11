@@ -38,7 +38,7 @@ export function workProject(overrides: Record<string, unknown> = {}) {
 }
 
 /** An open review task on meadow's panel, due a week after the landing. */
-export function panelReviewBead(overrides: Record<string, unknown> = {}) {
+export function panelReviewTask(overrides: Record<string, unknown> = {}) {
   return {
     beadId: "md-4a2",
     panelDate: "2026-07-01",

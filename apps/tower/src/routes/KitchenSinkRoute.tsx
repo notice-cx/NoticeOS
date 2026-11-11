@@ -63,7 +63,7 @@ import type {
   ExecutiveInsight,
   ExecutiveSnapshot,
   FlagRecord,
-  HandoffBead,
+  HandoffTask,
   KnobFact,
   SerpPanelQuery,
   SearchPageTrends,
@@ -207,7 +207,7 @@ import { toLocalDateTimeInput } from "@/lib/countdown";
 import { ApiError, type NewTask } from "@/lib/api";
 import { taskHandoffPrefill } from "@/lib/task-handoff";
 import { TimeZoneCaveat } from "@/components/TimeZoneCaveat";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { TaskIdLink } from "@/components/TaskIdLink";
 import { PanelReviewBadge } from "@/components/PanelReviewBadge";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
@@ -1421,18 +1421,18 @@ const pageTrendsDemo: SearchPageTrends = {
 
 /** The page rows' task-register states. The absolute URL is the join key; the
  * shorter path is presentation only. */
-const pageHandoffTasksDemo: HandoffBead[] = [
+const pageHandoffTasksDemo: HandoffTask[] = [
   {
     kind: "page",
     key: "https://plume.example.com/sizing-calculator",
-    beadId: "md-7aa",
+    taskId: "md-7aa",
     status: "open",
     closedAt: null,
   },
   {
     kind: "page",
     key: "https://plume.example.com/field-guides",
-    beadId: "md-3fd",
+    taskId: "md-3fd",
     status: "closed",
     closedAt: iso(28 * HOUR),
   },
@@ -1692,18 +1692,18 @@ const queryTrendsDemo: SearchQueryTrends = {
 
 /** What the register holds for those queries. Keys are the normalized query,
  * lowercased and trimmed, which is the `noticeos_key` the poller reads back. */
-const queryHandoffTasksDemo: HandoffBead[] = [
-  { kind: "query", key: "mulch calculator", beadId: "md-1w2", status: "open", closedAt: null },
+const queryHandoffTasksDemo: HandoffTask[] = [
+  { kind: "query", key: "mulch calculator", taskId: "md-1w2", status: "open", closedAt: null },
   {
     kind: "query",
     key: "what is a plume",
-    beadId: "md-4qd",
+    taskId: "md-4qd",
     status: "closed",
     closedAt: iso(30 * HOUR),
   },
   // A finding's task under a key that reads like a query: filtered out, never
   // borrowed by the row that happens to share the string.
-  { kind: "finding", key: "spacing guide", beadId: "md-9zz", status: "open", closedAt: null },
+  { kind: "finding", key: "spacing guide", taskId: "md-9zz", status: "open", closedAt: null },
 ];
 
 /** One weekly tracked panel: a couple of top-3 terms, a mid-page cluster,
@@ -1808,25 +1808,25 @@ const findingsSnapshotDemo: ExecutiveSnapshot = {
  * and is still open; the discovery was filed and has since shipped — shipped,
  * NOT proven. The other two were never filed, and the `query` row is here to
  * prove the list ignores kinds that are not its own even when a key matches. */
-const findingsHandoffTasksDemo: HandoffBead[] = [
+const findingsHandoffTasksDemo: HandoffTask[] = [
   {
     kind: "finding",
     key: "demo-findings-warning",
-    beadId: "md-1w2",
+    taskId: "md-1w2",
     status: "open",
     closedAt: null,
   },
   {
     kind: "finding",
     key: "demo-findings-discovery",
-    beadId: "md-4kq",
+    taskId: "md-4kq",
     status: "closed",
     closedAt: iso(48 * HOUR),
   },
   {
     kind: "query",
     key: "demo-findings-insight",
-    beadId: "md-9zz",
+    taskId: "md-9zz",
     status: "open",
     closedAt: null,
   },
@@ -2201,7 +2201,7 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
   // Reviewed: the review is about the same panel day the archive holds as this
   // asset's newest, so it still covers it.
   panelReview: {
-    beadId: "md-4a2",
+    taskId: "md-4a2",
     panelDate: "2026-06-26",
     dueAt: iso(2 * DAY),
     status: "closed",
@@ -2242,7 +2242,7 @@ const cardWarn: AssetData = {
   // Overdue: a panel collected and left unread, three days past its deadline,
   // so the badge takes the error tone and the warning glyph.
   panelReview: {
-    beadId: "mon-f1c",
+    taskId: "mon-f1c",
     panelDate: "2026-06-25",
     dueAt: iso(3 * DAY),
     status: "open",
@@ -2275,7 +2275,7 @@ const cardSetup: AssetData = {
   // five report families every Monday, so it owes the same weekly read and its
   // marker says signal collection.
   panelReview: {
-    beadId: "fit-90c",
+    taskId: "fit-90c",
     panelDate: "2026-07-02",
     dueAt: isoAhead(4 * DAY),
     status: "open",
@@ -2539,7 +2539,7 @@ const attentionItems: AttentionItem[] = [
     ruleId: "watch-window-closed",
     ruleInputs: {
       outcome: "kill_confirmed",
-      refKind: "bead",
+      refKind: "decision",
       ref: "md-123",
       integration: "gsc",
       metric: "clicks",
@@ -4174,37 +4174,37 @@ export function KitchenSinkRoute() {
               neither shouts loudly enough to rival a finding's severity, that
               the closed one reads as shipped rather than as resolved, and that
               the unfiled case renders literally nothing. */}
-          <Section title="HandoffBeadBadge (open / closed / closed undated / not filed)">
-            <HandoffBeadBadge
-              bead={{
+          <Section title="HandoffTaskBadge (open / closed / closed undated / not filed)">
+            <HandoffTaskBadge
+              handoff={{
                 kind: "finding",
                 key: "item-openers",
-                beadId: "md-1w2",
+                taskId: "md-1w2",
                 status: "open",
                 closedAt: null,
               }}
             />
-            <HandoffBeadBadge
-              bead={{
+            <HandoffTaskBadge
+              handoff={{
                 kind: "finding",
                 key: "gsc-decline-1",
-                beadId: "md-4kq",
+                taskId: "md-4kq",
                 status: "closed",
                 closedAt: "2026-08-01T09:30:00.000Z",
               }}
             />
             {/* A closed task whose close time did not survive the poller: the
                 marker keeps the state it can prove and drops only the date. */}
-            <HandoffBeadBadge
-              bead={{
+            <HandoffTaskBadge
+              handoff={{
                 kind: "finding",
                 key: "brand-drift",
-                beadId: "mon-7bd",
+                taskId: "mon-7bd",
                 status: "closed",
                 closedAt: null,
               }}
             />
-            <HandoffBeadBadge bead={null} />
+            <HandoffTaskBadge handoff={null} />
           </Section>
 
           <Section title="TaskIdLink (in a line of text / in a small caption)">

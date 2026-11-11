@@ -308,7 +308,7 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
         mark: "Review overdue",
         since: asset.panelReview?.dueAt ?? null,
         conditions: [],
-        ...(asset.panelReview?.beadId ? { task: asset.panelReview.beadId } : {}),
+        ...(asset.panelReview?.taskId ? { task: asset.panelReview.taskId } : {}),
       });
     }
   }

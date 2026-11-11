@@ -1,4 +1,4 @@
-// Types for google-consent.mjs (bead ro-ujb9.96.7.7), which the TypeScript
+// Types for google-consent.mjs (task ro-ujb9.96.7.7), which the TypeScript
 // journeys import and the plain-JS flow gate shares.
 import type { BrowserContext } from "@playwright/test";
 export declare const GOOGLE_CONSENT_CODE: string;

@@ -161,14 +161,14 @@ export interface AssetDecision {
  * `query`, the card key for `finding`, the absolute URL for `page`, the flag id
  * for `alert` — so every surface matches by key alone.
  */
-export interface HandoffBead {
+export interface HandoffTask {
   kind: HandoffKind;
   /** `noticeos_key` verbatim. Byte-exact, because a query may contain a comma
    * and label lists split on commas, so the `key:` label is a lossy slug. */
   key: string;
   /** The task id in the asset's own project — the ref the commit, annotation
    * and watch window all quote. */
-  beadId: string;
+  taskId: string;
   /**
    * A task's richer statuses collapse to two: in_progress, blocked and deferred
    * are all ways of the work not having landed yet. `closed` records a task
@@ -1639,7 +1639,7 @@ export interface AssetDetailPayload {
    * `config/beads.json`, Ntasks could not answer, or the snapshot predates the field). A
    * card must never turn "could not ask the register" into "nothing filed".
    */
-  handoffTasks: HandoffBead[] | null;
+  handoffTasks: HandoffTask[] | null;
   /** The asset's human-action posture from the same task snapshot that
    * supplied `handoffTasks` and `panelReview`. Tasks are coordination state,
    * not asset signals; this slice never feeds health or growth derivations. */

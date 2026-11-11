@@ -47,7 +47,7 @@ export interface DemoActivityWriter {
 }
 export interface DemoReadback {
     readonly windowId: string;
-    readonly bead: string;
+    readonly taskId: string;
     readonly asset: string;
     readonly outcome: string;
     readonly comment: string;

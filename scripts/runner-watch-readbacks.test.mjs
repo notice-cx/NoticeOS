@@ -9,8 +9,8 @@ import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 const PROJECTS = JSON.stringify({ spokes: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' }] });
 const PENDING = [
-  { windowId: 'w1', asset: 'shop.example', bead: 'shop-1', outcome: 'won', comment: 'Verdict: won' },
-  { windowId: 'w2', asset: 'blog.example', bead: 'blog-1', outcome: 'lost', comment: 'Verdict: lost' },
+  { windowId: 'w1', asset: 'shop.example', taskId: 'shop-1', outcome: 'won', comment: 'Verdict: won' },
+  { windowId: 'w2', asset: 'blog.example', taskId: 'blog-1', outcome: 'lost', comment: 'Verdict: lost' },
 ];
 
 /**
@@ -82,7 +82,7 @@ test('no bearer, no reads', async () => {
   assert.match(lines[0], /no operator token/u);
 });
 
-const REVIEW = { flagNumber: 12, windowId: 'w3', asset: 'shop.example', bead: 'shop-2', postedAt: '2026-08-21T04:00:00.000Z' };
+const REVIEW = { flagNumber: 12, windowId: 'w3', asset: 'shop.example', taskId: 'shop-2', postedAt: '2026-08-21T04:00:00.000Z' };
 const CHECKED = '2026-08-22T04:00:00.000Z';
 const CLOSED = '2026-08-22T03:00:00.000Z';
 const CLOSE_RECORD = { noticeos_closed_by: 'reviewer', noticeos_closed_at: CLOSED, noticeos_resolution: 'done' };
@@ -155,7 +155,7 @@ test('an unfinished earlier page does not hide later completed reviews', async (
     f.requests.push({ url, method: init.method ?? 'GET', body: init.body ? JSON.parse(init.body) : null });
     if (init.method === 'POST') return Response.json({ reviewed: [12] });
     return Response.json(url.includes('reviewsAfter=11') ? { pending: [], reviews: [REVIEW], nextReviewAfter: null }
-      : { pending: [], reviews: [{ ...REVIEW, flagNumber: 11, bead: 'shop-1' }], nextReviewAfter: 11 });
+      : { pending: [], reviews: [{ ...REVIEW, flagNumber: 11, taskId: 'shop-1' }], nextReviewAfter: 11 });
   };
   await runWatchReadbackFiler(f.deps);
   assert.equal(f.requests.filter(r => r.method === 'POST').length, 1);
@@ -167,7 +167,7 @@ function closedImplementationLane({ alreadyPosted = false, failFirstLink = false
     closeReason: 'Implementation shipped in abc1234', labels: [], metadata: { implementation: 'abc1234' } };
   const f = lane([original]);
   let linkedTask = 'shop-1', postedAt = alreadyPosted ? REVIEW.postedAt : null, acknowledged = !reviewRequired;
-  const entry = () => ({ ...PENDING[0], bead: linkedTask, reviewRequired, outcome: 'inconclusive', closedAt: '2026-08-21T03:30:00.000Z' });
+  const entry = () => ({ ...PENDING[0], taskId: linkedTask, reviewRequired, outcome: 'inconclusive', closedAt: '2026-08-21T03:30:00.000Z' });
   f.deps.now = () => Date.parse(CHECKED);
   f.deps.fetchImpl = async (url, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
@@ -179,8 +179,8 @@ function closedImplementationLane({ alreadyPosted = false, failFirstLink = false
     if (body.linked) {
       if (failFirstLink) { failFirstLink = false; return new Response(null, { status: 503 }); }
       const link = body.linked[0];
-      assert.equal(link.previousBead, linkedTask); assert.equal(link.previousPostedAt, postedAt);
-      linkedTask = link.bead; postedAt = null;
+      assert.equal(link.previousTaskId, linkedTask); assert.equal(link.previousPostedAt, postedAt);
+      linkedTask = link.taskId; postedAt = null;
       return Response.json({ linked: ['w1'], skipped: [] });
     }
     if (body.posted) {
@@ -188,7 +188,7 @@ function closedImplementationLane({ alreadyPosted = false, failFirstLink = false
       postedAt = REVIEW.postedAt;
       return Response.json({ posted: ['w1'], skipped: [] });
     }
-    assert.equal(body.reviewed[0].bead, 'shop-review-1');
+    assert.equal(body.reviewed[0].taskId, 'shop-review-1');
     acknowledged = true;
     return Response.json({ reviewed: [12], skipped: [] });
   };

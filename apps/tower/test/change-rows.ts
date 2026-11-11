@@ -66,7 +66,7 @@ export interface StoredWindow {
   /** The offsets already read: one reading each, dated its check day. */
   read?: number[];
   closed?: { outcome: string; at: string; note?: string | null } | null;
-  readbackBead?: string | null;
+  readbackTask?: string | null;
 }
 
 /** Register a window, with a reading for each offset in `read`, and close it
@@ -99,7 +99,7 @@ export async function storeWatchWindow(store: WorkspaceStore, window: StoredWind
         window.closed?.outcome ?? null,
         window.closed?.at ?? null,
         window.closed?.note ?? null,
-        window.readbackBead ?? null,
+        window.readbackTask ?? null,
       ],
     );
     const last = Math.max(...window.offsets);

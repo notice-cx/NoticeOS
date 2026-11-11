@@ -68,7 +68,7 @@ export function PanelReviewLine({
           due {formatCalendarDate(due.slice(0, 10))}
         </span>
       ) : null}
-      <TaskIdLink id={review.beadId} className="ml-auto text-[11px]" />
+      <TaskIdLink id={review.taskId} className="ml-auto text-[11px]" />
     </div>
   );
 }

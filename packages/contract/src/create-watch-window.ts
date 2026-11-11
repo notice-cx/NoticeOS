@@ -48,7 +48,7 @@ export { WATCH_QUERY_MAX_CHARS, WATCH_CALIBRATION_DAYS } from './watch-series.mj
 export const WATCH_PAGE_MAX_CHARS = 2000;
 
 /** A task id, not a title. */
-export const WATCH_READBACK_BEAD_MAX = 128;
+export const WATCH_READBACK_TASK_MAX = 128;
 
 /**
  * The untruncated slice of the annotation ledger consulted for calibration.

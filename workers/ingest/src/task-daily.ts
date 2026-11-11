@@ -85,7 +85,7 @@ export function closedOn(
 }
 
 /**
- * What the day's closed set becomes after this capture. A bead that closes
+ * What the day's closed set becomes after this capture. A task that closes
  * stays in the five-most-recent list until five more close after it, so at one
  * capture a minute every closing is photographed unless six land inside one
  * minute; accumulating the ids across the day counts closings. `null` is "this

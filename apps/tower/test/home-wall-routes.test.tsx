@@ -1084,7 +1084,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
   it("opens an overdue review's task from its problem row", () => {
     payload.assets = [{ ...SEEDED_ASSETS[0]!, latestPanelDate: "2026-07-20",
-      panelReview: { beadId: "md-4a2", panelDate: "2026-07-20", dueAt: "2026-07-22T00:00:00.000Z", status: "open", closedAt: null, panel: true } }];
+      panelReview: { taskId: "md-4a2", panelDate: "2026-07-20", dueAt: "2026-07-22T00:00:00.000Z", status: "open", closedAt: null, panel: true } }];
     payload.attention = [];
     const { container } = renderHome();
     expect(container.querySelector('[data-incident="review-meadow.example"] a')).toHaveAttribute("href", "/tasks/md-4a2?project=meadow.example");

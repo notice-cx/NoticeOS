@@ -503,7 +503,7 @@ describe('POST /api/watch-windows — registration', () => {
     expect(await pgCount(`SELECT COUNT(*) AS n FROM noticeos.watch_windows`)).toBe(3);
   });
 
-  it('carries the bead that is owed the reading', async () => {
+  it('carries the task that is owed the reading', async () => {
     const id = await register({ readback_bead: 'md-w1n.2' });
     const [row] = await pgRows<{ readback_bead: string; readback_posted_at: string | null }>(
       `SELECT readback_bead, readback_posted_at FROM noticeos.watch_windows WHERE window_id = $1`,

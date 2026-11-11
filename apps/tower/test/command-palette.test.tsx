@@ -276,7 +276,7 @@ describe("navigating", () => {
     expect(screen.getByTestId("search")).toHaveTextContent("?arrange=1");
   });
 
-  it("offers a bead id as a task, and lands it on the task's page", () => {
+  it("offers a task id as a task, and lands it on the task's page", () => {
     renderShell();
     openWithShortcut();
 
@@ -300,7 +300,7 @@ describe("navigating", () => {
     expect(rows()).toEqual(["Open task ro-d298Enter"]);
   });
 
-  it("does not mistake an ordinary word for a bead id", () => {
+  it("does not mistake an ordinary word for a task id", () => {
     renderShell();
     openWithShortcut();
 
