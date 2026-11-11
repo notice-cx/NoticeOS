@@ -9,6 +9,11 @@
 // resolve exactly as the index does. A name the table lacks stays on the index
 // import; an unreadable index leaves imports and pre-bundling alone. Line
 // count is preserved, so source maps below the imports still hold.
+//
+// Pre-bundled packages that import icons, such as the Ntasks UI, are rewritten
+// too. Their chunks sit in Vite's dependency cache, which an installation keeps
+// outside the checkout (NOTICEOS_VITE_CACHE_DIR), where no node_modules is in
+// reach: the plugin resolves each deep specifier from the Tower's own folder.
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -73,8 +78,8 @@ export function rewriteLucideImports(code: string, table: ReadonlyMap<string, Lu
   return changed ? out : null;
 }
 
-/** The installed package's index, as a name → module table, or null if unreadable. */
-export function installedLucideExports(fromDir: string): Map<string, LucideExport> | null {
+/** The installed package's folder and its index as a name → module table, or null if unreadable. */
+export function installedLucide(fromDir: string): { dir: string; table: Map<string, LucideExport> } | null {
   try {
     const require = createRequire(path.join(fromDir, "package.json"));
     const manifestPath = require.resolve(`${PACKAGE}/package.json`);
@@ -84,19 +89,34 @@ export function installedLucideExports(fromDir: string): Map<string, LucideExpor
     const indexDir = path.posix.join(PACKAGE, path.posix.dirname(manifest.module));
     const table = lucideExportMap(readFileSync(indexFile, "utf8"), indexDir);
     // Anything short of the full icon set means the index changed shape.
-    return table.size > 1000 ? table : null;
+    return table.size > 1000 ? { dir: path.dirname(manifestPath), table } : null;
   } catch {
     return null;
   }
 }
 
+/** The installed package's index, as a name → module table, or null if unreadable. */
+export function installedLucideExports(fromDir: string): Map<string, LucideExport> | null {
+  return installedLucide(fromDir)?.table ?? null;
+}
+
+const DEEP = `${PACKAGE}/dist/`;
+
 export function lucideIcons(fromDir: string): Plugin {
-  const table = installedLucideExports(fromDir);
+  const installed = installedLucide(fromDir);
+  const table = installed?.table ?? null;
   return {
     name: "noticeos:lucide-icons",
     apply: "serve",
     applyToEnvironment: (environment) => environment.name === "client",
     config: () => (table ? { optimizeDeps: { exclude: [PACKAGE] } } : undefined),
+    // Reached only when Vite's own resolver finds no package from the importer.
+    resolveId(source) {
+      if (!installed || !source.startsWith(DEEP)) return null;
+      const file = path.join(installed.dir, source.slice(PACKAGE.length + 1));
+      // Only a file inside the package; `..` in the specifier gets nothing.
+      return file.startsWith(installed.dir + path.sep) ? file : null;
+    },
     transform: {
       filter: { id: { exclude: /[\\/]node_modules[\\/]/ }, code: PACKAGE },
       handler(code) {
