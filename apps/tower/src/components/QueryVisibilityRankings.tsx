@@ -22,7 +22,7 @@ import type {
   AssetInfo,
   DataForSeoQueryVisibilityRow,
   ExecutiveEvidence,
-  HandoffBead,
+  HandoffTask,
   SearchQueryMover,
   SearchQueryProviderTrend,
   SearchQueryTrends,
@@ -46,7 +46,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { FileTaskButton } from "@/components/TaskComposer";
 // The lane vocabulary both decision tables share; the rules stay here, because
 // a query is judged on evidence a page is not.
@@ -135,7 +135,7 @@ export function QueryVisibilityRankings({
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
   /** What the task hub holds for this asset. `null` means it could not be
    * asked, and renders exactly as "nobody filed anything" does. */
-  handoffTasks?: HandoffBead[] | null;
+  handoffTasks?: HandoffTask[] | null;
   /** Open the asset page's outcome-check composer, seeded from one row.
    * Absent renders no action at all. */
   onWatch?: (seed: WatchSeed) => void;
@@ -371,7 +371,7 @@ function DecisionTable({
   decisions: QueryDecision[];
   trends: SearchQueryTrends;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
-  filed: ReadonlyMap<string, HandoffBead>;
+  filed: ReadonlyMap<string, HandoffTask>;
   onWatch?: (seed: WatchSeed) => void;
   collapsed?: boolean;
   sharedState: RecommendationValidity["state"] | null;
@@ -394,7 +394,7 @@ function DecisionTable({
               decision={decision}
               trends={trends}
               asset={asset}
-              bead={filed.get(decision.row.key) ?? null}
+              handoff={filed.get(decision.row.key) ?? null}
               onWatch={onWatch}
               ownState={decision.validity.state !== sharedState}
               collapsed
@@ -431,7 +431,7 @@ function DecisionTable({
             decision={decision}
             trends={trends}
             asset={asset}
-            bead={filed.get(decision.row.key) ?? null}
+            handoff={filed.get(decision.row.key) ?? null}
             onWatch={onWatch}
             ownState={decision.validity.state !== sharedState}
           />
@@ -445,7 +445,7 @@ function DecisionRow({
   decision,
   trends,
   asset,
-  bead,
+  handoff,
   onWatch,
   ownState,
   collapsed = false,
@@ -454,7 +454,7 @@ function DecisionRow({
   trends: SearchQueryTrends;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
   /** The task filed from this row's handoff, or null, which renders nothing. */
-  bead: HandoffBead | null;
+  handoff: HandoffTask | null;
   onWatch?: (seed: WatchSeed) => void;
   /** The row's applicability differs from its list's, so it wears its own chip. */
   ownState: boolean;
@@ -537,7 +537,7 @@ function DecisionRow({
               series: watchSeriesForDecision(assessment.kind),
               query: row.query,
               // The window's ref becomes the task that caused it.
-              beadId: bead?.beadId ?? null,
+              taskId: handoff?.taskId ?? null,
             })
           }
           title={`Pre-register how the ${row.query} work will be judged, before doing it`}
@@ -557,7 +557,7 @@ function DecisionRow({
         className="group"
         data-decision-kind={assessment.kind}
         data-decision-tone={tone}
-        data-decision-filed={bead?.status ?? undefined}
+        data-decision-filed={handoff?.status ?? undefined}
         data-decision-collapsed
       >
         <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-2 py-2">
@@ -572,7 +572,7 @@ function DecisionRow({
                 readings={row.dataforseo?.aioDevices ?? []}
                 unknownSurface="omit"
               />
-              <HandoffBeadBadge bead={bead} />
+              <HandoffTaskBadge handoff={handoff} />
               {ownState ? <RecommendationReview validity={validity} subject={`query:${row.key}`} passive /> : null}
             </span>
             {verdict}
@@ -603,7 +603,7 @@ function DecisionRow({
       )}
       data-decision-kind={assessment.kind}
       data-decision-tone={tone}
-      data-decision-filed={bead?.status ?? undefined}
+      data-decision-filed={handoff?.status ?? undefined}
     >
       <div role="cell" className="order-2 min-w-0 lg:order-none">
         <MobileCellLabel>Decision</MobileCellLabel>
@@ -623,7 +623,7 @@ function DecisionRow({
                 readings={row.dataforseo?.aioDevices ?? []}
                 unknownSurface="omit"
               />
-              <HandoffBeadBadge bead={bead} />
+              <HandoffTaskBadge handoff={handoff} />
               {ownState ? <RecommendationReview validity={validity} subject={`query:${row.key}`} passive /> : null}
             </div>
             <div className={cn("mt-1 text-sm font-semibold", colors.text)}>
@@ -1130,7 +1130,7 @@ function targetPage(row: UnifiedQueryRow): string {
 function compareDecisions(
   left: QueryDecision,
   right: QueryDecision,
-  filed: ReadonlyMap<string, HandoffBead>,
+  filed: ReadonlyMap<string, HandoffTask>,
 ): number {
   return (
     left.assessment.priority - right.assessment.priority ||
@@ -1161,7 +1161,7 @@ const PREFERRED_KINDS: DecisionKind[] = [
 function featuredDecisions(
   decisions: QueryDecision[],
   limit: number,
-  filed: ReadonlyMap<string, HandoffBead>,
+  filed: ReadonlyMap<string, HandoffTask>,
 ): QueryDecision[] {
   const selected: QueryDecision[] = [];
   const selectedKeys = new Set<string>();

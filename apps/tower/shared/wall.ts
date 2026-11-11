@@ -499,7 +499,7 @@ export interface WorkSummary {
  * precision, never its whole badge (`panelReviewState`). */
 export interface PanelReview {
   /** The task in the asset's own project — the thing to go and close. */
-  beadId: string;
+  taskId: string;
   /** Which panel day this review is about ('YYYY-MM-DD', the archive's
    * `report_date`). This, not the close timestamp, decides whether a finished
    * review still covers the newest panel (`panelReviewState`). */
@@ -929,7 +929,7 @@ export interface AttentionItem {
   firstFiredAt: string;
   /** Tasks filed from this condition's flag numbers in the latest hub snapshot.
    * Absent when the project or this snapshot field could not be read. */
-  handoffTasks?: import('./asset-detail').HandoffBead[];
+  handoffTasks?: import('./asset-detail').HandoffTask[];
   verification?: SignalVerification;
   /** The assets this row stands for, when one fact is true of several at once.
    * Absent on every ordinary row and on a group of one. Surfaces read the

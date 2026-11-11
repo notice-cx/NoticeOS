@@ -11,7 +11,7 @@ import { ChangeChip } from "@/components/ChangeChip";
 import { Drill } from "@/components/Drill";
 import { EvidencePopover } from "@/components/EvidencePopover";
 import { FlagActions } from "@/components/FlagActions";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
@@ -264,7 +264,7 @@ function OpenAlertRow({ item, nowMs, focused, quiet = false, showSite = false }:
       rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
       actions={
         <>
-          {item.handoffTasks?.map((bead) => <HandoffBeadBadge key={bead.beadId} bead={bead} />)}
+          {item.handoffTasks?.map((handoff) => <HandoffTaskBadge key={handoff.taskId} handoff={handoff} />)}
           <FlagActions flagId={item.id} assetId={item.asset} ruleId={item.ruleId} metric={item.metric} only={["acknowledge", "tune"]} />
           {/* Mark read and Resolve say what was done with the ALERT; a task is
               what is being done about the CONDITION, so filing leaves the

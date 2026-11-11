@@ -125,7 +125,7 @@ test('a missing, invalid or unreadable publication version files nothing until i
     assert.equal(pass.lines.length, 1, 'the same publication gap is reported once');
     version = VERSION;
     assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed,
-      [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
+      [{ asset: 'shop.example', panelDate: '2026-09-21', taskId: 'shop-1' }]);
     assert.deepEqual(checkedVersions, [VERSION]);
     assert.equal(pass.ntasks.creates[0].metadata.noticeos_panel_version, VERSION);
   }
@@ -157,7 +157,7 @@ test('a landing with no review files one task, asked of this runner’s own door
   const { deps, ntasks, asked } = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }] });
   const result = await runPanelReviewFiler(UP, deps);
   assert.equal(asked[0].url, serpPanelLandingsUrl(CONFIG));
-  assert.deepEqual(result.filed, [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
+  assert.deepEqual(result.filed, [{ asset: 'shop.example', panelDate: '2026-09-21', taskId: 'shop-1' }]);
   assert.deepEqual(ntasks.calls.map((call) => call.method), ['GET', 'POST']);
   // The review names the panel version it was filed on, beside its identity.
   const [create] = ntasks.creates;
@@ -182,7 +182,7 @@ test('a review waits for the published panel, then files', async () => {
 
   panel = (asset) => published(asset, '2026-09-21', ['ranked-keywords', 'serp-panel']);
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, [
-    { asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' },
+    { asset: 'shop.example', panelDate: '2026-09-21', taskId: 'shop-1' },
   ]);
 });
 

@@ -25,7 +25,7 @@ export interface AlertPulseEvidence {
 
 export interface AlertWatchEvidence {
   outcome: string | null;
-  readbackBead: string | null;
+  readbackTask: string | null;
 }
 
 export interface AlertEvidenceResult {
@@ -67,7 +67,7 @@ export function deriveAlertEvidence(
   if (signalClass === "decision-owed") {
     return {
       ...result("not-applicable", "Outcome check", "decision-owed"),
-      liveness: { state: "awaiting-decision", verdict: watch?.outcome ?? null, decisionHome: watch?.readbackBead ?? null },
+      liveness: { state: "awaiting-decision", verdict: watch?.outcome ?? null, decisionHome: watch?.readbackTask ?? null },
     };
   }
   const fresh = (at: string | null, cadence: number) => at !== null

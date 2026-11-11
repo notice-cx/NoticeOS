@@ -135,7 +135,7 @@ function sharedTypeKinds() {
  * one row per kind, the kind backticked in the first cell.
  *
  * The README is a source here rather than documentation ABOUT the sources: it
- * is where a person filing a handoff bead by hand looks up what to write, so a
+ * is where a person filing a handoff task by hand looks up what to write, so a
  * kind the code accepts and the table omits is a real gap.
  */
 function readmeKinds() {
@@ -218,7 +218,7 @@ test('the handoff-kind list is the same set everywhere it is stated', () => {
 
   assert.fail(
     [
-      'The handoff-kind list has drifted, so a bead of the odd kind files with correct metadata and never gets reported back onto the row that raised it.',
+      'The handoff-kind list has drifted, so a task of the odd kind files with correct metadata and never gets reported back onto the row that raised it.',
       '',
       `${agreed.length} of ${read.length} sources agree on: ${expected.join(', ')}`,
       '',

@@ -8,7 +8,7 @@ import type {
   ExecutiveInsight,
   ExecutiveInsightKind,
   ExecutiveSnapshot,
-  HandoffBead,
+  HandoffTask,
   SuppressedInsight,
 } from "@shared/asset-detail";
 import { EmptyState } from "@/components/EmptyState";
@@ -99,7 +99,7 @@ export function ExecutiveFindingsList({
   recordedDecisions?: AssetDecision[];
   /** What the task hub holds for this asset. `null` means it could not be
    * asked, which is why absence is never phrased as "nothing filed". */
-  handoffTasks?: HandoffBead[] | null;
+  handoffTasks?: HandoffTask[] | null;
   /** Persist a decision. Optimistic: the list reorders at once and rolls back
    * if the write fails. Omitted in the component gallery. */
   onDecide?: FindingDecisionWriter;
@@ -136,7 +136,7 @@ export function ExecutiveFindingsList({
       .filter((entry) => entry.kind === "finding")
       .map((entry) => [entry.key, entry]),
   );
-  const beadOf = (key: string): HandoffBead | null => filed.get(key) ?? null;
+  const taskOf = (key: string): HandoffTask | null => filed.get(key) ?? null;
 
   // Lifts browser-stored decisions into the OS once, only when the OS holds
   // nothing for this asset, so a synced device never overwrites shared state.
@@ -244,7 +244,7 @@ export function ExecutiveFindingsList({
               insight={insight}
               asset={snapshot.asset}
               rank={rank}
-              bead={beadOf(insight.key)}
+              handoff={taskOf(insight.key)}
               marked={decisionOf(insight.key) === "marked"}
               grouped={grouped}
               initiallyExpanded={rank === 1}
@@ -267,7 +267,7 @@ export function ExecutiveFindingsList({
                 key={insight.key}
                 insight={insight}
                 asset={snapshot.asset}
-                bead={beadOf(insight.key)}
+                handoff={taskOf(insight.key)}
                 dismissed
                 initiallyExpanded={index === 0}
                 disclosureGroup={`dismissed-findings-${snapshot.asset}`}

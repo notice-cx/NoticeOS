@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   AnnotationKind,
   AssetDetailPayload,
-  HandoffBead,
+  HandoffTask,
   ReclamationSlice,
   ReclamationStatus,
 } from "@shared/asset-detail";
@@ -26,7 +26,7 @@ import { ANNOTATION_NOTE_MAX } from "@shared/annotations";
 import { ageMs, formatAge } from "@shared/freshness";
 import { isTaskId } from "@shared/tasks";
 import { type WatchSeed } from "@shared/watch-windows";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
 import { TaskIdLink } from "@/components/TaskIdLink";
 import { SegmentBar } from "@/components/SegmentBar";
@@ -300,7 +300,7 @@ function TimelineRow({
   nowMs,
 }: {
   item: AssetDetailPayload["annotations"]["items"][number];
-  handoffs: HandoffBead[] | null;
+  handoffs: HandoffTask[] | null;
   nowMs: number;
 }) {
   const meta = ANNOTATION_KIND[item.kind];
@@ -309,7 +309,7 @@ function TimelineRow({
   // row's identity and the field Restore reads. The ref is machine text, so
   // the row renders the sentence instead of it.
   const move = parseLifecycleMoveRef(item.ref);
-  const task = item.ref ? (handoffs ?? []).find((b) => b.beadId === item.ref) : undefined;
+  const task = item.ref ? (handoffs ?? []).find((b) => b.taskId === item.ref) : undefined;
   // A move with no note IS the row's headline (below), so it is not repeated
   // as the row's evidence — and its machine ref is never shown.
   const evidence = (item.note ? move : null) ?? task ?? (move ? null : item.ref);
@@ -345,7 +345,7 @@ function TimelineRow({
           {move && item.note ? (
             <span className="text-foreground">{lifecycleMoveSentence(move)}</span>
           ) : task ? (
-            <HandoffBeadBadge bead={task} />
+            <HandoffTaskBadge handoff={task} />
           ) : isTaskId(item.ref) ? (
             <TaskIdLink id={item.ref} />
           ) : (
@@ -400,7 +400,7 @@ function AnnotationComposer({
   assetId: string;
   /** Tasks filed against this asset, or null when the register could not be
    * asked. Both render the same: no chooser. */
-  handoffs: HandoffBead[] | null;
+  handoffs: HandoffTask[] | null;
   onDone: () => void;
 }) {
   const toast = useOwnerToast();
@@ -418,7 +418,7 @@ function AnnotationComposer({
   // One entry per task id: a task filed from two surfaces appears twice in the
   // slice.
   const tasks = [
-    ...new Map((handoffs ?? []).map((bead) => [bead.beadId, bead])).values(),
+    ...new Map((handoffs ?? []).map((handoff) => [handoff.taskId, handoff])).values(),
   ];
 
   async function save() {
@@ -493,9 +493,9 @@ function AnnotationComposer({
                   chooser that opened on one would attribute every deploy to
                   whatever happened to be at the top of the list. */}
               <option value="">Not from a task</option>
-              {tasks.map((bead) => (
-                <option key={bead.beadId} value={bead.beadId}>
-                  {bead.beadId} — {bead.key}
+              {tasks.map((handoff) => (
+                <option key={handoff.taskId} value={handoff.taskId}>
+                  {handoff.taskId} — {handoff.key}
                 </option>
               ))}
             </select>

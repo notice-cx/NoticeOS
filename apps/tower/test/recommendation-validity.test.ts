@@ -95,12 +95,12 @@ describe("recommendation applicability is an evidence review, never a current ve
 });
 
 describe("linked work is recorded history, never a resolution inference", () => {
-  const task = { kind: "finding" as const, key: subject.key, beadId: "ro-example", status: "closed" as const, closedAt: "2026-09-05T12:00:00Z" };
+  const task = { kind: "finding" as const, key: subject.key, taskId: "ro-example", status: "closed" as const, closedAt: "2026-09-05T12:00:00Z" };
   const base = () => context({ sources: null, handoffs: [task] });
   it("flags a dated closure after analysis as a review, not solved or shipped", () => {
     const result = recommendationValidity(subject, base(), NOW);
     expect(result.state).toBe("linked-work");
-    expect(result.tasks.linked).toEqual([{ beadId: "ro-example", status: "closed", closedAt: "2026-09-05T12:00:00.000Z", closedSinceAnalysis: true, releases: [] }]);
+    expect(result.tasks.linked).toEqual([{ taskId: "ro-example", status: "closed", closedAt: "2026-09-05T12:00:00.000Z", closedSinceAnalysis: true, releases: [] }]);
     expect(recommendationHandoffCaveat(result)).toContain("Review after linked work");
     expect(recommendationHandoffCaveat(result)).toContain("Task ro-example: closed 2026-09-05T12:00:00.000Z, after the analysis.");
   });

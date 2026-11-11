@@ -1,4 +1,4 @@
-// Types for offline-guard.mjs (bead ro-o3hv), which the TypeScript journeys
+// Types for offline-guard.mjs (task ro-o3hv), which the TypeScript journeys
 // import and the plain-JS flow gate shares.
 import type { BrowserContext } from "@playwright/test";
 export interface OfflineGuard {

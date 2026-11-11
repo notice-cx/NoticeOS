@@ -11,7 +11,7 @@ export interface TaskIdLinkProps {
 /**
  * A task named by its id, as the link to its page, in mono at the size of the
  * text around it. It carries no state: where the asset's snapshot holds the
- * task, HandoffBeadBadge draws it with its open or closed glyph instead.
+ * task, HandoffTaskBadge draws it with its open or closed glyph instead.
  */
 export function TaskIdLink({ id, className }: TaskIdLinkProps) {
   return (

@@ -3,7 +3,7 @@ import { Check, RefreshCw, Target, Timer } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 
-import type { HandoffBead, WatchSlice } from "@shared/asset-detail";
+import type { HandoffTask, WatchSlice } from "@shared/asset-detail";
 import { isTaskId } from "@shared/tasks";
 import { type AssetIntegrationLane } from "@shared/integrations";
 import { type AnnotationItem } from "@shared/annotations";
@@ -33,7 +33,7 @@ import {
   watchScopeRequired,
   type WatchSeries,
 } from "@noticeos/contract/create-watch-window";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import { Meter } from "@/components/Meter";
 import { ProgressRing } from "@/components/ProgressRing";
 import { StateChip, type StateTone } from "@/components/StateChip";
@@ -102,7 +102,7 @@ export function WatchComposer({
   // list says what is being watched while the ref stays the id a later
   // reading joins on.
   const [manualRef, setManualRef] = useState(
-    seed?.beadId ?? seed?.subject ?? "",
+    seed?.taskId ?? seed?.subject ?? "",
   );
   const [series, setSeries] = useState<WatchSeries>(
     () => seed?.series ?? defaultWatchSeries(lanes),
@@ -634,12 +634,12 @@ function watchSubject(
  */
 export function watchRef(
   watch: Pick<WatchSlice["open"][number], "ref" | "refKind">,
-  byId: Map<string, HandoffBead>,
+  byId: Map<string, HandoffTask>,
 ): ReactNode {
-  const bead = byId.get(watch.ref);
+  const handoff = byId.get(watch.ref);
   const word = watch.refKind === "annotation" ? "event" : watch.refKind === "decision" ? "decision" : "ref";
-  return bead ? (
-    <HandoffBeadBadge bead={bead} />
+  return handoff ? (
+    <HandoffTaskBadge handoff={handoff} />
   ) : (
     <span
       className="break-all font-mono text-[11px] text-muted-foreground"
@@ -673,10 +673,10 @@ export function WatchesStrip({
   handoffs,
 }: {
   watches: WatchSlice;
-  handoffs: HandoffBead[] | null;
+  handoffs: HandoffTask[] | null;
 }) {
   if (watches.open.length === 0 && watches.closed.length === 0) return null;
-  const byId = new Map((handoffs ?? []).map((bead) => [bead.beadId, bead]));
+  const byId = new Map((handoffs ?? []).map((handoff) => [handoff.taskId, handoff]));
   const open = watches.open.length;
   const closed = watches.closed.length;
   // The Overview's word for the same subject (watch window → Bets).

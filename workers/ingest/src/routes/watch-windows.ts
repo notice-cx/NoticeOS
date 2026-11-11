@@ -12,7 +12,7 @@ import type {
 import {
   WATCH_PAGE_MAX_CHARS,
   WATCH_QUERY_MAX_CHARS,
-  WATCH_READBACK_BEAD_MAX,
+  WATCH_READBACK_TASK_MAX,
 } from '@noticeos/contract';
 import { assetKnown } from '../asset-registry.js';
 import { authenticateOperator } from '../auth.js';
@@ -112,11 +112,11 @@ export async function writeWatchWindow(
   const thresholds = validThresholds(issues, body.thresholds);
   const scope = validScope(issues, body.scope, integration);
   const note = optionalString(issues, body.note, 'note', WATCH_NOTE_MAX);
-  const readbackBead = optionalString(
+  const readbackTask = optionalString(
     issues,
     body.readback_bead,
     'readback_bead',
-    WATCH_READBACK_BEAD_MAX,
+    WATCH_READBACK_TASK_MAX,
   );
 
   // Bet property-wide on sums, bet scoped on averages: a sum is
@@ -180,7 +180,7 @@ export async function writeWatchWindow(
       offsets,
       thresholdsJson: thresholds === null ? null : JSON.stringify(thresholds),
       note,
-      readbackBead,
+      readbackTask,
     });
     if (!created) {
       // A write that produced no row is never reported as a write that worked.

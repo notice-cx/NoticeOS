@@ -231,7 +231,7 @@ test('the code-name rule sees every retired name, and lets the registries and th
   }
   assert.deepEqual(codeNameProblems('scripts/product-env.mts', 'installationDir: { name: "NOTICEOS_INSTALLATION_DIR", legacy: "REINDEX_OS_INSTALLATION_DIR" },'), []);
   // Prose about the legacy names, and ids that stay ids, pass.
-  for (const line of ['// a bead filed before the rename carries `reindex_*` and `reindex-handoff`', "asset: 'reindex-os'", 'reindex-os-central',
+  for (const line of ['// a task filed before the rename carries `reindex_*` and `reindex-handoff`', "asset: 'reindex-os'", 'reindex-os-central',
     'Reindex Ventures LLC']) {
     assert.deepEqual(codeNameProblems('scripts/example.mjs', line), [], line);
   }

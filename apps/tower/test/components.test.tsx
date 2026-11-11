@@ -15,7 +15,7 @@ import type {
   ExecutiveInsight,
   FlagRecord,
   ExecutiveSnapshot,
-  HandoffBead,
+  HandoffTask,
   SearchPageMover,
   SearchPageTrends,
   SearchQueryTrends,
@@ -685,10 +685,10 @@ describe("QueryVisibilityRankings comparison labels", () => {
   });
   /** What the register holds for one query — the payload's `handoffTasks`
    * slice, joined to a row by the normalized query alone. */
-  const filedBead = (key: string, over: Partial<HandoffBead> = {}): HandoffBead => ({
+  const filedTask = (key: string, over: Partial<HandoffTask> = {}): HandoffTask => ({
     kind: "query",
     key,
-    beadId: "md-1w2",
+    taskId: "md-1w2",
     status: "open",
     closedAt: null,
     ...over,
@@ -722,12 +722,12 @@ describe("QueryVisibilityRankings comparison labels", () => {
             dfsRow("bravo query", 1000),
           ])}
           asset={asset}
-          handoffTasks={[filedBead("alpha query")]}
+          handoffTasks={[filedTask("alpha query")]}
         />,
         { wrapper: MemoryRouter },
       );
 
-      const marker = container.querySelector('[data-handoff-bead="open"]')!;
+      const marker = container.querySelector('[data-handoff-task="open"]')!;
       expect(marker).toBeInTheDocument();
       expect(marker.textContent).toContain("md-1w2");
       expect(marker.closest("[data-decision-kind]")?.textContent).toContain(
@@ -746,7 +746,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
           handoffTasks={[
-            filedBead("alpha query", {
+            filedTask("alpha query", {
               status: "closed",
               closedAt: "2026-07-29T09:00:00.000Z",
             }),
@@ -755,7 +755,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         { wrapper: MemoryRouter },
       );
 
-      const marker = container.querySelector('[data-handoff-bead="closed"]')!;
+      const marker = container.querySelector('[data-handoff-task="closed"]')!;
       expect(marker).toBeInTheDocument();
       expect(marker.textContent).toContain("md-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
@@ -789,7 +789,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           ).toBeTruthy(),
         );
 
-        expect(container.querySelector("[data-handoff-bead]")).toBeNull();
+        expect(container.querySelector("[data-handoff-task]")).toBeNull();
         expect(container.querySelector("[data-decision-filed]")).toBeNull();
         expect(container.textContent).not.toContain("Handed off");
       } finally {
@@ -808,7 +808,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         />,
       );
 
-      expect(container.querySelector("[data-handoff-bead]")).toBeNull();
+      expect(container.querySelector("[data-handoff-task]")).toBeNull();
       expect(container.querySelector("[data-decision-filed]")).toBeNull();
     });
 
@@ -817,13 +817,13 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
-          handoffTasks={[filedBead("alpha query")]}
+          handoffTasks={[filedTask("alpha query")]}
         />,
         { wrapper: MemoryRouter },
       );
 
       const row = rowFor(container, "Alpha Query")!;
-      expect(row.querySelectorAll("[data-handoff-bead]")).toHaveLength(1);
+      expect(row.querySelectorAll("[data-handoff-task]")).toHaveLength(1);
       // The self-report glyph is gone, not merely outranked: two markers for
       // one question are two answers.
       expect(row.querySelector("[data-decision-handed-off]")).toBeNull();
@@ -840,12 +840,12 @@ describe("QueryVisibilityRankings comparison labels", () => {
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
           handoffTasks={[
-            filedBead("alpha query", { kind: "finding", beadId: "md-9zz" }),
+            filedTask("alpha query", { kind: "finding", taskId: "md-9zz" }),
           ]}
         />,
       );
 
-      expect(container.querySelector("[data-handoff-bead]")).toBeNull();
+      expect(container.querySelector("[data-handoff-task]")).toBeNull();
     });
 
     it("joins on the byte-exact key the handoff itself emits, commas and all", async () => {
@@ -880,12 +880,12 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow(query, 2000)])}
             asset={asset}
-            handoffTasks={[filedBead(metadata.noticeos_key)]}
+            handoffTasks={[filedTask(metadata.noticeos_key)]}
           />,
           { wrapper: MemoryRouter },
         );
         expect(
-          rowFor(container, query)?.querySelector("[data-handoff-bead-id]")
+          rowFor(container, query)?.querySelector("[data-handoff-task-id]")
             ?.textContent,
         ).toContain("md-1w2");
 
@@ -893,12 +893,12 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow(query, 2000)])}
             asset={asset}
-            handoffTasks={[filedBead("meal-plan-weekly")]}
+            handoffTasks={[filedTask("meal-plan-weekly")]}
           />,
           { wrapper: MemoryRouter },
         );
         expect(
-          slugged.container.querySelector("[data-handoff-bead]"),
+          slugged.container.querySelector("[data-handoff-task]"),
         ).toBeNull();
       } finally {
         restore();
@@ -1254,7 +1254,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       <QueryVisibilityRankings
         trends={trends}
         asset={asset}
-        handoffTasks={[filedBead("alpha")]}
+        handoffTasks={[filedTask("alpha")]}
       />,
       { wrapper: MemoryRouter },
     );
@@ -1496,7 +1496,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
           insight={insightFixture}
           asset="meadow.example"
           rank={1}
-          bead={{ beadId: "md-9k1", status: "open", kind: "finding", key: "search-opportunity", closedAt: null }}
+          handoff={{ taskId: "md-9k1", status: "open", kind: "finding", key: "search-opportunity", closedAt: null }}
         />
       </MemoryRouter>,
     ).container;
@@ -1772,7 +1772,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
           {
             kind: "finding",
             key: "search-opportunity",
-            beadId: "md-ux1",
+            taskId: "md-ux1",
             status: "open",
             closedAt: null,
           },
@@ -1952,10 +1952,10 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
   // The join is the handoff's own `noticeos_key`, carried in the task's
   // metadata and photographed into the task snapshot.
   describe("a finding shows the task somebody filed from it", () => {
-    const filed = (over: Partial<HandoffBead> = {}): HandoffBead => ({
+    const filed = (over: Partial<HandoffTask> = {}): HandoffTask => ({
       kind: "finding",
       key: "traffic-warning",
-      beadId: "md-1w2",
+      taskId: "md-1w2",
       status: "open",
       closedAt: null,
       ...over,
@@ -1967,7 +1967,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
         { wrapper: MemoryRouter },
       );
 
-      const marker = container.querySelector('[data-handoff-bead="open"]')!;
+      const marker = container.querySelector('[data-handoff-task="open"]')!;
       expect(marker).toBeInTheDocument();
       expect(marker.textContent).toContain("md-1w2");
       expect(marker.tagName).toBe("A");
@@ -1989,7 +1989,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
         { wrapper: MemoryRouter },
       );
 
-      const marker = container.querySelector('[data-handoff-bead="closed"]')!;
+      const marker = container.querySelector('[data-handoff-task="closed"]')!;
       expect(marker).toBeInTheDocument();
       expect(marker.textContent).toContain("md-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
@@ -2011,7 +2011,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const untouched = rows.find(
         (r) => r.textContent?.includes("Organic clicks fell against a stable baseline"),
       )!;
-      expect(untouched.querySelector("[data-handoff-bead]")).toBeNull();
+      expect(untouched.querySelector("[data-handoff-task]")).toBeNull();
       expect(untouched.hasAttribute("data-insight-filed")).toBe(false);
     });
 
@@ -2022,18 +2022,18 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
         <ExecutiveFindingsList snapshot={snapshot} handoffTasks={null} />,
       );
 
-      expect(container.querySelector("[data-handoff-bead]")).toBeNull();
+      expect(container.querySelector("[data-handoff-task]")).toBeNull();
     });
 
     it("never borrows a query decision's task for a finding that shares its key", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
-          handoffTasks={[filed({ kind: "query", beadId: "md-9zz" })]}
+          handoffTasks={[filed({ kind: "query", taskId: "md-9zz" })]}
         />,
       );
 
-      expect(container.querySelector("[data-handoff-bead]")).toBeNull();
+      expect(container.querySelector("[data-handoff-task]")).toBeNull();
     });
   });
 });
@@ -2190,7 +2190,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
   const PANEL_DAY = "2026-07-01";
 
   const openReview = (dueAt: string): PanelReview => ({
-    beadId: "md-4a2",
+    taskId: "md-4a2",
     panelDate: PANEL_DAY,
     dueAt,
     status: "open",
@@ -3297,13 +3297,13 @@ describe("PageDecisions", () => {
     },
   });
 
-  const pageBead = (
+  const pageTask = (
     key: string,
-    overrides: Partial<HandoffBead> = {},
-  ): HandoffBead => ({
+    overrides: Partial<HandoffTask> = {},
+  ): HandoffTask => ({
     kind: "page",
     key,
-    beadId: "md-page",
+    taskId: "md-page",
     status: "open",
     closedAt: null,
     ...overrides,
@@ -3322,13 +3322,13 @@ describe("PageDecisions", () => {
         ])}
         asset={asset}
         handoffTasks={[
-          pageBead(openPage),
-          pageBead(closedPage, {
-            beadId: "md-shipped",
+          pageTask(openPage),
+          pageTask(closedPage, {
+            taskId: "md-shipped",
             status: "closed",
             closedAt: "2026-08-03T10:00:00.000Z",
           }),
-          pageBead(untouchedPage, { kind: "query", beadId: "md-query" }),
+          pageTask(untouchedPage, { kind: "query", taskId: "md-query" }),
         ]}
       />,
       { wrapper: MemoryRouter },
@@ -3342,14 +3342,14 @@ describe("PageDecisions", () => {
 
     const open = rows.find((row) => row.textContent?.includes("/recipes"))!;
     expect(open.dataset.pageDecisionFiled).toBe("open");
-    expect(open.querySelector('[data-handoff-bead="open"]')?.textContent).toContain(
+    expect(open.querySelector('[data-handoff-task="open"]')?.textContent).toContain(
       "md-page",
     );
 
     const closed = rows.find((row) => row.textContent?.includes("/guides"))!;
     expect(closed.dataset.pageDecisionFiled).toBe("closed");
     expect(
-      closed.querySelector('[data-handoff-bead="closed"]')?.textContent,
+      closed.querySelector('[data-handoff-task="closed"]')?.textContent,
     ).toContain("md-shipped");
   });
 

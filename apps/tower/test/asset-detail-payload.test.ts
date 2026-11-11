@@ -32,7 +32,7 @@ import { addSites } from "./sites";
 import { storeCodebaseReports, weeklyStoredReports } from "./codebase-fixture";
 import {
   insertDataForSeoCollection,
-  panelReviewBead,
+  panelReviewTask,
   seedSnapshot,
   workProject,
 } from "./panel-fixtures";
@@ -569,7 +569,7 @@ async function insertWatchWindow(ctx: TestStore, w: WatchWindowSpec): Promise<vo
     offsets: w.check_offsets,
     read: w.readings.map((reading) => reading.offset_days),
     note: w.note ?? null,
-    readbackBead: w.readback_bead ?? null,
+    readbackTask: w.readback_bead ?? null,
     closed: closed ? { outcome: w.outcome!, at: w.closed_at!, note: w.outcome_note ?? null } : null,
   });
 }
@@ -2273,23 +2273,23 @@ describe("buildAssetDetailPayload", () => {
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffTasks).toEqual([
-        { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
+        { kind: "finding", key: "gsc-decline-1", taskId: "md-1w2", status: "open", closedAt: null },
         {
           kind: "finding",
           key: "item-openers",
-          beadId: "md-4kq",
+          taskId: "md-4kq",
           status: "closed",
           closedAt: "2026-07-04T18:00:00.000Z",
         },
-        { kind: "query", key: "weekly meal plan", beadId: "md-88x", status: "open", closedAt: null },
+        { kind: "query", key: "weekly meal plan", taskId: "md-88x", status: "open", closedAt: null },
         {
           kind: "page",
           key: "https://meadow.example/recipes",
-          beadId: "md-page",
+          taskId: "md-page",
           status: "open",
           closedAt: null,
         },
-        { kind: "alert", key: "flag-8812", beadId: "md-alrt", status: "open", closedAt: null },
+        { kind: "alert", key: "flag-8812", taskId: "md-alrt", status: "open", closedAt: null },
       ]);
     });
 
@@ -2351,7 +2351,7 @@ describe("buildAssetDetailPayload", () => {
       ]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffTasks!.map((b) => b.beadId)).toEqual(["md-1w2"]);
+      expect(p.handoffTasks!.map((b) => b.taskId)).toEqual(["md-1w2"]);
     });
 
     it("reads only the newest snapshot", async () => {
@@ -2724,7 +2724,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
   it("keeps current panel evidence and its review obligation without a future-feature list", async () => {
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-08-03", "2026-08-03T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-08-03T11:59:30.000Z", [
-      workProject({ panelReview: panelReviewBead({ panelDate: "2026-08-03" }) }),
+      workProject({ panelReview: panelReviewTask({ panelDate: "2026-08-03" }) }),
     ]);
     await insertSnapshot(ctx, "panel", { ...executiveSnapshot(), serpPanel: panelBlock(),
     });
@@ -2752,12 +2752,12 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   it("carries the review task and the panel day it has to be about", async () => {
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ panelReview: panelReviewBead() }),
+      workProject({ panelReview: panelReviewTask() }),
     ]);
 
     const page = await pageFor("meadow.example");
     expect(page.panelReview).toEqual({
-      beadId: "md-4a2",
+      taskId: "md-4a2",
       panelDate: "2026-07-01",
       dueAt: "2026-07-08T06:00:00.000Z",
       status: "open",
@@ -2773,12 +2773,12 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     // so the row and the badge cannot use two different nouns.
     await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "northwind.example", prefix: "nw", panelReview: panelReviewBead({ beadId: "nw-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: panelReviewTask({ beadId: "nw-f1c" }) }),
     ]);
 
     const page = await pageFor("northwind.example");
     expect(page.panelReview?.panel).toBe(false);
-    expect(page.panelReview?.beadId).toBe("nw-f1c");
+    expect(page.panelReview?.taskId).toBe("nw-f1c");
     expect(page.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
@@ -2787,14 +2787,14 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     // Past the deadline with the panel still untriaged: the error-toned state.
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ panelReview: panelReviewBead({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
+      workProject({ panelReview: panelReviewTask({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
     ]);
 
     const page = await pageFor("meadow.example");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("overdue");
     // The page has room the card does not: the task to close, and the
     // deadline it is past.
-    expect(page.panelReview!.beadId).toBe("md-4a2");
+    expect(page.panelReview!.taskId).toBe("md-4a2");
     expect(page.panelReview!.dueAt).toBe("2026-07-04T06:00:00.000Z");
   });
 
@@ -2802,7 +2802,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
-        panelReview: panelReviewBead({
+        panelReview: panelReviewTask({
           status: "closed",
           closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
@@ -2818,7 +2818,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
-        panelReview: panelReviewBead({
+        panelReview: panelReviewTask({
           status: "closed",
           closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
@@ -2838,7 +2838,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
       workProject({
         asset: "northwind.example",
         prefix: "nw",
-        panelReview: panelReviewBead({
+        panelReview: panelReviewTask({
           beadId: "nw-f1c",
           status: "closed",
           closedAt: "2026-06-20T09:00:00.000Z",

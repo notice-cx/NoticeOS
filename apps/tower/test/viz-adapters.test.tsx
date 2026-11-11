@@ -115,7 +115,7 @@ describe("the timeline's marks from the feed", () => {
 
   it("names the task an overdue review owes as the problem's task", () => {
     const card = { id: "example.com", displayName: "Example", status: "live", pulseReceivedAt: null, dataSources: [], latestPanelDate: "2026-10-06",
-      panelReview: { beadId: "ex-4a2", panelDate: "2026-10-06", dueAt: "2026-10-09T00:00:00.000Z", status: "open", closedAt: null, panel: true } } as unknown as AssetCard;
+      panelReview: { taskId: "ex-4a2", panelDate: "2026-10-06", dueAt: "2026-10-09T00:00:00.000Z", status: "open", closedAt: null, panel: true } } as unknown as AssetCard;
     const connections: ConnectionReads = { credentials: new Map(), items: [], events: [] };
     const review = wallIssues({ assets: [card], attention: [], connections, nowMs: NOW }).find((issue) => issue.key === "review-example.com");
     expect(review?.task).toBe("ex-4a2");

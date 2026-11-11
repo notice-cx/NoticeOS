@@ -818,7 +818,7 @@ describe('POST /api/task-snapshot — panel review', () => {
   });
 
   // `null` is a MEASUREMENT: the poller looked and this property has no review
-  // bead at all.
+  // task at all.
   it('stores an explicit null as the answer it is', async () => {
     const stored = await storedProject({ projects: [project({ panelReview: null })] });
     expect('panelReview' in stored).toBe(true);
@@ -852,7 +852,7 @@ describe('POST /api/task-snapshot — panel review', () => {
   });
 
   // An open review carrying a close time is a contradiction, not skew: the
-  // producer read both fields off one bead. Stored as-is it would let a card
+  // producer read both fields off one task. Stored as-is it would let a card
   // claim triage that nobody has finished.
   it('rejects an open review that also claims it was closed (422)', async () => {
     const res = await post({
@@ -903,7 +903,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
   });
 
   // A query's key IS the normalized query, so it carries whatever the searcher
-  // typed — punctuation, commas, quotes. The label on the bead is a lossy slug
+  // typed — punctuation, commas, quotes. The label on the task is a lossy slug
   // and only this field can be matched against a rendered row.
   it('keeps a key byte-exact, punctuation and all', async () => {
     const key = 'best "meal plan", weekly — 2026';
@@ -913,7 +913,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
     expect((stored.handoffs as { key: string }[])[0]!.key).toBe(key);
   });
 
-  it('stores a closed bead with the instant the work shipped', async () => {
+  it('stores a closed task with the instant the work shipped', async () => {
     const stored = await storedProject({
       projects: [
         project({
@@ -938,7 +938,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
   // Absence is the OTHER answer: this poller never asked. One-generation skew
   // (see the module header) — the runner keeps filing snapshots until the
   // operator restarts it, and every one of them must be accepted.
-  it('accepts a poller that has never heard of a handoff bead', async () => {
+  it('accepts a poller that has never heard of a handoff task', async () => {
     const stored = await storedProject({ projects: [project()] });
     expect('handoffs' in stored).toBe(false);
   });
@@ -1131,10 +1131,10 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
   });
 
   // Built apart from the printing because a test inside workerd cannot see the
-  // lane's own console. ONE line per snapshot, naming the kind and the bead —
+  // lane's own console. ONE line per snapshot, naming the kind and the task —
   // the skew is otherwise invisible, since it degrades into a marker that simply
   // never appears.
-  it('names the dropped kind and bead in one line per snapshot', () => {
+  it('names the dropped kind and task in one line per snapshot', () => {
     expect(
       droppedHandoffEvent([
         { asset: 'meadow.example', kind: 'sitemap', beadId: 'md-zz9' },
@@ -1160,7 +1160,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
     expect(body.issues[0]!.path).toBe('projects.0.handoffs.0.status');
   });
 
-  it('rejects an open bead that also claims it was closed (422)', async () => {
+  it('rejects an open task that also claims it was closed (422)', async () => {
     const res = await post({
       projects: [project({ handoffs: [{ ...HANDOFF, closedAt: '2026-08-02T10:00:00.000Z' }] })],
     });
@@ -1169,7 +1169,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
     expect(body.issues[0]!.path).toBe('projects.0.handoffs.0.closedAt');
   });
 
-  it('rejects a bead with no key to join on (422)', async () => {
+  it('rejects a task with no key to join on (422)', async () => {
     const res = await post({ projects: [project({ handoffs: [{ ...HANDOFF, key: '' }] })] });
     expect(res.status).toBe(422);
     const body = (await res.json()) as ValidationBody;
@@ -1200,7 +1200,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
   // A garbled entry must not be stored as "nothing was filed" — the more
   // comfortable of the two lies, and the one that makes a card call filed work
   // untouched.
-  it('stores nothing at all when one bead is malformed', async () => {
+  it('stores nothing at all when one task is malformed', async () => {
     await post({ projects: [project({ handoffs: [HANDOFF, { kind: 'finding' }] })] });
     expect(await snapshots()).toBe(0);
   });
@@ -1385,7 +1385,7 @@ describe('POST /api/task-snapshot — keeps only what is read', () => {
   });
 });
 
-// Newly filed work: the poller sends each bead's filing time and a short
+// Newly filed work: the poller sends each task's filing time and a short
 // newest-filed list, so the Wall feed can say "New task". Both are optional
 // under the one-generation-skew rule.
 describe('POST /api/task-snapshot — newly filed work', () => {

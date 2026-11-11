@@ -86,7 +86,7 @@ function panelDeps(service) {
 test('a panel review is filed in Ntasks once per collection, under the filer\'s own name', async () => {
   const { service, state } = ntasks();
   const { deps } = panelDeps(service);
-  assert.deepEqual((await runPanelReviewFiler(UP, deps)).filed, [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
+  assert.deepEqual((await runPanelReviewFiler(UP, deps)).filed, [{ asset: 'shop.example', panelDate: '2026-09-21', taskId: 'shop-1' }]);
   for (let poll = 0; poll < 2; poll += 1) assert.deepEqual((await runPanelReviewFiler(UP, deps)).filed, []);
   assert.equal(state.creates.length, 1);
   const [{ body, idempotencyKey, onBehalfOf }] = state.creates;
@@ -137,7 +137,7 @@ function readbackDeps(service, queue) {
 
 test('a verdict is commented in Ntasks once, as Outcome task updates, then stamped', async () => {
   const { service, state } = ntasks([OPEN]);
-  const entry = { windowId: 'w1', asset: 'shop.example', bead: 'shop-1', outcome: 'won', comment: 'Verdict: won' };
+  const entry = { windowId: 'w1', asset: 'shop.example', taskId: 'shop-1', outcome: 'won', comment: 'Verdict: won' };
   const lane = readbackDeps(service, { pending: [entry], reviews: [] });
   assert.deepEqual(await runWatchReadbackFiler(lane.deps), { posted: ['w1'], failed: [] });
   await runWatchReadbackFiler(lane.deps);
@@ -149,7 +149,7 @@ test('a verdict is commented in Ntasks once, as Outcome task updates, then stamp
 
 test('a verdict for a closed task files an outcome review in Ntasks, linked to it, and comments there', async () => {
   const { service, state } = ntasks([{ ...OPEN, status: 'closed', closedAt: '2026-08-20T00:00:00.000Z' }]);
-  const entry = { windowId: 'w2', asset: 'shop.example', bead: 'shop-1', outcome: 'inconclusive', comment: 'Verdict: inconclusive' };
+  const entry = { windowId: 'w2', asset: 'shop.example', taskId: 'shop-1', outcome: 'inconclusive', comment: 'Verdict: inconclusive' };
   const lane = readbackDeps(service, { pending: [entry], reviews: [] });
   assert.deepEqual(await runWatchReadbackFiler(lane.deps), { posted: ['w2'], failed: [] });
   assert.equal(state.creates.length, 1);
@@ -161,7 +161,7 @@ test('a verdict for a closed task files an outcome review in Ntasks, linked to i
   assert.deepEqual(state.links, [{ task: 'shop-2', to: 'shop-1', type: 'related' }]);
   assert.deepEqual(state.actors, ['outcome-review-filer']);
   assert.deepEqual(state.comments.map(row => row.taskId), ['shop-2']);
-  assert.ok(lane.requests.some(request => request.body?.linked?.[0]?.bead === 'shop-2'));
+  assert.ok(lane.requests.some(request => request.body?.linked?.[0]?.taskId === 'shop-2'));
 });
 
 test('the register relates two tasks through link_tasks, and removes the link with remove', async () => {
@@ -174,7 +174,7 @@ test('the register relates two tasks through link_tasks, and removes the link wi
 });
 
 test('a review task Ntasks closed as done marks its outcome read, from the close Ntasks records', async () => {
-  const review = { flagNumber: 12, windowId: 'w3', asset: 'shop.example', bead: 'shop-2', postedAt: '2026-08-21T04:00:00.000Z' };
+  const review = { flagNumber: 12, windowId: 'w3', asset: 'shop.example', taskId: 'shop-2', postedAt: '2026-08-21T04:00:00.000Z' };
   const { service } = ntasks([{ id: 'shop-2', title: 'Review', status: 'closed', labels: [], metadata: {}, closedAt: '2026-08-22T03:00:00.000Z',
     closedBy: 'service:noticeos/claude', closedModel: 'claude-opus-5-5', resolution: 'done', closeReason: 'Keep; evidence in abc1234' }]);
   const lane = readbackDeps(service, { pending: [], reviews: [review] });

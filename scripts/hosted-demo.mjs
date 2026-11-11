@@ -202,10 +202,10 @@ export function createHostedDemo(options) {
                 continue;
             }
             const bounded = AbortSignal.any([signal, AbortSignal.timeout(29000)]);
-            const landed = (await tasks.comments(projectId, entry.bead, bounded)).some(row => row.author === tasks.actor(OUTCOME_UPDATES_ACTOR)
+            const landed = (await tasks.comments(projectId, entry.taskId, bounded)).some(row => row.author === tasks.actor(OUTCOME_UPDATES_ACTOR)
                 && row.text.endsWith(`Window ${entry.windowId}.`));
             if (!landed)
-                await tasks.comment(entry.bead, entry.comment, OUTCOME_UPDATES_ACTOR, bounded);
+                await tasks.comment(entry.taskId, entry.comment, OUTCOME_UPDATES_ACTOR, bounded);
             outcomes.push({ asset: entry.asset, id: entry.windowId, outcome: entry.outcome, status: 'success' });
         }
         const stamped = await writer.stampReadbacks(scoped, outcomes.map(outcome => outcome.id), at);

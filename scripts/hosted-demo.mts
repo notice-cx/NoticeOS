@@ -48,7 +48,7 @@ export interface DemoActivityWriter {
   readbacks(store: WorkspaceStore): Promise<readonly DemoReadback[]>;
   stampReadbacks(store: WorkspaceStore, windowIds: readonly string[], at: string): Promise<{ posted: readonly string[] }>;
 }
-export interface DemoReadback { readonly windowId: string; readonly bead: string; readonly asset: string; readonly outcome: string; readonly comment: string }
+export interface DemoReadback { readonly windowId: string; readonly taskId: string; readonly asset: string; readonly outcome: string; readonly comment: string }
 export interface HostedDemoOptions {
   readonly workspaceId: string;
   readonly serviceId: string;
@@ -219,9 +219,9 @@ export function createHostedDemo(options: HostedDemoOptions): {
       const projectId = projects.get(entry.asset);
       if (!projectId) { failed.push({ asset: entry.asset, id: entry.windowId }); continue; }
       const bounded = AbortSignal.any([signal, AbortSignal.timeout(29000)]);
-      const landed = (await tasks.comments(projectId, entry.bead, bounded)).some(row => row.author === tasks.actor(OUTCOME_UPDATES_ACTOR)
+      const landed = (await tasks.comments(projectId, entry.taskId, bounded)).some(row => row.author === tasks.actor(OUTCOME_UPDATES_ACTOR)
         && row.text.endsWith(`Window ${entry.windowId}.`));
-      if (!landed) await tasks.comment(entry.bead, entry.comment, OUTCOME_UPDATES_ACTOR, bounded);
+      if (!landed) await tasks.comment(entry.taskId, entry.comment, OUTCOME_UPDATES_ACTOR, bounded);
       outcomes.push({ asset: entry.asset, id: entry.windowId, outcome: entry.outcome, status: 'success' });
     }
     const stamped = await writer.stampReadbacks(scoped, outcomes.map(outcome => outcome.id), at);

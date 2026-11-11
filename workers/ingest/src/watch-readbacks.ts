@@ -17,7 +17,7 @@ export const WATCH_READBACK_MAX_BATCH = 50;
 /** One closed window whose verdict has not reached its task. */
 export interface PendingWatchReadback {
   windowId: string;
-  bead: string;
+  taskId: string;
   asset: string;
   outcome: string;
   closedAt: string;
@@ -74,7 +74,7 @@ function watchReadback(record: ReadbackRow): PendingWatchReadback {
   };
   return {
     windowId: row.id,
-    bead: row.readback_bead,
+    taskId: row.readback_bead,
     asset: row.asset,
     outcome: row.outcome,
     closedAt: row.closed_at,
@@ -112,7 +112,7 @@ export interface WatchReview extends PendingWatchReadback {
   postedAt: string;
 }
 
-export interface CompletedWatchReview extends Pick<WatchReview, 'flagNumber' | 'windowId' | 'asset' | 'bead' | 'postedAt'> {
+export interface CompletedWatchReview extends Pick<WatchReview, 'flagNumber' | 'windowId' | 'asset' | 'taskId' | 'postedAt'> {
   closedAt: string;
   checkedAt: string;
   reason: string;
@@ -121,8 +121,8 @@ export interface CompletedWatchReview extends Pick<WatchReview, 'flagNumber' | '
 export interface WatchReviewLink {
   windowId: string;
   asset: string;
-  previousBead: string;
-  bead: string;
+  previousTaskId: string;
+  taskId: string;
   previousPostedAt: string | null;
 }
 
@@ -136,7 +136,7 @@ export async function linkWatchReviews(env: IngestEnv, links: WatchReviewLink[])
           AND ((readback_bead = $3 AND readback_posted_at IS NOT DISTINCT FROM $5::timestamptz)
             OR (readback_bead = $4 AND readback_posted_at IS NULL))
         RETURNING window_id AS id`,
-      [link.windowId, link.asset, link.previousBead, link.bead, link.previousPostedAt]));
+      [link.windowId, link.asset, link.previousTaskId, link.taskId, link.previousPostedAt]));
     (rows.length > 0 ? linked : skipped).push(link.windowId);
   }
   return { linked, skipped };
@@ -179,7 +179,7 @@ export async function completeWatchReviews(
         `SELECT window_id AS id FROM noticeos.watch_windows
           WHERE window_id = $1 AND asset_id = $2 AND readback_bead = $3
             AND status = 'closed' AND readback_posted_at = $4::timestamptz FOR UPDATE`,
-        [review.windowId, review.asset, review.bead, review.postedAt],
+        [review.windowId, review.asset, review.taskId, review.postedAt],
       );
       if (!window) return false;
       const rows = await tx.query<{ id: number }>(

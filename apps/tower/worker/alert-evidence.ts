@@ -61,8 +61,8 @@ export async function reviewAlertConditions<F extends EvidenceFlagRow>(
   }
   if (watchIds.length > 0) {
     const windows = await store.read((tx) =>
-      tx.query<{ id: string; asset: string; outcome: string | null; readbackBead: string | null }>(
-        `SELECT window_id AS id, asset_id AS asset, outcome, readback_bead AS "readbackBead"
+      tx.query<{ id: string; asset: string; outcome: string | null; readbackTask: string | null }>(
+        `SELECT window_id AS id, asset_id AS asset, outcome, readback_bead AS "readbackTask"
            FROM noticeos.watch_windows
           WHERE window_id = ANY($1::text[])`,
         [watchIds],

@@ -1,4 +1,4 @@
-import type { AssetDecision, ExecutiveInsight, HandoffBead, SearchPageTrends, SearchQueryTrends } from "./asset-detail";
+import type { AssetDecision, ExecutiveInsight, HandoffTask, SearchPageTrends, SearchQueryTrends } from "./asset-detail";
 import type { AnnotationTimeline } from "./annotations";
 import { evidenceInstant } from "./signal-liveness";
 import { isAmber } from "./freshness";
@@ -38,7 +38,7 @@ export interface RecommendationSubject {
 export interface RecommendationContext {
   generatedAt: string | null;
   sources: RecommendationSourceEvidence | null;
-  handoffs: readonly HandoffBead[] | null;
+  handoffs: readonly HandoffTask[] | null;
   taskSnapshotAt: string | null;
   decisions: readonly AssetDecision[];
   annotations: AnnotationTimeline | null;
@@ -60,8 +60,8 @@ export interface RecommendationSourceCheck {
 
 /** One task filed from this subject, and the releases that name it. */
 export interface RecommendationTaskCheck {
-  beadId: string;
-  status: HandoffBead["status"];
+  taskId: string;
+  status: HandoffTask["status"];
   closedAt: string | null;
   /** Closed after the analysis, inside a task snapshot that covers the closure. */
   closedSinceAnalysis: boolean;
@@ -161,14 +161,14 @@ export function recommendationValidity(
     .map((task) => {
       const closedAt = evidenceInstant(task.closedAt, nowMs);
       return {
-        beadId: task.beadId,
+        taskId: task.taskId,
         status: task.status,
         closedAt,
         closedSinceAnalysis: task.status === "closed" && generatedAt !== null && closedAt !== null
           && capturedAt !== null && closedAt <= capturedAt && closedAt > generatedAt,
         releases: (context?.annotations?.items ?? []).flatMap((change) => {
           const at = evidenceInstant(change.at, nowMs);
-          return change.kind === "deploy" && change.ref === task.beadId && at && generatedAt && at > generatedAt ? [at] : [];
+          return change.kind === "deploy" && change.ref === task.taskId && at && generatedAt && at > generatedAt ? [at] : [];
         }),
       };
     });
@@ -232,8 +232,8 @@ export function recommendationHandoffCaveat(validity?: RecommendationValidity): 
     validity.sourceList.since ? `Source reports checked since ${validity.sourceList.since}.` : null,
     `Task snapshot: ${validity.tasks.capturedAt ?? "date unknown"}${validity.tasks.outdated ? " (outdated)" : ""}.`,
     ...validity.tasks.linked.flatMap((task) => [
-      `Task ${task.beadId}: ${task.status}${task.closedAt ? ` ${task.closedAt}` : ""}${task.closedSinceAnalysis ? ", after the analysis" : ""}.`,
-      ...task.releases.map((at) => `Deploy ${at} references ${task.beadId}.`),
+      `Task ${task.taskId}: ${task.status}${task.closedAt ? ` ${task.closedAt}` : ""}${task.closedSinceAnalysis ? ", after the analysis" : ""}.`,
+      ...task.releases.map((at) => `Deploy ${at} references ${task.taskId}.`),
     ]),
     validity.timelineComplete ? null : "Change timeline: incomplete.",
     validity.decision ? `Display decision: ${validity.decision.status} ${validity.decision.at}.` : null,

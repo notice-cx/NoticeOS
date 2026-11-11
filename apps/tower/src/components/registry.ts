@@ -256,8 +256,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["booked", "forecast", "from a raw row's booking_state"],
   },
   {
-    name: "HandoffBeadBadge",
-    file: "components/HandoffBeadBadge.tsx",
+    name: "HandoffTaskBadge",
+    file: "components/HandoffTaskBadge.tsx",
     purpose:
       "Whether a finding has already been filed as work in the asset's own repo, joined by the handoff's `noticeos_key`: the glyph carries open or closed, the visible text is the task id linking to /tasks/<id>, and both faces stay muted beside the finding's severity. Nothing filed renders nothing.",
     variants: ["open", "closed", "closed undated", "not filed (renders nothing)"],
@@ -266,7 +266,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "TaskIdLink",
     file: "components/TaskIdLink.tsx",
     purpose:
-      "A task named by its id, as the link to /tasks/<id>, in mono at the surrounding text's size: an asset's review task, a ref the snapshot does not hold, a bet's readback task, an alert's watched change, the task the Task projects check filed. It carries no state; a task the snapshot holds is HandoffBeadBadge, with its open or closed glyph.",
+      "A task named by its id, as the link to /tasks/<id>, in mono at the surrounding text's size: an asset's review task, a ref the snapshot does not hold, a bet's readback task, an alert's watched change, the task the Task projects check filed. It carries no state; a task the snapshot holds is HandoffTaskBadge, with its open or closed glyph.",
     variants: ["in a line of text", "in a small caption"],
   },
   {
@@ -1210,7 +1210,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "QueryVisibilityRankings",
     file: "components/QueryVisibilityRankings.tsx",
     purpose:
-      "Asset-only 90-day search charts plus a responsive query-decision table: each normalized query gets one act/investigate/protect/wait verdict line, its source evidence (Google and Bing observed impressions and movement kept distinct from DataForSEO modelled demand, rank, difficulty, intent and the per-surface AI Overview marks), a Copy Markdown handoff, the HandoffBeadBadge of any task filed from it, and an outcome-check composer that pre-registers how the decision will be judged. Applicability is said once in the header and on a row only where it differs.",
+      "Asset-only 90-day search charts plus a responsive query-decision table: each normalized query gets one act/investigate/protect/wait verdict line, its source evidence (Google and Bing observed impressions and movement kept distinct from DataForSEO modelled demand, rank, difficulty, intent and the per-surface AI Overview marks), a Copy Markdown handoff, the HandoffTaskBadge of any task filed from it, and an outcome-check composer that pre-registers how the decision will be judged. Applicability is said once in the header and on a row only where it differs.",
     variants: ["recover", "near win", "ranking opportunity", "organic gap", "mixed", "weak", "strong", "growing", "wait", "intent token", "estimated visits", "secure copy", "HTTP LAN fallback", "copy failed", "three sources", "one source", "first DataForSEO baseline", "historical rank movement", "AI cited", "AI result shown", "AIO phone-vs-desktop split", "AIO surface never checked", "insufficient windows", "desktop", "mobile", "daily", "weekly", "irregular", "provisional Google tail", "filed (open task)", "filed (closed task)", "unfiled", "register not asked", "lane proof row", "lane proof row at zero", "lane ran no check (no row)", "watch the outcome (rank lane -> position)", "watch the outcome (traffic lane -> clicks)", "no composer behind it (renders no action)"],
     demo:
       "Copy states depend on the clipboard context, and the demo passes no onWatch because the composer lives on an asset page.",

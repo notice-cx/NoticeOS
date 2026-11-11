@@ -96,7 +96,7 @@ describe('demo operations stay separate from stored reads', () => {
     enableDemo();
     const data = everyTabPayload();
     const close = withQueries(<ActivityTab data={data} nowMs={now}
-      seed={{ subject: 'Example outcome', series: WATCH_SERIES[0]!, query: null, beadId: null }} onSeedDone={vi.fn()} />);
+      seed={{ subject: 'Example outcome', series: WATCH_SERIES[0]!, query: null, taskId: null }} onSeedDone={vi.fn()} />);
     expect(screen.getByText('Timeline')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Watch an outcome' })).toBeNull();

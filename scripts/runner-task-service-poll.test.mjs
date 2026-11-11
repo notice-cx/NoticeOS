@@ -196,7 +196,7 @@ for (const [name, service, reason] of [
       state: { skipping: null, unmapped: new Set(), waiting: new Set() }, emit, stopped: () => false }), null);
     assert.match(lines.at(-1), reason);
     const readbacks = await runWatchReadbackFiler({ taskService: service, readToken: async () => 'operator-token', readConfig: never,
-      fetchImpl: async (url, init = {}) => { asked.push(init.method ?? 'GET'); return Response.json({ pending: [{ windowId: 'w1', bead: 'ex-1', asset: 'example.com' }], reviews: [] }); },
+      fetchImpl: async (url, init = {}) => { asked.push(init.method ?? 'GET'); return Response.json({ pending: [{ windowId: 'w1', taskId: 'ex-1', asset: 'example.com' }], reviews: [] }); },
       emit });
     assert.deepEqual(readbacks, { posted: [], failed: [] });
     assert.deepEqual(asked, ['GET'], 'the queue stays as it is in the store');

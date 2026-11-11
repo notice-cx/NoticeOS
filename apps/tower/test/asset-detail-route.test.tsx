@@ -1588,7 +1588,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
 
   it("keeps a finding after linked closure and names the review, not a resolved outcome", async () => {
     const data = reviewedPayload();
-    data.handoffTasks = [{ kind: "finding", key: data.executive!.items[0]!.key, beadId: "md-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
+    data.handoffTasks = [{ kind: "finding", key: data.executive!.items[0]!.key, taskId: "md-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
     stubFetch(200, data);
     const view = renderRoute("meadow.example");
     const panel = await view.findByRole("region", { name: "What matters" });
@@ -4262,7 +4262,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
           {
             kind: "query",
             key: "tornado kit specs",
-            beadId: "md-1w2",
+            taskId: "md-1w2",
             status: "closed",
             closedAt: "2026-08-01T00:00:00.000Z",
           },
@@ -4297,7 +4297,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
     openRow("Google clicks");
     const row = container.querySelector('[data-watch-id="watch-for-mp-1w2"]');
-    const badge = row?.querySelector('[data-handoff-bead="closed"]');
+    const badge = row?.querySelector('[data-handoff-task="closed"]');
     expect(badge?.textContent).toContain("md-1w2");
     expect(badge?.getAttribute("title")).toContain("not proof of shipment or outcome");
     expect(row?.querySelector("[data-watch-ref-unresolved]")).toBeNull();
@@ -4435,7 +4435,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       200,
       payload({
         panelReview: {
-          beadId: "md-4a2",
+          taskId: "md-4a2",
           panelDate: "2026-07-01",
           dueAt: "2026-07-04T06:00:00.000Z",
           status: "open",
@@ -4475,7 +4475,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
         executive: null,
         panelReview: {
-          beadId: "md-4a2",
+          taskId: "md-4a2",
           panelDate: "2026-07-01",
           // The page reads the real clock (`useNow`), so a still-open
           // deadline must be stated relative to it.
@@ -5155,7 +5155,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
         {
           kind: "query" as const,
           key: "tornado kit specs",
-          beadId: "md-1w2",
+          taskId: "md-1w2",
           status: "open" as const,
           closedAt: null,
         },

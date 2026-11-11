@@ -22,29 +22,29 @@ export const OUTCOME_REVIEW_ACTOR = 'outcome-review-filer';
  * then linked to the task whose reading it reviews. */
 export async function fileNtasksOutcomeReview(register, project, entry) {
   const key = 'outcome-review:' + createHash('sha256').update(JSON.stringify(
-    ['ntasks', project.prefix, entry.asset, entry.windowId, entry.bead])).digest('hex');
+    ['ntasks', project.prefix, entry.asset, entry.windowId, entry.taskId])).digest('hex');
   const id = await register.create(project, {
-    title: `Review the ${entry.asset} outcome (${entry.bead})`, type: 'task', priority: 2, labels: ['outcome-review'],
+    title: `Review the ${entry.asset} outcome (${entry.taskId})`, type: 'task', priority: 2, labels: ['outcome-review'],
     metadata: { [TASK_METADATA.source.name]: 'outcome-review', [TASK_METADATA.asset.name]: entry.asset,
       [TASK_METADATA.rule.name]: 'watch-window-closed', [TASK_METADATA.key.name]: entry.windowId },
     description: `WHAT: Review the recorded outcome for ${entry.asset}.\n` +
-      `WHY: The original task ${entry.bead} was closed before this result was delivered; the measurement still needs review.\n` +
-      `WHERE: Outcome window ${entry.windowId}; related task ${entry.bead}.\n` +
+      `WHY: The original task ${entry.taskId} was closed before this result was delivered; the measurement still needs review.\n` +
+      `WHERE: Outcome window ${entry.windowId}; related task ${entry.taskId}.\n` +
       'FIX: Review the result comment posted by Outcome task updates, record the decision and evidence, and file any required follow-up work.',
     acceptance: 'Record the review decision and evidence, then close this review task. Preserve the measured outcome and original implementation evidence.',
   }, key);
-  await register.relate(project, id, entry.bead);
+  await register.relate(project, id, entry.taskId);
   return id;
 }
 
 /** A verdict comment's key: one comment per window and task, however often it is retried. */
-function verdictKey(entry, bead) {
-  return 'readback:' + createHash('sha256').update(JSON.stringify([entry.windowId, bead])).digest('hex');
+function verdictKey(entry, taskId) {
+  return 'readback:' + createHash('sha256').update(JSON.stringify([entry.windowId, taskId])).digest('hex');
 }
 
-async function attachReview(fetchImpl, url, auth, entry, bead, previousPostedAt) {
+async function attachReview(fetchImpl, url, auth, entry, taskId, previousPostedAt) {
   const response = await fetchImpl(url, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
-    body: JSON.stringify({ linked: [{ windowId: entry.windowId, asset: entry.asset, previousBead: entry.bead, bead, previousPostedAt }] }) });
+    body: JSON.stringify({ linked: [{ windowId: entry.windowId, asset: entry.asset, previousTaskId: entry.taskId, taskId, previousPostedAt }] }) });
   if (!response.ok || !(await response.json()).linked?.includes(entry.windowId)) throw new Error('Outcome review link changed; retry unchanged');
 }
 
@@ -113,7 +113,7 @@ export async function runWatchReadbackFiler(deps = {}) {
   } catch (err) {
     const failure = `task configuration unavailable: ${err.message}`;
     emit('WARN', `watch readbacks skipped — ${failure}`);
-    return { posted: [], failed: [...pending, ...reviews].map((entry) => `${entry.bead}: ${failure}`) };
+    return { posted: [], failed: [...pending, ...reviews].map((entry) => `${entry.taskId}: ${failure}`) };
   }
   const spokes = new Map(projects.map((project) => [project.asset, project]));
 
@@ -123,20 +123,20 @@ export async function runWatchReadbackFiler(deps = {}) {
   for (const entry of pending) {
     const spoke = spokes.get(entry.asset);
     if (!spoke) {
-      failed.push(`${entry.bead}: no task project is configured for ${entry.asset}`);
+      failed.push(`${entry.taskId}: no task project is configured for ${entry.asset}`);
       continue;
     }
     try {
-      const task = await updates.show(spoke, entry.bead);
-      let bead = entry.bead;
+      const task = await updates.show(spoke, entry.taskId);
+      let taskId = entry.taskId;
       if (task.status === 'closed' && entry.reviewRequired !== false) {
-        bead = await fileNtasksOutcomeReview(reviewer, spoke, entry);
-        await attachReview(fetchImpl, url, auth, entry, bead, null);
+        taskId = await fileNtasksOutcomeReview(reviewer, spoke, entry);
+        await attachReview(fetchImpl, url, auth, entry, taskId, null);
       }
-      await updates.comment(spoke, bead, entry.comment, verdictKey(entry, bead));
-      expectedTasks[entry.windowId] = bead;
+      await updates.comment(spoke, taskId, entry.comment, verdictKey(entry, taskId));
+      expectedTasks[entry.windowId] = taskId;
     } catch (err) {
-      failed.push(`${entry.bead}: result delivery failed: ${err.message}`);
+      failed.push(`${entry.taskId}: result delivery failed: ${err.message}`);
       continue;
     }
     posted.push(entry.windowId);
@@ -165,7 +165,7 @@ export async function runWatchReadbackFiler(deps = {}) {
 
   const filed = pending
     .filter((entry) => posted.includes(entry.windowId))
-    .map((entry) => `${expectedTasks[entry.windowId] ?? entry.bead} ${entry.outcome}`)
+    .map((entry) => `${expectedTasks[entry.windowId] ?? entry.taskId} ${entry.outcome}`)
     .join(' · ');
   if (posted.length > 0) {
     emit('INFO', `watch readbacks — ${posted.length} verdict(s) filed: ${filed}`);
@@ -179,22 +179,22 @@ export async function runWatchReadbackFiler(deps = {}) {
     for (const review of reviews) {
       const spoke = spokes.get(review.asset);
       if (!spoke) {
-        const failure = `${review.bead}: task project unavailable`;
+        const failure = `${review.taskId}: task project unavailable`;
         failed.push(failure);
         emit('WARN', `watch readbacks: ${failure}`);
         continue;
       }
       try {
-        const task = await updates.show(spoke, review.bead);
+        const task = await updates.show(spoke, review.taskId);
         const closedAt = taskInstant(task?.closed_at);
         const checkedAt = new Date(now()).toISOString();
         if (task.status === 'closed' && closedAt && closedAt <= review.postedAt) {
-          const bead = await fileNtasksOutcomeReview(reviewer, spoke, review);
-          await attachReview(fetchImpl, url, auth, review, bead, review.postedAt);
+          const taskId = await fileNtasksOutcomeReview(reviewer, spoke, review);
+          await attachReview(fetchImpl, url, auth, review, taskId, review.postedAt);
           // Delivery stays pending until the new task's comment is confirmed.
           continue;
         }
-        if (task?.id !== review.bead || task.status !== 'closed' || !closedAt
+        if (task?.id !== review.taskId || task.status !== 'closed' || !closedAt
           || closedAt <= review.postedAt || closedAt > checkedAt
           || typeof task.close_reason !== 'string' || task.close_reason.trim() === ''
           || !recordsClose(task.metadata, task.closed_at)
@@ -207,7 +207,7 @@ export async function runWatchReadbackFiler(deps = {}) {
         const acknowledgement = await res.json();
         if (Array.isArray(acknowledgement.reviewed) && acknowledgement.reviewed.includes(review.flagNumber)) completed++;
       } catch (err) {
-        const failure = `${review.bead}: ${err.message}`;
+        const failure = `${review.taskId}: ${err.message}`;
         failed.push(failure);
         emit('WARN', `watch readbacks: ${failure}`);
       }

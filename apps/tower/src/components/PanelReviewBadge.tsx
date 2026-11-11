@@ -39,7 +39,7 @@ export function PanelReviewBadge({
   const landed = panelDayOf(review, latestPanelDate, state);
   const noun = panelReviewNouns(review);
   const facts = (label: string) =>
-    [label, `task ${review.beadId}`, landed ? `${noun.collected} ${landed}` : null]
+    [label, `task ${review.taskId}`, landed ? `${noun.collected} ${landed}` : null]
       .filter(Boolean)
       .join(" · ");
 

@@ -81,7 +81,7 @@ export function useTasks(project: string | null, status?: string) {
  * What every task write invalidates: the live board and task page it changed,
  * the snapshot board that has not heard yet, the Wall, whose counts are built
  * from the same snapshot, and the asset page, whose rows carry the
- * `HandoffBeadBadge` for the task just filed or closed. The badge itself still
+ * `HandoffTaskBadge` for the task just filed or closed. The badge itself still
  * arrives on the poller's own cadence; this buys the refetch, not the row.
  */
 function useTaskRefresh(): () => Promise<void> {

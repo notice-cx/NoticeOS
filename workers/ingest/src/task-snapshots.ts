@@ -107,7 +107,7 @@ export const TASK_PANEL_REVIEW_STATUSES = ['open', 'closed'] as const;
 /**
  * The Tower surfaces that file work, as the emitter writes them
  * (`apps/tower/src/lib/task-handoff.ts`). Wider than `decisions.kind`: a page
- * decision and an alert file a bead but keep no operator display state.
+ * decision and an alert file a task but keep no operator display state.
  * `parseHandoff` drops an unrecognized kind's own row and stores the rest,
  * because a kind a later Tower invents must not blank the board.
  */
@@ -584,12 +584,12 @@ export function droppedHandoffEvent(dropped: DroppedHandoff[]): DroppedHandoffEv
 const UNKNOWN_KIND = 'unknown-kind';
 
 /**
- * One handoff bead. `kind` and `status` are pinned to enums because both are
+ * One handoff task. `kind` and `status` are pinned to enums because both are
  * the OS's own vocabulary, but they fail differently: an unrecognized `status`
  * is a producer bug (the poller computes it) and fails the write; an
  * unrecognized `kind` is the ordinary sound of a newer Tower surface arriving,
  * and costs its own row rather than the project's whole list. A kind that is
- * absent, not a string, or empty still fails. An open bead carrying a close
+ * absent, not a string, or empty still fails. An open task carrying a close
  * time is a contradiction rather than skew.
  */
 function parseHandoff(
@@ -619,7 +619,7 @@ function parseHandoff(
 
   if (kind === null || key === null || beadId === null || status === null) return null;
   if (status === 'open' && closedAt !== null) {
-    issues.add(`${path}.closedAt`, 'custom', `${path}.closedAt must be absent on an open bead`);
+    issues.add(`${path}.closedAt`, 'custom', `${path}.closedAt must be absent on an open task`);
     return null;
   }
   return { kind, key, beadId, status, closedAt };

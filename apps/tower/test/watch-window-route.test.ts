@@ -606,7 +606,7 @@ describe("threshold calibration", () => {
       subject: "“tornado kit specs” — ranking opportunity",
       series: clicks,
       query: "tornado kit specs",
-      beadId: null,
+      taskId: null,
     };
     expect(watchScopeState(seed, clicks)).toEqual({ kind: "query", query: "tornado kit specs" });
 
@@ -618,7 +618,7 @@ describe("threshold calibration", () => {
         subject: "a finding",
         series: clicks,
         query: null,
-        beadId: null,
+        taskId: null,
       }, clicks),
     ).toBeNull();
     expect(watchScopeState(null, clicks)).toBeNull();

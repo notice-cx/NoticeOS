@@ -53,7 +53,7 @@ export function runnerPaths(codeRoot, env = process.env) {
 }
 
 /**
- * How a bead this runner files into a SITE's tracker names the OS's own
+ * How a task this runner files into a SITE's tracker names the OS's own
  * checkout, so every path in it is qualified — none of those files are the
  * reader's. The home checkout's folder name (the site repositories sit beside
  * it), never a name written into the runner. A code folder resolves home, so
@@ -81,7 +81,7 @@ export const CONFIG = {
   // ten-minute-old one is a lie about what an agent is doing right now.
   taskPollCron: '* * * * *',
   // How often the runner asks whether a weekly DataForSEO collection has landed
-  // with no review bead against it. Hourly, off the top of the hour so it does
+  // with no review task against it. Hourly, off the top of the hour so it does
   // not share a tick with the wrangler crons.
   panelFilerCron: '25 * * * *',
   // How often closed bets are carried to the tasks that own their readings.

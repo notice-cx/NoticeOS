@@ -17,12 +17,12 @@ import {
 import type {
   AnnotationTimeline,
   AssetInfo,
-  HandoffBead,
+  HandoffTask,
   SearchPageMover,
   SearchPageTrends,
 } from "@shared/asset-detail";
 import { foldSerpPanelAio } from "@shared/asset-detail";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { HandoffTaskBadge } from "@/components/HandoffTaskBadge";
 import {
   RecommendationReview,
   ValidityChip,
@@ -123,7 +123,7 @@ export function PageDecisions({
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
   /** What the task hub holds for this asset. `null` means it could not be
    * asked and renders no stronger claim than an empty result can support. */
-  handoffTasks?: HandoffBead[] | null;
+  handoffTasks?: HandoffTask[] | null;
   /** The asset's change timeline: a release inside the comparison window is
    * the first likely cause of a click move. `null` names no release. */
   annotations?: AnnotationTimeline | null;
@@ -295,7 +295,7 @@ function PageDecisionTable({
   decisions: PageDecision[];
   pages: SearchPageTrends;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
-  filed: ReadonlyMap<string, HandoffBead>;
+  filed: ReadonlyMap<string, HandoffTask>;
   sharedState: RecommendationValidity["state"] | null;
   collapsed?: boolean;
   nested?: boolean;
@@ -316,7 +316,7 @@ function PageDecisionTable({
               decision={decision}
               pages={pages}
               asset={asset}
-              bead={filed.get(decision.row.page) ?? null}
+              handoff={filed.get(decision.row.page) ?? null}
               ownState={decision.validity.state !== sharedState}
               collapsed
             />
@@ -352,7 +352,7 @@ function PageDecisionTable({
             decision={decision}
             pages={pages}
             asset={asset}
-            bead={filed.get(decision.row.page) ?? null}
+            handoff={filed.get(decision.row.page) ?? null}
             ownState={decision.validity.state !== sharedState}
           />
         ))}
@@ -365,14 +365,14 @@ function PageDecisionRow({
   decision,
   pages,
   asset,
-  bead,
+  handoff,
   ownState,
   collapsed = false,
 }: {
   decision: PageDecision;
   pages: SearchPageTrends;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
-  bead: HandoffBead | null;
+  handoff: HandoffTask | null;
   /** The row's applicability differs from its list's, so it wears its own chip. */
   ownState: boolean;
   collapsed?: boolean;
@@ -445,7 +445,7 @@ function PageDecisionRow({
         className="group"
         data-page-decision-kind={assessment.kind}
         data-page-decision-tone={tone}
-        data-page-decision-filed={bead?.status ?? undefined}
+        data-page-decision-filed={handoff?.status ?? undefined}
         data-page-decision-cause={assessment.cause?.kind}
         data-page-decision-collapsed
       >
@@ -456,7 +456,7 @@ function PageDecisionRow({
               <span className="min-w-0 break-all font-mono text-[13px] font-semibold text-foreground">
                 {row.path}
               </span>
-              <HandoffBeadBadge bead={bead} />
+              <HandoffTaskBadge handoff={handoff} />
               {ownState ? <RecommendationReview validity={validity} subject={`page:${row.page}`} passive /> : null}
             </span>
             {verdict}
@@ -504,7 +504,7 @@ function PageDecisionRow({
       )}
       data-page-decision-kind={assessment.kind}
       data-page-decision-tone={tone}
-      data-page-decision-filed={bead?.status ?? undefined}
+      data-page-decision-filed={handoff?.status ?? undefined}
       data-page-decision-cause={assessment.cause?.kind}
     >
       <div role="cell" className="order-2 min-w-0 lg:order-none">
@@ -516,7 +516,7 @@ function PageDecisionRow({
               <Badge variant="outline" className={colors.chip}>
                 {laneLabel(assessment.lane)}
               </Badge>
-              <HandoffBeadBadge bead={bead} />
+              <HandoffTaskBadge handoff={handoff} />
               {ownState ? <RecommendationReview validity={validity} subject={`page:${row.page}`} passive /> : null}
             </div>
             <div className={cn("mt-1 text-sm font-semibold", colors.text)}>
