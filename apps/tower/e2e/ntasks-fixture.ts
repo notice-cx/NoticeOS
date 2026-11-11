@@ -62,7 +62,7 @@ export interface FixtureNtasks {
   /** What the Tower's server reaches Ntasks through. */
   service: TaskService;
   decisions(): readonly NtasksDecision[];
-  /** How many times the installation registered the Tower here. */
+  /** How many apps the installation registered here; asking again for the same one counts once. */
   registrations(): number;
   /** Every token the person holds stops working, as after Revoke in Ntasks. */
   revoke(): void;
@@ -183,8 +183,8 @@ export function createFixtureNtasks(options: {
       if (typeof metadata.client_name !== "string" || JSON.stringify(metadata.redirect_uris) !== JSON.stringify([redirectUri])) {
         return answer(request, { error: "invalid_redirect_uri" }, { status: 400 });
       }
-      registrations += 1;
       const repeat = registered;
+      if (!repeat) registrations += 1;
       registered = true;
       return answer(request, { client_id: JOURNEY_NTASKS_CLIENT_ID, client_name: metadata.client_name, redirect_uris: [redirectUri],
         token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
@@ -277,16 +277,15 @@ export function createFixtureNtasks(options: {
     backend: async () => "ntasks",
     origin: async () => JOURNEY_NTASKS_ORIGIN,
     appClientId: async () => savedClientId,
-    // The ingest's part: the saved client id, or Ntasks's answer to registering, then saved.
+    // The ingest's part: Ntasks's answer for this address, whose first client id is saved.
     async registerApp(sentRedirect) {
-      if (savedClientId !== null) return savedClientId;
       const reply = await handle(new Request(`${JOURNEY_NTASKS_ORIGIN}/api/auth/oauth2/register`, { method: "POST",
         headers: { authorization: `Bearer ${SERVICE_CREDENTIAL}`, "content-type": "application/json" },
         body: JSON.stringify({ client_name: JOURNEY_NTASKS_APP_NAME, redirect_uris: [sentRedirect], token_endpoint_auth_method: "none" }) }));
       const body = await reply.json() as { client_id?: string; error?: string };
       if (!reply.ok || typeof body.client_id !== "string") throw new TaskServiceAppRefused(body.error ?? "refused", reply.status);
-      savedClientId = body.client_id;
-      return savedClientId;
+      savedClientId ??= body.client_id;
+      return { clientId: body.client_id, held: false };
     },
     home: async () => ({ backend: "ntasks", origin: JOURNEY_NTASKS_ORIGIN }),
     async call(call) {

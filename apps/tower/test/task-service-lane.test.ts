@@ -20,7 +20,7 @@ afterEach(async () => { await fs.rm(cacheDir, { recursive: true, force: true });
 
 /** A task service that answers `answer(call)`; `down` makes every call unanswered. */
 function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unknown },
-  state: { down: boolean; connected: boolean; unknown?: boolean; appClientId?: string; register?: (redirectUri: string) => string } = { down: false, connected: true }) {
+  state: { down: boolean; connected: boolean; unknown?: boolean; appClientId?: string; register?: (redirectUri: string) => { clientId: string; held: boolean } } = { down: false, connected: true }) {
   const calls: TaskServiceCall[] = [];
   const registered: string[] = [];
   const service: TaskService = {
@@ -144,8 +144,8 @@ it("names the Tower's client id in Ntasks, for a person's sign-in, only once one
 
 it("registers the Tower for the origin the browser is on, and says plainly why Ntasks refused", async () => {
   const at = { origin: "https://tower.example.com", host: "tower.example.com" };
-  const fine = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true, register: () => "tower-registered" });
-  expect(await lane(fine.service)(request("POST", "/api/tasks/service/app", {}, at))).toEqual({ status: 200, body: { clientId: "tower-registered" } });
+  const fine = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true, register: () => ({ clientId: "tower-registered", held: true }) });
+  expect(await lane(fine.service)(request("POST", "/api/tasks/service/app", {}, at))).toEqual({ status: 200, body: { clientId: "tower-registered", held: true } });
   expect(fine.registered).toEqual(["https://tower.example.com/tasks/signed-in"]);
   expect((await lane(fine.service)(request("POST", "/api/tasks/service/app", {}))).status).toBe(400);
 
@@ -157,7 +157,7 @@ it("registers the Tower for the origin the browser is on, and says plainly why N
   const unanswered = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true,
     register: () => { throw new TaskServiceUnavailable("timeout"); } });
   expect((await lane(unanswered.service)(request("POST", "/api/tasks/service/app", {}, at)))).toMatchObject({ status: 503, body: { error: "task_service_unreachable" } });
-  const elsewhere = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: false, register: () => "never" });
+  const elsewhere = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: false, register: () => ({ clientId: "never", held: false }) });
   expect((await lane(elsewhere.service)(request("POST", "/api/tasks/service/app", {}, at))).status).toBe(409);
   expect(elsewhere.registered).toEqual([]);
 });

@@ -11,7 +11,7 @@ import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
 export const TASK_SERVICE_ROUTE = 'api/task-service';
-/** The ingest's route that registers the Tower in Ntasks, or answers the client id saved. */
+/** The ingest's route that answers the Tower's app in Ntasks for one address, registering it the first time. */
 export const TASK_SERVICE_APP_ROUTE = 'api/task-service/app';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
@@ -73,11 +73,11 @@ export interface TaskService {
   /** The Tower's client id as a connected app of the task service, when one is saved:
    * the id a person's browser signs in to Ntasks with. */
   appClientId(): Promise<string | null>;
-  /** The Tower's client id as a connected app, registering the Tower in Ntasks
-   * first, returning to `redirectUri`, when none is saved. Throws
-   * TaskServiceAppRefused when Ntasks refuses, TaskServiceUnavailable when it
-   * or the ingest gave no answer. */
-  registerApp(redirectUri: string): Promise<string>;
+  /** The Tower's client id as a connected app returning to `redirectUri`, which
+   * Ntasks registers the first time, and whether Ntasks holds that address
+   * until a workspace owner allows it. Throws TaskServiceAppRefused when Ntasks
+   * refuses, TaskServiceUnavailable when it or the ingest gave no answer. */
+  registerApp(redirectUri: string): Promise<{ readonly clientId: string; readonly held: boolean }>;
   /** Where the tasks live and the task service's address, waiting for the
    * ingest at most `within` milliseconds, or until it answers or fails when
    * `within` is absent; then its last answer, or `unknown` when it never gave one. */
@@ -192,7 +192,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
       if (typeof answer.clientId === 'string') {
         // The next status read asks the ingest again, so it names the client id just saved.
         status = null;
-        return answer.clientId;
+        return { clientId: answer.clientId, held: answer.held === true };
       }
       const refused = row(answer.refused);
       if (refused) throw new TaskServiceAppRefused(typeof refused.error === 'string' ? refused.error : 'refused', typeof refused.status === 'number' ? refused.status : 0);

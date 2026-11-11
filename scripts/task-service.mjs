@@ -11,7 +11,7 @@
 import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 export const TASK_SERVICE_ROUTE = 'api/task-service';
-/** The ingest's route that registers the Tower in Ntasks, or answers the client id saved. */
+/** The ingest's route that answers the Tower's app in Ntasks for one address, registering it the first time. */
 export const TASK_SERVICE_APP_ROUTE = 'api/task-service/app';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
@@ -168,7 +168,7 @@ export function createTaskService(options = {}) {
             if (typeof answer.clientId === 'string') {
                 // The next status read asks the ingest again, so it names the client id just saved.
                 status = null;
-                return answer.clientId;
+                return { clientId: answer.clientId, held: answer.held === true };
             }
             const refused = row(answer.refused);
             if (refused)

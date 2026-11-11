@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPersonSession, finishSignIn, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
+import { createPersonSession, finishSignIn, heldSentence, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
 
 // A person's sign-in to Ntasks from the Tower: the PKCE start and finish, and
 // the tokens this browser keeps and refreshes for them.
@@ -120,6 +121,28 @@ describe("the person's tokens", () => {
     expect(asked.code_challenge).toBe(btoa(String.fromCharCode(...digest)).replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, ""));
   });
 
+  it("starts a sign-in on a page without crypto.subtle, as at a plain http address off this machine, with the S256 challenge of the verifier", async () => {
+    const session = window.sessionStorage;
+    const withoutSubtle = { getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto) } as unknown as Crypto;
+    const address = new URL(await startSignIn(APP, { towerOrigin: "http://tower.local:5173", returnTo: "/tasks", session, crypto: withoutSubtle,
+      fetch: async () => Response.json({ version: 2, oldest: 1 }) }));
+    expect(address.searchParams.get("redirect_uri")).toBe("http://tower.local:5173/tasks/signed-in");
+    const { verifier } = JSON.parse(session.getItem("noticeos:ntasks-sign-in")!) as { verifier: string };
+    expect(verifier.length).toBeGreaterThanOrEqual(43);
+    expect(address.searchParams.get("code_challenge")).toBe(createHash("sha256").update(verifier).digest("base64url"));
+  });
+
+  it("starts at an address Ntasks holds without reading Ntasks first, and a refused sign-in there says where an owner allows it", async () => {
+    const session = window.sessionStorage;
+    const unreadable = vi.fn<typeof globalThis.fetch>(async () => { throw new TypeError("Failed to fetch"); });
+    const address = new URL(await startSignIn(APP, { towerOrigin: "http://tower.local:5173", returnTo: "/tasks", session, held: true, fetch: unreadable }));
+    expect(`${address.origin}${address.pathname}`).toBe(`${ORIGIN}/api/auth/oauth2/authorize`);
+    expect(unreadable).not.toHaveBeenCalled();
+    const { state } = JSON.parse(session.getItem("noticeos:ntasks-sign-in")!) as { state: string };
+    await expect(finishSignIn(`?error=access_denied&state=${state}`, { session, sessionFor: () => { throw new Error("no exchange"); } }))
+      .rejects.toThrow(heldSentence("http://tower.local:5173"));
+  });
+
   it("finishes only the sign-in this tab started, and keeps the person's tokens and name", async () => {
     const session = window.sessionStorage;
     await startSignIn(APP, { towerOrigin: "http://localhost:4173", returnTo: "/tasks?project=x", session,
@@ -135,7 +158,7 @@ describe("the person's tokens", () => {
 
     session.setItem("noticeos:ntasks-sign-in", JSON.stringify({ origin: ORIGIN, clientId: APP.clientId, redirectUri: "http://localhost:4173/tasks/signed-in",
       verifier, state: sent, returnTo: "/tasks?project=x" }));
-    expect(await finishSignIn(`?code=c1&state=${sent}`, { session, sessionFor: () => holder })).toEqual({ returnTo: "/tasks?project=x" });
+    expect(await finishSignIn(`?code=c1&state=${sent}`, { session, sessionFor: () => holder })).toEqual({ returnTo: "/tasks?project=x", app: APP });
     expect(Object.fromEntries(new URLSearchParams(String(fetch.mock.calls[0]![1]?.body)))).toMatchObject({ grant_type: "authorization_code", code: "c1",
       code_verifier: verifier, redirect_uri: "http://localhost:4173/tasks/signed-in", client_id: APP.clientId });
     expect(holder.snapshot()).toEqual({ signedIn: true, name: "Pat Example" });

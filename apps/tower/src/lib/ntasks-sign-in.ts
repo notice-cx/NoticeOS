@@ -1,3 +1,4 @@
+import { sha256 } from "@noble/hashes/sha2.js";
 import type { TaskChoiceKey } from "@noticeos/contract/task-choices";
 import type { TaskResolution } from "@noticeos/contract/task-resolution";
 import { NTASKS_SIGNED_IN_PATH } from "@shared/tasks";
@@ -64,6 +65,39 @@ export function returnAddress(towerOrigin: string): string {
   return `${towerOrigin}${SIGNED_IN_PATH}`;
 }
 
+/** Where a workspace owner allows a Tower address that Ntasks holds: an http
+ * address on a home network, such as http://tower.local:5173. */
+export function heldSentence(towerOrigin: string): string {
+  return `Ntasks holds sign-in from ${towerOrigin} until a workspace owner allows it: the owner presses Sign in to Ntasks here and chooses Allow.`;
+}
+
+/**
+ * The connected app this Tower address signs in to an Ntasks with, as this
+ * browser keeps it: Ntasks registers one app for each address the Tower is
+ * opened at, and browser storage is already per address. `held` is whether
+ * Ntasks held the address when it last answered.
+ */
+export interface KeptApp {
+  readonly clientId: string;
+  readonly held: boolean;
+}
+const keptName = (ntasksOrigin: string) => `ntasks-app:${ntasksOrigin}`;
+
+/** The app this browser keeps for an Ntasks, or null when it keeps none or what it keeps is not one. */
+export function keptApp(storage: TokenStorage, ntasksOrigin: string): KeptApp | null {
+  try {
+    const parsed = record(JSON.parse(storage.read(keptName(ntasksOrigin)) ?? "null"));
+    return typeof parsed?.clientId === "string" && parsed.clientId !== "" ? { clientId: parsed.clientId, held: parsed.held === true } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps the app this Tower address signs in to an Ntasks with, replacing the one kept before. */
+export function keepApp(storage: TokenStorage, ntasksOrigin: string, app: KeptApp): void {
+  storage.write(keptName(ntasksOrigin), JSON.stringify(app));
+}
+
 const tokensName = (app: NtasksApp) => `ntasks-person:${app.origin}:${app.clientId}`;
 /** The token audience Ntasks issues for: its MCP endpoint, as docs/sign-in.md names it. */
 const resourceOf = (app: NtasksApp) => `${app.origin}/api/mcp`;
@@ -76,6 +110,12 @@ function base64url(bytes: Uint8Array): string {
 
 function randomText(crypto: Crypto, length = 32): string {
   return base64url(crypto.getRandomValues(new Uint8Array(length)));
+}
+
+/** The PKCE S256 challenge of a verifier. Computed here rather than with
+ * `crypto.subtle`, which a page on plain http other than localhost lacks. */
+export function challengeOf(verifier: string): string {
+  return base64url(sha256(new TextEncoder().encode(verifier)));
 }
 
 /** A UUID where `randomUUID` is missing (a page on plain HTTP). */
@@ -96,6 +136,7 @@ async function bodyOf(response: Response): Promise<Record<string, unknown>> {
   try { return record(await response.json()) ?? {}; } catch { return {}; }
 }
 
+/** The tokens a browser keeps, or null when none are kept or what is kept is not tokens. */
 function readTokens(value: string | null): PersonTokens | null {
   if (value === null) return null;
   try {
@@ -124,13 +165,16 @@ interface PendingSignIn {
   verifier: string;
   state: string;
   returnTo: string;
+  /** Whether Ntasks held this Tower address when the sign-in began. */
+  held: boolean;
 }
 
+/** The sign-in this tab started, or null when it started none; a sign-in kept before `held` existed was not held. */
 function readPending(session: SessionStore): PendingSignIn | null {
   try {
     const parsed = record(JSON.parse(session.getItem(PENDING_KEY) ?? "null"));
     const keys = ["origin", "clientId", "redirectUri", "verifier", "state", "returnTo"] as const;
-    return parsed && keys.every((key) => typeof parsed[key] === "string") ? parsed as unknown as PendingSignIn : null;
+    return parsed && keys.every((key) => typeof parsed[key] === "string") ? { ...parsed as unknown as PendingSignIn, held: parsed.held === true } : null;
   } catch {
     return null;
   }
@@ -141,6 +185,8 @@ export interface StartOptions {
   towerOrigin: string;
   /** The Tower address to open once signed in. */
   returnTo: string;
+  /** Whether Ntasks holds this Tower address until a workspace owner allows it, as its registration answered. */
+  held?: boolean;
   session?: SessionStore;
   fetch?: typeof globalThis.fetch;
   crypto?: Crypto;
@@ -151,27 +197,32 @@ export interface StartOptions {
  * endpoint with this sign-in's PKCE challenge and state, kept in this tab
  * until they return. Refused before anything is kept when this Ntasks answers
  * an older API than connected apps need, or does not answer this page at all,
- * which is what it does for a Tower it has no connected app for.
+ * which is what it does for a Tower it has no connected app for. An address
+ * Ntasks holds skips that check: Ntasks answers its page nothing until an
+ * owner allows it, which happens on the page this sign-in opens, and an
+ * Ntasks that holds addresses is new enough.
  */
 export async function startSignIn(app: NtasksApp, options: StartOptions): Promise<string> {
   const crypto = options.crypto ?? globalThis.crypto;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const session = options.session ?? window.sessionStorage;
-  if (!crypto?.subtle) throw new Error("Signing in to Ntasks needs this Tower on https or a localhost address.");
-  let version: unknown;
-  try {
-    const answer = await fetchImpl(`${app.origin}/api/version`, { headers: { accept: "application/json" } });
-    version = answer.ok ? (await bodyOf(answer)).version : null;
-  } catch {
-    throw new Error(`${app.origin} did not answer this Tower. In Ntasks, register it under Settings → Connected apps with the address ${returnAddress(options.towerOrigin)}.`);
-  }
-  if (typeof version !== "number" || version < NTASKS_API_VERSION) {
-    throw new Error(`${app.origin} is older than the Tower needs for signing in. Update Ntasks to API version ${NTASKS_API_VERSION} or later.`);
+  const held = options.held === true;
+  if (!held) {
+    let version: unknown;
+    try {
+      const answer = await fetchImpl(`${app.origin}/api/version`, { headers: { accept: "application/json" } });
+      version = answer.ok ? (await bodyOf(answer)).version : null;
+    } catch {
+      throw new Error(`${app.origin} did not answer this Tower. In Ntasks, register it under Settings → Connected apps with the address ${returnAddress(options.towerOrigin)}.`);
+    }
+    if (typeof version !== "number" || version < NTASKS_API_VERSION) {
+      throw new Error(`${app.origin} is older than the Tower needs for signing in. Update Ntasks to API version ${NTASKS_API_VERSION} or later.`);
+    }
   }
   const verifier = randomText(crypto, 48);
-  const challenge = base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))));
+  const challenge = challengeOf(verifier);
   const pending: PendingSignIn = { origin: app.origin, clientId: app.clientId, redirectUri: returnAddress(options.towerOrigin),
-    verifier, state: randomText(crypto), returnTo: options.returnTo };
+    verifier, state: randomText(crypto), returnTo: options.returnTo, held };
   session.setItem(PENDING_KEY, JSON.stringify(pending));
   const query = new URLSearchParams({ response_type: "code", client_id: app.clientId, redirect_uri: pending.redirectUri,
     scope: SCOPE, state: pending.state, code_challenge: challenge, code_challenge_method: "S256", resource: resourceOf(app) });
@@ -189,18 +240,20 @@ export interface FinishOptions {
  * hand them to the app's holder. The state must be the one this tab sent,
  * and the sign-in in progress is forgotten whatever the outcome.
  */
-export async function finishSignIn(search: string, options: FinishOptions): Promise<{ returnTo: string }> {
+export async function finishSignIn(search: string, options: FinishOptions): Promise<{ returnTo: string; app: NtasksApp }> {
   const session = options.session ?? window.sessionStorage;
   const pending = readPending(session);
   session.removeItem(PENDING_KEY);
   const params = new URLSearchParams(search);
   if (pending === null || params.get("state") !== pending.state) throw new Error("This sign-in was not started from this tab. Sign in to Ntasks again.");
   const refused = params.get("error");
+  if (refused === "access_denied" && pending.held) throw new Error(heldSentence(new URL(pending.redirectUri).origin));
   if (refused !== null) throw new Error(refused === "access_denied" ? "Ntasks was not allowed to sign this Tower in." : `Ntasks refused the sign-in (${refused}).`);
   const code = params.get("code");
   if (!code) throw new Error("Ntasks sent no sign-in code. Sign in to Ntasks again.");
-  await options.sessionFor({ origin: pending.origin, clientId: pending.clientId }).exchange({ code, verifier: pending.verifier, redirectUri: pending.redirectUri });
-  return { returnTo: pending.returnTo };
+  const app = { origin: pending.origin, clientId: pending.clientId };
+  await options.sessionFor(app).exchange({ code, verifier: pending.verifier, redirectUri: pending.redirectUri });
+  return { returnTo: pending.returnTo, app };
 }
 
 /** One person's sign-in to one app, in this browser. */
