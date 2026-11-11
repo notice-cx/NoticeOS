@@ -4,7 +4,7 @@
 // machine that cannot reach the Tower's own /api/mcp. The endpoint is
 // standalone-mcp.mts's.
 //
-//   --actor <name>  Who the task projects record for this agent's changes (default: agent).
+//   --actor <name>  Who the installation records this agent as (default: agent).
 //
 // stdout carries MCP messages only; anything else goes to stderr.
 import { DATABASE_URL, readDevSecretBindings } from './dev-secrets.mjs';
@@ -37,7 +37,7 @@ export async function main(argv = process.argv.slice(2), { input = process.stdin
     return 1;
   }
   try {
-    err.write(`NoticeOS MCP: serving this installation's tasks and reports as ${options.actor}.\n`);
+    err.write(`NoticeOS MCP: serving this installation's reports as ${options.actor}.\n`);
     await serveMcpStdio(mcp.handle, { input, output, url: STANDALONE_MCP_ORIGIN + MCP_PATH, headers: { [ACTOR_HEADER]: options.actor } });
     return 0;
   } finally {

@@ -1,6 +1,6 @@
 // /api/mcp with every tool: the standalone endpoint (scripts/standalone-mcp.mts),
-// answered in the dev server, which has the task client and the database. It
-// reaches whoever reaches the Tower, as the Tower's own task pages do. Its own
+// answered in the dev server, which has the database and the published panels.
+// It reaches whoever reaches the Tower, as the Tower's own pages do. Its own
 // forwarded read-model calls pass through to the Worker.
 
 import type { ServerResponse } from "node:http";
@@ -61,7 +61,7 @@ export interface McpLaneOptions {
   env?: NodeJS.ProcessEnv;
   /** Opens the endpoint with the Tower's own address for its read models. */
   open?: (tower: string) => Promise<StandaloneMcp>;
-  /** The installation's task service, which the task tools use while it is connected. */
+  /** The installation's task service, whose answer names where its tasks live. */
   taskService?: TaskService;
 }
 

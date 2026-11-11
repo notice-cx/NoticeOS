@@ -14,7 +14,6 @@ import { PANEL_VERSION_KEEP_DAYS, panelVersionId, panelVersionTime, retainPanelV
 import { analyzeSignalHistory } from './signal-history-analyze.mjs';
 import { ARCHIVE_MONITORS, familyCollection, freshnessReport, refreshAsset } from './signal-panels-refresh.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
-import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // Site panels for agents: versions kept and gzipped (panel-versions.mts), each
 // report family's collection recorded at publication (signal-panels-refresh),
@@ -65,8 +64,8 @@ async function panelRoot(t, { freshness } = {}) {
 
 /** The standalone endpoint over `root`, and a tools/call helper. */
 async function endpoint(root) {
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} }, receipts: memoryReceipts(Date.now),
-    projects: async () => [], run: async () => ({ code: 0, stdout: '{}' }), panelRoot: root, fetch: async () => Response.json({}) });
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+    panelRoot: root, fetch: async () => Response.json({}) });
   const rpc = async (method, params) => (await (await mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }))).json());
   const call = async (name, args = {}) => {
@@ -419,7 +418,6 @@ test('a search review aligns complete weeks, preserves unknowns and uses only it
 test('a hosted endpoint asks for evidence reads before a panel tool runs, and refuses a panel configuration it cannot call', async () => {
   const reads = [];
   const handle = createHostedMcp({ profile: 'hosted', trustedOrigin: 'https://noticeos.example',
-    operations: { write: async () => ({}) },
     agents: { verify: async () => ({ scopes: ['tasks:read'] }), workspaces: async () => [] },
     panels: { read: async (...args) => { reads.push(args); return {}; } } });
   const response = await handle(new Request('https://noticeos.example/api/mcp', { method: 'POST',
@@ -429,7 +427,7 @@ test('a hosted endpoint asks for evidence reads before a panel tool runs, and re
   assert.match(response.headers.get('www-authenticate') ?? '', /insufficient_scope/u);
   assert.deepEqual(reads, []);
   assert.throws(() => createHostedMcp({ profile: 'standalone', trustedOrigin: 'http://localhost', standaloneWorkspaceId: WORKSPACE,
-    operations: { write: async () => ({}) }, panels: {} }), /MCP configuration refused/u);
+    taskHome: async () => ({ kind: 'none' }), panels: {} }), /MCP configuration refused/u);
 });
 
 test('a refresh publishes a version an agent reads through the endpoint, with each family\'s collection as health stood', async (t) => {

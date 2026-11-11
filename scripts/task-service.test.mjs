@@ -3,7 +3,6 @@ import test from 'node:test';
 import { createTaskService, mapTaskProjects, TaskServiceAppRefused, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
 import { INSTALLATION_TASK_RULES, ntasksGuide, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
-import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { backupTaskHub } from './runner/task-service-poll.mjs';
 
 // scripts/task-service.mts and the standalone MCP's task service. The ingest
@@ -137,16 +136,12 @@ test('a saved task project is the Ntasks project with its prefix', () => {
 });
 
 async function standalone(fetch, now = Date.now) {
-  const ran = [];
-  const handle = await openStandaloneMcp({ store: { onlyWorkspace: async () => LOCAL, close: async () => {},
-    inWorkspace: async () => [] }, receipts: memoryReceipts(Date.now),
-    projects: async () => [{ projectId: PROJECT.projectId, asset: 'example.com', prefix: 'ex', cwd: '/nowhere' }],
-    run: async argv => { ran.push(argv); return { code: 0, stdout: '[]' }; }, taskService: service(fetch, now) });
+  const handle = await openStandaloneMcp({ store: { onlyWorkspace: async () => LOCAL, close: async () => {} }, taskService: service(fetch, now) });
   const rpc = async (method, params = {}) => (await handle.handle(new Request('http://localhost/api/mcp', { method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }))).json();
   const call = (name, args) => rpc('tools/call', { name, arguments: args });
-  return { rpc, call, ran, close: () => handle.close() };
+  return { rpc, call, close: () => handle.close() };
 }
 
 const TASK_TOOL_NAMES = new Set(TASK_MCP_TOOLS.map(tool => tool.name));
@@ -179,7 +174,6 @@ test('while the tasks live in Ntasks, the endpoint lists no task tools and names
   assert.equal(claimed.result.isError, true);
   assert.ok(claimed.result.content[0].text.includes(ENDPOINT));
   assert.deepEqual(asked, [], 'Ntasks is not asked for a task tool');
-  assert.deepEqual(local.ran, []);
 
   // Disconnected, the installation has no tasks: still no task tools, and the guide names where to connect.
   connected = false; clock = 6_000;
@@ -207,7 +201,6 @@ test('a task tool waits for the ingest\'s current answer, and is refused once it
   const answer = await call;
   assert.equal(answer.result.isError, true);
   assert.ok(answer.result.content[0].text.includes(ENDPOINT));
-  assert.deepEqual(local.ran, [], 'the local task database is not read');
 });
 
 test('the guide gives the Claude Code command only for an address a shell runs unchanged', () => {
@@ -217,16 +210,18 @@ test('the guide gives the Claude Code command only for an address a shell runs u
   assert.equal(odd.includes('claude mcp add'), false);
 });
 
-test('before the ingest has ever said where the tasks live, a task tool answers unavailable', async t => {
+test('before the ingest has ever said where the tasks live, the endpoint lists no task tools and a task tool answers unavailable', async t => {
   const down = await standalone(async () => { throw new TypeError('ECONNREFUSED'); });
   t.after(down.close);
   const unknown = await down.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
   assert.equal(unknown.result.isError, true);
   assert.match(unknown.result.content[0].text, /^unavailable:/u);
-  assert.deepEqual(down.ran, []);
+  // It lists no task tools, and its guide says where the tasks live is unknown.
+  assert.deepEqual((await down.rpc('tools/list')).result.tools.map(tool => tool.name).filter(name => TASK_TOOL_NAMES.has(name)), []);
+  assert.match((await down.call('get_task_guide', {})).result.structuredContent.guide, /unknown whether its tasks live in Ntasks/u);
 });
 
-test('with no task service connected the endpoint has no task tools, names where to connect Ntasks, and runs none', async t => {
+test('with no task service connected the endpoint has no task tools and names where to connect Ntasks', async t => {
   const local = await standalone(door(async () => { throw new Error('Ntasks must not be asked'); }, { connected: false }));
   t.after(local.close);
   const names = (await local.rpc('tools/list')).result.tools.map(tool => tool.name);
@@ -239,7 +234,6 @@ test('with no task service connected the endpoint has no task tools, names where
   const listed = await local.call('list_projects', { workspace: LOCAL });
   assert.equal(listed.result.isError, true);
   assert.match(listed.result.content[0].text, /^refused: .*Settings → Task projects/u);
-  assert.deepEqual(local.ran, [], 'no task client runs');
 });
 
 test('where the tasks live is the ingest\'s last answer while it cannot say, and unknown before it ever has', async () => {
@@ -271,7 +265,6 @@ test('a known answer that no task service is connected stands while the ingest d
   const listed = await local.call('list_projects', { workspace: LOCAL });
   assert.match(listed.result.content[0].text, /^refused: .*Settings → Task projects/u);
   assert.equal(reads, 1, 'the ingest was asked, and its last answer stood');
-  assert.deepEqual(local.ran, []);
 });
 
 test('the backup asks the ingest itself: a disconnected answer a moment ago does not stand for an ingest that now fails or a newly connected Ntasks', async () => {

@@ -10,9 +10,7 @@ import { AGENT_NAMES, IDENTITY_NAMES, agentPlugins } from '../packages/postgres/
 import { openAgentSignIn } from '../packages/postgres/src/agent-sign-in.mjs';
 import { openIdentity } from '../packages/postgres/src/identity.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
-import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { AGENT_ACCESS_PATHS, AUTHORIZATION_SERVER_METADATA_PATH, PROTECTED_RESOURCE_METADATA_PATH } from './agent-access.mjs';
 import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { findPostgres, LOOPBACK_HBA, migrationsFrom } from './postgres-dev.mjs';
@@ -264,15 +262,11 @@ test('an agent registers, its person approves it once, and its token reaches eac
 
     // The one MCP endpoint over these facts: a 401 naming where to sign in,
     // the person's workspaces, and each call in the workspace it names.
-    const project = randomUUID();
-    const fake = fakeTaskExecutor({ principal: () => person.id, clock: Date.now });
     const forwarded = [];
     const mcp = createHostedMcp({ profile: 'hosted', trustedOrigin: origin,
       agents: { verify: request => identity.agentToken(request), workspaces: request => identity.agentWorkspaces(request) },
       readModels: async request => { forwarded.push(request); return Response.json({ jsonrpc: '2.0', id: 1, result: {
-        content: [{ type: 'text', text: '{}' }], structuredContent: { properties: [] } } }); },
-      operations: createHostedTaskOperations({ admission, executor: fake.executor, receipts: memoryReceipts(Date.now),
-        directory: { catalog: async () => Object.freeze([{ projectId: project, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]) } }) });
+        content: [{ type: 'text', text: '{}' }], structuredContent: { properties: [] } } }); } });
     const rpc = (headers, name, args = {}) => mcp(new Request(origin + MCP_PATH, { method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }));
@@ -284,13 +278,10 @@ test('an agent registers, its person approves it once, and its token reaches eac
     const listed = (await (await rpc(authorized, 'list_workspaces')).json()).result.structuredContent.workspaces;
     assert.deepEqual(listed.map(row => [row.workspaceId, row.access]).sort(), [[operated, ['tasks:read', 'tasks:write', 'evidence:read']],
       [viewed, ['tasks:read', 'evidence:read']]].sort());
-    const claimed = await (await rpc(authorized, 'claim_task', { workspace: operated, project, task: 'tt-1', idempotency_key: 'agent-claim-0001' })).json();
-    assert.equal(claimed.result.isError, undefined, JSON.stringify(claimed));
-    const refusedWrite = await (await rpc(authorized, 'claim_task', { workspace: viewed, project, task: 'tt-1', idempotency_key: 'agent-claim-0002' })).json();
-    assert.match(refusedWrite.result.content[0].text, /^refused:/u);
-    // The claim, then its read-back, all in the named workspace; the viewer's refused write reaches no command.
-    assert.deepEqual(fake.calls.map(entry => [entry.workspace, entry.operation.kind]),
-      [[operated, 'update'], [operated, 'ready'], [operated, 'show'], [operated, 'comments']]);
+    // A hosted workspace has no task service: a task tool is refused, and nothing is forwarded.
+    const claimed = await (await rpc(authorized, 'claim_task', { workspace: operated, task: 'tt-1' })).json();
+    assert.match(claimed.result.content[0].text, /^refused: This installation has no task service connected/u);
+    assert.equal(forwarded.length, 0);
     await rpc(authorized, 'list_properties', { workspace: viewed });
     assert.deepEqual([forwarded[0].headers.get('authorization'), forwarded[0].headers.get('x-noticeos-workspace-id')], [`Bearer ${operator}`, viewed]);
   } catch (error) { primaryError = error; throw error; } finally {
