@@ -83,6 +83,7 @@ export interface KeptApp {
 }
 const keptName = (ntasksOrigin: string) => `ntasks-app:${ntasksOrigin}`;
 
+/** The app this browser keeps for an Ntasks, or null when it keeps none or what it keeps is not one. */
 export function keptApp(storage: TokenStorage, ntasksOrigin: string): KeptApp | null {
   try {
     const parsed = record(JSON.parse(storage.read(keptName(ntasksOrigin)) ?? "null"));
@@ -92,6 +93,7 @@ export function keptApp(storage: TokenStorage, ntasksOrigin: string): KeptApp | 
   }
 }
 
+/** Keeps the app this Tower address signs in to an Ntasks with, replacing the one kept before. */
 export function keepApp(storage: TokenStorage, ntasksOrigin: string, app: KeptApp): void {
   storage.write(keptName(ntasksOrigin), JSON.stringify(app));
 }
@@ -134,6 +136,7 @@ async function bodyOf(response: Response): Promise<Record<string, unknown>> {
   try { return record(await response.json()) ?? {}; } catch { return {}; }
 }
 
+/** The tokens a browser keeps, or null when none are kept or what is kept is not tokens. */
 function readTokens(value: string | null): PersonTokens | null {
   if (value === null) return null;
   try {
@@ -166,6 +169,7 @@ interface PendingSignIn {
   held: boolean;
 }
 
+/** The sign-in this tab started, or null when it started none; a sign-in kept before `held` existed was not held. */
 function readPending(session: SessionStore): PendingSignIn | null {
   try {
     const parsed = record(JSON.parse(session.getItem(PENDING_KEY) ?? "null"));

@@ -42,6 +42,7 @@ export function resetPersonSessions(): void { sessions = new WeakMap(); }
 const NO_SUBSCRIPTION = () => () => {};
 const SIGNED_OUT = { signedIn: false, name: null } as const;
 
+/** Who decides on the Tasks pages in this browser, and the session to sign in with (NtasksSignIn). */
 export function useNtasksSignIn(): NtasksSignIn {
   const { data } = useTaskService();
   const runtime = useBrowserRuntime();

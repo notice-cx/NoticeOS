@@ -571,9 +571,9 @@ async function fetchTaskServiceRequest(fetch: ApiTransport, signal?: AbortSignal
   return (await res.json()) as TaskServiceStatus;
 }
 
-/** The client id Sign in to Ntasks signs in with: the one saved, or, when
- * none is, the one Ntasks answers once the installation registered the Tower
- * there for this page's origin. */
+/** The client id Sign in to Ntasks signs in with at this page's origin, which
+ * Ntasks registers the first time, and whether Ntasks holds that address
+ * until a workspace owner allows it. */
 async function registerNtasksAppRequest(fetch: ApiTransport): Promise<{ clientId: string; held: boolean }> {
   const res = await fetch(TASK_SERVICE_APP_PATH, { method: "POST", headers: JSON_WRITE_HEADERS, body: "{}" });
   if (!res.ok) throw await refusal(res, `POST ${TASK_SERVICE_APP_PATH} failed: ${res.status}`);
