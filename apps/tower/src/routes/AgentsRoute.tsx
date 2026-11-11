@@ -1,24 +1,20 @@
 import { Fragment, type ReactNode } from "react";
 import { useView } from "@/hooks/useView";
-import { AGENT_SECTION_ORDER, agentViewPresentation, type AgentSection } from "./agents/agent-view";
+import { AGENT_SECTION_ORDER, agentOutcome, agentViewPresentation, type AgentSection } from "./agents/agent-view";
 import { PageHeader } from "@/components/PageHeader";
-import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { RouteLoading } from "@/components/RouteLoading";
 import { TaskHubUnavailable } from "@/components/TaskSourceSection";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { StatusBanner } from "@/components/surface/StatusBanner";
-import { RaceChart } from "@/components/viz/RaceChart";
 import { StackedWeeks } from "@/components/viz/StackedWeeks";
 import { useAgentWork } from "@/hooks/useAgentWork";
 import { type AgentStats } from "@noticeos/contract/agent-stats";
 import { Link } from "react-router-dom";
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { AgentTrophies, PANEL, WorkerRows } from "./agents/agent-panels";
-
-const DAY_MS = 86_400_000;
+import { PANEL, WorkerRows } from "./agents/agent-panels";
 
 /** Model activity from a dedicated server-side statistics read. */
 export function AgentsRoute() {
@@ -44,11 +40,8 @@ function AgentsBoard({ work, broken, complete, failed }: {
 }) {
   const { view } = useView();
   const presentation = agentViewPresentation(view.id, work);
-  const change = work.week - work.lastWeek;
-  const ticks = Array.from({ length: 7 }, (_, index) => {
-    const ms = Math.ceil(work.race.from / DAY_MS) * DAY_MS + index * DAY_MS;
-    return [ms, new Date(ms).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })] as const;
-  }).filter(([ms]) => ms <= work.race.to);
+  const outcome = agentOutcome(work);
+  const change = outcome.count - outcome.before;
   return (
     <>
       <StatusBanner open={broken.length > 0} severity="warn" subject="agents:projects"
@@ -62,7 +55,7 @@ function AgentsBoard({ work, broken, complete, failed }: {
         <PageAnswer
           answer={presentation.answer}
           detail={complete && (view.id === "overview" || view.id === "growth") ? change === 0 ? "As many as the 7 days before"
-            : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(work.lastWeek!)})` : undefined}
+            : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(outcome.before)})` : undefined}
           figures={presentation.figures}
           marks={{ "data-agents-answer": "" }}
         />
@@ -82,17 +75,8 @@ function AgentsBoard({ work, broken, complete, failed }: {
           <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
             ariaLabel="Tasks closed a week, by model" className="min-h-56" />
         </section> : null,
-          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers} emphasis={view.id === "reliability" ? "blocked" : view.id === "delivery" ? "inHand" : undefined} /> : null,
-          ranking: work.race.players.length > 0 ? <section aria-label="Ranking" data-agent-race="" className={PANEL}>
-          <h2 className={cn("m-0", eyebrowClass)}>Ranking · models, last 7 days</h2>
-          <RaceChart
-              entries={work.race.players.map((player) => ({ key: player.key, name: player.name,
-                mark: <AgentMark name={player.name} size="small" />, at: player.closes, score: player.points }))}
-              from={work.race.from} to={work.race.to} unit="task" ticks={ticks}
-              ariaLabel="Tasks closed in the last 7 days, running total per model, ranked by points" className="min-h-64" />
-          <span className="text-xs text-muted-foreground">Ranked by points: a top-priority task counts 5, high 3, normal 2, low and lowest 1.</span>
-        </section> : null,
-          leaders: work.trophies.length > 0 ? <AgentTrophies trophies={work.trophies} className={view.id === 'overview' ? 'lg:col-span-2' : undefined} /> : null,
+          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers}
+            className={view.id === "overview" || !work.velocity.weeks.some(week => week.total > 0) ? "lg:col-span-2" : undefined} /> : null,
         } satisfies Record<AgentSection, ReactNode>)[section]}</Fragment>)}
       </div>
     </>

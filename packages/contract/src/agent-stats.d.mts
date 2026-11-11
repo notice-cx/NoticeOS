@@ -27,6 +27,9 @@ export interface ModelStats {
     week: number;
     lastWeek: number;
     medianHours: number | null;
+    /** The changes merged or live in the last 7 days with one of this model's
+     * tasks; null where the task source records no merges. */
+    shipped: number | null;
 }
 export interface VelocityWeek {
     start: string;
@@ -34,37 +37,33 @@ export interface VelocityWeek {
     counts: Record<string, number>;
     total: number;
 }
-export interface AgentRacePlayer {
-    key: string;
-    name: string;
-    closes: number[];
-    points: number;
-}
-export interface AgentAward {
-    key: 'most' | 'fastest' | 'streak' | 'urgent';
-    award: string;
-    holder: string;
-    value: string;
-    detail: string | null;
-}
 export interface AgentStats {
+    /** In name order, Other last. */
     workers: ModelStats[];
     velocity: {
         weeks: VelocityWeek[];
         keys: string[];
         names: Record<string, string>;
     };
+    /** The last 7 days, with no players: a Tower page loaded before the
+     * ranking was removed still reads it. */
     race: {
         from: number;
         to: number;
-        players: AgentRacePlayer[];
+        players: [];
     };
-    trophies: AgentAward[];
+    /** Always empty, for the same pages. */
+    trophies: [];
     week: number;
     lastWeek: number;
     inHand: number;
     blocked: number;
     medianHours: number | null;
+    /** The changes merged or live in the last 7 days, each pull request once;
+     * null where the task source records no merges. */
+    shipped: number | null;
+    /** The same, for the 7 days before. */
+    shippedLastWeek: number | null;
 }
 export interface AgentStatsPayload {
     readAt: string;
@@ -77,9 +76,8 @@ export interface AgentStatsPayload {
  * rule knows is Other. */
 export declare function canonicalAgentModel(value: string | null): string;
 export declare function medianOf(values: readonly number[]): number | null;
-export declare function taskPoints(priority: number): number;
-export declare function streakOf(days: readonly number[]): number;
 export declare function formatHours(hours: number): string;
 /** Aggregate before serialization: no task bodies, identities or metadata leave
- * the server. Historical closes still count when their model is no longer active. */
+ * the server. Historical closes still count when their model is no longer active.
+ * These tasks carry no delivery, so nothing here counts a change shipped. */
 export declare function readAgentStats(projects: readonly AgentStatsProject[], nowMs: number): AgentStats;

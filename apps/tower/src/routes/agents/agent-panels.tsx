@@ -1,5 +1,4 @@
-import { Flame, Timer, Trophy, Zap } from "lucide-react";
-import { formatHours, type AgentAward, type ModelStats } from "@noticeos/contract/agent-stats";
+import { formatHours, type ModelStats } from "@noticeos/contract/agent-stats";
 import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
@@ -9,25 +8,30 @@ import { cn } from "@/lib/utils";
 /** The page's panels share one frame: flat, on a hairline ring. */
 export const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border";
 
-/** Active model groups: recent closes, work in progress or blocked work. */
-export function WorkerRows({ workers, emphasis }: { workers: readonly ModelStats[]; emphasis?: "blocked" | "inHand" }) {
-  const ordered = emphasis ? [...workers].sort((a, b) => b[emphasis] - a[emphasis] || a.name.localeCompare(b.name)) : workers;
+/** Active model groups, in name order: recent closes, work in progress,
+ * blocked work and changes shipped. The shipped column shows only where the
+ * task source records merges. */
+export function WorkerRows({ workers, className }: { workers: readonly ModelStats[]; className?: string }) {
   const ceiling = Math.max(1, ...workers.flatMap(worker => worker.days));
+  // An Ntasks older than the shipped counts leaves the field out.
+  const shipped = workers.some(worker => (worker.shipped ?? null) !== null);
   return (
-    <section aria-label="Who's working" data-agent-rows="" className={PANEL}>
+    <section aria-label="Who's working" data-agent-rows="" className={cn(PANEL, className)}>
       <h2 className={cn("m-0", eyebrowClass)}>Who's working</h2>
       {workers.length === 0 ? <EmptyState size="sm" title="No work in progress or closed in the last 7 days" /> : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-muted-foreground">
-              <tr><th scope="col" className="pb-2">Model</th><th scope="col" className="pb-2 text-right">In progress</th><th scope="col" className="px-3 pb-2">Closed, 7 days</th><th scope="col" className="pb-2 text-right">Claim to close</th><th scope="col" className="pl-3 pb-2 text-right">Blocked</th></tr>
+              <tr><th scope="col" className="pb-2">Model</th>{shipped ? <th scope="col" className="pr-3 pb-2 text-right">Shipped, 7 days</th> : null}<th scope="col" className="pb-2 text-right">In progress</th><th scope="col" className="px-3 pb-2">Closed, 7 days</th><th scope="col" className="pb-2 text-right">Claim to close</th><th scope="col" className="pl-3 pb-2 text-right">Blocked</th></tr>
             </thead>
             <tbody>
-              {ordered.map(worker => (
+              {workers.map(worker => (
                 <tr key={worker.id} data-agent-row={worker.id} className="border-t border-border/70">
                   <th scope="row" className="py-3 pr-3 font-semibold text-foreground">
                     <span className="flex min-w-0 items-center gap-2.5"><AgentMark name={worker.name} /><span>{worker.name}</span></span>
                   </th>
+                  {shipped ? <td className="py-3 pr-3 text-right font-semibold tabular-nums">{(worker.shipped ?? null) === null
+                    ? <span className="font-normal text-muted-foreground">not measured</span> : formatInt(worker.shipped!)}</td> : null}
                   <td className="py-3 text-right tabular-nums">{formatInt(worker.inHand)}</td>
                   <td className="px-3 py-3"><span className="flex items-center gap-2"><span className="font-semibold tabular-nums" data-agent-week={worker.week}>{formatInt(worker.week)}</span><DayTicks days={worker.days} ceiling={ceiling} label={`${worker.name}: closed a day, last 7 days`} /></span></td>
                   <td className="whitespace-nowrap py-3 text-right tabular-nums">{worker.medianHours === null ? <span className="text-muted-foreground">not yet</span> : formatHours(worker.medianHours)}</td>
@@ -55,40 +59,5 @@ function DayTicks({ days, ceiling, label }: { days: readonly number[]; ceiling: 
         );
       })}
     </span>
-  );
-}
-
-// --- the contest --------------------------------------------------------------------
-
-const AWARD_ICON = { most: Trophy, fastest: Zap, streak: Flame, urgent: Timer } as const;
-
-/** The last seven days' awards, one figure each. */
-export function AgentTrophies({ trophies, className }: { trophies: readonly AgentAward[]; className?: string }) {
-  return (
-    <section aria-label="Leaders" data-agent-trophies="" className={cn(PANEL, className)}>
-      <h2 className={cn("m-0", eyebrowClass)}>Leaders · last 7 days</h2>
-      {trophies.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
-          {trophies.map((trophy, index) => {
-            const Icon = AWARD_ICON[trophy.key];
-            return (
-              <div key={trophy.key} data-agent-trophy={trophy.key} className="flex min-w-0 flex-col gap-1.5 rounded-lg bg-muted/50 p-3">
-                <span className={cn("flex items-center gap-1.5", eyebrowClass)}>
-                  <Icon aria-hidden className={cn("size-3.5", index === 0 ? "text-milestone" : "text-muted-foreground")} />{trophy.award}
-                </span>
-                <span className="text-figure-sm font-semibold leading-none tabular-nums text-foreground">
-                  {trophy.value}
-                  {trophy.detail ? <span className="ms-1.5 text-xs font-normal text-muted-foreground [overflow-wrap:anywhere]">{trophy.detail}</span> : null}
-                </span>
-                <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                  <AgentMark name={trophy.holder} size="small" />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">{trophy.holder}</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </section>
   );
 }
