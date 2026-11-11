@@ -13,7 +13,7 @@ const NOTICES = ['docker-cli-28.5.2-LICENSE.txt', 'docker-cli-28.5.2-NOTICE.txt'
 const OLD = 'sha256:' + 'b'.repeat(64);
 const NEW = 'sha256:' + 'a'.repeat(64);
 const required = ['package.json','pnpm-lock.yaml','pnpm-workspace.yaml','tsconfig.base.json','LICENSE','THIRD_PARTY_NOTICES.md',
-  'deploy/compose/licenses/beads-1.3.1-LICENSE.txt','deploy/compose/licenses/dolt-2.4.0-LICENSE.txt','deploy/compose/licenses/sources.json',
+  'deploy/compose/licenses/sources.json',
   'apps/tower/wrangler.jsonc','workers/ingest/wrangler.jsonc','db/postgres/tables.json','db/postgres/roles.sql',
   'db/postgres/migrations/0001_baseline.sql','deploy/compose/Dockerfile','deploy/compose/entrypoint.mjs','deploy/compose/development.mjs','deploy/compose/health.mjs',
   ...NOTICES, ...STACK_SOURCES.filter(file => file !== 'db/postgres/roles.sql'), 'deploy/compose/noticeos'];

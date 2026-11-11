@@ -11,7 +11,7 @@ import { STACK_SOURCES } from './installation-layout.mjs';
 const NOTICES = ['docker-cli-28.5.2-LICENSE.txt', 'docker-cli-28.5.2-NOTICE.txt', 'docker-compose-2.40.3-LICENSE.txt', 'docker-compose-2.40.3-NOTICE.txt'].map(file => `deploy/compose/licenses/${file}`);
 
 const required = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-  'deploy/compose/licenses/beads-1.3.1-LICENSE.txt', 'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/sources.json',
+  'deploy/compose/licenses/sources.json',
   'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs',
   ...NOTICES, ...STACK_SOURCES, 'deploy/compose/noticeos'];
 function fixture(t) {
