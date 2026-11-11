@@ -124,10 +124,10 @@ and [bootstrap credential setup](docs/06-operations.md#bootstrap-secrets-vs-inte
 agents coordinate the same tasks across NoticeOS and the projects it manages,
 with status, ownership, dependencies, approval gates and evidence. Connect an
 Ntasks in **Settings** > **Task projects**
-([Keep tasks in Ntasks](docs/guides/keep-tasks-in-ntasks.md)); new installations
-include a NoticeOS task project, and
-[Connect a task project](docs/guides/connect-a-task-project.md) covers each
-website's project.
+([Keep tasks in Ntasks](docs/guides/keep-tasks-in-ntasks.md)). New installations
+list the System's task project there; Ntasks needs a project with the same
+prefix, and [Connect a task project](docs/guides/connect-a-task-project.md)
+covers making it and each website's project.
 
 People work on the **Tasks** page, which is the Ntasks web app. A coding agent
 such as Claude Code reaches the tasks through Ntasks's MCP endpoint, and the
