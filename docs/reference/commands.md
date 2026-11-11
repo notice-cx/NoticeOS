@@ -95,7 +95,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 |---|---|---|
 | `test` | Every workspace's unit tests. | `pnpm -r --if-present run test` |
 | `test:scripts` | The root suite: every scripts/*.test.mjs. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
-| `test:task-store` | The task-store suite against a real Dolt server in Docker. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:demo-ntasks` | The public demo's suites against its own Ntasks. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
 | `test:journeys` | The Tower's browser journeys, then the flow walker. | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` |
 
 ### The repository

@@ -26,11 +26,10 @@ concurrency:
 # smoke journeys and the journey harness. The merge queue, a push to main, the
 # nightly run and a run started by hand run the full lane: those suites, every
 # browser journey in three shards, the harness with the UX flow walker, and
-# the task store suites against a real Dolt server. Each gate runs once per
+# the public demo's suites against its own Ntasks. Each gate runs once per
 # lane, in one job; `build` is the verdict branch protection requires. A job installs only what its own
-# suites start: PostgreSQL 18, Chromium in the two browser jobs, and the pinned
-# task client, Dolt client and Dolt server image in the task-store job
-# (scripts/ci-contract.test.mjs). Each job stops after 30 minutes: an install
+# suites start: PostgreSQL 18, Chromium in the two browser jobs, and the
+# demo's pinned Ntasks in the demo-ntasks job (scripts/ci-contract.test.mjs). Each job stops after 30 minutes: an install
 # stuck on a package mirror once held a runner for six hours.
 jobs:
   # Which jobs this run needs, as JSON by job name. The full lane needs every
@@ -277,17 +276,13 @@ jobs:
             apps/tower/e2e/test-results/
           retention-days: 14
 
-  # The real task store: the task client and Dolt server the
-  # application pins, in Docker. Two servers racing one claim have one winner;
-  # a change retried after a lost reply is not repeated; task summaries and the
-  # task HTTP routes run against Postgres too. The public demo's simulator days
-  # and its task pages run against the demo's own Ntasks, built at its pin.
-  # The root suite skips these tests; this job supplies their opt-in inputs
-  # (db/dolt/host/README.md). Two runners each take half the files, which
-  # puts the two longest (the persistent demo and the claim race) apart.
-  task-store:
+  # The public demo's simulator days and its task pages, against the demo's
+  # own Ntasks built at its pin. The root suite skips these tests; this job
+  # supplies the built Ntasks they need. Two runners each take one of the two
+  # files.
+  demo-ntasks:
     needs: scope
-    if: fromJSON(needs.scope.outputs.needed)['task-store']
+    if: fromJSON(needs.scope.outputs.needed)['demo-ntasks']
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -303,28 +298,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"
       # The public demo's own Ntasks, built from the commit deploy/demo/ntasks.json pins.
       - run: node scripts/demo-ntasks-build.mjs --out "$RUNNER_TEMP/ntasks" >> "$GITHUB_ENV"
-      - run: pnpm test:task-store
+      - run: pnpm test:demo-ntasks
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           NODE_OPTIONS: --test-shard=${{ matrix.shard }}/2
-      # Each suite's redacted receipt: every task and Dolt client command it
-      # ran, with its exit code and output, and the fixture's cleanup.
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: task-store-evidence-${{ matrix.shard }}
-          path: ${{ runner.temp }}/task-store/evidence/
-          retention-days: 14
 
   # The one check branch protection requires, on pull requests and in the
   # merge queue alike: the scope job passed, and every other job passed or was
   # skipped because the scope named it not needed for this run. A job the
   # scope does not name fails the verdict.
   build:
-    needs: [scope, tower-unit, ingest-unit, scripts, smoke, browser, flow-gate, task-store]
+    needs: [scope, tower-unit, ingest-unit, scripts, smoke, browser, flow-gate, demo-ntasks]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 30

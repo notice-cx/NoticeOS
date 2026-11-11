@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { readTaskProjects } from './task-project-config.mjs';
-import { assertTaskFixtureOutsideGit } from './test-fixtures/hosted-task-projects.mjs';
+import { assertOutsideGit } from './test-fixtures/outside-git.mjs';
 
 /** A declared Dolt home, as the synthetic viewer's NOTICEOS_DOLT_HOME names one. */
 async function doltHome(root) {
@@ -62,9 +62,9 @@ test('task fixture initialization cannot discover a parent project checkout', as
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const nested = path.join(root, 'scratch/fixture');
   await fs.mkdir(nested, { recursive: true });
-  assertTaskFixtureOutsideGit(nested);
+  assertOutsideGit(nested);
   await fs.mkdir(path.join(root, '.git'));
-  assert.throws(() => assertTaskFixtureOutsideGit(nested), /Task fixtures must be outside Git checkouts/);
+  assert.throws(() => assertOutsideGit(nested), /Test fixtures must be outside Git checkouts/);
   assert.deepEqual(await fs.readdir(nested), []);
 });
 

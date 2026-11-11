@@ -58,7 +58,3 @@ noticeos_managed_docker() {
   env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
     docker --host=unix:///var/run/docker.sock "$@"
 }
-# Changes only when the pinned task tools or the way they are prepared change.
-noticeos_task_tools_key() {
-  node "$NOTICEOS_REPO/scripts/task-store-test-tools.mjs" --key
-}

@@ -86,7 +86,7 @@
 |---|---|---|
 | `test` | Every workspace's unit tests. | `pnpm -r --if-present run test` |
 | `test:scripts` | The root suite: every scripts/*.test.mjs. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
-| `test:task-store` | The task-store suite against a real Dolt server in Docker. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:demo-ntasks` | The public demo's suites against its own Ntasks. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
 | `test:journeys` | The Tower's browser journeys, then the flow walker. | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` |
 
 ### The repository
@@ -493,42 +493,15 @@ can conclude that no action is warranted. See
 
 # Hosted runtime
 
-## Explicit local hosted Tasks entry
+## The MCP endpoint
 
-`hosted-task-serve.mjs` composes the real Vite/Worker browser entry and the
-qualified Node executor in one process, from an operator-prepared, owner-only
-runtime file and two explicit Worker configurations:
-
-```sh
-node scripts/hosted-task-serve.mjs --runtime-file ABSOLUTE_FILE --worker-config-root ABSOLUTE_DIRECTORY
-```
-
-The runtime file follows `HostedTaskRuntimeOptions` in
-[`hosted-task-runtime.mts`](hosted-task-runtime.mts): hosted or demo mode, the
-identity and directory connections, pinned task and grant-inspection binaries
-and a private scratch directory. The qualified transport is loopback HTTP with
-native adjacent task clients, not a remote proxy or TLS deployment, with no
-host discovery or missing-composition fallback. The Tower-compatible adapter
-is [`hosted-tasks-api.mts`](hosted-tasks-api.mts). Answer, Dismiss and
-human-gate Approve use the shared `tasks.decide` action, which only current
-person owners/operators may use. Every hosted mutation holds a fail-busy
-per-workspace advisory lock through task-process retirement.
-
-**Retry-safe writes.** The Tasks API and the MCP task tools
-([`hosted-task-mcp.mts`](hosted-task-mcp.mts)) call the same operations
-([`hosted-task-operations.mts`](hosted-task-operations.mts)). A create,
-update, comment or close may carry an idempotency key (`Idempotency-Key`
-header on HTTP, `idempotency_key` argument on MCP): a retry returns the
-recorded outcome, other content under the same key answers 409
-`idempotency_conflict`, a still-running attempt 409 `operation_pending`.
-Receipts live in `noticeos.task_operation_receipts` through the runtime
-file's `receiptsConnectionString`, without which a keyed write answers 503
-`idempotency_unavailable`.
-
-**One MCP connection.** A hosted or demo deployment answers `POST /api/mcp`
+**One MCP connection.** The demo deployment answers `POST /api/mcp`
 ([`hosted-mcp.mts`](hosted-mcp.mts)) with every NoticeOS tool:
-`list_workspaces`, `get_task_guide`, the task tools, and the Tower's read-model tools
-([`read-model-tools.mts`](read-model-tools.mts)). Every tool but
+`list_workspaces`, `get_task_guide`, the task tools, which it runs in the
+demo's own Ntasks as a visitor, and the Tower's read-model tools
+([`read-model-tools.mts`](read-model-tools.mts)). A standalone installation
+serves the same endpoint with no task tools: its tasks live in Ntasks, whose
+own MCP endpoint serves them. Every tool but
 `list_workspaces` and `get_task_guide` takes a `workspace` argument, checked
 against the person's membership and role on each call
 ([`mcp-protocol.mts`](mcp-protocol.mts) is the transport). `get_task_guide`
@@ -560,7 +533,6 @@ Neither entry starts a general hosted scheduler. The deployment owns:
 
 | Component | Server-owned composition and lifetime |
 | --- | --- |
-| Browser and task service | [`startHostedTaskServer`](hosted-task-server.mts); `close()` stops Vite before draining admitted native work and pools. |
 | Compiled demo server | [`startHostedDemoServer`](hosted-demo-server.mts) verifies its built artifact inventory and owns Worker, task and simulator lifetimes; [`hosted-demo-setup`](hosted-demo-setup.mts) prepares only new, empty synthetic stores. |
 | Scheduled jobs | [`startHostedScheduler`](hosted-scheduler.mts): up to 64 workspace bindings; `close()` stops timers and awaits resource retirement. |
 | Persistent demo | [`startHostedDemo`](hosted-demo-runtime.mts): one seeded scenario/workspace, one tick at a time. |

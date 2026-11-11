@@ -62,7 +62,7 @@ const COMPOSITE = {
   test: 'Every workspace\'s unit tests.',
   build: 'Build every workspace.',
   'test:scripts': 'The root suite: every scripts/*.test.mjs.',
-  'test:task-store': 'The task-store suite against a real Dolt server in Docker.',
+  'test:demo-ntasks': 'The public demo\'s suites against its own Ntasks.',
   'test:journeys': 'The Tower\'s browser journeys, then the flow walker.',
 };
 

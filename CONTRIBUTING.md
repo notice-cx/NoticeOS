@@ -71,7 +71,7 @@ fresh browser profiles, not a personal Chrome profile.
 For a disposable Linux cloud host, [the cloud development setup](dev/cloud/README.md)
 provides explicit preparation and a toolchain-activating test launcher. By
 default it prepares the toolchain and the frozen dependencies only; the test
-browser and the task-store tools are separate opt-ins. Its optional Codex
+browser is a separate opt-in. Its optional Codex
 adapter keeps host permissions and runtime credentials separate.
 
 ## Local verification
@@ -129,7 +129,7 @@ workspaces'; the root script suite; and the build with the journey harness
 and the browser journeys tagged `@pull-request`. The merge queue, a push to
 `main`, a nightly run and a run started by hand run the full lane: those
 suites, every browser journey in three shards, the UX flow report, and the
-task store against a real Dolt server. A pull request runs only the PR-lane
+public demo's suites against its own Ntasks. A pull request runs only the PR-lane
 jobs its changed files reach. The `build` job is the required check in both
 lanes. A newer push to a pull request cancels the run it replaces. A
 pull request that changes only documentation runs only the root script suite.

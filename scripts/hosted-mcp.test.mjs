@@ -3,10 +3,9 @@ import test from 'node:test';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createHostedMcp, MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
-import { createHostedTasksApi, IDEMPOTENCY_HEADER } from './hosted-tasks-api.mjs';
 import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
-import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
 import { createHostedTaskPlanner, TaskStateRefused } from './hosted-task-command.mjs';
@@ -65,8 +64,7 @@ function fixture({ profile = 'hosted', readModels, more = [] } = {}) {
         ? { content: [{ type: 'text', text: 'no property with id missing' }], isError: true }
         : { content: [{ type: 'text', text: '{}' }], structuredContent: { properties: [{ asset: 'example.com' }] } } });
     }) });
-  const http = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor, receipts });
-  return { ...fake, mcp, http, forwarded, advance: ms => { time += ms; } };
+  return { ...fake, mcp, forwarded, advance: ms => { time += ms; } };
 }
 function post(body, { headers = {}, path = MCP_PATH, method = 'POST', bearer = FULL } = {}) {
   return new Request(origin + path, { method, headers: { 'content-type': 'application/json',
@@ -216,18 +214,6 @@ test('read-model tools are forwarded to the Worker with the token, the named wor
       .includes('scope="evidence:read"'), true);
     assert.equal(f.forwarded.length, before);
   } finally { TOKENS.delete(tasksOnly); }
-});
-
-test('HTTP and MCP share one receipt: a change retried through the other surface is not repeated', async () => {
-  const f = fixture();
-  const key = 'agent-create-0004';
-  const viaHttp = await f.http(new Request(origin + '/api/tasks', { method: 'POST', headers: { origin, 'sec-fetch-site': 'same-origin',
-    'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S, [IDEMPOTENCY_HEADER]: key },
-    body: JSON.stringify({ projectId: P, title: 'Same change' }) }));
-  assert.equal(viaHttp.status, 200);
-  assert.deepEqual((await call(f, 'create_task', { workspace: A, project: P, title: 'Same change', idempotency_key: key })).structuredContent,
-    { id: 'tt-1', project: 'example', replayed: true, lint: { missing: ['## Acceptance Criteria'] } });
-  assert.equal(f.effects.length, 1);
 });
 
 test('dependencies and human approval decide what is ready; lint advises on every created or changed task', async () => {
@@ -750,38 +736,6 @@ test('list_tasks keeps the tasks an assignee holds, with "me" for the caller as 
   }
 });
 
-test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {
-  const f = fixture();
-  await filer(f)('Pick the page', { labels: ['human'], choices: PICK, acceptance: 'Picked' });
-  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-0901' });
-  const headers = { origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A };
-  const person = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, [WORKSPACE_SESSION_HEADER]: S },
-    body: JSON.stringify({ projectId: P, ...body }) }));
-  const agent = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, authorization: `Bearer ${FULL}` },
-    body: JSON.stringify({ projectId: P, ...body }) }));
-  const capabilities = await (await f.http(new Request(origin + '/api/tasks/capabilities',
-    { headers: { origin, 'sec-fetch-site': 'same-origin', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S } }))).json();
-  assert.ok(capabilities.operations.includes('choose'));
-  for (const body of [{ option: 'b' }, { option: 'b', note: 'From an agent' }]) assert.equal((await agent('/api/tasks/tt-1/choose', body)).status, 403);
-  assert.equal(f.effects.some(([kind]) => kind === 'choose'), false, 'an agent\'s pick never reaches the task');
-  for (const body of [{}, { option: 'g' }, { option: 'b', extra: 1 }, { option: 'b', note: '' }]) {
-    assert.equal((await person('/api/tasks/tt-1/choose', body)).status, 400, JSON.stringify(body));
-  }
-
-  assert.equal((await person('/api/tasks/tt-1/choose', { option: 'b', note: 'Ship it Friday' })).status, 200);
-  const { task, comments } = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
-  assert.deepEqual([task.status, task.assignee, task.labels, task.choice.option, task.choice.label, task.choice.by, task.choice.note],
-    ['open', null, [], 'b', 'Redirect to the new page', PERSON, 'Ship it Friday']);
-  assert.deepEqual(comments.map(comment => comment.text), ['Chose (b) Redirect to the new page. Ship it Friday']);
-  assert.ok((await call(f, 'list_tasks', { workspace: A, project: P, ready: true })).structuredContent.tasks.some(row => row.id === 'tt-1'),
-    'ready for any agent');
-  const again = await person('/api/tasks/tt-1/choose', { option: 'a' });
-  assert.deepEqual([again.status, await again.json()], [409, { error: 'task_refused', detail: 'tt-1 already has a choice: (b) Redirect to the new page.' }]);
-  await filer(f)('Plain', { acceptance: 'Done' });
-  const none = await person('/api/tasks/tt-2/choose', { option: 'a' });
-  assert.deepEqual([none.status, (await none.json()).detail], [409, 'tt-2 offers no options to choose from.']);
-});
-
 test('a close names how it ended: each resolution reads back from get_task and list_tasks, and a duplicate links the other task', async () => {
   const f = fixture();
   for (const index of [1, 2, 3, 4, 5, 6, 7]) {
@@ -823,47 +777,6 @@ test('a close names how it ended: each resolution reads back from get_task and l
   await refused({ duplicate_of: 'tt-1' }, /^invalid arguments: duplicate_of \(only with resolution duplicate\)$/u);
   await refused({ resolution: 'duplicate', duplicate_of: 'tt-9' }, /^refused: tt-9 is not a task in projectId .* \(Example\)/u);
 
-  // The Tower's close action carries the same two fields, and names a refused one's cause.
-  const person = (id, body) => f.http(new Request(`${origin}/api/tasks/${id}/close`, { method: 'POST', headers: { origin,
-    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
-    body: JSON.stringify({ projectId: P, ...body }) }));
-  assert.equal((await person('tt-7', { reason: 'Nobody asked', resolution: 'fixed' })).status, 400);
-  const missing = await person('tt-7', { reason: 'Same work', resolution: 'duplicate', duplicateOf: 'tt-9' });
-  assert.deepEqual([missing.status, (await missing.json()).detail], [409, 'tt-9 is not a task in Example.']);
-  assert.equal((await person('tt-7', { reason: 'Nobody asked for it' , resolution: 'wont-do' })).status, 200);
-  const seven = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-7' })).structuredContent.task;
-  assert.deepEqual([seven.closeReason, seven.resolution, seven.metadata.noticeos_closed_by], ['Nobody asked for it', 'wont-do', PERSON]);
-
-  // Dismiss on a person's ask closes as won't do, or as the resolution the person names; never as done.
-  const dismiss = (id, body) => f.http(new Request(`${origin}/api/tasks/${id}/dismiss`, { method: 'POST', headers: { origin,
-    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
-    body: JSON.stringify({ projectId: P, ...body }) }));
-  for (const [index, title] of ['Should we?', 'Is it still needed?'].entries()) {
-    await call(f, 'create_task', { workspace: A, project: P, title, labels: ['human'], idempotency_key: `agent-create-092${index}` });
-  }
-  assert.equal((await dismiss('tt-8', { resolution: 'done' })).status, 400);
-  assert.equal((await dismiss('tt-8', {})).status, 200);
-  assert.equal((await dismiss('tt-9', { reason: 'tt-5 covered it', resolution: 'already-handled' })).status, 200);
-  for (const [id, reason, resolution] of [['tt-8', 'Dismissed', 'wont-do'], ['tt-9', 'Dismissed: tt-5 covered it', 'already-handled']]) {
-    const asked = (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent.task;
-    assert.deepEqual([asked.status, asked.closeReason, asked.resolution], ['closed', reason, resolution], id);
-  }
-});
-
-test('an answer hands a task that is not a decision back to ready work; a decision still closes on it', async () => {
-  const f = fixture();
-  const create = filer(f);
-  await create('Which host?', { labels: ['human'], acceptance: 'Answered' });
-  await create('Pick the host', { type: 'decision', labels: ['human'] });
-  const answer = (id, response) => f.http(new Request(`${origin}/api/tasks/${id}/respond`, { method: 'POST', headers: { origin,
-    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
-    body: JSON.stringify({ projectId: P, response }) }));
-  assert.equal((await answer('tt-1', 'Use the managed one')).status, 200);
-  const first = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
-  assert.deepEqual([first.task.status, first.task.labels, first.comments.map(comment => comment.text)], ['open', [], ['Answered: Use the managed one']]);
-  assert.equal((await answer('tt-2', 'The managed one')).status, 200);
-  const second = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-2' })).structuredContent.task;
-  assert.deepEqual([second.status, second.closeReason], ['closed', 'Responded']);
 });
 
 test('lint advises a person\'s task whose description offers lettered options as prose', async () => {

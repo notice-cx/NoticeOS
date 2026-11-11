@@ -5,16 +5,16 @@
 // unit suites, the root script suite and the browser smoke journeys (those
 // tagged @pull-request, apps/tower/e2e/fixtures.ts). The merge queue, a push
 // to main, the nightly run and a run started by hand run the full lane: every
-// job, every journey, the UX flow walker and the task store against Dolt. So
+// job, every journey, the UX flow walker and the demo's Ntasks suites. So
 // every test still runs before a change is released, and before it lands once
 // the merge queue is on.
 //
 // In the PR lane a job runs only when the change can reach it: a file in a
 // folder the job's code lives in, or a scripts/ module that code imports or
 // names by file name. A change to dependencies, the toolchain, CI, config/ or
-// db/, or to a path no rule knows, runs every PR-lane job. The task store
-// runs in the full lane only: the merge queue catches a break of it before
-// the change lands. The root script suite always runs: it reads every tracked
+// db/, or to a path no rule knows, runs every PR-lane job. The demo's Ntasks
+// suites run in the full lane only: the merge queue catches a break of them
+// before the change lands. The root script suite always runs: it reads every tracked
 // Markdown file (product-name.test.mjs, grep-visible.test.mjs,
 // docs-index.test.mjs), and a change to a file a test reads runs that test.
 // So a pull request that changes only documentation runs it alone; the docs
@@ -39,7 +39,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Every job the scope decides, in the workflow's order. */
-export const JOBS = Object.freeze(['tower-unit', 'ingest-unit', 'scripts', 'smoke', 'browser', 'flow-gate', 'task-store']);
+export const JOBS = Object.freeze(['tower-unit', 'ingest-unit', 'scripts', 'smoke', 'browser', 'flow-gate', 'demo-ntasks']);
 
 /** Folders under docs/ that runtime suites or product code read. */
 export const READ_DOCS = Object.freeze([]);
@@ -105,7 +105,7 @@ const KNOWN = ['apps/tower/', 'workers/', 'packages/', 'scripts/', 'deploy/', 'd
 export function neededJobs(event, files = [], reaches = scopeGraph(), manifest = null) {
   if (laneOf(event) === 'full') return Object.fromEntries(JOBS.map((job) => [job, job !== 'smoke']));
   const runtime = files.filter((file) => !unreadByRuntime(file));
-  const pr = { scripts: true, browser: false, 'flow-gate': false, 'task-store': false };
+  const pr = { scripts: true, browser: false, 'flow-gate': false, 'demo-ntasks': false };
   for (const job of SCOPED) pr[job] = files.length === 0;
   for (const file of runtime) {
     const rule = REACHES.find(([pattern]) => pattern.test(file));

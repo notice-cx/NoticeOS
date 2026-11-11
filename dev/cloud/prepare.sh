@@ -1,9 +1,8 @@
 #!/bin/bash
 # Prepares this checkout. By default only the pinned Node and pnpm and the
-# frozen dependencies; it downloads no browser, task tool or Docker image.
+# frozen dependencies; it downloads no browser or Docker image.
 #   --browser     the journeys' pinned Chromium
 #   --with-deps   also Chromium's Linux libraries (administrator access); implies --browser
-#   --task-store  the pinned task and Dolt clients and the Dolt server image
 set -euo pipefail
 umask 022
 . "$(dirname -- "${BASH_SOURCE[0]}")/paths.sh"
@@ -12,14 +11,12 @@ if [ "$(uname -s)/$(uname -m)" != Linux/x86_64 ] || [ "$(id -u)" -eq 0 ]; then
   echo 'Use a non-root Linux x86_64 task user.' >&2; exit 1
 fi
 task_prepare_browser=0
-task_prepare_store=0
 task_browser_args=()
 for task_arg in "$@"; do
   case "$task_arg" in
     --browser) task_prepare_browser=1;;
     --with-deps) task_prepare_browser=1; task_browser_args+=(--with-deps);;
-    --task-store) task_prepare_store=1;;
-    *) echo 'Usage: bash dev/cloud/prepare.sh [--browser] [--with-deps] [--task-store]' >&2; exit 2;;
+    *) echo 'Usage: bash dev/cloud/prepare.sh [--browser] [--with-deps]' >&2; exit 2;;
   esac
 done
 noticeos_owned_dir "$NOTICEOS_CLOUD_STATE"
@@ -107,41 +104,6 @@ console.log(JSON.stringify({ playwright: r('@playwright/test/package.json').vers
 NODE
 }
 
-prepare_task_store() {
-  local task_store_key task_store_tools task_old task_dolt_id task_dolt_image
-  noticeos_managed_docker compose version
-  task_store_key=$(noticeos_task_tools_key)
-  task_store_tools="${NOTICEOS_CLOUD_CACHE}/task-tools/$task_store_key"
-  if [ ! -f "$task_store_tools/runtime.env" ]; then
-    # A folder without runtime.env is an attempt that stopped part way.
-    noticeos_discard "$task_store_tools" "$task_store_tools.env"
-    mkdir -p "$(dirname "$task_store_tools")"
-    env -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
-      DOCKER_HOST=unix:///var/run/docker.sock NODE_USE_ENV_PROXY=1 \
-      node scripts/task-store-test-tools.mjs --out "$task_store_tools" > "$task_store_tools.env"
-    mv "$task_store_tools.env" "$task_store_tools/runtime.env"
-  fi
-  # Earlier setup versions linked task-tools/<key> to task-tools.pending.*:
-  # a complete one stays for older checkouts without its downloads, and an
-  # attempt that stopped part way goes.
-  for task_old in "$NOTICEOS_CLOUD_CACHE"/task-tools.pending.*; do
-    if [ -f "$task_old/tools/runtime.env" ]; then
-      noticeos_discard "$task_old/tools/downloads"
-    else
-      noticeos_discard "$task_old"
-    fi
-  done
-  # A restored task can have retained client files and a freshly started daemon.
-  # Inspect only the platform-managed endpoint, never a selected remote context.
-  task_dolt_id=$(awk -F= '$1=="NOTICEOS_TEST_DOLT_IMAGE_ID" {print $2}' "$task_store_tools/runtime.env")
-  if [[ ! "$task_dolt_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then echo 'Invalid pinned Dolt image cache metadata' >&2; exit 1; fi
-  if ! noticeos_managed_docker image inspect "$task_dolt_id" >/dev/null 2>&1; then
-    task_dolt_image=$(node --input-type=module -e 'import {DOLT_IMAGE} from "./scripts/dolt-host.mjs";console.log(DOLT_IMAGE)')
-    noticeos_managed_docker pull "$task_dolt_image"
-  fi
-}
-
 prepare_toolchain
 prepare_dependencies
 if [ "$task_prepare_browser" -eq 1 ]; then prepare_browser; fi
-if [ "$task_prepare_store" -eq 1 ]; then prepare_task_store; fi

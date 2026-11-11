@@ -1,6 +1,6 @@
 #!/bin/bash
 # Native tools for a Debian 13 host: PostgreSQL 18, SQLite and the GitHub CLI.
-# Then prepare.sh with the same arguments ([--browser] [--with-deps] [--task-store]).
+# Then prepare.sh with the same arguments ([--browser] [--with-deps]).
 set -euo pipefail
 umask 022
 . "$(dirname -- "${BASH_SOURCE[0]}")/paths.sh"

@@ -10,8 +10,7 @@ The native-tool installer supports Debian 13 on Linux x86_64, running as the
 non-root user who owns the checkout. It requires Bash, Python 3, npm, Git,
 curl, tar, APT, dpkg, util-linux (`flock`), `ldd`, and `docker-init` or
 `tini`. The first install copies PostgreSQL 18 out of its pinned image, so it
-also needs the Docker CLI and the local Docker socket; `--task-store` needs
-both again, with Docker Compose. The relocated PostgreSQL build uses the
+also needs the Docker CLI and the local Docker socket. The relocated PostgreSQL build uses the
 Debian 13 system libraries. Other operating systems should use the source
 prerequisites in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
@@ -52,12 +51,10 @@ image. A session adds only what its tests start:
 | none | Node, pnpm and the frozen dependencies | only packages missing from the caches |
 | `--browser` | the journeys' pinned Chromium, checked with `ldd` | Chromium when its Playwright version is not cached |
 | `--with-deps` | `--browser`, plus Chromium's Linux libraries | system packages; Playwright may need administrator access |
-| `--task-store` | the task and Dolt clients `deploy/compose/Dockerfile` pins, and the Dolt server image | both clients and the image when not cached |
 
 `install.sh` and `codex/setup.sh` pass these arguments through. Provision the
 browser's system packages during image preparation and omit `--with-deps`
-when the image already has them. `--task-store` prepares the tools through
-`scripts/task-store-test-tools.mjs`, which uses only synthetic test resources.
+when the image already has them.
 
 Preparation reads the exact Node version from CI and pnpm from
 `package.json`, and checks the Node engine constraint. Unsupported pin formats
@@ -86,13 +83,9 @@ use.
 | `tools/toolchains/<key>` | `prepare.sh` | one Node and pnpm per pin | npm's download cache, `npm/` |
 | `pnpm-store` | `prepare.sh` | one content-addressed store for every revision; `node_modules` hard-links its files | the fetch staging folder, `fetch/`, and per-key stores of earlier setup versions, `pnpm/` |
 | `browsers/playwright-<version>-<arch>` | `prepare.sh --browser` | one folder per Playwright version | nothing; Playwright removes its archives |
-| `task-tools/<key>` | `prepare.sh --task-store` | the two verified binaries and `runtime.env`, one set per pin | the release archives; an attempt without `runtime.env` |
 | `tools/postgres`, `tools/sqlite`, `tools/github-cli` | `install.sh` | the extracted tools | APT lists and packages, the CLI archive and checksums |
 
-A `task-tools/<key>` set is keyed on the pinned clients and server image
-(`node scripts/task-store-test-tools.mjs --key`), so an unrelated Dockerfile
-change reuses it. Docker images belong to the daemon; preparation never
-removes one.
+Docker images belong to the daemon; preparation never removes one.
 
 ## Run tests
 
@@ -103,15 +96,12 @@ bash dev/cloud/test.sh pnpm --filter @noticeos/contract test
 bash dev/cloud/test.sh pnpm test:scripts
 bash dev/cloud/test.sh pnpm --filter @noticeos/tower run typecheck:journeys
 bash dev/cloud/test.sh pnpm --filter @noticeos/tower run test:journeys --list
-bash dev/cloud/test.sh --task-store pnpm test:task-store
 ```
 
 The launcher never installs dependencies or tools. It requires an explicitly
 prepared checkout, preserves pnpm's dependency checks, and supplies
 `NOTICEOS_TEST_PNPM_EXECUTABLE`, PostgreSQL 18 on `PATH` and
-`NOTICEOS_REQUIRE_POSTGRES=1`. `--task-store` adds the prepared task tools'
-variables and stops when `prepare.sh --task-store` has not run for the
-current pins. It sets `umask 022` in the test process tree, preserves
+`NOTICEOS_REQUIRE_POSTGRES=1`. It sets `umask 022` in the test process tree, preserves
 explicitly private file modes, and runs the command under a subreaper. Each
 invocation has private HOME, XDG and TMPDIR directories outside every Git
 ancestor. Runtime paths are printed and retained for inspection; remove only
@@ -168,8 +158,8 @@ An optional image `install_script`, executed at the repository root, is:
 bash dev/cloud/codex/setup.sh
 ```
 
-Add `--browser` (or `--with-deps`) and `--task-store` when the environment's
-tasks run browser or task-store suites, so the image holds those caches. The
+Add `--browser` (or `--with-deps`) when the environment's tasks run browser
+suites, so the image holds that cache. The
 adapter adds an owned Bash profile block pointing to this checkout's
 activation script. It preserves other profile text and refuses symlinked or
 unowned profiles. Default login shells then select the prepared toolchain.
@@ -177,8 +167,8 @@ Raw non-login shells may inherit the platform's original PATH; use the
 launcher or explicitly source `activate.sh` in those contexts.
 
 The corresponding task-start instructions should locate the actual checkout,
-run `bash dev/cloud/prepare.sh` after checkout, with `--browser` or
-`--task-store` for a task that runs those suites, and use the test launcher
+run `bash dev/cloud/prepare.sh` after checkout, with `--browser` for a
+task that runs browser suites, and use the test launcher
 above. Each cloud task is already isolated; use its checkout without
 creating a Git worktree. Start disposable services with the repository's
 existing test helpers when needed; processes from image preparation do not

@@ -50,13 +50,12 @@ function jobBlock(workflow, name) {
 // workspace is typechecked and tested once), the root script suite (the root
 // is not a workspace, so no `pnpm -r` reaches it), the build with the browser
 // smoke journeys and the journey harness (PR lane), the build with every
-// browser journey, the journey harness with the UX flow gate, and the task
-// store (full lane). Every job that starts Postgres puts the server binaries
+// browser journey, the journey harness with the UX flow gate, and the demo's
+// Ntasks suites (full lane). Every job that starts Postgres puts the server binaries
 // on PATH first.
 const INSTALL = 'pnpm install --frozen-lockfile';
 const BROWSER_INSTALL = './.github/actions/journey-browser';
 const BROWSER_ACTION = path.join(REPO_ROOT, '.github', 'actions', 'journey-browser', 'action.yml');
-const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
 const DEMO_NTASKS = 'node scripts/demo-ntasks-build.mjs --out "$RUNNER_TEMP/ntasks" >> "$GITHUB_ENV"';
 const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
@@ -72,12 +71,12 @@ const JOBS = {
   smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, WALKER],
-  // The opt-in real task store suites get their pinned inputs first.
-  'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, DEMO_NTASKS, 'pnpm test:task-store'],
+  // The demo's suites get the demo's pinned Ntasks first.
+  'demo-ntasks': [INSTALL, POSTGRES_STEP, DEMO_NTASKS, 'pnpm test:demo-ntasks'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, WALKER, 'pnpm test:task-store'];
+  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, WALKER, 'pnpm test:demo-ntasks'];
 /** A suite's command without the arguments that pick its share of tests. */
 const suiteOf = (command) => command.replace(/ (?:-- .*|--shard=\S+)$/u, '');
 /** The lanes: a pull request whose change reaches every job it can run, and every other run. */
@@ -124,7 +123,7 @@ test('a Postgres suite never runs before its job puts the server binaries on PAT
 // one supported major: no job installs, or points a suite at, another.
 test('each job installs only its own prerequisites, on PostgreSQL 18 alone', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  for (const [step, owners] of [[BROWSER_INSTALL, ['smoke', 'browser', 'flow-gate']], [TASK_TOOLS, ['task-store']], [DEMO_NTASKS, ['task-store']]]) {
+  for (const [step, owners] of [[BROWSER_INSTALL, ['smoke', 'browser', 'flow-gate']], [DEMO_NTASKS, ['demo-ntasks']]]) {
     const jobs = Object.keys(JOBS).filter((name) => runCommands(jobBlock(workflow, name)).includes(step));
     assert.deepEqual(jobs, owners, `${step} runs only in the jobs whose suites use it`);
   }
@@ -271,12 +270,11 @@ test('the Tower unit suite, the smoke journeys, the root suite, the task store a
   assert.equal(shards('smoke'), 2);
   assert.match(smoke, /- run: pnpm --filter @noticeos\/tower run test:journey-harness\n {8}if: matrix\.shard == 1\n/u, 'the harness runs once');
   assert.match(smoke, /name: smoke-journey-browser-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each smoke shard keeps its own evidence');
-  for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['task-store', 'pnpm test:task-store']]) {
+  for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['demo-ntasks', 'pnpm test:demo-ntasks']]) {
     const count = shards(name);
     assert.match(jobBlock(workflow, name), new RegExp(`- run: ${suite}\\n {8}env:\\n(?: {10}.*\\n)*? {10}NODE_OPTIONS: --test-shard=\\$\\{\\{ matrix\\.shard \\}\\}\\/${count}\\n`, 'u'),
       `${name} takes its share of the files`);
   }
-  assert.match(jobBlock(workflow, 'task-store'), /name: task-store-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each task-store shard keeps its own evidence');
   const flow = jobBlock(workflow, 'flow-gate');
   assert.match(flow, /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}part: \[journeys, 1, 2\]\n/mu, 'the dev-server journeys on one runner, the walker in two shards');
   assert.ok(runCommands(flow).includes(WALKER), 'each walker shard makes its own share of 2');
@@ -329,7 +327,7 @@ test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites 
   // Ubuntu's runner removes PGDG after preparing its bundled PostgreSQL 16.
   assert.match(POSTGRES_STEP, /apt\.postgresql\.org\.sh -y/u);
   for (const [name, suite] of [['tower-unit', TOWER_TESTS], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts'],
-    ['task-store', 'pnpm test:task-store']]) {
+    ['demo-ntasks', 'pnpm test:demo-ntasks']]) {
     const step = new RegExp(`- run: ${suite.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');
     assert.match(jobBlock(workflow, name), step, `${suite} must run with NOTICEOS_REQUIRE_POSTGRES=1, so a server that cannot start fails the build`);
   }
