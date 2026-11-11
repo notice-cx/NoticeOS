@@ -77,12 +77,14 @@ function base64url(bytes: Buffer): string {
 }
 const escapeHtml = (text: string) => text.replace(/[&<>"]/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]!);
 
+/** An Ntasks for one journey, held in memory, whose apps, codes and tokens last as long as the journey's fixture. */
 export function createFixtureNtasks(options: {
   rows: () => FixtureRow[];
   /** After a change, so the Tower's snapshot follows (the harness's `publishTasks`). */
   changed: () => void;
   project: () => { asset: string; prefix: string };
-  /** The Tower's origin: the one redirect origin of the app it is registered as. */
+  /** The Tower's origin, whose app `app: "registered"` starts with. Another
+   * address of the Tower registers an app of its own. */
   towerOrigin: string;
   now: string;
   app?: FixtureAppState;
@@ -91,24 +93,28 @@ export function createFixtureNtasks(options: {
 }): FixtureNtasks {
   const apiVersion = options.apiVersion ?? JOURNEY_NTASKS_API_VERSION;
   const redirectUri = `${options.towerOrigin}/tasks/signed-in`;
-  // What the installation keeps beside its connection, and what Ntasks has registered.
+  // What the installation keeps beside its connection, and the apps Ntasks has
+  // registered, one per redirect address, as Ntasks registers them.
   let savedClientId: string | null = (options.app ?? "registered") === "registered" ? JOURNEY_NTASKS_CLIENT_ID : null;
-  let registered = savedClientId !== null;
+  const apps = new Map<string, string>(savedClientId === null ? [] : [[redirectUri, savedClientId]]);
   let registrations = 0;
-  const codes = new Map<string, { challenge: string; redirectUri: string }>();
+  const codes = new Map<string, { challenge: string; redirectUri: string; clientId: string }>();
+  /** Whether a page at `origin` may read the answers: the origin of a registered app's address. */
+  const isAppOrigin = (origin: string | null) => origin !== null && [...apps.keys()].some((address) => new URL(address).origin === origin);
   const access = new Map<string, Principal>();
-  const refresh = new Set<string>();
+  const refresh = new Map<string, string>();
   const decided: NtasksDecision[] = [];
 
   const project = (): NtasksProject => ({ projectId: PROJECT_ID, logicalKey: options.project().asset, displayName: "Journey Example",
     prefix: options.project().prefix });
 
+  /** A JSON answer with Ntasks's API version, readable by a page at a registered app's origin. */
   function answer(request: Request, body: unknown, init: ResponseInit = {}): Response {
     const headers = new Headers(init.headers);
     headers.set("x-ntasks-api-version", String(apiVersion));
     const origin = request.headers.get("origin");
-    if (origin === options.towerOrigin) {
-      headers.set("access-control-allow-origin", origin);
+    if (isAppOrigin(origin)) {
+      headers.set("access-control-allow-origin", origin!);
       headers.set("access-control-expose-headers", "www-authenticate, retry-after, x-ntasks-api-version");
       headers.append("vary", "origin");
     }
@@ -121,10 +127,11 @@ export function createFixtureNtasks(options: {
     return bearer === undefined ? null : access.get(bearer) ?? null;
   }
 
-  function issue(): Record<string, unknown> {
+  /** New access and refresh tokens for the journey's person, through the app `clientId`. */
+  function issue(clientId: string): Record<string, unknown> {
     const token = base64url(randomBytes(24)), renewal = base64url(randomBytes(24));
-    access.set(token, { kind: "person", name: JOURNEY_NTASKS_PERSON, app: JOURNEY_NTASKS_CLIENT_ID });
-    refresh.add(renewal);
+    access.set(token, { kind: "person", name: JOURNEY_NTASKS_PERSON, app: clientId });
+    refresh.set(renewal, clientId);
     return { access_token: token, token_type: "Bearer", expires_in: 3600, refresh_token: renewal, scope: [...SCOPES, "offline_access"].join(" ") };
   }
 
@@ -163,16 +170,17 @@ export function createFixtureNtasks(options: {
     options.changed();
   }
 
+  /** One request to this Ntasks, from the Tower's server or, through the fixture route, from a page. */
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get("origin");
     if (request.method === "OPTIONS") {
-      if (origin !== options.towerOrigin) return Response.json({ error: "origin_not_allowed" }, { status: 403 });
+      if (!isAppOrigin(origin)) return Response.json({ error: "origin_not_allowed" }, { status: 403 });
       return answer(request, null, { status: 204, headers: { "access-control-allow-methods": "GET, POST, PATCH",
         "access-control-allow-headers": "authorization, content-type, x-ntasks-workspace, idempotency-key", "access-control-max-age": "600" } });
     }
-    if (origin !== null && origin !== options.towerOrigin && request.method !== "GET") return Response.json({ error: "origin_not_allowed" }, { status: 403 });
+    if (origin !== null && !isAppOrigin(origin) && request.method !== "GET") return Response.json({ error: "origin_not_allowed" }, { status: 403 });
 
     if (path === "/api/version") return answer(request, { version: apiVersion, oldest: 1 });
     if (path === "/api/auth/oauth2/register" && request.method === "POST") {
@@ -180,19 +188,22 @@ export function createFixtureNtasks(options: {
       if (principalOf(request)?.kind !== "service") return answer(request, { error: "invalid_token" }, { status: 401 });
       const metadata = await request.json().catch(() => ({})) as { client_name?: unknown; redirect_uris?: unknown };
       if (options.app === "refused") return answer(request, { error: "invalid_client_metadata", error_description: "refused by the fixture" }, { status: 400 });
-      if (typeof metadata.client_name !== "string" || JSON.stringify(metadata.redirect_uris) !== JSON.stringify([redirectUri])) {
+      const address = Array.isArray(metadata.redirect_uris) && metadata.redirect_uris.length === 1 ? String(metadata.redirect_uris[0]) : "";
+      if (typeof metadata.client_name !== "string" || !/^http:\/\/[^/]+\/tasks\/signed-in$/u.test(address)) {
         return answer(request, { error: "invalid_redirect_uri" }, { status: 400 });
       }
-      const repeat = registered;
-      if (!repeat) registrations += 1;
-      registered = true;
-      return answer(request, { client_id: JOURNEY_NTASKS_CLIENT_ID, client_name: metadata.client_name, redirect_uris: [redirectUri],
+      // The same name and address answer the app already registered.
+      const known = apps.get(address);
+      const clientId = known ?? (apps.size === 0 ? JOURNEY_NTASKS_CLIENT_ID : `${JOURNEY_NTASKS_CLIENT_ID}-${apps.size + 1}`);
+      if (known === undefined) { apps.set(address, clientId); registrations += 1; }
+      return answer(request, { client_id: clientId, client_name: metadata.client_name, redirect_uris: [address],
         token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
-        scope: [...SCOPES, "offline_access"].join(" ") }, { status: repeat ? 200 : 201 });
+        scope: [...SCOPES, "offline_access"].join(" ") }, { status: known === undefined ? 201 : 200 });
     }
     if (path === "/api/auth/oauth2/authorize" || path === "/api/auth/oauth2/allow") {
       const asked = url.searchParams;
-      if (!registered || asked.get("client_id") !== JOURNEY_NTASKS_CLIENT_ID || asked.get("redirect_uri") !== redirectUri || asked.get("response_type") !== "code"
+      const returnTo = asked.get("redirect_uri") ?? "";
+      if (apps.get(returnTo) === undefined || asked.get("client_id") !== apps.get(returnTo) || asked.get("response_type") !== "code"
         || asked.get("code_challenge_method") !== "S256" || !asked.get("code_challenge") || asked.get("resource") !== `${JOURNEY_NTASKS_ORIGIN}/api/mcp`) {
         return new Response("This sign-in request does not match a registered app.", { status: 400 });
       }
@@ -204,23 +215,30 @@ export function createFixtureNtasks(options: {
           <a href="/api/auth/oauth2/allow?${escapeHtml(asked.toString())}">Allow</a></body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
       }
       const code = base64url(randomBytes(18));
-      codes.set(code, { challenge: asked.get("code_challenge")!, redirectUri });
-      const back = new URL(redirectUri);
+      codes.set(code, { challenge: asked.get("code_challenge")!, redirectUri: returnTo, clientId: asked.get("client_id")! });
+      const back = new URL(returnTo);
       back.searchParams.set("code", code);
       back.searchParams.set("state", asked.get("state") ?? "");
       return new Response(null, { status: 302, headers: { location: back.toString() } });
     }
     if (path === "/api/auth/oauth2/token" && request.method === "POST") {
       const form = new URLSearchParams(await request.text());
-      if (form.get("client_id") !== JOURNEY_NTASKS_CLIENT_ID) return answer(request, { error: "invalid_client" }, { status: 401 });
+      const clientId = form.get("client_id") ?? "";
+      if (![...apps.values()].includes(clientId)) return answer(request, { error: "invalid_client" }, { status: 401 });
       if (form.get("grant_type") === "authorization_code") {
         const kept = codes.get(form.get("code") ?? "");
         codes.delete(form.get("code") ?? "");
         const challenge = base64url(createHash("sha256").update(form.get("code_verifier") ?? "").digest());
-        if (!kept || kept.challenge !== challenge || kept.redirectUri !== form.get("redirect_uri")) return answer(request, { error: "invalid_grant" }, { status: 400 });
-        return answer(request, issue());
+        if (!kept || kept.challenge !== challenge || kept.redirectUri !== form.get("redirect_uri") || kept.clientId !== clientId) {
+          return answer(request, { error: "invalid_grant" }, { status: 400 });
+        }
+        return answer(request, issue(clientId));
       }
-      if (form.get("grant_type") === "refresh_token" && refresh.delete(form.get("refresh_token") ?? "")) return answer(request, issue());
+      const renewal = form.get("refresh_token") ?? "";
+      if (form.get("grant_type") === "refresh_token" && refresh.get(renewal) === clientId) {
+        refresh.delete(renewal);
+        return answer(request, issue(clientId));
+      }
       return answer(request, { error: "invalid_grant" }, { status: 400 });
     }
 
@@ -277,7 +295,7 @@ export function createFixtureNtasks(options: {
     backend: async () => "ntasks",
     origin: async () => JOURNEY_NTASKS_ORIGIN,
     appClientId: async () => savedClientId,
-    // The ingest's part: Ntasks's answer for this address, whose first client id is saved.
+    /** The ingest's part: Ntasks's app for this address, whose first client id is saved. */
     async registerApp(sentRedirect) {
       const reply = await handle(new Request(`${JOURNEY_NTASKS_ORIGIN}/api/auth/oauth2/register`, { method: "POST",
         headers: { authorization: `Bearer ${SERVICE_CREDENTIAL}`, "content-type": "application/json" },

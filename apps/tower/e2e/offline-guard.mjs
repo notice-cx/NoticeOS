@@ -8,11 +8,21 @@ import { once } from 'node:events';
 // handshakes.
 // Chromium's <-loopback> rule removes its implicit localhost proxy bypass.
 const transports = new WeakMap();
+
+/** The fixture server's origins: its own loopback address, and `localhost`
+ * on the same port, so a journey can open the Tower at a second address. */
+export function fixtureOrigins(origin) {
+  const source = new URL(origin);
+  return [origin, `http://localhost:${source.port}`];
+}
+
+/** The proxy every guarded browser sends its requests through, which passes on only those to the fixture server's origins. */
 export async function startOfflineProxy(origin) {
   const source = new URL(origin);
   if (source.origin !== origin || source.protocol !== 'http:' || source.hostname !== '127.0.0.1' || !source.port || source.username || source.password) {
     throw new Error('The offline proxy requires an explicit owned loopback origin.');
   }
+  const origins = new Set(fixtureOrigins(origin));
   const sockets = new Set(), escapes = [];
   let closing = false, requestFailed = false, closePromise;
   const trackSocket = socket => {
@@ -21,13 +31,14 @@ export async function startOfflineProxy(origin) {
     socket.once('close', () => sockets.delete(socket));
     return socket;
   };
+  /** The URL a proxied request or CONNECT tunnel names when it is on a fixture origin, or null, recording the attempt. */
   const target = (request, tunnel = false) => {
     try {
       // Reject userinfo, relative paths and authority/header disagreement.
       // CONNECT is an authority, never an absolute URL or a path.
       if (tunnel && /[\/@?#]/u.test(request.url)) throw new Error();
       const url = new URL(tunnel ? `http://${request.url}` : request.url);
-      if (url.origin !== origin || url.username || url.password || url.hash ||
+      if (!origins.has(url.origin) || url.username || url.password || url.hash ||
           request.headers.host?.toLowerCase() !== url.host.toLowerCase()) throw new Error();
       return url;
     } catch {
@@ -39,7 +50,7 @@ export async function startOfflineProxy(origin) {
   const server = http.createServer((request, response) => {
     const url = target(request);
     if (!url || closing) { response.writeHead(403); response.end(); return; }
-    const headers = { ...request.headers, host: source.host };
+    const headers = { ...request.headers, host: url.host };
     delete headers['proxy-authorization'];
     delete headers['proxy-connection'];
     // The destination is fixed by construction, not resolved from an input
@@ -50,7 +61,7 @@ export async function startOfflineProxy(origin) {
       if (incoming.statusCode >= 300 && incoming.statusCode < 400 && location) {
         let redirect;
         try { redirect = new URL(location, url); } catch { requestFailed = true; }
-        if (!redirect || redirect.origin !== origin || redirect.username || redirect.password) {
+        if (!redirect || !origins.has(redirect.origin) || redirect.username || redirect.password) {
           if (redirect && !escapes.includes(redirect.href)) escapes.push(redirect.href);
           incoming.resume(); response.destroy(); return;
         }
@@ -123,11 +134,11 @@ export async function startOfflineProxy(origin) {
 // Requests to other origins that are not redirect hops are aborted silently:
 // they never left, so they are not a failure.
 
-/** Is `url` on `origin`? Browser-internal schemes never leave the machine. */
+/** Is `url` on one of the fixture's origins? Browser-internal schemes never leave the machine. */
 function onOrigin(url, origin) {
   if (/^(?:data|blob|about|chrome|chrome-error):/u.test(url)) return true;
   try {
-    return new URL(url).origin === origin;
+    return fixtureOrigins(origin).includes(new URL(url).origin);
   } catch {
     return false;
   }

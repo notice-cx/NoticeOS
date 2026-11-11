@@ -141,11 +141,15 @@ globalThis.fetch = async (input) => {
   throw new Error("Outbound fetch is forbidden in the isolated journey server");
 };
 
+/** The fixture's own routes, under /api/ and /__journey/, for the server's two addresses; every other path goes to Vite. */
 dispatch = async (req, res, next) => {
   const pathname = new URL(req.url ?? "/", `http://127.0.0.1:${port}`).pathname;
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/__journey/")) return next();
   try {
-    if (req.headers.host !== `127.0.0.1:${port}` || (req.headers.origin && req.headers.origin !== `http://127.0.0.1:${port}`)) {
+    // Its own loopback address, or `localhost` on the same port: the second
+    // address a journey opens the same Tower at (offline-guard.mjs).
+    const host = req.headers.host;
+    if ((host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) || (req.headers.origin && req.headers.origin !== `http://${host}`)) {
       res.statusCode = 403; res.end("Isolated fixture is loopback and same-origin only"); return;
     }
     // A reset replaces the store: the change stream's own reads must not be on
@@ -158,7 +162,7 @@ dispatch = async (req, res, next) => {
       if (size > 64 * 1024) { res.statusCode = 413; res.end("Fixture body too large"); return; }
       chunks.push(chunk);
     }
-    const request = new Request(`http://127.0.0.1:${port}${req.url}`, {
+    const request = new Request(`http://${host}${req.url}`, {
       method: req.method, headers: Object.entries(req.headers).flatMap(([key, value]) => value === undefined ? [] : [[key, Array.isArray(value) ? value.join(", ") : value]]),
       ...(chunks.length ? { body: Buffer.concat(chunks) } : {}),
     });

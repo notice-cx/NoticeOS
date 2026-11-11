@@ -137,6 +137,35 @@ test("with no Tower client ID saved, one press of Sign in on /tasks registers th
   expect((await status(page)).ntasksRegistrations).toBe(1);
 });
 
+test("each address the Tower is opened at signs in with one press, registers once, and keeps the saved client ID", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
+  await prepare(page, baseURL, { app: "unregistered" });
+  await page.goto("/tasks");
+  await signIn(page);
+  await expect(page.locator("[data-ntasks]").getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
+  expect((await status(page)).ntasksRegistrations).toBe(1);
+  const saved = async () => ((await (await page.request.get("/api/tasks/service")).json()) as { app: { clientId: string } | null }).app?.clientId;
+  expect(await saved()).toBe(JOURNEY_NTASKS_CLIENT_ID);
+
+  // The same Tower at its other loopback name is another address, with its own app in Ntasks.
+  const other = new URL(baseURL!);
+  other.hostname = "localhost";
+  const elsewhere = await page.context().newPage();
+  await installFixtureNtasks(elsewhere, other.origin);
+  await elsewhere.goto(`${other.origin}/tasks`);
+  await signIn(elsewhere);
+  await expect(elsewhere.locator("[data-ntasks]").getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
+  expect((await status(page)).ntasksRegistrations).toBe(2);
+
+  // Signing in there again reuses its app, and the saved client ID stays the first address's.
+  await elsewhere.goto(`${other.origin}${SETTINGS}`);
+  await elsewhere.locator("[data-ntasks-signed-in]").getByRole("button", { name: "Sign out of Ntasks" }).click();
+  await elsewhere.goto(`${other.origin}/tasks`);
+  await signIn(elsewhere);
+  await expect(elsewhere.locator("[data-ntasks]").getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
+  expect((await status(page)).ntasksRegistrations).toBe(2);
+  expect(await saved()).toBe(JOURNEY_NTASKS_CLIENT_ID);
+});
+
 test("Settings offers Sign in to Ntasks, never a link to the sign-in address, and a refused registration says why", async ({ page, baseURL }) => {
   await prepare(page, baseURL, { app: "refused" });
   await page.goto(SETTINGS);
