@@ -22,7 +22,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  # Never `build`: main requires a check of that name from CI's verdict job,
+  # and a docs job sharing it would let a pull request merge before CI ends.
+  docs-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,7 +41,7 @@ jobs:
           path: docs/.vitepress/dist
 
   deploy:
-    needs: build
+    needs: docs-build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
