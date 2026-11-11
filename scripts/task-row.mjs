@@ -16,8 +16,7 @@ function instant(value) {
 function whole(value, fallback) {
     return Number.isInteger(value) ? value : fallback;
 }
-/** `bd`'s default priority band. Named rather than inlined so a row missing the
- * field lands in the same band the CLI would have put it in. */
+/** The default priority band, for a row missing the field. */
 const DEFAULT_PRIORITY = 2;
 function dependencies(value) {
     if (!Array.isArray(value))
@@ -25,8 +24,8 @@ function dependencies(value) {
     const out = [];
     for (const entry of value) {
         const row = entry;
-        // `bd list` reports a plain edge (`depends_on_id` + `type`); `bd show`
-        // embeds the whole issue (`id` + `dependency_type`). Same edge, two shapes.
+        // A row carries an edge as `depends_on_id` + `type`, or as the other task
+        // itself (`id` + `dependency_type`, as `runnerRow` writes it). Same edge, two shapes.
         const id = text(row.depends_on_id) || text(row.id);
         const type = text(row.type) || text(row.dependency_type, "blocks");
         if (id === "")
@@ -35,9 +34,9 @@ function dependencies(value) {
     }
     return out;
 }
-/** The epic this bead hangs off. `bd` reports it as a field on a list row and
- * as a parent-child dependency edge on a show row; both are read so a task page
- * and an index agree about where a bead belongs. */
+/** The epic this task hangs off: the row's `parent` field, else its
+ * parent-child dependency edge, so a task page and an index agree about where
+ * a task belongs. */
 function parentOf(row, deps) {
     const direct = text(row.parent);
     if (direct !== "")

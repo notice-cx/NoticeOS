@@ -17,7 +17,7 @@ import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
-import { boardResults, LABEL_READS, readLabelled } from './runner/task-service-poll.mjs';
+import { boardReads, LABEL_READS, readLabelled } from './runner/task-service-poll.mjs';
 import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, summarizeTaskProject } from './task-snapshot-summary.mjs';
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from '../packages/contract/src/agent-stats.mjs';
 import type { BeadsProjectInput, BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
@@ -336,7 +336,7 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }: { ntas
           for (const label of labels) for (const task of await readLabelled(service, project.projectId, label) as Record<string, unknown>[]) found.set(String(task.id), task);
           labelled[read] = [...found.values()];
         }
-        entries.push(summarizeTaskProject(project, boardResults({ tasks: rowsOf(board!), epics: record(board!.body)?.epics },
+        entries.push(summarizeTaskProject(project, boardReads({ tasks: rowsOf(board!), epics: record(board!.body)?.epics },
           { tasks: rowsOf(closes!) }, labelled), reach) as BeadsProjectInput);
       }
       return { capturedAt: new Date(at).toISOString(), projects: entries };

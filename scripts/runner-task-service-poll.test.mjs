@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { backupTaskHub, boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, NO_TASK_SERVICE, readFeed, readLabelled, syncTaskService, taskServiceCheck } from './runner/task-service-poll.mjs';
+import { backupTaskHub, boardReads, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, NO_TASK_SERVICE, readFeed, readLabelled, syncTaskService, taskServiceCheck } from './runner/task-service-poll.mjs';
 import { runTaskPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
@@ -63,11 +63,11 @@ function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, b
   };
   return { service, calls, state };
 }
-const boardReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && !call.includes('label='));
+const boardCalls = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && !call.includes('label='));
 const labelReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && call.includes('label='));
 
-test('a board reads as the bd lists the snapshot summary was written for', () => {
-  const entry = summarizeTaskProject(SPOKES[0], boardResults(BOARD, CLOSES));
+test('a board reads as the lists the snapshot summary takes', () => {
+  const entry = summarizeTaskProject(SPOKES[0], boardReads(BOARD, CLOSES));
   assert.equal(entry.ok, true);
   assert.deepEqual(entry.ready.map((row) => row.id), ['ex-1', 'ex-4']);
   assert.deepEqual(entry.blocked.map((row) => row.id), ['ex-2']);
@@ -76,7 +76,10 @@ test('a board reads as the bd lists the snapshot summary was written for', () =>
   assert.deepEqual(entry.recentlyClosed.map((row) => row.id), ['ex-7']);
   assert.deepEqual(entry.epics.map((epic) => [epic.id, epic.total, epic.closed]), [['ex-9', 4, 1]]);
   assert.ok(entry.waiting.some((row) => row.id === 'ex-5'), 'the open human gate waits on a person');
-  assert.equal(Object.hasOwn(boardResults(BOARD, CLOSES), 'handoffs'), false);
+  const reads = boardReads(BOARD, CLOSES);
+  assert.equal(Object.hasOwn(reads, 'handoffs'), false);
+  // The rows are plain JSON: a JSON copy of them summarizes to the same entry.
+  assert.deepEqual(summarizeTaskProject(SPOKES[0], JSON.parse(JSON.stringify(reads))), entry);
 });
 
 test('the change feed is read at most a bounded number of pages per tick', async () => {
@@ -100,24 +103,24 @@ test('a project\'s boards are reread when the feed names it, and otherwise kept'
   const sync = () => syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => clock });
 
   const first = await sync();
-  assert.equal(boardReads(calls).length, 2);
+  assert.equal(boardCalls(calls).length, 2);
   assert.deepEqual(first.body.projects.map((entry) => [entry.asset, entry.ok, entry.error ?? null]),
     [['example.com', true, null], ['shop.example', false, 'No Ntasks project has the prefix shop']]);
   assert.equal((await readSyncState(dir, 'https://ntasks.example.com')).cursor, 1);
 
   calls.length = 0; clock += 60_000;
   const quiet = await sync();
-  assert.deepEqual(boardReads(calls), []);
+  assert.deepEqual(boardCalls(calls), []);
   assert.equal(quiet.body.projects[0].ok, true, 'the kept boards still make the snapshot');
 
   events = [...events, { seq: 2, projectId: PROJECT.projectId }];
   calls.length = 0; clock += 60_000;
   await sync();
-  assert.equal(boardReads(calls).length, 2);
+  assert.equal(boardCalls(calls).length, 2);
 
   calls.length = 0; clock += 16 * 60_000;
   await sync();
-  assert.equal(boardReads(calls).length, 2, 'boards older than the bound are reread with no event');
+  assert.equal(boardCalls(calls).length, 2, 'boards older than the bound are reread with no event');
 });
 
 test('the snapshot lane files the Ntasks snapshot, and nothing while Ntasks does not answer', async (t) => {
@@ -155,7 +158,7 @@ test('a board read that failed is read again on the next tick, quiet feed or not
   assert.equal((await readSyncState(dir, 'https://ntasks.example.com')).boards[PROJECT.projectId], undefined);
   calls.length = 0; clock += 60_000; state.failBoards = false;
   const next = await sync();
-  assert.equal(boardReads(calls).length, 2, 'the failed project is reread with no event naming it');
+  assert.equal(boardCalls(calls).length, 2, 'the failed project is reread with no event naming it');
   assert.equal(next.body.projects[0].ok, true);
 });
 

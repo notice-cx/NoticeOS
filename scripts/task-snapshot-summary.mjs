@@ -1,14 +1,14 @@
-// Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
+// Pure task snapshot derivation from the Ntasks rows the runner reads.
 import { gateReason, gateTitle, TASK_BLOCKING_DEPENDENCIES } from '../packages/contract/src/task-gate.mjs';
-import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
+import { recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { BEADS_ATTENTION_TASKS_MAX, BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { readTaskCard } from '../packages/contract/src/task-card.mjs';
 import { readTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { readTaskResolution } from '../packages/contract/src/task-resolution.mjs';
-import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
+import { panelReviewEntry } from "./panel-review-summary.mjs";
 import { taskRowDependencies } from './task-row.mjs';
-import { TASK_SNAPSHOT_ERROR_MAX, taskFailure, taskInstant, taskText } from "./task-snapshot-values.mjs";
+import { TASK_SNAPSHOT_ERROR_MAX, taskInstant, taskText } from "./task-snapshot-values.mjs";
 
 // The Tower handoff join: one key carried from the finding to the task filed
 // for it, so the finding can show its task. A handoff (apps/tower/src/lib/
@@ -19,12 +19,12 @@ import { TASK_SNAPSHOT_ERROR_MAX, taskFailure, taskInstant, taskText } from "./t
 // filtered query per spoke, not a slice of the capped lists this poller
 // captures, because a task filed a month ago falls outside all of them.
 
-/** The label every Tower handoff task carries; `--label-any` also finds the
- * older `reindex-handoff` label. */
+/** The label every Tower handoff task carries; the handoff read also takes in
+ * the older `reindex-handoff` label. */
 export { HANDOFF_LABEL } from '../packages/contract/src/task-metadata.mjs';
 /** The finding/query identity, byte-exact. Read from metadata and never from
- * the `key:` label: `bd` splits label values on commas, and the label carries
- * a lossy slug. */
+ * the `key:` label: label lists split on commas, and the label carries a
+ * lossy slug. */
 export const HANDOFF_KEY_FIELD = TASK_METADATA.key.name;
 /** Which Tower surface raised it. This is wider than `decisions.kind`: page
  * rows file work but carry no mark/dismiss display state. */
@@ -42,29 +42,7 @@ export const HANDOFF_KINDS = BEADS_HANDOFF_KINDS;
  */
 export const HANDOFF_LIMIT = 50;
 
-/**
- * Every handoff task one spoke holds, any status. Closed tasks are asked for in
- * the same call: only a closed task tells "shipped, not proven" from
- * "untouched". `--limit 0` means unlimited, because several tasks can carry one
- * key (a refiled finding) and the choice has to be made over all of them.
- */
-export function handoffListArgs(repoDir) {
-  return [
-    '-C',
-    repoDir,
-    'list',
-    '--label-any',
-    HANDOFF_LABELS.join(','),
-    '--status',
-    'open,in_progress,blocked,deferred,closed',
-    '--json',
-    '--limit',
-    '0',
-  ];
-}
-
-/** One task's handoff metadata, or null when it carries none. `bd list --json`
- * omits the key entirely for a task with no metadata. */
+/** One task's handoff metadata, or null when it carries none. */
 function handoffMetadata(row) {
   const metadata = row?.metadata;
   return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : null;
@@ -106,7 +84,7 @@ export function handoffEntries(rows, asset) {
   }
   // Ranked, then truncated, then sorted: the rank decides what survives a
   // saturated property; the final sort makes the payload a function of the
-  // hub's state rather than of the order `bd` answered in.
+  // hub's state rather than of the order Ntasks answered in.
   return [...byKey.values()]
     .sort(handoffRank)
     .slice(0, HANDOFF_LIMIT)
@@ -140,99 +118,69 @@ export const TASK_DAILY_CLOSED_LIMIT = 5;
  * the minute one is filed. Capped like the closed list. */
 export const TASK_CREATED_LIMIT = 5;
 /** "Recently closed" means closed within this many days — the "what moved?"
- * window, at day grain because `bd --closed-after` takes a date. */
+ * window, at day grain like the closed read's own reach. */
 export const TASK_CLOSED_WINDOW_DAYS = 7;
 /** How far back the closed read reaches: this calendar week and last, from
  * Monday in any time zone, plus the boundary day the task client may leave
  * out. The recent lists above are cut from it to their own week. */
 export const TASK_CLOSES_DAYS = 15;
-/** `bd`'s documented default priority, used when a bead carries none. */
+/** The default priority, used when a task carries none. */
 const TASK_DEFAULT_PRIORITY = 2;
-/** The `bd` type that is a container rather than work. Counting epics inflates
+/** The task type that is a container rather than work. Counting epics inflates
  * every "how much is left?" number, so they are filtered here, at the only
  * place that can see the untruncated lists. */
 export const TASK_CONTAINER_TYPE = 'epic';
 /** P0–P1. The urgency question a property card asks, and the one thing about a
  * queue that cannot wait for someone to open the board. */
 export const TASK_HIGH_PRIORITY_MAX = 1;
-/** `bd` ships P0–P4, so a queue's shape is five numbers. Computed here because
+/** Priorities run P0–P4, so a queue's shape is five numbers. Computed here because
  * the lists are truncated downstream, so nothing else can see the whole
  * distribution. */
 export const TASK_PRIORITY_BANDS = 5;
-/** `bd`'s own token for deliberately parked work (category `frozen`, glyph ❄).
- * No other read here asks for it, so this is the only read that sees it. */
+/** The status of deliberately parked work. Only the deferred list holds it. */
 export const TASK_DEFERRED_STATUS = 'deferred';
 
-/** The oldest close still worth showing, as the YYYY-MM-DD `bd` expects. */
+/** The oldest close still worth showing, as a YYYY-MM-DD day. */
 export function tasksClosedSince(nowMs) {
   return new Date(nowMs - TASK_CLOSED_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** The first day the closed read asks for: what `taskPollArgs` is given. */
+/** The first day the closed read asks for. */
 export function tasksClosesSince(nowMs) {
   return new Date(nowMs - TASK_CLOSES_DAYS * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
- * The reads that make one project's snapshot, keyed by what they answer.
- * `bd list` reports each task's stored status, which says nothing about its
- * dependencies; `bd ready` and `bd blocked` are the blocker-aware questions,
- * and re-deriving them here would be a second implementation of `bd`'s
- * semantics. `--limit 0` means unlimited: the counts must be true even though
- * the lists are truncated afterwards. The `TASK_OPTIONAL_READS` may fail
- * without costing the project its snapshot.
+ * The lists one project's snapshot is made of, each a list of task rows
+ * (`boardReads` in runner/task-service-poll.mjs cuts them from the project's
+ * Ntasks boards):
+ * - `active`: every task not closed or parked, for the counts and the
+ *   in-flight list. Uncut: the counts must be true though the lists are
+ *   truncated afterwards.
+ * - `ready`: claimable work, as Ntasks marks it, in the board's order. Ntasks
+ *   decides what is blocked; re-deriving it here would be a second rule.
+ * - `blocked`: open tasks whose blockers are still open.
+ * - `closed`: the closes since `tasksClosesSince`.
+ * - `epics`: containers with their all-time child progress, since the closed
+ *   list is a trailing window and an epic finished last month would otherwise
+ *   read as 0% done.
+ * - `human`: tasks labelled `human`, which also include parked, blocked and
+ *   in-progress rows, so the inbox intersects it with `ready`.
+ * - `gates`: open gates, which carry no `human` label; a human gate holds a
+ *   task out of the ready list until resolved.
+ * - `deferred`: deliberately parked work, which no other list holds.
+ * - `panelReview` and `handoffs`: every task with the panel-review or a handoff
+ *   label, any status, because a task filed a month ago is in none of the
+ *   lists above.
  */
-export function taskPollArgs(repoDir, closedSince) {
-  return {
-    // Everything not closed: the open/in-progress counts and the in-flight list.
-    active: ['-C', repoDir, 'list', '--status', 'open,in_progress,blocked', '--json', '--limit', '0'],
-    // Blocker-aware claimable work, in bd's own ranking.
-    ready: ['-C', repoDir, 'ready', '--json', '--limit', '0'],
-    // Open tasks whose blockers are still open.
-    blocked: ['-C', repoDir, 'blocked', '--json'],
-    closed: [
-      '-C',
-      repoDir,
-      'list',
-      '--status',
-      'closed',
-      '--closed-after',
-      closedSince,
-      '--json',
-      '--limit',
-      '0',
-    ],
-    // Epic containers with their all-time child progress: the closed list
-    // above is a trailing week, so an epic whose children were finished last
-    // month would otherwise read as 0% done.
-    epics: ['-C', repoDir, 'epic', 'status', '--json'],
-    // Tasks carrying `human`. Not yet the inbox: it also includes parked,
-    // blocked and in-progress rows, so summarizeTaskProject intersects it
-    // with this poll's `ready` result.
-    human: ['-C', repoDir, 'human', 'list', '--json'],
-    // Open gates. They do not carry the `human` label, so the read above
-    // cannot see them; a human gate holds a task out of `bd ready` until
-    // resolved.
-    gates: ['-C', repoDir, 'gate', 'list', '--json'],
-    // Deliberately parked work (`❄ deferred`, bd's own `frozen` category),
-    // which no other read returns.
-    deferred: ['-C', repoDir, 'list', '--status', 'deferred', '--json', '--limit', '0'],
-    // This property's SERP-panel triage state — the same query the filer uses to
-    // decide whether to write one (see panelReviewListArgs).
-    panelReview: panelReviewListArgs(repoDir),
-    // Work filed from this property's Tower handoffs, so a finding card can see
-    // its own task. Its own read because the lists above are capped heads.
-    handoffs: handoffListArgs(repoDir),
-  };
-}
-
-/** Reads whose failure costs the snapshot nothing but its own enhancement. */
+export const TASK_REQUIRED_READS = ['active', 'ready', 'blocked', 'closed'];
+/** Lists whose absence costs the snapshot nothing but its own enhancement. */
 export const TASK_OPTIONAL_READS = ['epics', 'deferred', 'human', 'gates', 'panelReview', 'handoffs'];
 
-/** One `bd` issue object flattened to what a board row needs. Field names are
- * `bd`'s (snake_case); everything the OS stores is camelCase, and this is the
- * one place the two vocabularies meet. A bead with a blank title falls back to
- * its own id rather than rendering as an empty row. `links` (`taskLinks`)
+/** One task row flattened to what a board row needs. Row field names are
+ * snake_case (`runnerRow` in runner/task-service-poll.mjs); everything the OS
+ * stores is camelCase, and this is the one place the two meet. A task with a
+ * blank title falls back to its own id rather than rendering as an empty row. `links` (`taskLinks`)
  * adds the task's links to other tasks. */
 function taskIssue(row, links) {
   const id = taskText(row?.id);
@@ -251,8 +199,7 @@ function taskIssue(row, links) {
     // When the task was filed: the only field that tells a new task from an
     // old one.
     createdAt: taskInstant(row?.created_at),
-    // The epic this bead belongs to (`bd`'s own `parent`, backed by a
-    // parent-child dependency edge). null = un-epiced, which the board groups
+    // The epic this task belongs to (its `parent`). null = un-epiced, which the board groups
     // as the remainder rather than hiding.
     parent: taskText(row?.parent) || null,
     // When a parked task asks to be looked at again. Only deferred tasks carry
@@ -267,9 +214,8 @@ function taskIssue(row, links) {
 
 /**
  * Each task's links to other tasks, as the Tower's live read takes them
- * (`taskRowDependencies`). They are read off the `bd list` rows, which carry
- * every link a task has, because `bd ready` and `bd blocked` answer with rows
- * that carry none; a task those rows do not hold keeps the links on its own
+ * (`taskRowDependencies`). They are read off the active, deferred and closed
+ * rows first, and a task those rows do not hold keeps the links on its own
  * row. Each link names the other task's status where any of these reads holds
  * that task. A task with more links than the store keeps carries none, so its
  * links read as not recorded rather than short.
@@ -346,8 +292,7 @@ function taskModel(row, closed) {
     || taskText(row?.metadata?.[TASK_METADATA.claimedModel.name]) || null;
 }
 /** Who filed a task and the model it named, as the task tools recorded them;
- * no keys when they recorded none. `bd`'s own `created_by` is no filer: the
- * runner's lanes leave their internal actor names there. */
+ * no keys when they recorded none. */
 export function taskFiler(row) {
   const by = taskText(row?.metadata?.[TASK_METADATA.filedBy.name]);
   const model = taskText(row?.metadata?.[TASK_METADATA.filedModel.name]);
@@ -430,13 +375,13 @@ export const TASK_EPIC_LIMIT = 25;
 export const TASK_DEFERRED_LIMIT = 15;
 /** The operator inbox is a top-N, not a queue. */
 export const TASK_WAITING_LIMIT = 10;
-/** `bd gate --help`: only a `human` gate waits on a person. A timer or a
+/** Only a `human` gate waits on a person. A timer or a
  * GitHub gate resolves itself and is nobody's inbox item. */
 export const TASK_HUMAN_GATE = 'human';
 
 /**
  * One epic's grouping row: the container, plus what its children are doing.
- * `total`/`closed` come from `bd epic status`, which counts all children ever;
+ * `total`/`closed` come from the board's epics, which count all children ever;
  * the status counts and the priority shape come from the live children, so
  * they agree with the lists the board renders beneath.
  */
@@ -474,12 +419,13 @@ function taskEpicSummary(entry, childrenByParent) {
 }
 
 /**
- * Turn one project's `bd` results into its snapshot entry. Pure: the caller
- * owns spawning. Any non-zero exit, unparseable stdout or invalid issue-list
- * shape fails this project only. The ready list keeps `bd`'s own order, which
- * is what an agent running `bd ready` in that repo is told. Epic-type
- * containers are dropped from every list before anything is counted or
- * truncated, the only place that can see the untruncated lists.
+ * Turn one project's lists (`TASK_REQUIRED_READS`, `TASK_OPTIONAL_READS`) into
+ * its snapshot entry. Pure: the caller reads Ntasks. A required list that is
+ * missing or holds a row without an id fails this project only; an optional
+ * list that is missing stays absent, so the board shows it as a read never
+ * made. The ready list keeps the board's order. Epic-type containers are
+ * dropped from every list before anything is counted or truncated, the only
+ * place that can see the untruncated lists.
  *
  * `closesSince` is the first day the closed read asked for; with it the entry
  * carries every close as `closes`. `closedSince` cuts the recent lists and
@@ -487,43 +433,21 @@ function taskEpicSummary(entry, childrenByParent) {
  * part as the read returned it.
  */
 /** @returns {import('../packages/contract/src/task-snapshot.mjs').BeadsProjectInput} */
-export function summarizeTaskProject(project, results, { closedSince, closesSince } = {}) {
+export function summarizeTaskProject(project, reads, { closedSince, closesSince } = {}) {
   const parsed = {};
-  for (const key of ['active', 'ready', 'blocked', 'closed']) {
-    const result = results?.[key];
-    if (!result || result.code !== 0) {
-      return taskProjectError(project, taskFailure(key, result));
-    }
-    try {
-      parsed[key] = JSON.parse(result.stdout);
-    } catch {
-      return taskProjectError(project, `bd ${key} returned unparseable JSON`);
-    }
-    // These required commands return issue arrays, including [] when empty.
-    // Unlike the optional human/gate reads below, literal null is not their
-    // empty-list representation. Reject malformed rows too: silently dropping
-    // a missing id would undercount the queue.
-    if (!Array.isArray(parsed[key]) || !parsed[key].every(
+  for (const key of TASK_REQUIRED_READS) {
+    const rows = reads?.[key];
+    // A row without an id is refused, not skipped: dropping it would
+    // undercount the queue.
+    if (!Array.isArray(rows) || !rows.every(
       (row) => row !== null && typeof row === 'object' && !Array.isArray(row) && taskText(row.id) !== '',
     )) {
-      return taskProjectError(project, `bd ${key} returned invalid issue list JSON (expected an array of issues with non-empty ids)`);
+      return taskProjectError(project, `Ntasks gave no valid ${key} list (expected tasks with non-empty ids)`);
     }
+    parsed[key] = rows;
   }
-  // The optional reads degrade to nothing rather than costing the project its
-  // snapshot: a `bd` too old for `epic status` should give a flat board, not a
-  // dark one.
   for (const key of TASK_OPTIONAL_READS) {
-    const result = results?.[key];
-    if (!result || result.code !== 0) continue;
-    try {
-      const value = JSON.parse(result.stdout);
-      // bd emits literal null for an empty human/gate list on some versions.
-      // Only a successfully parsed, successful command earns this empty list;
-      // missing/failed reads and unexpected object shapes remain unknown.
-      parsed[key] = (key === 'human' || key === 'gates') && value === null ? [] : value;
-    } catch {
-      /* absent stays absent */
-    }
+    if (Array.isArray(reads?.[key])) parsed[key] = reads[key];
   }
 
   const work = (issues) => issues.filter((issue) => issue.issueType !== TASK_CONTAINER_TYPE && issue.issueType !== 'gate');
@@ -548,7 +472,7 @@ export function summarizeTaskProject(project, results, { closedSince, closesSinc
   const closed = work(taskIssues(recentRows, links));
   const inProgress = active.filter((issue) => issue.status === 'in_progress');
   // Whether we looked, which is not the same as finding none: a project whose
-  // `bd` could not answer must not report "0 parked".
+  // deferred list is missing must not report "0 parked".
   const sawDeferred = Array.isArray(parsed.deferred);
   const deferred = sawDeferred ? work(taskIssues(parsed.deferred, links)) : [];
   // A poller that could not run the read sends no key; one that ran it and
@@ -563,7 +487,7 @@ export function summarizeTaskProject(project, results, { closedSince, closesSinc
   // What is waiting on the operator, from two reads that do not overlap:
   // blocker-aware ready tasks that also carry `human`, and open gates of
   // await_type `human`. A gate stays separate because resolving it is itself
-  // the action that releases the task it holds out of `bd ready`.
+  // the action that releases the task it holds out of the ready list.
   const sawHuman = Array.isArray(parsed.human);
   const sawGates = Array.isArray(parsed.gates);
   // Either read can preserve known rows, but only BOTH license an exact total.
@@ -602,7 +526,7 @@ export function summarizeTaskProject(project, results, { closedSince, closesSinc
         (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''),
     );
   // Gates are urgent regardless of their stored priority because they hold a
-  // blocked task out of `bd ready`. This rides separately from the bounded
+  // blocked task out of the ready list. This rides separately from the bounded
   // waiting list so a Wall total is never re-derived from a truncated head.
   const waitingUrgent =
     humanGates.length +
@@ -622,9 +546,9 @@ export function summarizeTaskProject(project, results, { closedSince, closesSinc
   const asks = new Set(waiting.slice(0, TASK_WAITING_LIMIT).map((issue) => issue.id));
   const heldByAsk = (issue) => issue.dependencies?.some((edge) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type) && asks.has(edge.id)) === true;
 
-  // Epic structure, when this `bd` could answer for it. Children come from the
-  // live lists (active + deferred) so the grouping always agrees with the rows
-  // rendered under it; `bd epic status` supplies only the all-time progress.
+  // Epic structure, when the board carried it. Children come from the live
+  // lists (active + deferred) so the grouping always agrees with the rows
+  // rendered under it; the board's epics supply only the all-time progress.
   let epics;
   if (Array.isArray(parsed.epics)) {
     const childrenByParent = new Map();
@@ -643,7 +567,7 @@ export function summarizeTaskProject(project, results, { closedSince, closesSinc
       .slice(0, TASK_EPIC_LIMIT);
   }
 
-  // The queue's SHAPE, P0..P4. `bd` tolerates priorities above 4, so anything
+  // The queue's SHAPE, P0..P4. A task may carry a priority above 4, so anything
   // beyond the scale folds into the last band rather than being dropped — an
   // unusual priority is still open work somebody has to do.
   const priorities = Array.from({ length: TASK_PRIORITY_BANDS }, () => 0);

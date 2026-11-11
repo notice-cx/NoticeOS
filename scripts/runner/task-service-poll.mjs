@@ -58,7 +58,7 @@ export const BACKUP_TASKS_UNKNOWN = 'The ingest has not said whether tasks live 
 /** Ntasks's label read: at most this many pages of LABEL_PAGE per label. */
 export const LABEL_PAGES = 10;
 export const LABEL_PAGE = 200;
-/** The snapshot's two label reads and the labels each takes in, as bd's list did. */
+/** The snapshot's two label reads and the labels each takes in. */
 export const LABEL_READS = Object.freeze({ handoffs: HANDOFF_LABELS, panelReview: [PANEL_REVIEW_LABEL] });
 
 /**
@@ -94,9 +94,10 @@ async function readLabels(service, projectId, labels) {
 /** The closes the snapshot reaches back over, as one closed-only board read. */
 const closesKey = (asset) => boardKey(asset, 'closed', TASK_CLOSES_DAYS);
 
-/** One board task as `bd list --json` reported it: the shape the snapshot
- * summary reads (scripts/task-snapshot-summary.mjs). */
-export function bdRow(ntasksTask) {
+/** One Ntasks task as a row of snake_case fields: the shape the snapshot
+ * summary (scripts/task-snapshot-summary.mjs) and the runner's filing lanes
+ * read. */
+export function runnerRow(ntasksTask) {
   const task = withNoticeosRecords(ntasksTask);
   return {
     id: task.id, title: task.title, status: task.status, priority: task.priority, issue_type: task.issueType,
@@ -108,31 +109,31 @@ export function bdRow(ntasksTask) {
   };
 }
 
-const answered = (rows) => ({ code: 0, stdout: JSON.stringify(rows), stderr: '' });
 const waitsOnBlocker = (task) => (task.dependencies ?? []).some((edge) => edge.type === 'blocks' && edge.status !== 'closed');
 
-/** The snapshot summary's inputs from a project's two boards: every status
- * (with its epics), and the closes over TASK_CLOSES_DAYS, and the label reads
- * (LABEL_READS) where Ntasks answered them; a read it did not answer stays
- * absent, which the cards show as one never made. */
-export function boardResults(board, closes, labelled = {}) {
+/** The snapshot summary's lists (TASK_REQUIRED_READS, TASK_OPTIONAL_READS)
+ * from a project's two boards: every status (with its epics), and the closes
+ * over TASK_CLOSES_DAYS, and the label reads (LABEL_READS) where Ntasks
+ * answered them; a read it did not answer stays absent, which the cards show
+ * as one never made. */
+export function boardReads(board, closes, labelled = {}) {
   const tasks = Array.isArray(board?.tasks) ? board.tasks : [];
   const open = tasks.filter((task) => task.status !== 'closed');
   const active = open.filter((task) => ['open', 'in_progress', 'blocked'].includes(task.status));
   return {
-    active: answered(active.map(bdRow)),
-    ready: answered(open.filter((task) => task.ready === true).map(bdRow)),
-    blocked: answered(active.filter((task) => task.status === 'blocked' || (task.status === 'open' && task.ready !== true && waitsOnBlocker(task))).map(bdRow)),
-    closed: answered((Array.isArray(closes?.tasks) ? closes.tasks : []).filter((task) => task.status === 'closed').map(bdRow)),
-    deferred: answered(open.filter((task) => task.status === 'deferred').map(bdRow)),
-    human: answered(open.filter((task) => task.issueType !== 'gate' && (task.labels ?? []).includes('human')).map(bdRow)),
-    gates: answered(open.filter((task) => task.issueType === 'gate').map((task) => ({ ...bdRow(task), await_type: task.awaitType ?? 'human' }))),
+    active: active.map(runnerRow),
+    ready: open.filter((task) => task.ready === true).map(runnerRow),
+    blocked: active.filter((task) => task.status === 'blocked' || (task.status === 'open' && task.ready !== true && waitsOnBlocker(task))).map(runnerRow),
+    closed: (Array.isArray(closes?.tasks) ? closes.tasks : []).filter((task) => task.status === 'closed').map(runnerRow),
+    deferred: open.filter((task) => task.status === 'deferred').map(runnerRow),
+    human: open.filter((task) => task.issueType !== 'gate' && (task.labels ?? []).includes('human')).map(runnerRow),
+    gates: open.filter((task) => task.issueType === 'gate').map((task) => ({ ...runnerRow(task), await_type: task.awaitType ?? 'human' })),
     ...Object.fromEntries(Object.keys(LABEL_READS).filter((read) => Array.isArray(labelled[read]))
-      .map((read) => [read, answered(labelled[read].map(bdRow))])),
-    ...(Array.isArray(board?.epics) ? { epics: answered(board.epics.map((epic) => ({
+      .map((read) => [read, labelled[read].map(runnerRow)])),
+    ...(Array.isArray(board?.epics) ? { epics: board.epics.map((epic) => ({
       epic: { id: epic.id, title: epic.title, status: epic.status, priority: epic.priority },
       total_children: epic.total, closed_children: epic.closed, eligible_for_close: epic.eligibleForClose === true,
-    }))) } : {}),
+    })) } : {}),
   };
 }
 
@@ -209,7 +210,7 @@ export async function syncTaskService({ service, spokes, cacheDir, now = Date.no
       const kept = await readCached(cacheDir, labelKey(project.asset, read));
       if (Array.isArray(kept?.body)) labelled[read] = kept.body;
     }
-    entries.push(summarizeTaskProject(project, boardResults(board.body, closes.body, labelled), reach));
+    entries.push(summarizeTaskProject(project, boardReads(board.body, closes.body, labelled), reach));
   }
   return { body: { capturedAt: new Date(now()).toISOString(), projects: entries }, feed };
 }

@@ -9,7 +9,7 @@
  * (scripts/demo-ntasks.mts).
  */
 import type { NtasksSeed, NtasksSeedTask } from './demo-ntasks-seed.mjs';
-import { boardResults, LABEL_READS } from './runner/task-service-poll.mjs';
+import { boardReads, LABEL_READS } from './runner/task-service-poll.mjs';
 import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, summarizeTaskProject } from './task-snapshot-summary.mjs';
 import type { BeadsProjectInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { generateDemoScenario } from './demo-scenario.mjs';
@@ -114,7 +114,7 @@ export function demoTaskHistory(seed: NtasksSeed, scenario: Scenario): { capture
     for (const project of scenario.manifest.taskProjects) {
       if (instant < scenario.assets.find(asset => asset.id === project.asset)!.createdAt) continue;
       const { board, closes, labelled } = demoBoardsAt(seed, project.prefix, instant);
-      const summary = summarizeTaskProject({ asset: project.asset, prefix: project.prefix }, boardResults(board, closes, labelled), reach) as BeadsProjectInput;
+      const summary = summarizeTaskProject({ asset: project.asset, prefix: project.prefix }, boardReads(board, closes, labelled), reach) as BeadsProjectInput;
       if (!summary.ok) throw new Error(`The demo's task history for ${project.prefix} on ${day} does not summarize.`);
       projects.push(summary);
     }

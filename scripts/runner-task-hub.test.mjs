@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { laneSkips } from './runner/log.mjs';
 
 import { parseTaskProjects, readTaskProjectList } from './runner/task-hub.mjs';
-import { TASK_SNAPSHOT_ERROR_MAX, taskFailure, taskInstant, taskText } from './task-snapshot-values.mjs';
+import { taskInstant, taskText } from './task-snapshot-values.mjs';
 
 // scripts/runner/task-hub.mjs: the saved task projects as the task lanes read
 // them, and the task-value readers the lanes share (scripts/task-snapshot-values.mjs).
@@ -34,14 +34,11 @@ test('an unreadable store is a skip reason, an empty map is an empty answer', as
   });
 });
 
-test("bd's output is read defensively and its failures are one bounded line", () => {
+test("a task row's text and instants are read defensively", () => {
   assert.equal(taskText('  x  '), 'x');
   assert.equal(taskText(7, 'fallback'), 'fallback');
   assert.equal(taskInstant('2026-09-24T10:00:00+02:00'), '2026-09-24T08:00:00.000Z');
   assert.equal(taskInstant('soon'), null);
-  const line = taskFailure('list', { code: 2, stderr: `${'e'.repeat(TASK_SNAPSHOT_ERROR_MAX + 50)}\nsecond line` });
-  assert.ok(line.startsWith('bd list exited 2: '));
-  assert.equal(line.length, 'bd list exited 2: '.length + TASK_SNAPSHOT_ERROR_MAX);
 });
 
 test('a repeated skip reason is logged once, a new one always is, and the return is said once', () => {
