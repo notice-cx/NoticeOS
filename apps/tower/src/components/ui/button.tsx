@@ -19,8 +19,8 @@ const buttonVariants = cva(
         ghost: "text-secondary-foreground hover:bg-muted hover:text-foreground [&_svg]:text-muted-foreground",
       },
       size: {
-        default: "h-7.5 gap-1.5 px-2.5 text-label max-sm:min-h-11 [&_svg]:size-3.75",
-        sm: "h-6.5 gap-1.25 px-2 text-meta max-sm:min-h-11 [&_svg]:size-3.5",
+        default: "h-7.5 gap-1.5 px-2.5 text-label max-sm:min-h-11 max-sm:min-w-11 [&_svg]:size-3.75",
+        sm: "h-6.5 gap-1.25 px-2 text-meta max-sm:min-h-11 max-sm:min-w-11 [&_svg]:size-3.5",
         icon: "size-7.5 max-sm:size-11 [&_svg]:size-4",
       },
     },

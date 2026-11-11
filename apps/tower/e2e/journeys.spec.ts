@@ -3068,7 +3068,7 @@ test("a failed setup save is recoverable without duplicate creation or false suc
 
 // Home keeps the three steps until the first number, each step opens this
 // site's own next screen, and the number lands on a chart of itself.
-test("Home first-run actions keep their destinations and phone touch targets in every state", async ({ page }, testInfo) => {
+test("Home first-run actions keep their destinations and phone touch targets in every state", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   const guide = page.locator("[data-first-run]");
   const phone = (page.viewportSize()?.width ?? 0) < 640;
   const checkActions = async (state: string) => {
