@@ -1423,7 +1423,7 @@ test.describe(() => {
   // Next up in a box exactly its editor floor on the TV: the five decisions
   // and the three held tasks with the fixture's longest titles all drawn, in
   // its two parts side by side, and nothing reaching past the box or cut off.
-  test("Next up on the Wall draws whole in a box of its floor on the TV", desktopOnly("the TV's geometry"), async ({ page }, testInfo) => {
+  test("Next up on the Wall draws whole in a box of its floor on the TV", desktopOnly("the TV's geometry", PR_SMOKE), async ({ page }, testInfo) => {
     await wallScene(page, "six", {
       layout: {
         version: 1,
@@ -3068,7 +3068,7 @@ test("a failed setup save is recoverable without duplicate creation or false suc
 
 // Home keeps the three steps until the first number, each step opens this
 // site's own next screen, and the number lands on a chart of itself.
-test("Home first-run actions keep their destinations and phone touch targets in every state", async ({ page }, testInfo) => {
+test("Home first-run actions keep their destinations and phone touch targets in every state", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   const guide = page.locator("[data-first-run]");
   const phone = (page.viewportSize()?.width ?? 0) < 640;
   const checkActions = async (state: string) => {
