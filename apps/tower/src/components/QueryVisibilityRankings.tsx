@@ -126,7 +126,7 @@ interface QueryDecision {
 export function QueryVisibilityRankings({
   trends,
   asset,
-  handoffBeads = null,
+  handoffTasks = null,
   onWatch,
   collapsed = false,
   statedState = null,
@@ -135,7 +135,7 @@ export function QueryVisibilityRankings({
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
   /** What the task hub holds for this asset. `null` means it could not be
    * asked, and renders exactly as "nobody filed anything" does. */
-  handoffBeads?: HandoffBead[] | null;
+  handoffTasks?: HandoffBead[] | null;
   /** Open the asset page's outcome-check composer, seeded from one row.
    * Absent renders no action at all. */
   onWatch?: (seed: WatchSeed) => void;
@@ -149,7 +149,7 @@ export function QueryVisibilityRankings({
   // Filtered to `query`: a finding's key is a rule id, and one equal to a
   // query string would otherwise lend that query its task.
   const filed = new Map(
-    (handoffBeads ?? [])
+    (handoffTasks ?? [])
       .filter((entry) => entry.kind === "query")
       .map((entry) => [entry.key, entry]),
   );

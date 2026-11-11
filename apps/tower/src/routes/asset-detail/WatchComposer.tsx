@@ -670,13 +670,13 @@ export function ReadbackLink({ id }: { id: string | null | undefined }) {
  */
 export function WatchesStrip({
   watches,
-  beads,
+  handoffs,
 }: {
   watches: WatchSlice;
-  beads: HandoffBead[] | null;
+  handoffs: HandoffBead[] | null;
 }) {
   if (watches.open.length === 0 && watches.closed.length === 0) return null;
-  const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
+  const byId = new Map((handoffs ?? []).map((bead) => [bead.beadId, bead]));
   const open = watches.open.length;
   const closed = watches.closed.length;
   // The Overview's word for the same subject (watch window → Bets).

@@ -17,7 +17,7 @@ import type { CountersConfig } from "./counters";
 import type { EntityRow } from "../shared/entities";
 import type { IntegrationsConfig } from "../shared/integrations";
 import type { DashboardConfig } from "../shared/dashboard";
-import type { BeadsConfig } from "../shared/settings";
+import type { TaskProjectsConfig } from "../shared/settings";
 import type { DomainOrder, RecurringCost } from "../shared/financials";
 
 declare const __PORTFOLIO_REVIEW_ASSET_IDS__: string[] | null;
@@ -41,13 +41,13 @@ declare const __RECURRING_COSTS__: RecurringCost[];
 // Which legal entity owns which assets (config/entities.json).
 declare const __ENTITIES__: EntityRow[];
 // config/beads.json, spokes only — the hub connection never leaves this machine.
-declare const __BEADS__: BeadsConfig;
+declare const __TASK_PROJECTS__: TaskProjectsConfig;
 
 /**
  * The compiled config, gathered once so `config-source.ts` never touches a
  * `define` and a test can hand it a whole configuration without a bundler.
  *
- * `__BEADS__` already carries `local: false` in a build (vite.config.ts), and
+ * `__TASK_PROJECTS__` already carries `local: false` in a build (vite.config.ts), and
  * the resolver keeps that answer rather than taking one out of a stored document.
  */
 export function compiledConfig(): TowerConfigFallbacks {
@@ -70,6 +70,6 @@ export function compiledConfig(): TowerConfigFallbacks {
     domainOrders: __DOMAIN_COSTS__,
     recurringCosts: __RECURRING_COSTS__,
     entities: __ENTITIES__,
-    beads: __BEADS__,
+    beads: __TASK_PROJECTS__,
   };
 }

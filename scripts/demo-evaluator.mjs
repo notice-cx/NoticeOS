@@ -21,7 +21,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const entries = {
       banking: path.join(root, 'workers/ingest/src/demo-banking.ts'),
       watch: path.join(root, 'workers/ingest/src/watch-windows.ts'),
-      snapshots: path.join(root, 'workers/ingest/src/beads-snapshots.ts'),
+      snapshots: path.join(root, 'workers/ingest/src/task-snapshots.ts'),
       configuration: path.join(root, 'workers/ingest/src/config-store.ts'),
       jobs: path.join(root, 'workers/ingest/src/job-runs.ts'),
       reports: path.join(root, 'workers/ingest/src/db.ts'),
@@ -72,13 +72,13 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const readbacks = activity ? await import(pathToFileURL(path.join(output, 'readbacks.mjs')).href) : null;
     if (activity && (typeof notifier.runNotifier !== 'function' || typeof readbacks.readPendingWatchReadbacks !== 'function'
       || typeof readbacks.markWatchReadbacksPosted !== 'function' || typeof codebase.evaluateCodebaseRules !== 'function')) throw new Error('The released demo workflow lanes are absent.');
-    if (typeof watch.runWatchWindows !== 'function' || typeof snapshots.writeBeadsSnapshot !== 'function') throw new Error('The released demo Worker helpers are absent.');
+    if (typeof watch.runWatchWindows !== 'function' || typeof snapshots.writeTaskSnapshot !== 'function') throw new Error('The released demo Worker helpers are absent.');
     if (['seedConfigDocuments', 'applyConfigOps', 'getConfigDocuments'].some(name => typeof configuration[name] !== 'function')) throw new Error('The released demo config helpers are absent.');
     if (typeof jobs.writeJobRuns !== 'function') throw new Error('The released demo workflow writer is absent.');
     if (typeof reports.runAssetZeroPulse !== 'function' || typeof reports.runFreshnessCheck !== 'function') throw new Error('The released demo OS reporter is absent.');
     if (typeof insights.writeInsightSnapshot !== 'function') throw new Error('The released demo report writer is absent.');
     if (typeof uptime.runUptimeChecks !== 'function' || typeof uptime.runHygieneChecks !== 'function' || typeof uptime.writeReading !== 'function') throw new Error('The released demo asset checks are absent.');
-    return { writeDemoBanking: banking.writeDemoBanking, runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
+    return { writeDemoBanking: banking.writeDemoBanking, runWatchWindows: watch.runWatchWindows, writeTaskSnapshot: snapshots.writeTaskSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
       writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot, runUptimeChecks: uptime.runUptimeChecks,
       // The nightly site checks and the page-speed reading's writer share the uptime check's module.

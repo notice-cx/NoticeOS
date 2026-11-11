@@ -158,7 +158,7 @@ describe("buildWorkPayload", () => {
         asset: "root-os",
         prefix: "ro",
         ok: false,
-        error: "bd ready exited 1: no beads project found",
+        error: "Ntasks answered 404: project not found",
         counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
         ready: [],
         inProgress: [],
@@ -173,7 +173,7 @@ describe("buildWorkPayload", () => {
       name: "System",
       ok: false,
     });
-    expect(payload.projects[1]!.error).toMatch(/no beads project found/);
+    expect(payload.projects[1]!.error).toMatch(/project not found/);
     expect(payload.projects[1]!.ready).toEqual([]);
   });
 
@@ -237,8 +237,8 @@ describe("buildWorkPayload", () => {
   });
 });
 
-// Byte-for-byte what `POST /api/beads-snapshot` writes into `payload` for one
-// real poller run, duplicated in `workers/ingest/test/beads-snapshot.test.ts`
+// Byte-for-byte what `POST /api/task-snapshot` writes into `payload` for one
+// real poller run, duplicated in `workers/ingest/test/task-snapshot.test.ts`
 // (the packages cannot import each other). `buildWorkPayload` is tolerant, so
 // reading a real stored row field-for-field is what catches a renamed key.
 const STORED_BY_THE_ROUTE = {

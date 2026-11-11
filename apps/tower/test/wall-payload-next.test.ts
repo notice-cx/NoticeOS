@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkspaceStore } from "@noticeos/postgres";
-import { loadLatestBeadsSnapshot, type BeadsSnapshot, type SnapshotProject } from "../worker/beads-snapshot";
+import { loadLatestTaskSnapshot, type TaskSnapshot, type SnapshotProject } from "../worker/task-snapshot";
 import { wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
@@ -52,7 +52,7 @@ function project(asset: string, over: Partial<SnapshotProject> = {}): SnapshotPr
   };
 }
 
-const snapshot = (...projects: SnapshotProject[]): BeadsSnapshot => ({ capturedAt: hoursAgo(0), projects });
+const snapshot = (...projects: SnapshotProject[]): TaskSnapshot => ({ capturedAt: hoursAgo(0), projects });
 
 describe("wallAttentionTasksOf", () => {
   it("retains more than the Next up and board caps with measured coverage", () => {
@@ -190,7 +190,7 @@ describe("a task's card and change class, as the Tower reads the stored row", ()
           ] }] }),
       }] }),
     } as unknown as WorkspaceStore;
-    const ready = (await loadLatestBeadsSnapshot(store))!.projects[0]!.ready;
+    const ready = (await loadLatestTaskSnapshot(store))!.projects[0]!.ready;
     expect([ready[0]!.card, ready[0]!.changeClass]).toEqual([card, "copy"]);
     expect(ready.slice(1).map((item) => ["card" in item, "changeClass" in item])).toEqual([[false, false], [false, false]]);
   });
@@ -244,7 +244,7 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
 
   it("reads complete attention lists independently and drops malformed coverage without inventing an empty list", async () => {
     const valid = { items: [{ ...item("md-full", { priority: 1 }), decision: false }], complete: true };
-    const result = await loadLatestBeadsSnapshot(storing({ projects: [stored({ attentionTasks: valid }), stored({ asset: "older.example" }), stored({ asset: "bad.example", attentionTasks: { items: [{ id: "bad", decision: "yes" }], complete: true } })] }));
+    const result = await loadLatestTaskSnapshot(storing({ projects: [stored({ attentionTasks: valid }), stored({ asset: "older.example" }), stored({ asset: "bad.example", attentionTasks: { items: [{ id: "bad", decision: "yes" }], complete: true } })] }));
     expect(result!.projects[0]!.attentionTasks).toEqual(valid);
     expect(result!.projects[1]).not.toHaveProperty("attentionTasks");
     expect(result!.projects[2]).not.toHaveProperty("attentionTasks");
@@ -252,13 +252,13 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
   });
 
   it.each([{ title: undefined }, { status: undefined }, { priority: undefined }, { priority: -1 }, { priority: 10 }, { priority: 0.5 }])("never grants complete attention coverage using legacy defaults for %j", async patch => {
-    const result = await loadLatestBeadsSnapshot(storing({ projects: [stored({ attentionTasks: { items: [{ ...item("md-new", { priority: 1 }), decision: true, ...patch }], complete: true }, ready: [item("md-known", { priority: 1 })] })] }));
+    const result = await loadLatestTaskSnapshot(storing({ projects: [stored({ attentionTasks: { items: [{ ...item("md-new", { priority: 1 }), decision: true, ...patch }], complete: true }, ready: [item("md-known", { priority: 1 })] })] }));
     expect(result!.projects[0]).not.toHaveProperty("attentionTasks");
     expect(wallAttentionTasksOf(result)).toMatchObject({ measuredProjects: 0, items: [{ id: "md-known" }] });
   });
 
   it("reads each row's links and the blocked list, and leaves out what an older poller never wrote", async () => {
-    const snapshot = await loadLatestBeadsSnapshot(storing({ projects: [
+    const snapshot = await loadLatestTaskSnapshot(storing({ projects: [
       stored({
         ready: [{ id: "md-1", title: "Older row" }, { id: "md-2", title: "No links", dependencies: [] }],
         blocked: [

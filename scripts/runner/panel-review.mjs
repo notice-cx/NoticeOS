@@ -17,8 +17,8 @@ import { laneSkips, log } from './log.mjs';
 import { taskBackend, taskLaneSkip } from './task-service-poll.mjs';
 import { ntasksRegister } from './task-service-register.mjs';
 import { operatorToken } from './operator-token.mjs';
-import { readBeadsProjects } from './task-hub.mjs';
-import { beadsInstant, beadsText } from '../task-snapshot-values.mjs';
+import { readTaskProjectList } from './task-hub.mjs';
+import { taskInstant, taskText } from '../task-snapshot-values.mjs';
 
 // Panel-review filer — once an hour the runner asks ingest which
 // properties have a fresh weekly DataForSEO collection, and files the review
@@ -58,8 +58,8 @@ export function parsePanelLandings(body) {
   const seen = new Set();
   const landings = [];
   for (const row of rows) {
-    const asset = beadsText(row?.asset);
-    const panelDate = beadsText(row?.panelDate);
+    const asset = taskText(row?.asset);
+    const panelDate = taskText(row?.panelDate);
     if (asset === '' || !PANEL_DATE_RE.test(panelDate)) continue;
     // One landing per property — the newest. A second row for the same asset is
     // the endpoint misbehaving, and filing two reviews would be the loud way to
@@ -74,7 +74,7 @@ export function parsePanelLandings(body) {
     landings.push({
       asset,
       panelDate,
-      landedAt: beadsInstant(row?.landedAt),
+      landedAt: taskInstant(row?.landedAt),
       panel: typeof row?.panel === 'boolean' ? row.panel : queries !== null,
       queries,
       families: Number.isInteger(row?.families) && row.families > 0 ? row.families : null,
@@ -238,9 +238,9 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
   const standDown = taskLaneSkip(await taskBackend(taskService), 'file reviews');
   if (standDown) return skip(standDown);
   const register = ntasksRegister(taskService, PANEL_REVIEW_ACTOR);
-  const { projects, unreadable } = await readBeadsProjects(readConfig);
+  const { projects, unreadable } = await readTaskProjectList(readConfig);
   if (unreadable) return skip(unreadable);
-  if (projects.length === 0) return skip('no beads spokes are configured');
+  if (projects.length === 0) return skip('no task projects are configured');
 
   const token = await readToken().catch(() => null);
   if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
@@ -315,7 +315,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     let beadId;
     try { beadId = await fileNtasksPanelReview(register, project, { ...landing, version,
       invalidated: rows.filter(row => invalidPanelReview(row) && panelReviewPanelDate(row) === landing.panelDate)
-        .map(row => beadsText(row.id)).filter(Boolean),
+        .map(row => taskText(row.id)).filter(Boolean),
     }); }
     catch (error) {
       emit('ERROR', `panel review: ${landing.asset} — review create failed: ${error.message}`);

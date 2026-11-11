@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TASK_RESOLUTIONS } from "@noticeos/contract/task-resolution";
-import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
-import { beadsNeedsYou } from "../worker/task-source";
+import { loadLatestTaskSnapshot } from "../worker/task-snapshot";
+import { snapshotNeedsYou } from "../worker/task-source";
 import { buildWorkPayload } from "../worker/work-payload";
 import { operatorLabel, operatorState } from "../src/lib/operator-posture";
 import { type TestStore, createTestStore } from "./postgres-store";
@@ -30,12 +30,12 @@ describe("partial operator snapshots from the task poller", () => {
     // Exact totals are omitted by the poller when either read failed. Known
     // rows are retained; successful ordinary work reads remain useful.
     await seedSnapshot(ctx, CAPTURED, [workProject({ waiting: rows })]);
-    const snapshot = await loadLatestBeadsSnapshot(ctx.call);
+    const snapshot = await loadLatestTaskSnapshot(ctx.call);
     expect(snapshot!.projects[0]).toMatchObject({
       ok: true, error: null, counts: { waiting: null }, waitingUrgent: null,
     });
     expect(snapshot!.projects[0]!.waiting.map((row) => row.id)).toEqual((rows ?? []).map((row) => row.id));
-    const posture = beadsNeedsYou(snapshot);
+    const posture = snapshotNeedsYou(snapshot);
     expect(posture).toMatchObject({
       waiting: rows?.length ?? 0, urgent, measuredProjects: 0, urgentMeasuredProjects: 0, projectCount: 1,
     });
@@ -53,7 +53,7 @@ describe("partial operator snapshots from the task poller", () => {
       workProject({ asset: "northwind.example", counts: { waiting: 10 }, waitingUrgent: 4 }),
       workProject({ asset: "ferns.example", ok: false, waiting }),
     ]);
-    const posture = beadsNeedsYou(await loadLatestBeadsSnapshot(ctx.call));
+    const posture = snapshotNeedsYou(await loadLatestTaskSnapshot(ctx.call));
     expect(posture).toMatchObject({ waiting: 13, urgent: 6, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 3 });
     expect(operatorLabel(posture, NOW.getTime())).toBe("at least 6 urgent · at least 13 need attention");
   });
@@ -69,7 +69,7 @@ describe("partial operator snapshots from the task poller", () => {
       ],
       ready: [{ id: "md-h0", title: "Choose the first page", status: "open", priority: 1, issueType: "task", choices, choice }],
     })]);
-    const project = (await loadLatestBeadsSnapshot(ctx.call))!.projects[0]!;
+    const project = (await loadLatestTaskSnapshot(ctx.call))!.projects[0]!;
     expect([project.waiting[0]!.choices, "choice" in project.waiting[0]!]).toEqual([choices, false]);
     expect("choices" in project.waiting[1]! || "choice" in project.waiting[1]!).toBe(false);
     expect(project.ready[0]!.choice).toEqual(choice);
@@ -88,7 +88,7 @@ describe("partial operator snapshots from the task poller", () => {
         { kind: "closed", taskId: "md-c1", title: "md-c1", by: "claude", model: null, at: "2026-09-05T11:00:00.000Z", evidence: "Landed", resolution: "done" },
       ],
     })]);
-    const project = (await loadLatestBeadsSnapshot(ctx.call))!.projects[0]!;
+    const project = (await loadLatestTaskSnapshot(ctx.call))!.projects[0]!;
     expect(project.recentlyClosed.map((row) => [row.id, row.resolution ?? null, row.duplicateOf ?? null])).toEqual([
       ["md-c1", null, null], ["md-c2", "duplicate", "md-c1"], ["md-c3", "wont-do", null], ["md-c4", null, null]]);
     expect(project.recentWork?.map((event) => [event.taskId, event.resolution ?? null])).toEqual([["md-c3", "wont-do"], ["md-c1", null]]);
@@ -134,7 +134,7 @@ describe("partial operator snapshots from the task poller", () => {
   it("returns to a complete zero only after a newer complete empty snapshot", async () => {
     await seedSnapshot(ctx, "2026-09-05T11:59:00.000Z", [workProject({ waiting })]);
     await seedSnapshot(ctx, CAPTURED, [workProject({ counts: { waiting: 0 }, waitingUrgent: 0, waiting: [] })]);
-    const posture = beadsNeedsYou(await loadLatestBeadsSnapshot(ctx.call));
+    const posture = snapshotNeedsYou(await loadLatestTaskSnapshot(ctx.call));
     expect(operatorState(posture, NOW.getTime())).toMatchObject({ complete: true, urgentComplete: true, needsAttention: false });
     expect(operatorLabel(posture, NOW.getTime())).toBe("0 need attention");
   });

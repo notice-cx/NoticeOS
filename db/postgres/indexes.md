@@ -72,8 +72,8 @@ query chooses that index or that its write cost has been measured.
 | `notifications_subject` | Delivery history for alert subjects (`workers/ingest/src/notifier.ts`, `apps/tower/worker/flag-scope.ts`). |
 | `job_runs_started` | Recent workspace workflow history (`workers/ingest/src/job-runs.ts`). |
 | `egress_checks_observed` | Latest workspace connectivity checks (`workers/ingest/src/db.ts`). |
-| `task_snapshots_captured` | Latest task snapshot and retained history (`apps/tower/worker/beads-snapshot.ts`, `workers/ingest/src/beads-snapshots.ts`). |
-| `task_daily_counts_day` | Daily workspace work counts (`apps/tower/worker/beads-daily.ts`). |
+| `task_snapshots_captured` | Latest task snapshot and retained history (`apps/tower/worker/task-snapshot.ts`, `workers/ingest/src/task-snapshots.ts`). |
+| `task_daily_counts_day` | Daily workspace work counts (`apps/tower/worker/task-daily.ts`). |
 | `connection_daily_counts_day` | Daily workspace connection counts (`apps/tower/worker/connection-daily.ts`). |
 | `alert_daily_counts_day` | Daily workspace alert counts (`workers/ingest/src/alert-daily.ts`). |
 | `platform_enrollment_active_workspace_idx` | Enforces one non-revoked platform enrollment per workspace (migration `0004_email_code.sql`). |

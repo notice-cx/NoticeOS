@@ -89,7 +89,7 @@ function forgetFindingPreferences(preferences: ReturnType<typeof useOwnerPrefere
 export function ExecutiveFindingsList({
   snapshot,
   recordedDecisions = [],
-  handoffBeads = null,
+  handoffTasks = null,
   onDecide,
   onWatch,
 }: {
@@ -99,7 +99,7 @@ export function ExecutiveFindingsList({
   recordedDecisions?: AssetDecision[];
   /** What the task hub holds for this asset. `null` means it could not be
    * asked, which is why absence is never phrased as "nothing filed". */
-  handoffBeads?: HandoffBead[] | null;
+  handoffTasks?: HandoffBead[] | null;
   /** Persist a decision. Optimistic: the list reorders at once and rolls back
    * if the write fails. Omitted in the component gallery. */
   onDecide?: FindingDecisionWriter;
@@ -132,7 +132,7 @@ export function ExecutiveFindingsList({
   // Filtered to `finding`: a query decision's key is a normalized search
   // query, and a rule id equal to one would otherwise borrow its task.
   const filed = new Map(
-    (handoffBeads ?? [])
+    (handoffTasks ?? [])
       .filter((entry) => entry.kind === "finding")
       .map((entry) => [entry.key, entry]),
   );

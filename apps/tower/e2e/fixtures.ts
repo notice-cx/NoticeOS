@@ -79,7 +79,7 @@ export const INJECTED: Record<string, unknown> = {
   __OS_TIME_ZONE__: JOURNEY_TIME_ZONE, __NO_NIGHTLY_REPORT__: null, __SCHEDULES__: null, __SERP_PANEL__: { assets: {} }, __SIGNAL_PANELS__: { assets: {} },
   __VALUE_EVENTS__: { assets: {} }, __GA4_EVENT_PARAMS__: { assets: {} },
   __DOMAIN_COSTS__: [], __RECURRING_COSTS__: [], __ENTITIES__: [],
-  __BEADS__: { local: true, spokes: [] }, __RUNNER_LANE__: false,
+  __TASK_PROJECTS__: { local: true, spokes: [] }, __RUNNER_LANE__: false,
 };
 
 /** One saved finding for the fixture asset: the analysis snapshot the asset
@@ -182,7 +182,7 @@ export function backlogTasks() {
 }
 
 /** The operator's two asks: a top-priority one, so every journey walks the
- * inbox's warn register, and a human gate in `bd`'s own shape, titled "Gate:
+ * inbox's warn register, and a human gate in the snapshot row's shape, titled "Gate:
  * human" with the ask under `Reason:` in its description, so every journey
  * reads the gate's ask the way the live board and the snapshot both title it. */
 export function initialTasks() {

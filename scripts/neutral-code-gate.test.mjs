@@ -77,8 +77,8 @@ describe('the list comes from this installation, never from the gate', () => {
     for (const asset of Object.keys(integrations.assets)) {
       assert.ok(names.has(asset.toLowerCase()), `${asset} (integrations.json) is forbidden`);
     }
-    const beads = JSON.parse(readFileSync(readablePath('config/beads.json', { root }), 'utf8'));
-    for (const spoke of beads.spokes) assert.ok(names.has(spoke.asset.toLowerCase()), `${spoke.asset} (beads.json)`);
+    const taskProjects = JSON.parse(readFileSync(readablePath('config/beads.json', { root }), 'utf8'));
+    for (const spoke of taskProjects.spokes) assert.ok(names.has(spoke.asset.toLowerCase()), `${spoke.asset} (beads.json)`);
     const os = [...names.values()].filter((entry) => entry.kind === 'os-asset');
     assert.equal(os.length, 1, 'exactly one OS asset, read from the installation inventory');
     assert.match(os[0].source, /^installation\/neutral-names\.json/);
@@ -264,12 +264,12 @@ describe('it fails on a planted name', () => {
     const root = scratchInstallation('export {};\n');
     writeFileSync(path.join(root, 'config/integrations.json'), JSON.stringify({ assets: { 'shop.example': {} } }));
     writeFileSync(path.join(root, 'config/constants.json'), JSON.stringify({ os_time_zone: 'Europe/Warsaw' }));
-    writeFileSync(path.join(root, 'config/dolt-server.yaml'), 'data_dir: /srv/os.home.example/beads\n');
+    writeFileSync(path.join(root, 'config/example-server.yaml'), 'data_dir: /srv/os.home.example/data\n');
     const run = runGate(['--root', root]);
     assert.equal(run.status, 1);
     assert.match(run.stderr, /config\/integrations\.json:1 {2}(an asset id|a domain) "shop\.example"/);
     assert.match(run.stderr, /config\/constants\.json:1 {2}a time zone "Europe\/Warsaw"/);
-    assert.match(run.stderr, /config\/dolt-server\.yaml:1 {2}a domain "os\.home\.example"/);
+    assert.match(run.stderr, /config\/example-server\.yaml:1 {2}a domain "os\.home\.example"/);
     // The installation's own folder is its data, never judged.
     assert.equal(isProductFile('installation/integrations.json'), false);
   });
@@ -373,7 +373,7 @@ describe('it fails on a planted name', () => {
     // The product defaults are product, and so is the prose that ships beside
     // them; this installation's folder is not.
     assert.equal(isProductFile('config/constants.json'), true);
-    assert.equal(isProductFile('config/dolt-server.yaml'), true);
+    assert.equal(isProductFile('config/example-server.yaml'), true);
     assert.equal(isProductFile('config/constants.README.md'), true);
     assert.equal(isProductFile('config/changesets/README.md'), true);
     assert.equal(isProductFile('installation/constants.json'), false);

@@ -218,7 +218,7 @@ describe("the ingest door, end to end", () => {
   // The proxy carries authority across without adding any: a POST arriving
   // with the wrong bearer is refused by the INGEST, not waved through.
   it("leaves the ingest's own operator auth in force on a proxied POST", async () => {
-    const res = await fetch(doorUrl("/api/beads-snapshot"), {
+    const res = await fetch(doorUrl("/api/task-snapshot"), {
       method: "POST",
       headers: { "content-type": "application/json", authorization: "Bearer definitely-wrong" },
       body: JSON.stringify({ projects: [] }),

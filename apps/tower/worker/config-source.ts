@@ -19,7 +19,7 @@ import { configDocumentKey } from "../../../scripts/config-documents.mjs";
 import type { EntityRow } from "../shared/entities";
 import type { DomainOrder, RecurringCost } from "../shared/financials";
 import type { IntegrationsConfig } from "../shared/integrations";
-import { logicalTaskProjects, type BeadsConfig } from "../shared/settings";
+import { logicalTaskProjects, type TaskProjectsConfig } from "../shared/settings";
 import { type DashboardConfig, readDashboardConfig } from "../shared/dashboard";
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
 import { portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
@@ -68,7 +68,7 @@ export interface TowerConfigFallbacks {
   domainOrders: DomainOrder[];
   recurringCosts: RecurringCost[];
   entities: EntityRow[];
-  beads: BeadsConfig;
+  beads: TaskProjectsConfig;
 }
 
 export interface TowerConfig extends TowerConfigFallbacks {
@@ -253,15 +253,15 @@ export async function resolveTowerConfig(
   // compiled answer. The key is reached through a type rather than a string
   // literal because `scripts/ui-lexicon.test.mjs` reads quoted words in
   // shipped Worker code as operator copy.
-  const beadsDoc = stored.get(TOWER_CONFIG_FILES.beads);
-  const storedSpokes = isObject(beadsDoc)
-    ? (beadsDoc as { spokes?: unknown }).spokes
+  const taskProjectsDoc = stored.get(TOWER_CONFIG_FILES.beads);
+  const storedSpokes = isObject(taskProjectsDoc)
+    ? (taskProjectsDoc as { spokes?: unknown }).spokes
     : undefined;
   const selectedSpokes = Array.isArray(storedSpokes) ? storedSpokes : fallbacks.beads.spokes;
   const beads = {
     spokes: fallbacks.beads.local === true ? selectedSpokes : logicalTaskProjects(selectedSpokes),
     local: fallbacks.beads.local === true,
-  } as BeadsConfig;
+  } as TaskProjectsConfig;
 
   return {
     monthlyCaps,

@@ -39,7 +39,7 @@ const INJECTED: Record<string, unknown> = {
   __DOMAIN_COSTS__: [],
   __RECURRING_COSTS__: [],
   __ENTITIES__: [],
-  __BEADS__: { spokes: [] },
+  __TASK_PROJECTS__: { spokes: [] },
   __RUNNER_LANE__: false,
 };
 

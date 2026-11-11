@@ -240,7 +240,7 @@ export function OverviewTab({
       </div>
 
       <div key="bets" className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
-        <Bets watches={data.watches} beads={data.handoffBeads} assetId={data.asset.id} nowMs={nowMs} />
+        <Bets watches={data.watches} handoffs={data.handoffTasks} assetId={data.asset.id} nowMs={nowMs} />
         <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
       </div>
 
@@ -502,14 +502,14 @@ function VerdictLine({
  * drawn until the ledger books a change's realized value. An opened row names
  * what it watches and, once closed, its readback task, as the Activity tab does.
  */
-function Bets({ watches, beads, assetId, nowMs }: {
+function Bets({ watches, handoffs, assetId, nowMs }: {
   watches: AssetDetailFor<"overview">["watches"];
-  beads: AssetDetailFor<"overview">["handoffBeads"];
+  handoffs: AssetDetailFor<"overview">["handoffTasks"];
   assetId: string;
   nowMs: number;
 }) {
   const assetTabPath = useAssetTabPath();
-  const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
+  const byId = new Map((handoffs ?? []).map((bead) => [bead.beadId, bead]));
   const rows = [
     ...watches.open.map((watch) => ({ watch, open: true })),
     ...watches.closed.map((watch) => ({ watch, open: false })),
@@ -884,7 +884,7 @@ function FullFindings({
     <ExecutiveFindingsList
       snapshot={data.executive}
       recordedDecisions={data.decisions}
-      handoffBeads={data.handoffBeads}
+      handoffTasks={data.handoffTasks}
       onDecide={decideFinding}
       onWatch={onWatch}
     />

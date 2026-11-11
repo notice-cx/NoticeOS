@@ -2,7 +2,7 @@
 //
 // The end-to-end case runs the real sweep, because the thing worth pinning is
 // that closing a window ENQUEUES its verdict without the sweep knowing anything
-// about beads. The mechanics below it are driven off hand-written rows: the
+// about tasks. The mechanics below it are driven off hand-written rows: the
 // queue does not care how a window closed, only that it did.
 
 import { env } from 'cloudflare:test';

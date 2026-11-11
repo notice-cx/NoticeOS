@@ -240,7 +240,7 @@ Fixture-only HTTP controls are available on **that isolated port**:
 - `POST /__journey/serp-panel?market=2826-en`: save one analysis with a tracked
   search panel on the created asset, in the market `<location>-<language>`
   names, or none without `?market=`.
-- `POST /__journey/task-source`: connect the beads task source — save the
+- `POST /__journey/task-source`: connect the task snapshot source — save the
   fixture's task project in `config/beads.json` and
   file the runner's first task snapshot of it. The fixture starts with no task
   project, as a fresh install does, so no task screen shows until this runs;

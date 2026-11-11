@@ -1,15 +1,15 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  BEADS_MAX_ITEMS,
-  BEADS_MAX_PROJECTS,
-  BEADS_SNAPSHOT_RETENTION_DAYS,
+  TASK_SNAPSHOT_MAX_ITEMS,
+  TASK_SNAPSHOT_MAX_PROJECTS,
+  TASK_SNAPSHOT_RETENTION_DAYS,
   WALL_FEED_REACH_HOURS,
   droppedHandoffEvent,
   supersededPayload,
-  writeBeadsSnapshot,
-} from '../src/beads-snapshots.js';
-import { readSnapshotProjects } from '../src/beads-daily.js';
+  writeTaskSnapshot,
+} from '../src/task-snapshots.js';
+import { readSnapshotProjects } from '../src/task-daily.js';
 import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
 import { OPERATOR_TOKEN } from './fixtures.js';
@@ -63,7 +63,7 @@ function project(overrides: Record<string, unknown> = {}) {
 function snapshotRequest(body: unknown, opts: { token?: string; raw?: string } = {}): Request {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
-  return new Request('https://ingest.local/api/beads-snapshot', {
+  return new Request('https://ingest.local/api/task-snapshot', {
     method: 'POST',
     headers,
     body: opts.raw ?? JSON.stringify(body),
@@ -76,7 +76,7 @@ async function post(body: unknown, token: string | undefined = OPERATOR_TOKEN) {
 
 // Two consecutive poller ticks, dated off the real clock rather than written
 // down as literals: the insert path prunes anything older than
-// BEADS_SNAPSHOT_RETENTION_DAYS, so a hardcoded date fixture stops meaning what
+// TASK_SNAPSHOT_RETENTION_DAYS, so a hardcoded date fixture stops meaning what
 // it says once the window slides past it. Kept an hour back and a minute apart.
 const FIRST_TICK = new Date(Date.now() - 3_600_000).toISOString();
 const SECOND_TICK = new Date(Date.parse(FIRST_TICK) + 60_000).toISOString();
@@ -107,7 +107,7 @@ async function storedRows(): Promise<{ captured_at: string; payload: string }[]>
   return rows.map((row) => ({ ...row, captured_at: javascriptInstant(row.captured_at) }));
 }
 
-describe('POST /api/beads-snapshot — auth', () => {
+describe('POST /api/task-snapshot — auth', () => {
   it('rejects a request without the operator token (401)', async () => {
     const res = await call(snapshotRequest({ projects: [] }));
     expect(res.status).toBe(401);
@@ -121,7 +121,7 @@ describe('POST /api/beads-snapshot — auth', () => {
   });
 });
 
-describe('POST /api/beads-snapshot — writes', () => {
+describe('POST /api/task-snapshot — writes', () => {
   it('stores a snapshot and reports what it filed (201)', async () => {
     const res = await post({ capturedAt: FIRST_TICK, projects: [project()] });
     expect(res.status).toBe(201);
@@ -181,7 +181,7 @@ describe('POST /api/beads-snapshot — writes', () => {
   });
 
   it('stores the full attention list independently of ordinary board limits', async () => {
-    const items = Array.from({ length: BEADS_MAX_ITEMS + 5 }, (_, index) => issue({ id: `md-urgent-${index}`, decision: false }));
+    const items = Array.from({ length: TASK_SNAPSHOT_MAX_ITEMS + 5 }, (_, index) => issue({ id: `md-urgent-${index}`, decision: false }));
     const response = await post({ capturedAt: FIRST_TICK, projects: [project({ attentionTasks: { items, complete: true } })] });
     expect(response.status).toBe(201);
     const [row] = await storedRows();
@@ -229,7 +229,7 @@ describe('POST /api/beads-snapshot — writes', () => {
           asset: 'northwind.example',
           prefix: 'nw',
           ok: false,
-          error: 'bd ready exited 1: no beads project found',
+          error: 'Ntasks answered 404: project not found',
           counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 },
           ready: [],
           inProgress: [],
@@ -246,7 +246,7 @@ describe('POST /api/beads-snapshot — writes', () => {
       ['meadow.example', true],
       ['northwind.example', false],
     ]);
-    expect(stored.projects[1]!.error).toMatch(/no beads project found/);
+    expect(stored.projects[1]!.error).toMatch(/project not found/);
   });
 
   // The asset id is NOT checked against `assets`. A project that drifted out of
@@ -345,7 +345,7 @@ describe('POST /api/beads-snapshot — writes', () => {
   });
 });
 
-describe('POST /api/beads-snapshot — validation', () => {
+describe('POST /api/task-snapshot — validation', () => {
   it('rejects an unparseable body (400)', async () => {
     const res = await call(
       snapshotRequest(null, { token: OPERATOR_TOKEN, raw: 'not json' }),
@@ -480,7 +480,7 @@ describe('POST /api/beads-snapshot — validation', () => {
   });
 
   it('bounds how much one snapshot may carry (422)', async () => {
-    const tooManyItems = Array.from({ length: BEADS_MAX_ITEMS + 1 }, (_, i) =>
+    const tooManyItems = Array.from({ length: TASK_SNAPSHOT_MAX_ITEMS + 1 }, (_, i) =>
       issue({ id: `md-${i}` }),
     );
     const res = await post({ projects: [project({ ready: tooManyItems })] });
@@ -488,7 +488,7 @@ describe('POST /api/beads-snapshot — validation', () => {
     const body = (await res.json()) as ValidationBody;
     expect(body.issues[0]).toMatchObject({ path: 'projects.0.ready', code: 'too_big' });
 
-    const tooManyProjects = Array.from({ length: BEADS_MAX_PROJECTS + 1 }, (_, i) =>
+    const tooManyProjects = Array.from({ length: TASK_SNAPSHOT_MAX_PROJECTS + 1 }, (_, i) =>
       project({ asset: `a${i}.example`, prefix: `p${i}` }),
     );
     const second = await post({ projects: tooManyProjects });
@@ -626,7 +626,7 @@ const RECORDED_POLLER_BODY = {
   ],
 };
 
-describe('POST /api/beads-snapshot — the poller contract', () => {
+describe('POST /api/task-snapshot — the poller contract', () => {
   it('accepts what the runner actually sends', async () => {
     const res = await post(RECORDED_POLLER_BODY);
     expect(res.status).toBe(201);
@@ -779,7 +779,7 @@ describe('POST /api/beads-snapshot — the poller contract', () => {
 
 // The SERP-panel triage state. Three-valued on the wire, and the two absences
 // mean different things.
-describe('POST /api/beads-snapshot — panel review', () => {
+describe('POST /api/task-snapshot — panel review', () => {
   const REVIEW = {
     beadId: 'nw-4q2',
     panelDate: '2026-08-02',
@@ -881,7 +881,7 @@ describe('POST /api/beads-snapshot — panel review', () => {
 // Work filed from a Tower handoff, joined back to the finding that raised it.
 // The key is the finding's own — byte-exact, because that is what the surface
 // matches on.
-describe('POST /api/beads-snapshot — handoff beads', () => {
+describe('POST /api/task-snapshot — handoff tasks', () => {
   const HANDOFF = {
     kind: 'finding',
     key: 'item-openers',
@@ -1064,7 +1064,7 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
   });
 
   // All four surfaces the emitter writes: a surface missing from this list
-  // 422s every snapshot from a property carrying one of its beads.
+  // 422s every snapshot from a property carrying one of its tasks.
   it('stores every surface that can file work, page and alert included', async () => {
     const stored = await storedProject({
       projects: [
@@ -1141,7 +1141,7 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
         { asset: 'northwind.example', kind: 'sitemap', beadId: 'nw-4b1' },
       ]),
     ).toEqual({
-      event: 'beads_handoff_kind_unknown',
+      event: 'task_handoff_kind_unknown',
       dropped: [
         { asset: 'meadow.example', kind: 'sitemap', beadId: 'md-zz9' },
         { asset: 'northwind.example', kind: 'sitemap', beadId: 'nw-4b1' },
@@ -1206,7 +1206,7 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
   });
 });
 
-describe('POST /api/beads-snapshot — bounded history', () => {
+describe('POST /api/task-snapshot — bounded history', () => {
   it('drops snapshots older than the retention window on insert', async () => {
     const dayMs = 86_400_000;
     await seedSnapshot(new Date(Date.now() - 9 * dayMs).toISOString());
@@ -1227,7 +1227,7 @@ describe('POST /api/beads-snapshot — bounded history', () => {
   // time — 31 hours at most (apps/tower/test/wall-feed.test.ts pins that side).
   // Retention shorter than that would silently empty the feed's early evening.
   it('keeps every photograph the Wall feed can still replay', () => {
-    expect(BEADS_SNAPSHOT_RETENTION_DAYS * 24).toBeGreaterThan(WALL_FEED_REACH_HOURS);
+    expect(TASK_SNAPSHOT_RETENTION_DAYS * 24).toBeGreaterThan(WALL_FEED_REACH_HOURS);
   });
 
   it('keeps a snapshot that is inside the window', async () => {
@@ -1250,7 +1250,7 @@ describe('POST /api/beads-snapshot — bounded history', () => {
 
 // Only the newest row and two lists of the last day's rows are ever read, so
 // that is all a replaced photograph keeps.
-describe('POST /api/beads-snapshot — keeps only what is read', () => {
+describe('POST /api/task-snapshot — keeps only what is read', () => {
   const HOUR_MS = 3_600_000;
   const FILED = { kind: 'finding', key: 'item-openers', beadId: 'md-1w2', status: 'open', closedAt: null };
 
@@ -1274,11 +1274,11 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
     // Five days of a board that changes every hour, filed through the writer
     // with its own clock so the days really pass.
     const start = Date.now() - 5 * 24 * HOUR_MS;
-    const bound = BEADS_SNAPSHOT_RETENTION_DAYS * 24 + 1;
+    const bound = TASK_SNAPSHOT_RETENTION_DAYS * 24 + 1;
     const counts: number[] = [];
     for (let hour = 0; hour <= 5 * 24; hour += 1) {
       const nowMs = start + hour * HOUR_MS;
-      const result = await writeBeadsSnapshot(
+      const result = await writeTaskSnapshot(
         env,
         { capturedAt: new Date(nowMs).toISOString(), ...board(hour) },
         nowMs,
@@ -1388,7 +1388,7 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
 // Newly filed work: the poller sends each bead's filing time and a short
 // newest-filed list, so the Wall feed can say "New task". Both are optional
 // under the one-generation-skew rule.
-describe('POST /api/beads-snapshot — newly filed work', () => {
+describe('POST /api/task-snapshot — newly filed work', () => {
   async function storedProject(body: unknown): Promise<Record<string, unknown>> {
     const res = await post(body);
     expect(res.status).toBe(201);
@@ -1417,7 +1417,7 @@ describe('POST /api/beads-snapshot — newly filed work', () => {
   });
 
   it('bounds the list like every other list (422)', async () => {
-    const many = Array.from({ length: BEADS_MAX_ITEMS + 1 }, (_, i) => issue({ id: `md-${i}` }));
+    const many = Array.from({ length: TASK_SNAPSHOT_MAX_ITEMS + 1 }, (_, i) => issue({ id: `md-${i}` }));
     const res = await post({ projects: [project({ recentlyCreated: many })] });
     expect(res.status).toBe(422);
   });

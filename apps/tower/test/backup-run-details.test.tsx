@@ -70,6 +70,22 @@ describe('backup run evidence', () => {
     expect(screen.getByRole('heading', { name: 'Local backup complete' })).toBeVisible();
     expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
   });
+  it('names the task folder this run wrote, and none when the run recorded no task target', () => {
+    const tasksRow = (targets?: string[]) => {
+      const r = report();
+      if (targets) r.stages.taskHub = { status: 'completed', copied: targets.length, expected: targets.length, targets } as NonNullable<typeof r.stages.taskHub>;
+      const { container, unmount } = render(<BackupRunDetails run={run} captured={backupForRun(run, r)} pending={false} />);
+      const row = within(screen.getByRole('table', { name: 'Captured backup contents' })).getAllByRole('row')
+        .find(candidate => /^Task/.test(candidate.querySelector('td')?.textContent ?? ''))!;
+      const text = row.textContent; unmount(); void container;
+      return text;
+    };
+    expect(tasksRow(['ntasks'])).toMatch(/^Tasksntasks\/.*1 \/ 1 exports/);
+    expect(tasksRow(['md', 'nw'])).toMatch(/^Task databasesbeads\/.*2 \/ 2 databases/);
+    const unrecorded = tasksRow();
+    expect(unrecorded).toMatch(/^Tasks.*8 \/ 8 items/);
+    expect(unrecorded).not.toMatch(/ntasks\/|beads\//);
+  });
   it('does not show another run’s contents or invent locations for an older report', () => {
     const r = report(); delete (r as Partial<typeof r>).locations;
     render(<BackupRunDetails run={run} captured={backupForRun(run, r)} pending={false} />);

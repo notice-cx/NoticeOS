@@ -212,7 +212,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       currency: "USD",
     },
     decisions: [],
-    handoffBeads: [],
+    handoffTasks: [],
     operator: {
       capturedAt: "2026-07-06T11:00:00.000Z",
       waiting: 4,

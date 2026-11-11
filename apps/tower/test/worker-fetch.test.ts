@@ -41,7 +41,7 @@ const INJECTED: Record<string, unknown> = {
   __DOMAIN_COSTS__: [],
   __RECURRING_COSTS__: [],
   __ENTITIES__: [],
-  __BEADS__: { spokes: [] },
+  __TASK_PROJECTS__: { spokes: [] },
   // A build substitutes `false` here, so the runner lane is dead code in every
   // deployed bundle.
   __RUNNER_LANE__: false,
@@ -387,7 +387,7 @@ describe("the Worker's fetch switch", () => {
       expect(status).toBe(200);
       expect(body).toEqual({
         connected: null,
-        sources: [{ id: "beads", connected: false, projects: 0, readAt: null, failing: 0 }],
+        sources: [{ id: "snapshots", connected: false, projects: 0, readAt: null, failing: 0 }],
       });
     });
 

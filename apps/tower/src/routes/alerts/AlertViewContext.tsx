@@ -6,7 +6,7 @@ import { useView } from "@/hooks/useView";
 import { alertNormal } from "@/lib/alerts-board";
 import { formatInt, formatTimestamp } from "@/lib/format";
 
-type AlertFacts = Pick<AttentionItem, "ruleId" | "ruleInputs" | "metric" | "correlatedChanges" | "firedAt" | "readings"> & Partial<Pick<AttentionItem, "handoffBeads">>;
+type AlertFacts = Pick<AttentionItem, "ruleId" | "ruleInputs" | "metric" | "correlatedChanges" | "firedAt" | "readings"> & Partial<Pick<AttentionItem, "handoffTasks">>;
 
 export function alertViewDetail(flag: AlertFacts, view: ViewId): { detail: string; label: string; tab: string } | null {
   const normal = alertNormal(flag);
@@ -23,7 +23,7 @@ export function alertViewDetail(flag: AlertFacts, view: ViewId): { detail: strin
       label: "Inspect financial evidence", tab: "financials",
     };
     case "delivery": return {
-      detail: `${formatInt(flag.correlatedChanges.length)} changes recorded before onset${flag.handoffBeads === undefined ? "; linked task coverage unavailable" : ` · ${formatInt(flag.handoffBeads.length)} linked tasks`}. Changes alone do not establish a cause.`,
+      detail: `${formatInt(flag.correlatedChanges.length)} changes recorded before onset${flag.handoffTasks === undefined ? "; linked task coverage unavailable" : ` · ${formatInt(flag.handoffTasks.length)} linked tasks`}. Changes alone do not establish a cause.`,
       label: "Inspect changes", tab: "#timeline",
     };
     case "reliability": return {

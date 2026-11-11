@@ -1153,8 +1153,8 @@ async function periodRefusal(res: Response): Promise<FinancialsPeriodError | nul
 // --- Tasks: the operator's live lane into the portfolio's task hub -----------
 //
 // Answered by the local dev server's task lane (apps/tower/vite/task-lane.ts),
-// which runs an allowlisted set of `bd` verbs in the spoke named by
-// config/beads.json. A deployed build has no `bd` and no route to the hub, so
+// which sends an allowlisted set of task requests to the connected Ntasks for
+// the project named in config/beads.json. A deployed build has no route to Ntasks, so
 // its Worker answers `live: false` with the reason and 501 on everything else;
 // the board falls back to the once-a-minute snapshot at `/api/work`.
 
@@ -1232,7 +1232,7 @@ async function fetchTaskRequest(fetch: ApiTransport,
 
 /** What the composer sends. `metadata` carries the `noticeos_*` handoff grammar
  * when a task is filed from a finding, so a filed task matches the one the
- * copied `bd create` command would have made. */
+ * copied MCP instructions would have made. */
 export interface NewTask {
   project: string;
   title: string;
@@ -1258,8 +1258,8 @@ async function createTaskRequest(fetch: ApiTransport, input: NewTask): Promise<T
   return (await res.json()) as TaskCreated;
 }
 
-/** The fields the lane will edit. Anything else is refused by name — `bd
- * update` can do more than an operator edits from a board. */
+/** The fields the lane will edit. Anything else is refused by name — a task
+ * service's update can do more than an operator edits from a board. */
 export interface TaskEdit {
   /** Atomic: assignee plus `in_progress`, idempotent. */
   claim?: true;
@@ -1267,8 +1267,7 @@ export interface TaskEdit {
   priority?: number;
   assignee?: string;
   parent?: string;
-  /** A date `bd` understands (`+1d`, `next monday`, an ISO date); the empty
-   * string clears the deferral. */
+  /** When the deferral ends; the empty string clears the deferral. */
   defer?: string;
   title?: string;
   description?: string;
@@ -1365,7 +1364,7 @@ function dismissTaskRequest(fetch: ApiTransport, id: string, reason?: string, op
   }, write.project === undefined && write.keepalive === undefined ? undefined : write);
 }
 
-/** Release a gate holding a task out of `bd ready`. Its own path because a gate
+/** Release a gate holding a task out of the ready list. Its own path because a gate
  * is not a task: it is the wait condition in front of one. */
 async function resolveGateRequest(fetch: ApiTransport, id: string, reason?: string, options?: TaskWriteOptions): Promise<void> {
   const path = `/api/gates/${encodeURIComponent(id)}/resolve`;

@@ -25,7 +25,7 @@ test('the catalog covers every ingest trigger and preserves local defaults', asy
   assert.deepEqual([...source.matchAll(/export const \w+ = '([^']+)'/g)].map((match) => match[1]), []);
   const keyed = [...source.matchAll(/dispatchKey\('([a-z0-9-]+)'\)/g)].map((match) => match[1]);
   assert.deepEqual(keyed.sort(), SCHEDULED_JOBS.filter((item) => !item.local).map((item) => item.id).sort());
-  const local = ['beadsHubCheckCron', 'beadsPollCron', 'panelFilerCron', 'watchReadbackCron', 'panelRefreshCron', 'backupCron'];
+  const local = ['taskServiceCheckCron', 'taskPollCron', 'panelFilerCron', 'watchReadbackCron', 'panelRefreshCron', 'backupCron'];
   assert.deepEqual(SCHEDULED_JOBS.filter((item) => item.local).map((item) => item.cron), local.map((key) => CONFIG[key]));
   assert.equal(new Set(SCHEDULED_JOBS.map((item) => item.id)).size, SCHEDULED_JOBS.length);
   for (const item of SCHEDULED_JOBS) assert.equal(schedulesRefusal({ [item.id]: scheduleFor(item) }), null);

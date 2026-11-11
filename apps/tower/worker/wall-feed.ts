@@ -270,7 +270,7 @@ export const FEED_JOBS_SQL = `SELECT j.job_run_number::text AS id, j.job, j.fini
  * several snapshots is one event: the oldest snapshot's line is kept, and the
  * deduplication happens before the source cap so repeated early snapshots
  * cannot crowd later work out. The store keeps two days of snapshots
- * (`BEADS_SNAPSHOT_RETENTION_DAYS`, workers/ingest/src/beads-snapshots.ts),
+ * (`TASK_SNAPSHOT_RETENTION_DAYS`, workers/ingest/src/task-snapshots.ts),
  * which covers this window's farthest reach; keep the two in step. An item's
  * time is the text the writer stored (`toISOString`), compared byte by byte.
  * A filed task carries its filer and model (`filedBy`, `filedModel`), and a

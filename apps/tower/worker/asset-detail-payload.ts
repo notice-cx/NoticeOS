@@ -107,8 +107,8 @@ import type { WatchSeriesHistory } from "../shared/watch-windows";
 import { WATCH_CALIBRATION_DAYS } from "../shared/watch-windows";
 import { WATCH_SERIES, releasedFreshnessFlag } from "@noticeos/contract";
 import { CORRELATION_WINDOW_HOURS } from "../shared/alert-language";
-import { loadLatestBeadsSnapshot, type BeadsSnapshot } from "./beads-snapshot";
-import { beadsInbox } from "./task-source";
+import { loadLatestTaskSnapshot, type TaskSnapshot } from "./task-snapshot";
+import { snapshotInbox } from "./task-source";
 import { type SeriesPoint, type Severity } from "../shared/wall";
 import type { IntegrationsConfig } from "../shared/integrations";
 import { loadDecisions } from "./decision-actions";
@@ -1746,7 +1746,7 @@ async function assembleAssetDetail(
     // describe three different presents. The review marker is gated on the
     // landing, exactly as the card is.
     wants("tasks")
-      ? Promise.all([loadLatestBeadsSnapshot(store), loadLatestPanelLandings(store, nowMs, panelAssetIds, id)])
+      ? Promise.all([loadLatestTaskSnapshot(store), loadLatestPanelLandings(store, nowMs, panelAssetIds, id)])
       : null,
     // `asset` narrows the same query the Wall runs — one derivation, one
     // ordering, one set of window semantics.
@@ -1976,7 +1976,7 @@ async function assembleAssetDetail(
   // obligations. Gated on the landing, exactly as the card is; every
   // collecting asset owes the read, panel or no panel. config/serp-panel.json
   // only picks the noun the marker uses.
-  const [beadsSnapshot, panelLandings] = tasksRead ?? [null, null];
+  const [taskSnapshot, panelLandings] = tasksRead ?? [null, null];
   const latestPanelDate = panelLandings?.get(id) ?? null;
 
   // A section the view does not draw leaves its fields out entirely;
@@ -2008,9 +2008,9 @@ async function assembleAssetDetail(
     ...(decisions ? { decisions } : {}),
     ...(tasksRead
       ? {
-          handoffBeads: handoffBeadsOf(beadsSnapshot, id),
+          handoffTasks: handoffTasksOf(taskSnapshot, id),
           // The task source's inbox for this site (`./task-source`).
-          operator: beadsInbox(beadsSnapshot, id),
+          operator: snapshotInbox(taskSnapshot, id),
         }
       : {}),
     ...(annotations ? { annotations } : {}),
@@ -2030,7 +2030,7 @@ async function assembleAssetDetail(
     ...(tasksRead
       ? {
           panelReview: latestPanelDate
-            ? (cardPanelReviewsOf(beadsSnapshot, panelAssetIds, id).get(id) ?? null)
+            ? (cardPanelReviewsOf(taskSnapshot, panelAssetIds, id).get(id) ?? null)
             : null,
           latestPanelDate,
         }
@@ -2049,13 +2049,13 @@ async function assembleAssetDetail(
 /**
  * What the task hub holds for this asset's findings and queries, or null when
  * it could not be asked. The Tower cannot reach the hub, so this reads the
- * same `beads_snapshots` row the /work board and the asset card read. Four
+ * same `task_snapshots` row the /work board and the asset card read. Four
  * things return null and they are one answer on purpose: no snapshot has ever
- * been filed, this asset is not a project in `config/beads.json`, `bd` failed
- * for its repo, or the snapshot predates the field. None is a measurement, and
+ * been filed, this asset is not a project in `config/beads.json`, Ntasks could
+ * not answer for it, or the snapshot predates the field. None is a measurement, and
  * "nothing was filed" is only earned by an empty list.
  */
-function handoffBeadsOf(snapshot: BeadsSnapshot | null, asset: string): HandoffBead[] | null {
+function handoffTasksOf(snapshot: TaskSnapshot | null, asset: string): HandoffBead[] | null {
   const project = snapshot?.projects.find((entry) => entry.asset === asset);
   if (!project || !project.ok) return null;
   return project.handoffs ?? null;

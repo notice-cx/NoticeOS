@@ -8,8 +8,8 @@ import { log } from './log.mjs';
 import { taskBackend, taskLaneSkip } from './task-service-poll.mjs';
 import { ntasksRegister } from './task-service-register.mjs';
 import { operatorToken } from './operator-token.mjs';
-import { parseBeadsProjects } from './task-hub.mjs';
-import { beadsInstant } from '../task-snapshot-values.mjs';
+import { parseTaskProjects } from './task-hub.mjs';
+import { taskInstant } from '../task-snapshot-values.mjs';
 import { readTaskResolution } from '../../packages/contract/src/task-resolution.mjs';
 import { recordsClose, TASK_METADATA } from '../../packages/contract/src/task-metadata.mjs';
 import { createHash } from 'node:crypto';
@@ -109,7 +109,7 @@ export async function runWatchReadbackFiler(deps = {}) {
 
   let projects = [];
   try {
-    projects = parseBeadsProjects(await readConfig());
+    projects = parseTaskProjects(await readConfig());
   } catch (err) {
     const failure = `task configuration unavailable: ${err.message}`;
     emit('WARN', `watch readbacks skipped — ${failure}`);
@@ -123,7 +123,7 @@ export async function runWatchReadbackFiler(deps = {}) {
   for (const entry of pending) {
     const spoke = spokes.get(entry.asset);
     if (!spoke) {
-      failed.push(`${entry.bead}: no beads spoke is configured for ${entry.asset}`);
+      failed.push(`${entry.bead}: no task project is configured for ${entry.asset}`);
       continue;
     }
     try {
@@ -186,7 +186,7 @@ export async function runWatchReadbackFiler(deps = {}) {
       }
       try {
         const task = await updates.show(spoke, review.bead);
-        const closedAt = beadsInstant(task?.closed_at);
+        const closedAt = taskInstant(task?.closed_at);
         const checkedAt = new Date(now()).toISOString();
         if (task.status === 'closed' && closedAt && closedAt <= review.postedAt) {
           const bead = await fileNtasksOutcomeReview(reviewer, spoke, review);

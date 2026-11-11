@@ -84,30 +84,30 @@ import {
   reportConfigStore,
   reportLegacyEnvCredentials,
 } from './runner/startup-report.mjs';
-import { parseBeadsProjects } from './runner/task-hub.mjs';
+import { parseTaskProjects } from './runner/task-hub.mjs';
 import {
-  BEADS_CLOSED_LIMIT,
-  BEADS_CLOSED_WINDOW_DAYS,
-  BEADS_CREATED_LIMIT,
-  BEADS_READY_LIMIT,
-  BEADS_WAITING_LIMIT,
+  TASK_DAILY_CLOSED_LIMIT,
+  TASK_CLOSED_WINDOW_DAYS,
+  TASK_CREATED_LIMIT,
+  TASK_READY_LIMIT,
+  TASK_WAITING_LIMIT,
   HANDOFF_ASSET_FIELD,
   HANDOFF_KEY_FIELD,
   HANDOFF_KIND_FIELD,
   HANDOFF_LABEL,
   HANDOFF_LIMIT,
-  beadsClosedSince,
-  beadsGateReason,
-  beadsPollArgs,
-  beadsSnapshotUrl,
+  tasksClosedSince,
+  taskGateReason,
+  taskPollArgs,
+  taskSnapshotUrl,
   handoffEntries,
   handoffListArgs,
-  runBeadsPoll,
-  summarizeBeadsProject,
+  runTaskPoll,
+  summarizeTaskProject,
 } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { TaskServiceUnavailable } from './task-service.mjs';
-import { beadsDatabaseName } from './task-project-config.mjs';
+import { taskDatabaseName } from './task-project-config.mjs';
 import { doorErrorCode, fireScheduledTrigger } from './ingest-door.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { captureWorkflowOutput, isWorkflowStepOutput } from './workflow-output.mjs';
@@ -982,7 +982,7 @@ test('a down or restarting ingest still skips without replay', () => {
   assert.equal(unchecked.level, 'WARN');
 });
 
-const FIXTURE_BEADS_MAP = path.join(REPO_ROOT, 'scripts', 'fixture-config', 'beads.json');
+const FIXTURE_TASK_MAP = path.join(REPO_ROOT, 'scripts', 'fixture-config', 'beads.json');
 
 test('runner tests cannot read real installation or product settings', () => {
   const testFile = fileURLToPath(import.meta.url);
@@ -995,22 +995,22 @@ test('runner tests cannot read real installation or product settings', () => {
  * adds and removes spokes from /settings, and that must not change a result
  * here. */
 test('every configured spoke carries its task database', () => {
-  const raw = readFileSync(FIXTURE_BEADS_MAP, 'utf8');
-  assert.deepEqual(parseBeadsProjects(raw).map((project) => project.database), ['ro', 'md', 'nw', 'pb', 'pf', 'ac', 'fn']);
+  const raw = readFileSync(FIXTURE_TASK_MAP, 'utf8');
+  assert.deepEqual(parseTaskProjects(raw).map((project) => project.database), ['ro', 'md', 'nw', 'pb', 'pf', 'ac', 'fn']);
 });
 
 test('what counts as a usable task database is declared once', () => {
-  assert.equal(beadsDatabaseName('md'), 'md');
-  assert.equal(beadsDatabaseName('reindex_os'), 'reindex_os');
+  assert.equal(taskDatabaseName('md'), 'md');
+  assert.equal(taskDatabaseName('reindex_os'), 'reindex_os');
   // Trimmed BEFORE the check, so one padded value is not usable to one reader
   // and unusable to the next.
-  assert.equal(beadsDatabaseName('  md  '), 'md');
-  assert.equal(beadsDatabaseName('nw; DROP DATABASE md'), null);
-  assert.equal(beadsDatabaseName('md-food'), null);
-  assert.equal(beadsDatabaseName(''), null);
-  assert.equal(beadsDatabaseName('   '), null);
-  assert.equal(beadsDatabaseName(42), null);
-  assert.equal(beadsDatabaseName(undefined), null);
+  assert.equal(taskDatabaseName('  md  '), 'md');
+  assert.equal(taskDatabaseName('nw; DROP DATABASE md'), null);
+  assert.equal(taskDatabaseName('md-food'), null);
+  assert.equal(taskDatabaseName(''), null);
+  assert.equal(taskDatabaseName('   '), null);
+  assert.equal(taskDatabaseName(42), null);
+  assert.equal(taskDatabaseName(undefined), null);
 });
 
 test('spoke database names that could not be safely interpolated travel as null', () => {
@@ -1018,7 +1018,7 @@ test('spoke database names that could not be safely interpolated travel as null'
   const raw = JSON.stringify({
     spokes: databases.map((database, index) => ({ asset: `s${index}.example`, prefix: `s${index}`, repo: `../s${index}`, database })),
   });
-  assert.deepEqual(parseBeadsProjects(raw).map((project) => project.database), ['md', null, null, null, null, 'md']);
+  assert.deepEqual(parseTaskProjects(raw).map((project) => project.database), ['md', null, null, null, null, 'md']);
 });
 
 test('an explicit binary override outranks anything on disk', () => {
@@ -1036,7 +1036,7 @@ test('binary resolution prefers a known install over a service’s minimal PATH'
   assert.equal(resolveBin(undefined, ['/opt/homebrew/bin/dolt'], () => false, 'dolt'), 'dolt');
 });
 
-// Beads snapshot poller, the Tower work board's supply.
+// Task snapshot poller, the Tower work board's supply.
 //
 // Fixture shapes come from `bd` 1.1.2 output recorded against a throwaway
 // project, with personal identifiers replaced by examples. A bd upgrade that
@@ -1166,9 +1166,9 @@ const FULL_RESULTS = {
 const PROJECT = { asset: 'root-os', prefix: 'ro', repo: '.' };
 
 test('the poller reads every spoke the task map declares', () => {
-  const raw = readFileSync(FIXTURE_BEADS_MAP, 'utf8');
+  const raw = readFileSync(FIXTURE_TASK_MAP, 'utf8');
   assert.deepEqual(
-    parseBeadsProjects(raw).map((p) => `${p.asset}/${p.prefix}/${p.repo}`),
+    parseTaskProjects(raw).map((p) => `${p.asset}/${p.prefix}/${p.repo}`),
     [
       'root-os/ro/.',
       'meadow.example/md/../meadow.example',
@@ -1193,7 +1193,7 @@ test('a half-declared spoke is dropped rather than half-polled', () => {
       { asset: 'meadow.example', prefix: 'mp2', repo: '../dupe' },
     ],
   });
-  assert.deepEqual(parseBeadsProjects(raw), [
+  assert.deepEqual(parseTaskProjects(raw), [
     { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example', database: null },
   ]);
 });
@@ -1210,7 +1210,7 @@ test('the declared database is carried, not required, and not dropped on the flo
     ],
   });
   assert.deepEqual(
-    parseBeadsProjects(raw).map((p) => [p.asset, p.database]),
+    parseTaskProjects(raw).map((p) => [p.asset, p.database]),
     [
       ['meadow.example', 'md'],
       // Both still POLL: only the backup cares, and a board that vanishes is a
@@ -1222,18 +1222,18 @@ test('the declared database is carried, not required, and not dropped on the flo
 });
 
 test('a broken task map costs the snapshot nothing but the snapshot', () => {
-  assert.deepEqual(parseBeadsProjects('not json at all'), []);
-  assert.deepEqual(parseBeadsProjects('{}'), []);
-  assert.deepEqual(parseBeadsProjects('{"spokes":"md"}'), []);
+  assert.deepEqual(parseTaskProjects('not json at all'), []);
+  assert.deepEqual(parseTaskProjects('{}'), []);
+  assert.deepEqual(parseTaskProjects('{"spokes":"md"}'), []);
 });
 
 test('the recent-close window is seven days, at the grain bd accepts', () => {
-  assert.equal(beadsClosedSince(Date.parse('2026-08-01T09:00:00Z')), '2026-07-25');
-  assert.equal(BEADS_CLOSED_WINDOW_DAYS, 7);
+  assert.equal(tasksClosedSince(Date.parse('2026-08-01T09:00:00Z')), '2026-07-25');
+  assert.equal(TASK_CLOSED_WINDOW_DAYS, 7);
 });
 
 test('the four reads are bounded by repo, not by the runner’s cwd', () => {
-  const args = beadsPollArgs('/repos/nw', '2026-07-25');
+  const args = taskPollArgs('/repos/nw', '2026-07-25');
   for (const argv of Object.values(args)) {
     assert.deepEqual(argv.slice(0, 2), ['-C', '/repos/nw']);
     assert.ok(argv.includes('--json'));
@@ -1254,13 +1254,13 @@ test('the four reads are bounded by repo, not by the runner’s cwd', () => {
 });
 
 test('one project’s four reads become one board section', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal(entry.ok, true);
   assert.equal(entry.error, null);
   assert.equal(entry.asset, 'root-os');
   assert.equal(entry.prefix, 'ro');
   assert.deepEqual(entry.counts, {
-    // Three stored-`open` beads; two are claimable and one waits on a blocker.
+    // Three stored-`open` tasks; two are claimable and one waits on a blocker.
     open: 3,
     // zz-135 is P0 and zz-4qr is P1; the in-flight bug is P2.
     highPriority: 2,
@@ -1279,7 +1279,7 @@ test('one project’s four reads become one board section', () => {
 });
 
 test('bd’s snake_case fields land as the camelCase the store speaks', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.deepEqual(entry.ready[0], {
     id: 'zz-135',
     title: 'Ready feature two',
@@ -1304,7 +1304,7 @@ test('bd’s snake_case fields land as the camelCase the store speaks', () => {
 });
 
 test('a bead with no title still renders as something', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     ready: ok(JSON.stringify([{ id: 'zz-abc', title: '   ', priority: 99 }])),
   });
@@ -1328,7 +1328,7 @@ test('epic containers are not work, and are counted as none of it', () => {
     issue_type: 'epic',
     ...extra,
   });
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     active: ok(JSON.stringify([...JSON.parse(BD_ACTIVE), epic('zz-e1'), epic('zz-e2')])),
     ready: ok(JSON.stringify([epic('zz-e1'), ...JSON.parse(BD_READY)])),
     blocked: ok(JSON.stringify([...JSON.parse(BD_BLOCKED), epic('zz-e2')])),
@@ -1358,8 +1358,8 @@ test('epic containers are not work, and are counted as none of it', () => {
 });
 
 test('the queue reports its shape, not just its size', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
-  // Four not-closed beads: zz-135 P0, zz-4qr P1, zz-p6y P2, zz-hfl P3. Index
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
+  // Four not-closed tasks: zz-135 P0, zz-4qr P1, zz-p6y P2, zz-hfl P3. Index
   // IS the priority, so a card can draw the distribution without a legend.
   assert.deepEqual(entry.priorities, [1, 1, 1, 1, 0]);
   // The shape and the scalar can never disagree — same source, same filter.
@@ -1371,7 +1371,7 @@ test('the queue reports its shape, not just its size', () => {
 });
 
 test('a priority beyond bd’s scale folds into the last band rather than vanishing', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: ok(
       JSON.stringify([
@@ -1384,7 +1384,7 @@ test('a priority beyond bd’s scale folds into the last band rather than vanish
 });
 
 test('epic containers are absent from the queue shape too', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: ok(
       JSON.stringify([
@@ -1398,16 +1398,16 @@ test('epic containers are absent from the queue shape too', () => {
 });
 
 test('a project the poller could not read reports no shape, not a flat one', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: { code: 1, stdout: '', stderr: 'Error: no beads project found' },
+    ready: { code: 1, stdout: '', stderr: 'Error: project not found' },
   });
   assert.equal(entry.ok, false);
   assert.deepEqual(entry.priorities, [0, 0, 0, 0, 0]);
 });
 
 test('high priority is P0 and P1 across everything not closed', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   // zz-135 (P0, ready) + zz-4qr (P1, ready). The P2 in flight and the P3
   // blocked chore are not urgent, and nothing closed counts at all.
   assert.equal(entry.counts.highPriority, 2);
@@ -1415,7 +1415,7 @@ test('high priority is P0 and P1 across everything not closed', () => {
   // It cuts ACROSS status rather than partitioning it: promote the in-flight
   // bug and the blocked-open chore and both stored statuses contribute.
   const urgent = JSON.parse(BD_ACTIVE).map((issue) => ({ ...issue, priority: 1 }));
-  const promoted = summarizeBeadsProject(PROJECT, {
+  const promoted = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: ok(JSON.stringify(urgent)),
   });
@@ -1463,7 +1463,7 @@ const BD_DEFERRED = JSON.stringify([
 test('epic structure groups the live children and keeps bd’s all-time progress', () => {
   // Every active bead in the fixture hangs off the one epic.
   const parented = JSON.parse(BD_ACTIVE).map((issue) => ({ ...issue, parent: 'zz-epc' }));
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: ok(JSON.stringify(parented)),
     epics: ok(BD_EPICS),
@@ -1486,7 +1486,7 @@ test('epic structure groups the live children and keeps bd’s all-time progress
 });
 
 test('a bead with no epic is remainder, not a hidden row', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     epics: ok(BD_EPICS),
   });
@@ -1500,12 +1500,12 @@ test('an epic nobody has used yet is not a card', () => {
   const empty = JSON.stringify([
     { epic: { id: 'zz-nil', title: 'Never started', status: 'open', priority: 2 }, total_children: 0, closed_children: 0 },
   ]);
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, epics: ok(empty) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, epics: ok(empty) });
   assert.deepEqual(entry.epics, []);
 });
 
 test('parked work is collected, dated, and counted as none of the queue', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     epics: ok(BD_EPICS),
     deferred: ok(BD_DEFERRED),
@@ -1520,7 +1520,7 @@ test('parked work is collected, dated, and counted as none of the queue', () => 
 
   // Parked is NOT queued: it enters none of the counts that say how much is
   // left, and none of the queue's shape.
-  const base = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const base = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal(entry.counts.open, base.counts.open);
   assert.equal(entry.counts.ready, base.counts.ready);
   assert.equal(entry.counts.highPriority, base.counts.highPriority);
@@ -1530,7 +1530,7 @@ test('parked work is collected, dated, and counted as none of the queue', () => 
 // The skew rule applied to SHAPE rather than to a count: a bd too old for
 // `bd epic status` must give a flat board, not a dark one.
 test('a bd that cannot answer the optional reads still files a snapshot', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     epics: { code: 1, stdout: '', stderr: 'unknown command "epic"' },
     deferred: { code: 1, stdout: '', stderr: 'unknown flag' },
@@ -1548,7 +1548,7 @@ test('a bd that cannot answer the optional reads still files a snapshot', () => 
 });
 
 test('unparseable optional output degrades the same way', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     epics: ok('<html>nope</html>'),
   });
@@ -1571,8 +1571,8 @@ const BD_GATES = JSON.stringify([
   { id: 'zz-g2', title: 'Gate: timer', status: 'open', priority: 2, issue_type: 'gate', await_type: 'timer', updated_at: '2026-08-01T09:00:00Z' },
 ]);
 
-test('the operator inbox is ready human beads plus gates that wait on a person', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+test('the operator inbox is ready human tasks plus gates that wait on a person', () => {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     human: ok(BD_HUMAN),
     gates: ok(BD_GATES),
@@ -1599,7 +1599,7 @@ test('the operator inbox is ready human beads plus gates that wait on a person',
 });
 
 test('urgent human count is authoritative when the rendered inbox head is truncated', () => {
-  const urgent = Array.from({ length: BEADS_WAITING_LIMIT + 5 }, (_, i) => ({
+  const urgent = Array.from({ length: TASK_WAITING_LIMIT + 5 }, (_, i) => ({
     id: `zz-hu${i}`,
     title: `Urgent operator ask ${i}`,
     status: 'open',
@@ -1607,16 +1607,16 @@ test('urgent human count is authoritative when the rendered inbox head is trunca
     issue_type: 'task',
     labels: ['human'],
   }));
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     ready: ok(JSON.stringify(urgent)),
     human: ok(JSON.stringify(urgent)),
     gates: ok('[]'),
   });
 
-  assert.equal(entry.waiting.length, BEADS_WAITING_LIMIT);
-  assert.equal(entry.counts.waiting, BEADS_WAITING_LIMIT + 5);
-  assert.equal(entry.waitingUrgent, BEADS_WAITING_LIMIT + 5);
+  assert.equal(entry.waiting.length, TASK_WAITING_LIMIT);
+  assert.equal(entry.counts.waiting, TASK_WAITING_LIMIT + 5);
+  assert.equal(entry.waitingUrgent, TASK_WAITING_LIMIT + 5);
 });
 
 // `bd gate create -r` writes the reason into the DESCRIPTION under a generated
@@ -1635,7 +1635,7 @@ test('a gate’s inbox row is its reason, not the word gate', () => {
         'Ad-hoc gate blocking zz-hpf\n\nReason: Approve seeding the July annotations. Time-sensitive: the 28-day check lands 2026-08-05.',
     },
   ]);
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
   assert.equal(
     entry.waiting[0].title,
     'Approve seeding the July annotations. Time-sensitive: the 28-day check lands 2026-08-05.',
@@ -1657,29 +1657,29 @@ test('a gate created without a reason identifies its known blocked task', () => 
       description: 'Ad-hoc gate blocking zz-hpf',
     },
   ]);
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
   assert.equal(entry.waiting[0].title, 'Review approval for zz-hpf');
 });
 
 test('a reason is read from bd’s own format and bounded', () => {
-  assert.equal(beadsGateReason('Ad-hoc gate blocking x\n\nReason: Decide the thing'), 'Decide the thing');
+  assert.equal(taskGateReason('Ad-hoc gate blocking x\n\nReason: Decide the thing'), 'Decide the thing');
   // Multi-paragraph reasons keep their tail; only the length caps them.
-  assert.match(beadsGateReason('Reason: One.\nTwo.'), /One\.\nTwo\./);
-  assert.equal(beadsGateReason('Ad-hoc gate blocking x'), null);
-  assert.equal(beadsGateReason('Reason:   '), null);
-  assert.equal(beadsGateReason(undefined), null);
+  assert.match(taskGateReason('Reason: One.\nTwo.'), /One\.\nTwo\./);
+  assert.equal(taskGateReason('Ad-hoc gate blocking x'), null);
+  assert.equal(taskGateReason('Reason:   '), null);
+  assert.equal(taskGateReason(undefined), null);
   // The route caps a title at 512; a runaway reason must cost the gate its
   // tail, never the whole project its snapshot.
-  assert.equal(beadsGateReason(`Reason: ${'x'.repeat(900)}`).length, 400);
+  assert.equal(taskGateReason(`Reason: ${'x'.repeat(900)}`).length, 400);
   // ONE reader, not a copy: the Tower's live task read titles a gate through
   // this same function, so the snapshot and the live board can never disagree
   // about what a gate asks.
-  assert.equal(beadsGateReason, gateReason);
+  assert.equal(taskGateReason, gateReason);
 });
 
 test('projecting ready human work into the inbox never changes queue counts', () => {
-  const base = summarizeBeadsProject(PROJECT, FULL_RESULTS);
-  const entry = summarizeBeadsProject(PROJECT, {
+  const base = summarizeTaskProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     human: ok(BD_HUMAN),
     gates: ok(BD_GATES),
@@ -1688,13 +1688,13 @@ test('projecting ready human work into the inbox never changes queue counts', ()
   assert.equal(entry.counts.ready, base.counts.ready);
   assert.equal(entry.counts.highPriority, base.counts.highPriority);
   assert.deepEqual(entry.priorities, base.priorities);
-  // The one human bead is already one of the two ready/open beads. Waiting is
+  // The one human bead is already one of the two ready/open tasks. Waiting is
   // a view over that row, never another unit of work to add to it.
   assert.equal(entry.counts.waiting, 2); // one ready human bead + one human gate
 });
 
 test('an inbox read the bd cannot answer leaves no zero behind', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     human: { code: 1, stdout: '', stderr: 'unknown command "human"' },
     gates: { code: 1, stdout: '', stderr: 'unknown command "gate"' },
@@ -1708,7 +1708,7 @@ test('an inbox read the bd cannot answer leaves no zero behind', () => {
 for (const human of ['null', '[]']) {
   for (const gates of ['null', '[]']) {
     test(`successful empty inbox lists human=${human} gates=${gates} license exact zero`, () => {
-      const entry = summarizeBeadsProject(PROJECT, {
+      const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS, human: ok(human), gates: ok(gates),
       });
       assert.equal(entry.ok, true);
@@ -1722,7 +1722,7 @@ for (const human of ['null', '[]']) {
 }
 
 test('a successful null gate list leaves ready human work exact', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS, human: ok(BD_HUMAN), gates: ok('null'),
   });
   assert.deepEqual(entry.waiting.map((item) => item.id), ['zz-4qr']);
@@ -1731,7 +1731,7 @@ test('a successful null gate list leaves ready human work exact', () => {
 });
 
 test('a successful null human list leaves human gates exact', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS, human: ok('null'), gates: ok(BD_GATES),
   });
   assert.deepEqual(entry.waiting.map((item) => item.id), ['zz-g1']);
@@ -1748,7 +1748,7 @@ for (const failedRead of ['human', 'gates']) {
     ['missing', undefined],
   ]) {
     test(`${failedRead} ${failure} cannot license an exact empty inbox`, () => {
-      const entry = summarizeBeadsProject(PROJECT, {
+      const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS, human: ok('[]'), gates: ok('[]'), [failedRead]: result,
       });
       assert.equal(entry.ok, true);
@@ -1760,7 +1760,7 @@ for (const failedRead of ['human', 'gates']) {
       assert.equal(entry.counts.ready, 2);
     });
     test(`${failedRead} ${failure} stays unknown beside a successful null counterpart`, () => {
-      const entry = summarizeBeadsProject(PROJECT, {
+      const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS, human: ok('null'), gates: ok('null'), [failedRead]: result,
       });
       assert.equal(entry.ok, true);
@@ -1771,7 +1771,7 @@ for (const failedRead of ['human', 'gates']) {
   }
 
   test(`${failedRead} failure preserves the other inbox read as known rows`, () => {
-    const entry = summarizeBeadsProject(PROJECT, {
+    const entry = summarizeTaskProject(PROJECT, {
       ...FULL_RESULTS, human: ok(BD_HUMAN), gates: ok(BD_GATES),
       [failedRead]: { code: 1, stdout: '', stderr: 'temporarily unavailable' },
     });
@@ -1785,12 +1785,12 @@ for (const failedRead of ['human', 'gates']) {
 test('both inbox reads must recover before empty totals are exact again', () => {
   const failure = { code: 1, stdout: '', stderr: 'temporarily unavailable' };
   const complete = { ...FULL_RESULTS, human: ok('[]'), gates: ok('[]') };
-  const failed = summarizeBeadsProject(PROJECT, { ...complete, human: failure, gates: failure });
+  const failed = summarizeTaskProject(PROJECT, { ...complete, human: failure, gates: failure });
   assert.equal(failed.waiting, undefined);
   assert.equal('waiting' in failed.counts, false);
-  const partial = summarizeBeadsProject(PROJECT, { ...complete, gates: failure });
+  const partial = summarizeTaskProject(PROJECT, { ...complete, gates: failure });
   assert.equal('waiting' in partial.counts, false);
-  const recovered = summarizeBeadsProject(PROJECT, complete);
+  const recovered = summarizeTaskProject(PROJECT, complete);
   assert.equal(recovered.counts.waiting, 0);
   assert.equal(recovered.waitingUrgent, 0);
   assert.deepEqual(recovered.waiting, []);
@@ -1798,13 +1798,13 @@ test('both inbox reads must recover before empty totals are exact again', () => 
 
 test('null inbox responses recover to exact zero only after both commands succeed', () => {
   const failure = { code: 1, stdout: 'null', stderr: 'temporarily unavailable' };
-  const failed = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, human: failure, gates: failure });
+  const failed = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: failure, gates: failure });
   assert.equal(failed.waiting, undefined);
   assert.equal('waiting' in failed.counts, false);
-  const partial = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: failure });
+  const partial = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: failure });
   assert.deepEqual(partial.waiting, []);
   assert.equal('waiting' in partial.counts, false);
-  const recovered = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: ok('null') });
+  const recovered = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: ok('null') });
   assert.equal(recovered.counts.waiting, 0);
   assert.equal(recovered.waitingUrgent, 0);
   assert.deepEqual(recovered.waiting, []);
@@ -1818,9 +1818,9 @@ test('lists are truncated but counts stay true', () => {
     priority: 2,
     issue_type: 'task',
   }));
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, ready: ok(JSON.stringify(many)) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, ready: ok(JSON.stringify(many)) });
   assert.equal(entry.counts.ready, 25);
-  assert.equal(entry.ready.length, BEADS_READY_LIMIT);
+  assert.equal(entry.ready.length, TASK_READY_LIMIT);
   assert.equal(entry.ready[0].id, 'zz-0');
 });
 
@@ -1833,9 +1833,9 @@ test('recently closed is ordered by when it closed, newest first', () => {
     { id: 'zz-e', title: 'e', status: 'closed', priority: 2, issue_type: 'task', closed_at: '2026-07-27T00:00:00Z' },
     { id: 'zz-f', title: 'f', status: 'closed', priority: 2, issue_type: 'task', closed_at: '2026-07-26T00:00:00Z' },
   ];
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, closed: ok(JSON.stringify(closed)) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, closed: ok(JSON.stringify(closed)) });
   assert.equal(entry.counts.closedRecent, 6);
-  assert.equal(entry.recentlyClosed.length, BEADS_CLOSED_LIMIT);
+  assert.equal(entry.recentlyClosed.length, TASK_DAILY_CLOSED_LIMIT);
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-b', 'zz-d', 'zz-c', 'zz-a', 'zz-e']);
 });
 
@@ -1857,28 +1857,28 @@ test('recently filed work is sent newest first and capped, whatever became of it
   ];
   const closed = [bead('zz-quick', '2026-07-31T10:00:00Z', { status: 'closed', closed_at: '2026-07-31T10:05:00Z' })];
   const deferred = [bead('zz-later', '2026-07-31T07:00:00Z', { status: 'deferred' })];
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     active: ok(JSON.stringify(active)),
     closed: ok(JSON.stringify(closed)),
     deferred: ok(JSON.stringify(deferred)),
   });
-  assert.equal(entry.recentlyCreated.length, BEADS_CREATED_LIMIT);
+  assert.equal(entry.recentlyCreated.length, TASK_CREATED_LIMIT);
   assert.deepEqual(entry.recentlyCreated.map((i) => i.id), ['zz-quick', 'zz-2', 'zz-3', 'zz-later', 'zz-4']);
   assert.equal(entry.recentlyCreated[0].createdAt, '2026-07-31T10:00:00.000Z');
   // The same bead from two reads is one entry.
-  const twice = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, active: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])), closed: ok('[]'), deferred: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])) });
+  const twice = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])), closed: ok('[]'), deferred: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])) });
   assert.deepEqual(twice.recentlyCreated.map((i) => i.id), ['zz-2']);
 });
 
 test('a failed bd call fails that project and nothing about it looks like work', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: { code: 1, stdout: '', stderr: 'Error: cannot use -C directory "/x": no beads project found' },
+    ready: { code: 1, stdout: '', stderr: 'Error: cannot use -C directory "/x": project not found' },
   });
   assert.equal(entry.ok, false);
   assert.match(entry.error, /bd ready exited 1/);
-  assert.match(entry.error, /no beads project found/);
+  assert.match(entry.error, /project not found/);
   // "we could not look" must never render as "nothing to do".
   assert.deepEqual(entry.counts, { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 });
   assert.deepEqual(entry.ready, []);
@@ -1891,13 +1891,13 @@ test('a failed bd call fails that project and nothing about it looks like work',
 });
 
 test('unparseable bd output is an error, not an empty board', () => {
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, active: ok('<html>nope</html>') });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: ok('<html>nope</html>') });
   assert.equal(entry.ok, false);
   assert.match(entry.error, /bd active returned unparseable JSON/);
 });
 
 test('successful empty arrays are measured empty required lists', () => {
-  const entry = summarizeBeadsProject(PROJECT, {
+  const entry = summarizeTaskProject(PROJECT, {
     active: ok('[]'), ready: ok('[]'), blocked: ok('[]'), closed: ok('[]'),
     human: ok('null'), gates: ok('null'),
   });
@@ -1929,7 +1929,7 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
     ['mixed valid and invalid rows', '[{"id":"zz-valid"},{}]'],
   ]) {
     test(`required ${key} ${shape} is an unknown project, never a successful empty list`, () => {
-      const entry = summarizeBeadsProject(PROJECT, {
+      const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS,
         // Successful optional reads must not turn an invalid required read
         // into a reassuring empty inbox or an apparently ready project.
@@ -1951,7 +1951,7 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
     ['malformed JSON', ok('[{'), new RegExp(`bd ${key} returned unparseable JSON`)],
   ]) {
     test(`required ${key} ${failure} remains unknown despite complete optional reads`, () => {
-      const entry = summarizeBeadsProject(PROJECT, {
+      const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS, human: ok('null'), gates: ok('null'), [key]: result,
       });
       assert.equal(entry.ok, false);
@@ -1963,9 +1963,9 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
   }
 
   test(`required ${key} recovers from an invalid response to its full task counts`, () => {
-    const previous = summarizeBeadsProject(PROJECT, FULL_RESULTS);
-    const failed = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, [key]: ok('{}') });
-    const recovered = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+    const previous = summarizeTaskProject(PROJECT, FULL_RESULTS);
+    const failed = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, [key]: ok('{}') });
+    const recovered = summarizeTaskProject(PROJECT, FULL_RESULTS);
     assert.equal(previous.ok, true);
     assert.equal(failed.ok, false);
     assert.deepEqual(recovered, previous);
@@ -1979,13 +1979,13 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
 
 test('the snapshot is filed against the ingest the runner actually started', () => {
   assert.equal(
-    beadsSnapshotUrl(CONFIG),
-    `http://${CONFIG.ingestHost}:${CONFIG.ingestPort}/api/beads-snapshot`,
+    taskSnapshotUrl(CONFIG),
+    `http://${CONFIG.ingestHost}:${CONFIG.ingestPort}/api/task-snapshot`,
   );
 });
 
 test('the board is refreshed every minute', () => {
-  assert.equal(CONFIG.beadsPollCron, '* * * * *');
+  assert.equal(CONFIG.taskPollCron, '* * * * *');
 });
 
 const TASK_CACHE_ROOT = mkdtempSync(path.join(tmpdir(), 'os-up-task-cache-'));
@@ -2079,43 +2079,43 @@ const UP = { running: true, ready: true };
 test('an Ntasks that does not answer skips the tick with one WARN and never spams', async () => {
   const { lines, posted, ntasks, deps } = pollDeps();
   ntasks.down = true;
-  assert.equal(await runBeadsPoll(UP, deps), null);
-  await runBeadsPoll(UP, deps);
-  await runBeadsPoll(UP, deps);
+  assert.equal(await runTaskPoll(UP, deps), null);
+  await runTaskPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^WARN beads snapshot skipped — Ntasks did not answer \(network\)/);
+  assert.match(lines[0], /^WARN task snapshot skipped — Ntasks did not answer \(network\)/);
   assert.equal(posted.length, 0);
 });
 
 test('a recovered Ntasks says so, then files', async () => {
   const { lines, posted, ntasks, deps } = pollDeps();
   ntasks.down = true;
-  await runBeadsPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   ntasks.down = false;
-  await runBeadsPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   assert.equal(posted.length, 1);
-  assert.match(lines[1], /^INFO beads snapshot resumed \(was skipped: Ntasks did not answer \(network\)\)/);
+  assert.match(lines[1], /^INFO task snapshot resumed \(was skipped: Ntasks did not answer \(network\)\)/);
 });
 
 test('the poll waits for ingest rather than posting into a closed port', async () => {
   const { lines, posted, deps } = pollDeps();
-  await runBeadsPoll({ running: false, ready: false }, deps);
+  await runTaskPoll({ running: false, ready: false }, deps);
   assert.equal(posted.length, 0);
   assert.match(lines[0], /ingest is down\/restarting/);
 });
 
 test('no operator token means no post, and a line saying why', async () => {
   const { lines, posted, deps } = pollDeps({ readToken: () => Promise.resolve(null) });
-  await runBeadsPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   assert.equal(posted.length, 0);
   assert.match(lines[0], /no OPERATOR_TOKEN is configured/);
 });
 
 test('the snapshot is posted with the operator bearer and the captured instant', async () => {
   const { posted, deps } = pollDeps();
-  await runBeadsPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   assert.equal(posted.length, 1);
-  assert.equal(posted[0].url, beadsSnapshotUrl(CONFIG));
+  assert.equal(posted[0].url, taskSnapshotUrl(CONFIG));
   assert.equal(posted[0].init.method, 'POST');
   assert.equal(posted[0].init.headers.authorization, 'Bearer operator-secret');
   const body = JSON.parse(posted[0].init.body);
@@ -2129,20 +2129,20 @@ test('a non-201 from ingest is an ERROR line, never a thrown tick', async () => 
   const { lines, deps } = pollDeps({
     post: () => Promise.resolve({ ok: false, status: 422, text: () => Promise.resolve('{"error":"validation"}') }),
   });
-  await runBeadsPoll(UP, deps);
-  assert.match(lines[0], /^ERROR beads snapshot → HTTP 422/);
+  await runTaskPoll(UP, deps);
+  assert.match(lines[0], /^ERROR task snapshot → HTTP 422/);
 });
 
 test('an unreachable ingest is an ERROR line, never a thrown tick', async () => {
   const { lines, deps } = pollDeps({ post: () => Promise.reject(new Error('ECONNREFUSED')) });
-  await runBeadsPoll(UP, deps);
-  assert.match(lines[0], /^ERROR beads snapshot POST failed: ECONNREFUSED/);
+  await runTaskPoll(UP, deps);
+  assert.match(lines[0], /^ERROR task snapshot POST failed: ECONNREFUSED/);
 });
 
 test('an unreadable project is reported in the filed line, not hidden', async () => {
   const { lines, ntasks, deps } = pollDeps();
   ntasks.fail = (call) => (call.path.startsWith('/api/tasks?') ? { status: 503, body: { error: 'unavailable' } } : null);
-  await runBeadsPoll(UP, deps);
+  await runTaskPoll(UP, deps);
   assert.match(lines[0], /1 unreadable: root-os \(Ntasks did not answer for ro\)/);
 });
 
@@ -2321,7 +2321,7 @@ test('the poller asks each spoke what it has triaged', () => {
 });
 
 test('triage state rides the snapshot alongside the work', () => {
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, panelReview: ok(BD_PANEL_REVIEW) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: ok(BD_PANEL_REVIEW) });
   assert.deepEqual(entry.panelReview, {
     beadId: 'nw-4q2',
     panelDate: '2026-08-02',
@@ -2332,14 +2332,14 @@ test('triage state rides the snapshot alongside the work', () => {
 });
 
 test('a spoke with no review reports none — a measurement, not a silence', () => {
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, panelReview: ok('[]') });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: ok('[]') });
   assert.equal(entry.panelReview, null);
 });
 
 test('a bd that cannot answer about reviews leaves no “nothing to triage” behind', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal('panelReview' in entry, false);
-  const failed = summarizeBeadsProject(PROJECT, {
+  const failed = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     panelReview: { code: 1, stdout: '', stderr: 'unknown flag: --label' },
   });
@@ -2401,7 +2401,7 @@ test('handoffs are written under the NoticeOS names', () => {
 test('the poller asks each spoke what has been filed from its handoffs', () => {
   const args = handoffListArgs('/repos/md');
   assert.deepEqual(args.slice(0, 2), ['-C', '/repos/md']);
-  // Either label: beads filed before the rename wear reindex-handoff.
+  // Either label: tasks filed before the rename wear reindex-handoff.
   assert.equal(args[args.indexOf('--label-any') + 1], 'noticeos-handoff,reindex-handoff');
   assert.equal(args.includes('--label'), false);
   // Closed included: a finding whose work shipped last month and one nobody
@@ -2416,7 +2416,7 @@ test('the join is its own read, not a slice of the queue heads', () => {
   // The ready/closed lists are capped at ten and five. A bead filed a month ago
   // is outside all of them, and a join that could only see the head of a queue
   // would answer "never filed" for work that plainly was.
-  const args = beadsPollArgs('/repos/md', '2026-07-25');
+  const args = taskPollArgs('/repos/md', '2026-07-25');
   assert.deepEqual(args.handoffs, handoffListArgs('/repos/md'));
   assert.ok(!args.handoffs.includes('--closed-after'));
   // Unlimited on the way in: picking WHICH bead a refiled finding shows has to
@@ -2463,7 +2463,7 @@ test('a bead filed before the rename still joins its finding, and still dedupes 
   assert.deepEqual(handoffEntries([legacyHandoff()], 'meadow.example'), [
     { kind: 'finding', key: 'item-openers', beadId: 'md-0ld', status: 'open', closedAt: null },
   ]);
-  // Old and new beads for one finding are ONE marker, not two.
+  // Old and new tasks for one finding are ONE marker, not two.
   const closedNew = handoff({ status: 'closed', closed_at: '2026-09-01T10:00:00Z' });
   assert.deepEqual(handoffEntries([closedNew, legacyHandoff()], 'meadow.example'), [
     { kind: 'finding', key: 'item-openers', beadId: 'md-0ld', status: 'open', closedAt: null },
@@ -2605,7 +2605,7 @@ test('two identical hubs produce two identical snapshots', () => {
 });
 
 test('filed work rides the snapshot alongside the queue', () => {
-  const entry = summarizeBeadsProject(
+  const entry = summarizeTaskProject(
     { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' },
     { ...FULL_RESULTS, handoffs: ok(JSON.stringify([handoff()])) },
   );
@@ -2617,14 +2617,14 @@ test('filed work rides the snapshot alongside the queue', () => {
 test('a spoke with nothing filed reports an empty list — a measurement', () => {
   // This is the ONLY thing that licenses a finding card to present itself as
   // untouched work.
-  const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, handoffs: ok('[]') });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, handoffs: ok('[]') });
   assert.deepEqual(entry.handoffs, []);
 });
 
 test('a bd that cannot answer leaves no “nothing was filed” behind', () => {
-  const entry = summarizeBeadsProject(PROJECT, FULL_RESULTS);
+  const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal('handoffs' in entry, false);
-  const failed = summarizeBeadsProject(PROJECT, {
+  const failed = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
     handoffs: { code: 1, stdout: '', stderr: 'unknown flag: --label' },
   });
@@ -2752,7 +2752,7 @@ test('the title says panel only when a panel landed', () => {
   assert.equal(panelReviewTitle('northwind.example', '2026-08-02'), 'Triage the 2026-08-02 serp panel for northwind.example');
 });
 
-// Both forms dedupe, or the filer double-files against beads whose metadata `bd`
+// Both forms dedupe, or the filer double-files against tasks whose metadata `bd`
 // did not hand back.
 test('the title fallback recognizes a review in either wording', () => {
   assert.equal(
@@ -3277,7 +3277,7 @@ test('a verdict for an asset with no spoke is named, never dropped in silence', 
   });
   const result = await runWatchReadbackFiler(deps);
   assert.deepEqual(result.posted, []);
-  assert.match(lines[0], /^WARN watch readbacks: md-w1n\.2: no beads spoke is configured for meadow\.example/);
+  assert.match(lines[0], /^WARN watch readbacks: md-w1n\.2: no task project is configured for meadow\.example/);
 });
 
 test('comments that landed but could not be stamped say so in one line', async () => {

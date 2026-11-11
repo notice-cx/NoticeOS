@@ -232,7 +232,7 @@ describe("door path rewriting", () => {
     ["/cdn-cgi/mf/scheduled?cron=0+*+*+*+*", `${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`],
     ["/__scheduled?cron=0+*+*+*+*", `${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`],
     ["/healthz", `${RUNNER_INGEST_PREFIX}/healthz`],
-    ["/api/beads-snapshot", `${RUNNER_INGEST_PREFIX}/api/beads-snapshot`],
+    ["/api/task-snapshot", `${RUNNER_INGEST_PREFIX}/api/task-snapshot`],
     ["/api/pulse", `${RUNNER_INGEST_PREFIX}/api/pulse`],
     ["/api/codebase-report", `${RUNNER_INGEST_PREFIX}/api/codebase-report`],
     ["/api/backup/cloudflare-d1", "/api/backup/cloudflare-d1"],

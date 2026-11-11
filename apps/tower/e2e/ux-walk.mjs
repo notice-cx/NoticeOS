@@ -876,6 +876,6 @@ export async function installSyntheticProviders(context, base) {
   }));
   await installGoogleConsent(context, base);
   // Task writes (answer, dismiss, approve, file) go through the real task
-  // lane to the fixture's `bd`; nothing is answered here.
+  // lane to the fixture Ntasks; nothing is answered here.
   return { held, stop: () => { stopped = true; } };
 }

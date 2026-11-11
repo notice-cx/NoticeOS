@@ -3,7 +3,7 @@
 // snapshot; this module owns the query and the parse. Only the newest row is
 // read, and only the newest row is whole: an older one keeps just the lists
 // the Wall's feed replays (`supersededPayload`,
-// workers/ingest/src/beads-snapshots.ts).
+// workers/ingest/src/task-snapshots.ts).
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { isRetired } from "../shared/asset-setup";
@@ -60,8 +60,8 @@ export interface SnapshotProject {
   waitingUrgent: number | null;
   attentionTasks?: { items: (WorkItem & { decision: boolean })[]; complete: boolean };
   /** The asset's serp-panel review task. Three-valued: `undefined` = this
-   * poller did not look (an older snapshot, or a repo `bd` could not answer
-   * for), `null` = it looked and this asset has no review task. The payload
+   * poller did not look (an older snapshot, or a project Ntasks could not
+   * answer for), `null` = it looked and this asset has no review task. The payload
    * boundary collapses both; the distinction survives here. */
   panelReview: SnapshotPanelReview | null | undefined;
   /** The tasks filed from this asset's Tower handoffs. `undefined` = this
@@ -77,14 +77,14 @@ export interface SnapshotProject {
   closes?: WorkCloses;
 }
 
-export interface BeadsSnapshot {
+export interface TaskSnapshot {
   /** When the poller looked, NOT when the Tower rendered. */
   capturedAt: string;
   projects: SnapshotProject[];
 }
 
 /** Keep archive identities for live catalogs; exclude their work from active reads. */
-export function scopeTaskSnapshot(snapshot: BeadsSnapshot | null, sites: readonly { id: string; status: string }[], configured: readonly { asset: string; prefix: string }[] = []) {
+export function scopeTaskSnapshot(snapshot: TaskSnapshot | null, sites: readonly { id: string; status: string }[], configured: readonly { asset: string; prefix: string }[] = []) {
   const archived = new Set(sites.filter(site => isRetired(site.status)).map(site => site.id));
   const identities = new Map([...(snapshot?.projects ?? []), ...configured].map(({ asset, prefix }) => [prefix, { asset, prefix }]));
   const archivedProjects = [...identities.values()].filter(project => archived.has(project.asset));
@@ -95,7 +95,7 @@ export function scopeTaskSnapshot(snapshot: BeadsSnapshot | null, sites: readonl
 }
 
 /** A condition can include several firings; work filed from any of them still belongs to it. */
-export function alertHandoffsOf(snapshot: BeadsSnapshot | null, asset: string, flagIds: readonly number[]): HandoffBead[] | undefined {
+export function alertHandoffsOf(snapshot: TaskSnapshot | null, asset: string, flagIds: readonly number[]): HandoffBead[] | undefined {
   const project = snapshot?.projects.find((entry) => entry.asset === asset);
   if (!project?.ok || project.handoffs === undefined) return undefined;
   const keys = new Set(flagIds.map(String));
@@ -392,7 +392,7 @@ function readWork(value: Record<string, unknown>): Pick<SnapshotProject, "worker
 
 /** The newest snapshot, or null when none has ever been filed. Project order
  * is the snapshot's own, which is `config/beads.json`'s order. */
-export async function loadLatestBeadsSnapshot(store: WorkspaceStore): Promise<BeadsSnapshot | null> {
+export async function loadLatestTaskSnapshot(store: WorkspaceStore): Promise<TaskSnapshot | null> {
   const [row] = await store.read((tx) =>
     tx.query<SnapshotRow>(
       `SELECT captured_at, payload::text AS payload

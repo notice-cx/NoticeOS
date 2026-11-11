@@ -29,13 +29,13 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   const files = ['config/beads.json', 'config/integrations.json', 'config/constants.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json'];
   const held = await helpers.getConfigDocuments(capability, files);
   if (held.some(document => document.source === 'store' || document.version !== null)) throw new Error('Demo task configuration refuses previously stored documents.');
-  const beads = JSON.parse(fs.readFileSync(path.join(plan.root, files[0]), 'utf8'));
+  const taskProjects = JSON.parse(fs.readFileSync(path.join(plan.root, files[0]), 'utf8'));
   const integrations = JSON.parse(fs.readFileSync(path.join(plan.root, files[1]), 'utf8'));
   const constants = JSON.parse(fs.readFileSync(path.join(plan.root, files[2]), 'utf8'));
   const [dimensions, panel] = files.slice(3).map(file => JSON.parse(fs.readFileSync(path.join(plan.root, file), 'utf8')));
-  if (!Array.isArray(beads.spokes) || beads.spokes.length || !integrations.assets || Object.keys(integrations.assets).length) throw new Error('The demo needs the generic empty task and asset rosters.');
+  if (!Array.isArray(taskProjects.spokes) || taskProjects.spokes.length || !integrations.assets || Object.keys(integrations.assets).length) throw new Error('The demo needs the generic empty task and asset rosters.');
   const roster = { ...integrations, assets: demoIntegrationAssets(scenario) };
-  const seeded = await helpers.seedConfigDocuments(capability, { actor: 'synthetic-demo-seeder', documents: { [files[0]]: beads, [files[1]]: roster, [files[2]]: { ...constants, schedules: demoSchedules() }, [files[3]]: dimensions, [files[4]]: panel } }, Date.parse(scenario.manifest.cutoff));
+  const seeded = await helpers.seedConfigDocuments(capability, { actor: 'synthetic-demo-seeder', documents: { [files[0]]: taskProjects, [files[1]]: roster, [files[2]]: { ...constants, schedules: demoSchedules() }, [files[3]]: dimensions, [files[4]]: panel } }, Date.parse(scenario.manifest.cutoff));
   if (!seeded.ok || seeded.skipped.length || seeded.seeded.length !== files.length || seeded.seeded.some(row => row.version !== 1)) throw new Error('The new demo configuration was not exclusively seeded.');
   const before = await helpers.getConfigDocuments(capability, files);
   if (before.find(row => row.file === files[0])?.version !== 1 || JSON.stringify(before.find(row => row.file === files[0])?.body.spokes) !== '[]') throw new Error('The new task map differs from its empty version-one expectation.');

@@ -53,7 +53,7 @@ interface SectionFields {
   decisions: Pick<AssetDetailPayload, "decisions">;
   /** Everything read off one task-hub snapshot, kept together so the inbox,
    * the handoff markers and the review marker cannot disagree. */
-  tasks: Pick<AssetDetailPayload, "handoffBeads" | "operator" | "panelReview" | "latestPanelDate">;
+  tasks: Pick<AssetDetailPayload, "handoffTasks" | "operator" | "panelReview" | "latestPanelDate">;
   annotations: Pick<AssetDetailPayload, "annotations">;
   /** The watch composer's calibration series. Only the open and closed lists
    * are core; this is the part that costs a 90-day observation read. */
@@ -101,7 +101,7 @@ export const ASSET_SECTION_FIELDS: { [S in AssetDetailSection]: readonly (keyof 
   dailyRevenue: ["dailyRevenue"],
   stripe: ["stripeSubscriptions"],
   decisions: ["decisions"],
-  tasks: ["handoffBeads", "operator", "panelReview", "latestPanelDate"],
+  tasks: ["handoffTasks", "operator", "panelReview", "latestPanelDate"],
   annotations: ["annotations"],
   watchHistory: [],
   reclamation: ["reclamation"],

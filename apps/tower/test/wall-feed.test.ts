@@ -107,7 +107,7 @@ async function snapshot(
     option?: string; label?: string; resolution?: string }[]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
-  // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
+  // (supersededPayload, workers/ingest/src/task-snapshots.ts): only the two
   // lists the feed reads, each item its id, title and time, and a new task's
   // filer and model. The newest one also names who claimed and closed work
   // (`recentWork`).
@@ -355,7 +355,7 @@ describe("the feed's window", () => {
   });
 
   // The task store keeps two days of photographs for this window, sized on a
-  // 31-hour reach (WALL_FEED_REACH_HOURS, workers/ingest/src/beads-snapshots.ts).
+  // 31-hour reach (WALL_FEED_REACH_HOURS, workers/ingest/src/task-snapshots.ts).
   // A longer reach would read photographs already pruned.
   it("never reaches back more than 31 hours, across a fall-back night", () => {
     let longest = 0;

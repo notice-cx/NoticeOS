@@ -256,7 +256,7 @@ function openRow(name: RegExp | string): HTMLElement {
 
 describe("/alerts — the portfolio's open exceptions", () => {
   it('links filed open and closed tasks inside the alert without changing its severity', () => {
-    renderAlerts([alert({ handoffBeads: [
+    renderAlerts([alert({ handoffTasks: [
       { kind: 'alert', key: '1', beadId: 'md-repair', status: 'open', closedAt: null },
       { kind: 'alert', key: '1', beadId: 'md-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
     ] })]);
@@ -270,8 +270,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(within(row).getByRole('button', { name: 'Resolve alert' })).toBeInTheDocument();
   });
 
-  it.each([undefined, []])('shows no task marker without a recorded handoff (%j)', (handoffBeads) => {
-    renderAlerts([alert({ handoffBeads })]);
+  it.each([undefined, []])('shows no task marker without a recorded handoff (%j)', (handoffTasks) => {
+    renderAlerts([alert({ handoffTasks })]);
     const row = openRow(/Signups well below normal/);
     expect(row.querySelector('[data-handoff-bead]')).toBeNull();
     expect(within(row).getByRole('button', { name: /^File task for/ })).toBeInTheDocument();

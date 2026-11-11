@@ -792,36 +792,26 @@ Tasks remain **coordination state, not signals** ([doc 01](01-architecture.md),
 [doc 06](06-operations.md)): nothing on this board enters the nightly report envelope,
 and a task's existence is never evidence about an asset.
 
-**Task screens appear only with a connected task source.** A new installation has no task source, and then no screen
-shows a task surface: no Tasks in the sidebar or the palette, no Needs attention tile
-or Your decisions on Home, no task count on the Wall (its work chart shows Tasks unknown), no Tasks tab,
-Needs attention or File task on an asset, no Tasks column or Open tasks on Assets. Opening Tasks
-by its address (or an asset's Tasks tab, or a task page by link) shows one
-link, **Connect a task source**, to the **Tasks** group on Integrations, where
-each source is a row with one status and one action like every provider.
-Beads is the first source. Its Connect opens the connect panel over
-Integrations: the asset, its task prefix and database, and
-Connect, which saves the project through the `task-hub-spokes` declared list — the
-same audited write Settings → Task projects makes — and then shows the host
-steps with Copy while the panel shows Collecting, and Working once the runner
-has read the project. After the first read, its Manage link opens Settings → Task projects, which
-edits the saved rows.
+**Tasks is always in the sidebar and the palette.** An installation's tasks
+live in Ntasks. Until one is connected, the Tasks pages show **Connect Ntasks**
+with **Go to Task projects →**, which opens Settings → Task projects. That
+page's Connection panel holds the Ntasks connection and one **Task database**
+row: its status (No projects, Waiting for first read, Available, Stale or
+Unavailable) and how many projects are saved. Its Projects panel edits the
+saved projects through the `task-hub-spokes` declared list.
 
-*Connected is calculated, never stored:* for Beads, it means the runner's newest snapshot
-read at least one task project. The runner reads the saved projects every
-minute and stores a snapshot only when the task database was reachable, and an installation
-with no project stores an empty one — so that one fact covers both "set up here"
-and "reachable". An installation whose projects are saved but not yet read
-shows the row as Collecting and still no task screen.
+*The status is calculated, never stored:* the runner reads the saved projects
+from Ntasks every minute and files a snapshot (`POST /api/task-snapshot`). The
+row is Available once the newest snapshot read at least one project, Waiting
+for first read while a saved project has not been read, and Stale once the
+newest snapshot is older than twice the runner's cadence.
 
-*The adapter boundary* is `apps/tower/worker/task-source.ts`: each source provides the same
-data — whether it is connected, the board (`GET /api/work`), the Needs attention counts
-(the Wall payload's `operator`, `null` without a source), an asset's inbox — from
-one read per request, and `GET /api/task-source` returns which source every task
-screen shows. The actions a source allows are the `/api/tasks/*` contract
-(`shared/tasks.ts`), served by the local Beads commands or read-only elsewhere. A
-later source (Linear, GitHub Issues) is an adapter there and a row on
-Integrations; an installation connected to Beads works exactly as before.
+*The adapter boundary* is `apps/tower/worker/task-source.ts`: the snapshot
+source provides whether it is connected, the board (`GET /api/work`), the Needs
+attention counts (the Wall payload's `operator`) and an asset's inbox from one
+read per request, and `GET /api/task-source` returns its status. The actions on
+tasks are the `/api/tasks/*` contract (`shared/tasks.ts`), which a local Tower
+sends to the connected Ntasks and a deployed Tower answers read-only.
 
 ## The Registry — shipped changes
 
@@ -1138,7 +1128,7 @@ operator's questions rather than by how the system is built:
    is still open — as a small muted marker in the proof/handoff cell, joined by
    the `noticeos_key` the handoff wrote into the task's metadata
    ([§Handoff metadata](../config/beads.README.md#handoff-metadata)) and read from the same
-   once-a-minute `beads_snapshots` snapshot the Tasks board uses. A
+   once-a-minute `task_snapshots` snapshot the Tasks board uses. A
    closed task is shown as **shipped, not proven** and never removes the finding —
    only a watch-window result does — and a finding with no task, or an asset
    the snapshot could not read, shows nothing at all;

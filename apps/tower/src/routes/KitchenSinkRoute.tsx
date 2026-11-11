@@ -1421,7 +1421,7 @@ const pageTrendsDemo: SearchPageTrends = {
 
 /** The page rows' task-register states. The absolute URL is the join key; the
  * shorter path is presentation only. */
-const pageHandoffBeadsDemo: HandoffBead[] = [
+const pageHandoffTasksDemo: HandoffBead[] = [
   {
     kind: "page",
     key: "https://plume.example.com/sizing-calculator",
@@ -1692,7 +1692,7 @@ const queryTrendsDemo: SearchQueryTrends = {
 
 /** What the register holds for those queries. Keys are the normalized query,
  * lowercased and trimmed, which is the `noticeos_key` the poller reads back. */
-const queryHandoffBeadsDemo: HandoffBead[] = [
+const queryHandoffTasksDemo: HandoffBead[] = [
   { kind: "query", key: "mulch calculator", beadId: "md-1w2", status: "open", closedAt: null },
   {
     kind: "query",
@@ -1808,7 +1808,7 @@ const findingsSnapshotDemo: ExecutiveSnapshot = {
  * and is still open; the discovery was filed and has since shipped — shipped,
  * NOT proven. The other two were never filed, and the `query` row is here to
  * prove the list ignores kinds that are not its own even when a key matches. */
-const findingsHandoffBeadsDemo: HandoffBead[] = [
+const findingsHandoffTasksDemo: HandoffBead[] = [
   {
     kind: "finding",
     key: "demo-findings-warning",
@@ -3010,7 +3010,7 @@ export function KitchenSinkRoute() {
                 ["mediavine", "Mediavine"],
                 ["discord", "Discord"],
                 ["calendar", "Calendar feeds"],
-                ["beads", "Beads"],
+                ["snapshots", "Ntasks"],
                 ["unknown", "Other integration"],
               ] as const).map(([provider, label]) => (
                 <div key={provider} className="flex flex-col items-center gap-2">
@@ -3069,7 +3069,7 @@ export function KitchenSinkRoute() {
                   key={index}
                   anchor={`task-sources-demo-${index}`}
                   nowMs={Date.parse("2026-09-12T12:00:00Z")}
-                  payload={{ connected: row.connected ? "beads" : null, sources: [{ id: "beads", ...row }] }}
+                  payload={{ connected: row.connected ? "snapshots" : null, sources: [{ id: "snapshots", ...row }] }}
                 />
               ))}
               <TaskHubUnavailable />
@@ -3623,7 +3623,7 @@ export function KitchenSinkRoute() {
             <div className="w-full">
               <ExecutiveFindingsList
                 snapshot={findingsSnapshotDemo}
-                handoffBeads={findingsHandoffBeadsDemo}
+                handoffTasks={findingsHandoffTasksDemo}
               />
             </div>
             <div className="w-full border-t border-border pt-3">
@@ -3643,7 +3643,7 @@ export function KitchenSinkRoute() {
               <QueryVisibilityRankings
                 trends={queryTrendsDemo}
                 asset={demoProperty}
-                handoffBeads={queryHandoffBeadsDemo}
+                handoffTasks={queryHandoffTasksDemo}
               />
             </div>
             <div className="w-full border-t border-border pt-3">
@@ -3654,7 +3654,7 @@ export function KitchenSinkRoute() {
               <QueryVisibilityRankings
                 trends={queryTrendsDemo}
                 asset={demoProperty}
-                handoffBeads={null}
+                handoffTasks={null}
               />
             </div>
             <div className="w-full border-t border-border pt-3">
@@ -3675,7 +3675,7 @@ export function KitchenSinkRoute() {
               <PageDecisions
                 pages={pageTrendsDemo}
                 asset={demoProperty}
-                handoffBeads={pageHandoffBeadsDemo}
+                handoffTasks={pageHandoffTasksDemo}
                 annotations={{
                   items: [{ id: 1, at: "2026-07-26T17:00:00.000Z", kind: "deploy", ref: null, note: "Recipe template refresh" }],
                   olderCount: 0,
@@ -5541,8 +5541,7 @@ export function KitchenSinkRoute() {
               refusals and the real toast without filing a task on the portfolio
               task hub. The handoff prefill is built by{" "}
               <code className="font-mono">taskHandoffPrefill</code> — the same
-              function the copied <code className="font-mono">bd create</code> is
-              rendered from — so the locked labels and the hidden{" "}
+              function the copied MCP instructions are rendered from — so the locked labels and the hidden{" "}
               <code className="font-mono">noticeos_*</code> metadata below are the
               real ones.
             </p>

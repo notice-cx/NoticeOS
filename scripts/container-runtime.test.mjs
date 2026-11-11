@@ -21,7 +21,7 @@ function io(defect) {
 }
 
 test('container startup declares its mounts and internal services and strips ambient installation selectors', () => {
-  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io() });
+  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', OTHER_SERVICE_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io() });
   assert.equal(env.NOTICEOS_HOME, '/state'); assert.equal(env.HOME, '/state/home');
   assert.equal(env.OS_UP_HOST, '1');
   // The backup worker's requests reach the app by its service name in every mode.
@@ -33,7 +33,7 @@ test('container startup declares its mounts and internal services and strips amb
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, '/state/.local/vite-cache');
   assert.equal(env.CLOUDFLARE_CF_FETCH_ENABLED, 'false');
   assert.equal(env.NOTICEOS_BACKUP_CLIENT_PROFILE, '/state/backup-client.json');
-  for (const key of ['DATABASE_URL', 'BEADS_DOLT_PASSWORD', 'DOCKER_HOST']) assert.equal(env[key], undefined);
+  for (const key of ['DATABASE_URL', 'OTHER_SERVICE_PASSWORD', 'DOCKER_HOST']) assert.equal(env[key], undefined);
   assert.ok(!JSON.stringify(env).includes('synthetic-private'));
   assert.throws(() => containerEnvironment({}, { fs: io('/state/.wrangler') }), /Missing/);
   assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres/noticeos' }) } }), /incomplete/);

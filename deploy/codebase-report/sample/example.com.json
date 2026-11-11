@@ -188,7 +188,7 @@
         "lines": 20,
         "files": [
           {
-            "path": "workers/ingest/src/beads-snapshots.ts",
+            "path": "workers/ingest/src/task-snapshots.ts",
             "startLine": 227
           },
           {

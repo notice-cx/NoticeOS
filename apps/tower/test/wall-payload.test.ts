@@ -6,7 +6,7 @@ import { MANUAL_RUN_DETAIL, PulseEnvelope, REPORT_MAX_AGE_HOURS, isAllFresh } fr
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AssetDetailDeps, buildAssetDetailPayload } from "../worker/asset-detail-payload";
-import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
+import { loadLatestTaskSnapshot } from "../worker/task-snapshot";
 import { LATEST_COUNTER_TOTALS_SQL, type CounterReading, type CountersConfig, resolveCounterCards, resolveWallCounters } from "../worker/counters";
 import type { IntegrationsConfig } from "../shared/integrations";
 import { backupStatus } from "@/lib/backups";
@@ -2355,8 +2355,8 @@ describe("buildWallPayload — the card's work slice", () => {
     ]);
     const statements: string[] = [];
     const wall = await buildWallPayload(recordingStore(ctx.call, statements), OPTIONS);
-    expect(wall.attention.find((item) => item.id === latest)).toMatchObject({ occurrences: 2, handoffBeads: [handoff, closed] });
-    expect(wall.attention.find((item) => item.id === unrelated)?.handoffBeads).toEqual([]);
+    expect(wall.attention.find((item) => item.id === latest)).toMatchObject({ occurrences: 2, handoffTasks: [handoff, closed] });
+    expect(wall.attention.find((item) => item.id === unrelated)?.handoffTasks).toEqual([]);
     expect(statements.filter((statement) => statement.includes('noticeos.task_snapshots'))).toHaveLength(1);
   });
 
@@ -2366,9 +2366,9 @@ describe("buildWallPayload — the card's work slice", () => {
     const handoff = { kind: 'alert', key: String(id), beadId: 'md-old', status: 'open', closedAt: null };
     await seedSnapshot(ctx, '2026-07-05T11:30:00.000Z', [workProject({ handoffs: [handoff] })]);
     await seedSnapshot(ctx, '2026-07-05T11:59:30.000Z', [workProject({ ok: false, handoffs: [handoff] })]);
-    expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffBeads).toBeUndefined();
+    expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffTasks).toBeUndefined();
     await seedSnapshot(ctx, '2026-07-05T11:59:45.000Z', [workProject()]);
-    expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffBeads).toBeUndefined();
+    expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffTasks).toBeUndefined();
   });
 
   it("carries each asset's work from the newest snapshot, and none for the OS", async () => {
@@ -2487,7 +2487,7 @@ describe("buildWallPayload — the card's work slice", () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         ok: false,
-        error: "bd ready exited 1: no beads project found",
+        error: "Ntasks answered 404: project not found",
         counts: workCounts({ open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 }) }),
     ]);
 
@@ -2972,7 +2972,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
       workProject({ asset: "northwind.example", prefix: "nw" }),
     ]);
 
-    const snapshot = (await loadLatestBeadsSnapshot(ctx.call))!;
+    const snapshot = (await loadLatestTaskSnapshot(ctx.call))!;
     const [measured, notLooked] = snapshot.projects;
     expect(measured!.panelReview).toBeNull();
     expect(notLooked!.panelReview).toBeUndefined();
@@ -3012,7 +3012,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     // A repo the `bd` read could not open told it nothing about a review task.
     await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ ok: false, error: "no beads project found", panelReview: review() }),
+      workProject({ ok: false, error: "project not found", panelReview: review() }),
     ]);
 
     expect((await cardFor("meadow.example")).panelReview).toBeNull();

@@ -18,7 +18,7 @@ import type { DashboardConfig } from "../shared/dashboard";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 import { INTEGRATIONS_OWNER, type IntegrationsConfig } from "../shared/integrations";
 import type {
-  BeadsConfig,
+  TaskProjectsConfig,
   CollectionSettings,
   KnobValueSetting,
   PullEndpointSetting,
@@ -29,7 +29,7 @@ import type {
 /** Where the pull registry lives (the same file the asset page's wiring edits). */
 export const PULL_OWNER = "config/pull.json";
 /** Where the task hub's spoke map lives. */
-export const BEADS_OWNER = "config/beads.json";
+export const TASK_PROJECTS_OWNER = "config/beads.json";
 
 export interface SettingsDeps {
   now: Date;
@@ -62,7 +62,7 @@ export interface SettingsDeps {
   dashboard: DashboardConfig;
   /** config/beads.json — the project map, plus the hub connection on a build
    * that has a filesystem (`shared/settings.ts` says why it crosses at all). */
-  beads: BeadsConfig;
+  beads: TaskProjectsConfig;
   /** config/constants.json `/schedules`, verbatim — null while none has been
    * saved. Optional so a caller with no schedules to state need not say so. */
   schedules?: ScheduleOverrides | null;
@@ -101,7 +101,7 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
       rows: deps.entities,
     },
     taskHub: {
-      owner: BEADS_OWNER,
+      owner: TASK_PROJECTS_OWNER,
       spokes: deps.beads.spokes,
       // False in a deployed build, where the map is read-only.
       local: deps.beads.local === true,

@@ -92,15 +92,15 @@ export async function verifyDemoStore(installation, { open = openStore } = {}) {
       const identity = await tx.query(`SELECT current_setting($1, true) AS profile,
         (SELECT count(*)::text FROM noticeos.integration_connections) AS connections`, [PROFILE_SETTING]);
       const assets = await tx.query('SELECT asset_id FROM noticeos.assets ORDER BY asset_id');
-      const beadsKey = configDocumentKey('config/beads.json'), integrationsKey = configDocumentKey('config/integrations.json');
+      const taskKey = configDocumentKey('config/beads.json'), integrationsKey = configDocumentKey('config/integrations.json');
       const displayKeys = Object.keys(installation.display).map(configDocumentKey);
-      const documents = await tx.query('SELECT document_key, body FROM noticeos.config_documents WHERE document_key = ANY($1::text[]) ORDER BY document_key', [[beadsKey, integrationsKey, ...displayKeys]]);
+      const documents = await tx.query('SELECT document_key, body FROM noticeos.config_documents WHERE document_key = ANY($1::text[]) ORDER BY document_key', [[taskKey, integrationsKey, ...displayKeys]]);
       if (identity.length !== 1 || identity[0].profile !== DEVELOPMENT || identity[0].connections !== '0'
         || JSON.stringify(assets.map(row => row.asset_id)) !== JSON.stringify([...installation.assetIds].sort())
         || documents.length !== 2 + displayKeys.length) throw new Error('The demo store no longer matches its synthetic-only generation.');
-      const beads = JSON.parse(documents.find(row => row.document_key === beadsKey)?.body ?? 'null');
+      const taskProjects = JSON.parse(documents.find(row => row.document_key === taskKey)?.body ?? 'null');
       const integrations = JSON.parse(documents.find(row => row.document_key === integrationsKey)?.body ?? 'null');
-      if (!isDeepStrictEqual(beads?.spokes, installation.projects.map(({ projectId, ...project }) => project))
+      if (!isDeepStrictEqual(taskProjects?.spokes, installation.projects.map(({ projectId, ...project }) => project))
         || JSON.stringify(Object.keys(integrations?.assets ?? {}).sort()) !== JSON.stringify([...installation.assetIds].sort())
         || !isDeepStrictEqual(integrations?.assets, installation.integrations)) {
         throw new Error('The demo stored task or provider roster changed.');

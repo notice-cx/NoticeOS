@@ -2221,7 +2221,7 @@ describe("buildAssetDetailPayload", () => {
   // photograph; "asked, nothing filed" and "could not ask" stay distinct,
   // because only the first lets a card call a finding untouched.
   describe("handoff tasks", () => {
-    function beadsProject(overrides: Record<string, unknown> = {}) {
+    function taskProject(overrides: Record<string, unknown> = {}) {
       return {
         asset: "meadow.example",
         prefix: "md",
@@ -2237,7 +2237,7 @@ describe("buildAssetDetailPayload", () => {
 
     it("carries this asset's filed work, joined by the handoff key", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
-        beadsProject({
+        taskProject({
           handoffs: [
             { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
             {
@@ -2262,7 +2262,7 @@ describe("buildAssetDetailPayload", () => {
         }),
         // Another asset's filed work on the same snapshot row. A finding key
         // is a rule id, so the same string exists on every asset.
-        beadsProject({
+        taskProject({
           asset: "northwind.example",
           prefix: "nw",
           handoffs: [
@@ -2272,7 +2272,7 @@ describe("buildAssetDetailPayload", () => {
       ]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toEqual([
+      expect(p.handoffTasks).toEqual([
         { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
         {
           kind: "finding",
@@ -2294,32 +2294,32 @@ describe("buildAssetDetailPayload", () => {
     });
 
     it("reports an empty list when the poller asked and nothing is filed", async () => {
-      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject({ handoffs: [] })]);
+      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [taskProject({ handoffs: [] })]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       // Not null: a measurement, the only thing that lets a finding card
       // present itself as untouched work.
-      expect(p.handoffBeads).toEqual([]);
+      expect(p.handoffTasks).toEqual([]);
     });
 
     it("degrades a snapshot written before the field existed to null, never to empty", async () => {
-      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject()]);
+      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [taskProject()]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toBeNull();
+      expect(p.handoffTasks).toBeNull();
     });
 
     it("is null when the register cannot be asked at all", async () => {
       let p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toBeNull();
+      expect(p.handoffTasks).toBeNull();
 
       // A snapshot that names other projects but not this one.
       await seedSnapshot(ctx, "2026-07-05T11:58:00.000Z", [
-        beadsProject({ asset: "northwind.example", prefix: "nw", handoffs: [],
+        taskProject({ asset: "northwind.example", prefix: "nw", handoffs: [],
         }),
       ]);
       p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toBeNull();
+      expect(p.handoffTasks).toBeNull();
 
       // A project the poller could not read: "did not ask", never "none filed".
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
@@ -2335,12 +2335,12 @@ describe("buildAssetDetailPayload", () => {
         },
       ]);
       p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toBeNull();
+      expect(p.handoffTasks).toBeNull();
     });
 
     it("drops one unreadable entry rather than un-filing every other finding", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
-        beadsProject({
+        taskProject({
           handoffs: [
             { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
             { kind: "finding", key: "", beadId: "md-nokey", status: "open", closedAt: null },
@@ -2351,21 +2351,21 @@ describe("buildAssetDetailPayload", () => {
       ]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads!.map((b) => b.beadId)).toEqual(["md-1w2"]);
+      expect(p.handoffTasks!.map((b) => b.beadId)).toEqual(["md-1w2"]);
     });
 
     it("reads only the newest snapshot", async () => {
       await seedSnapshot(ctx, "2026-07-04T11:00:00.000Z", [
-        beadsProject({
+        taskProject({
           handoffs: [
             { kind: "finding", key: "stale", beadId: "md-old", status: "open", closedAt: null },
           ],
         }),
       ]);
-      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject({ handoffs: [] })]);
+      await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [taskProject({ handoffs: [] })]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-      expect(p.handoffBeads).toEqual([]);
+      expect(p.handoffTasks).toEqual([]);
     });
 
     it("carries the corrected exact operator inbox from that same snapshot", async () => {
@@ -2396,7 +2396,7 @@ describe("buildAssetDetailPayload", () => {
         },
       ];
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
-        beadsProject({
+        taskProject({
           counts: {
             open: 8,
             ready: 5,
@@ -2422,7 +2422,7 @@ describe("buildAssetDetailPayload", () => {
 
     it("preserves known items but not exact totals when an operator read is partial", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
-        beadsProject({
+        taskProject({
           counts: { open: 8, ready: 5, inProgress: 1, blocked: 2, closedRecent: 3 },
           waiting: [{ id: "md-gate", title: "Approve the next release", status: "open", priority: 2, issueType: "gate" }],
           handoffs: [],
@@ -2435,7 +2435,7 @@ describe("buildAssetDetailPayload", () => {
 
     it("suppresses a legacy human list when corrected urgency was not measured", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
-        beadsProject({
+        taskProject({
           counts: {
             open: 8,
             ready: 5,
@@ -3282,7 +3282,7 @@ const SECTION_FIELD_SPEC: Record<string, string[]> = {
   dailyRevenue: ["dailyRevenue"],
   stripe: ["stripeSubscriptions"],
   decisions: ["decisions"],
-  tasks: ["handoffBeads", "operator", "panelReview", "latestPanelDate"],
+  tasks: ["handoffTasks", "operator", "panelReview", "latestPanelDate"],
   annotations: ["annotations"],
   watchHistory: [],
   reclamation: ["reclamation"],
@@ -3471,7 +3471,7 @@ describe("buildAssetDetailView — one read per tab", () => {
 
   it("leaves a section it does not draw ABSENT, so no tab can mistake it for empty", async () => {
     const alerts =(await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
-    for (const key of ["journeys", "performance", "executive", "metrics", "ledger", "annotations", "handoffBeads", "hygiene"]) {
+    for (const key of ["journeys", "performance", "executive", "metrics", "ledger", "annotations", "handoffTasks", "hygiene"]) {
       expect(alerts).not.toHaveProperty(key);
     }
     const response = alerts as AssetDetailResponse;

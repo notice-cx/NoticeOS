@@ -7,7 +7,7 @@
 
 import type { AssetOperatorPosture } from "../shared/asset-detail";
 import {
-  BEADS,
+  TASK_SNAPSHOTS,
   TASK_SOURCE_IDS,
   type TaskSourceId,
   type TaskSourcePayload,
@@ -15,7 +15,7 @@ import {
 } from "../shared/task-source";
 import { unreadOperatorPosture, type OperatorPosture } from "../shared/wall";
 import type { WorkPayload } from "../shared/work";
-import { loadLatestBeadsSnapshot, scopeTaskSnapshot, type BeadsSnapshot } from "./beads-snapshot";
+import { loadLatestTaskSnapshot, scopeTaskSnapshot, type TaskSnapshot } from "./task-snapshot";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { buildWorkPayload } from "./work-payload";
 import { readSites, type SiteRecord } from "./asset-registry";
@@ -50,7 +50,7 @@ export interface TaskSourceAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Beads — the task hub
+// Ntasks, read from the runner's snapshots
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -59,17 +59,17 @@ export interface TaskSourceAdapter {
  * (scripts/runner/task-snapshot.mjs); with no saved project it files an empty
  * one, which clears the connection.
  */
-export function beadsConnected(snapshot: BeadsSnapshot | null): boolean {
+export function snapshotConnected(snapshot: TaskSnapshot | null): boolean {
   return snapshot !== null && snapshot.projects.length > 0;
 }
 
-/** The beads source's row: its saved projects, the last read, and how much of
+/** The snapshot source's row: its saved projects, the last read, and how much of
  * that read failed. */
-export function beadsStatus(snapshot: BeadsSnapshot | null, savedProjects?: number): TaskSourceStatus {
-  const connected = beadsConnected(snapshot);
+export function snapshotStatus(snapshot: TaskSnapshot | null, savedProjects?: number): TaskSourceStatus {
+  const connected = snapshotConnected(snapshot);
   const read = snapshot?.projects ?? [];
   return {
-    id: BEADS,
+    id: TASK_SNAPSHOTS,
     connected,
     projects: savedProjects ?? read.length,
     readAt: connected ? snapshot!.capturedAt : null,
@@ -80,7 +80,7 @@ export function beadsStatus(snapshot: BeadsSnapshot | null, savedProjects?: numb
 /** Portfolio-wide human intervention from the same photograph that feeds each
  * card's work shape. Partial reads preserve their known lower bound and expose
  * the missing coverage; they never collapse to an exact zero. */
-export function beadsNeedsYou(snapshot: BeadsSnapshot | null): OperatorPosture {
+export function snapshotNeedsYou(snapshot: TaskSnapshot | null): OperatorPosture {
   if (!snapshot) {
     return unreadOperatorPosture();
   }
@@ -124,7 +124,7 @@ export function beadsNeedsYou(snapshot: BeadsSnapshot | null): OperatorPosture {
  * marker. New partial reads omit both exact counts but preserve known rows;
  * legacy exact-count/no-urgency lists still cannot prove actionable items.
  */
-export function beadsInbox(snapshot: BeadsSnapshot | null, asset: string): AssetOperatorPosture {
+export function snapshotInbox(snapshot: TaskSnapshot | null, asset: string): AssetOperatorPosture {
   const project = snapshot?.projects.find((entry) => entry.asset === asset);
   const measured =
     project?.ok === true &&
@@ -138,41 +138,41 @@ export function beadsInbox(snapshot: BeadsSnapshot | null, asset: string): Asset
   };
 }
 
-/** A beads reading also carries its snapshot: the hub's own extras (a site's
+/** A snapshot reading also carries its snapshot: the extras (a site's
  * review task, the tasks filed from a finding, each card's open work) are read
  * off the same photograph by the payloads that show them. */
-export interface BeadsTaskSourceReading extends TaskSourceReading {
-  snapshot: BeadsSnapshot | null;
+export interface SnapshotTaskSourceReading extends TaskSourceReading {
+  snapshot: TaskSnapshot | null;
 }
 
-/** The beads read over a snapshot already in hand. */
-export function beadsReading(
+/** The snapshot source's read over a snapshot already in hand. */
+export function snapshotReading(
   store: WorkspaceStore,
-  snapshot: BeadsSnapshot | null,
+  snapshot: TaskSnapshot | null,
   savedProjects?: number,
   timeZone?: string,
   sites?: readonly SiteRecord[],
   projects?: readonly { asset: string; prefix: string }[],
-): BeadsTaskSourceReading {
+): SnapshotTaskSourceReading {
   const scope = scopeTaskSnapshot(snapshot, sites ?? [], projects);
   const active = scope.snapshot;
   const archivedConfigured = scope.archivedProjects.filter(project => projects === undefined || projects.some(configured => configured.prefix === project.prefix)).length;
   return {
     snapshot: active,
-    status: { ...beadsStatus(snapshot, savedProjects),
+    status: { ...snapshotStatus(snapshot, savedProjects),
       projects: savedProjects === undefined ? active?.projects.length ?? 0 : Math.max(0, savedProjects - archivedConfigured),
       failing: (active?.projects ?? []).filter(project => !project.ok).length },
     board: (now) => buildWorkPayload(store, { now, snapshot, timeZone, projects, ...(sites === undefined ? {} : { sites }) }),
-    needsYou: () => beadsNeedsYou(active),
-    inbox: (asset) => beadsInbox(active, asset),
+    needsYou: () => snapshotNeedsYou(active),
+    inbox: (asset) => snapshotInbox(active, asset),
   };
 }
 
-export const beadsTaskSource = {
-  id: BEADS,
-  async read({ store, savedProjects, timeZone, projects }: TaskSourceContext): Promise<BeadsTaskSourceReading> {
-    const [snapshot, sites] = await Promise.all([loadLatestBeadsSnapshot(store), readSites(store)]);
-    return beadsReading(store, snapshot, savedProjects?.beads, timeZone, sites, projects);
+export const snapshotTaskSource = {
+  id: TASK_SNAPSHOTS,
+  async read({ store, savedProjects, timeZone, projects }: TaskSourceContext): Promise<SnapshotTaskSourceReading> {
+    const [snapshot, sites] = await Promise.all([loadLatestTaskSnapshot(store), readSites(store)]);
+    return snapshotReading(store, snapshot, savedProjects?.snapshots, timeZone, sites, projects);
   },
 } satisfies TaskSourceAdapter;
 
@@ -182,7 +182,7 @@ export const beadsTaskSource = {
 
 /** Every adapter, in `TASK_SOURCE_IDS` order. */
 export const TASK_SOURCE_ADAPTERS: Readonly<Record<TaskSourceId, TaskSourceAdapter>> = {
-  beads: beadsTaskSource,
+  snapshots: snapshotTaskSource,
 };
 
 /** Read snapshot availability once for the health response. */
@@ -206,5 +206,5 @@ export async function buildTaskSourcePayload(context: TaskSourceContext): Promis
 
 /** The core board retains its actual latest reading, including failed projects. */
 export async function buildTaskBoard(context: TaskSourceContext, now: Date): Promise<WorkPayload> {
-  return (await beadsTaskSource.read(context)).board(now);
+  return (await snapshotTaskSource.read(context)).board(now);
 }

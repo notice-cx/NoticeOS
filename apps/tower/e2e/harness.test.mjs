@@ -136,12 +136,12 @@ test("real handlers support an isolated fresh-install journey and exact task/gat
   // A recorded zero-project snapshot retains its timestamp and zero coverage.
   // Publishing the fixture project makes its recorded tasks available.
   assert.deepEqual((await request("/api/task-source")).body,
-    { connected: null, sources: [{ id: "beads", connected: false, projects: 0, readAt: null, failing: 0 }] });
+    { connected: null, sources: [{ id: "snapshots", connected: false, projects: 0, readAt: null, failing: 0 }] });
   assert.deepEqual((await request("/api/wall")).body.operator, { waiting: 0, urgent: 0, measuredProjects: 0, urgentMeasuredProjects: 0, projectCount: 0, capturedAt: "2026-09-06T12:00:00.000Z" });
   assert.deepEqual((await request("/api/work")).body.projects, []);
   assert.equal((await request("/__journey/task-source", "POST")).status, 200);
   assert.deepEqual((await request("/api/task-source")).body,
-    { connected: "beads", sources: [{ id: "beads", connected: true, projects: 1, readAt: "2026-09-06T12:00:00.000Z", failing: 0 }] });
+    { connected: "snapshots", sources: [{ id: "snapshots", connected: true, projects: 1, readAt: "2026-09-06T12:00:00.000Z", failing: 0 }] });
   const wall = await request("/api/wall");
   assert.equal(wall.status, 200);
   assert.equal(wall.body.assets[0].id, asset);

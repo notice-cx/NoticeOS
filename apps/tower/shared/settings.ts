@@ -137,7 +137,7 @@ export interface TaskHubSettings {
 
 /** `config/beads.json` as the Tower reads it: the project map, and whether
  * this Tower is served from its own machine (`vite.config.ts`). */
-export interface BeadsConfig {
+export interface TaskProjectsConfig {
   spokes: TaskHubSpoke[];
   local?: boolean;
 }

@@ -20,7 +20,7 @@ export interface TaskProjectReadOptions {
  * checkout for the live runner and its lanes. */
 export declare function taskHostFile(repoRoot?: string, env?: Environment): string;
 /** Canonical physical database identifier for backup, poll and drift readers. */
-export declare function beadsDatabaseName(value: unknown): string | null;
+export declare function taskDatabaseName(value: unknown): string | null;
 /** A saved project must match this host's asset, prefix and database binding.
  * Saved repo/hub values never select filesystem paths or service endpoints. */
 export declare function resolveTaskProjects(stored: unknown, host: unknown): TaskProject[];

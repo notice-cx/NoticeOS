@@ -148,13 +148,13 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
   }
   const projects = scenario.manifest.taskProjects.map(project => Object.freeze({ ...project, projectId: demoNtasksProjectId(viewer.workspaceId, project.prefix) }));
   const host = json(privateFile(home, 'installation/task-host.json'));
-  const beads = json(privateFile(home, 'installation/beads.json'));
+  const taskProjects = json(privateFile(home, 'installation/beads.json'));
   const integrations = json(privateFile(home, 'installation/integrations.json'));
   if (tasks.version !== 1 || tasks.synthetic !== true || tasks.release !== release
     || tasks.scenarioHash !== viewer.scenarioHash || tasks.workspaceId !== viewer.workspaceId
     || tasks.tasks !== scenario.tasks.length || tasks.snapshots !== counts.taskSnapshots || !same(tasks.projects, projects)
     || !same(manifest.taskGeneration, tasks) || host.version !== 1 || !same(host.repositories, projects)
-    || !same(beads.spokes, scenario.manifest.taskProjects)
+    || !same(taskProjects.spokes, scenario.manifest.taskProjects)
     || !same(integrations.assets, demoIntegrationAssets(scenario))) {
     throw new Error('The demo task or provider roster differs from its scenario.');
   }

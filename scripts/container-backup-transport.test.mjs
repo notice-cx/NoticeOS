@@ -77,7 +77,7 @@ test('the offsite copy creates and owns each entry itself, leaves out recovery a
   const source = '/state/.local/backups/2026-10-14', output = `${BACKUP_PATHS.offsite}/.backup-copy`;
   f.write(path.join(source, 'backup.json'), '{"complete":true}');
   f.write(path.join(source, 'r2/blobs/a'), 'blob-a');
-  f.write(path.join(source, 'beads/recovery/kept'), 'nested name is not the recovery folder');
+  f.write(path.join(source, 'ntasks/recovery/kept'), 'nested name is not the recovery folder');
   f.write(path.join(source, 'recovery/bootstrap.json'), 'synthetic-secret');
   fs.mkdirSync(f.map(output), { recursive: true, mode: 0o755 });
   const ownership = { operatorUid: process.getuid(), operatorGid: process.getgid() };
@@ -91,10 +91,10 @@ test('the offsite copy creates and owns each entry itself, leaves out recovery a
   await copyOffsiteBackup(source, output, ownership, { fs: io, omit: ['recovery'] });
   assert.equal(fs.existsSync(f.map(path.join(output, 'recovery'))), false);
   assert.equal(fs.readFileSync(f.map(path.join(output, 'r2/blobs/a')), 'utf8'), 'blob-a');
-  assert.equal(fs.readFileSync(f.map(path.join(output, 'beads/recovery/kept')), 'utf8'), 'nested name is not the recovery folder');
+  assert.equal(fs.readFileSync(f.map(path.join(output, 'ntasks/recovery/kept')), 'utf8'), 'nested name is not the recovery folder');
   assert.equal(fs.statSync(f.map(path.join(output, 'r2/blobs/a'))).nlink, 2);
   for (const file of ['backup.json', 'r2/blobs/a']) assert.equal(fs.statSync(f.map(path.join(output, file))).mode & 0o777, 0o600);
-  for (const folder of ['', 'r2', 'r2/blobs', 'beads/recovery']) assert.equal(fs.statSync(f.map(path.join(output, folder))).mode & 0o777, 0o700);
+  for (const folder of ['', 'r2', 'r2/blobs', 'ntasks/recovery']) assert.equal(fs.statSync(f.map(path.join(output, folder))).mode & 0o777, 0o700);
 
   fs.symlinkSync(f.map('/state/installation/beads.json'), f.map(path.join(source, 'alias')));
   const again = `${BACKUP_PATHS.offsite}/.backup-again`; fs.mkdirSync(f.map(again));

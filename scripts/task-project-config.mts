@@ -43,7 +43,7 @@ export function taskHostFile(repoRoot: string = REPO_ROOT, env: Environment = pr
 }
 
 /** Canonical physical database identifier for backup, poll and drift readers. */
-export function beadsDatabaseName(value: unknown): string | null {
+export function taskDatabaseName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const name = value.trim();
   return /^[A-Za-z0-9_]+$/.test(name) ? name : null;

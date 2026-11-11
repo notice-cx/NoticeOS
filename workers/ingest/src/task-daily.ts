@@ -12,21 +12,21 @@ import { javascriptInstant, type Transaction } from '@noticeos/postgres';
 import { isRecord } from './shared.js';
 
 /**
- * How many closed beads one project's snapshot list can hold: a mirror of the
- * poller's own `BEADS_CLOSED_LIMIT` (`scripts/runner/task-snapshot.mjs`), which
+ * How many closed tasks one project's snapshot list can hold: a mirror of the
+ * poller's own `TASK_DAILY_CLOSED_LIMIT` (`scripts/runner/task-snapshot.mjs`), which
  * cannot be imported into workerd. Only `closedOn`'s completeness test reads
  * it; if the poller ever sends a shorter list, the test turns optimistic, so the
- * two move together. `workers/ingest/test/beads-daily.test.ts` pins the value.
+ * two move together. `workers/ingest/test/task-daily.test.ts` pins the value.
  */
-export const BEADS_CLOSED_LIMIT = 5;
+export const TASK_DAILY_CLOSED_LIMIT = 5;
 
 /** How long the rollup keeps a day: a real history rather than a cache, the
  * only record of what the queue looked like on a past day. 400 days so a chart
  * can show a full year plus the run-up to it. */
-export const BEADS_DAILY_RETENTION_DAYS = 400;
+export const TASK_DAILY_RETENTION_DAYS = 400;
 
 /** What one project contributed to one day. */
-export interface BeadsDailyProject {
+export interface TaskDailyProject {
   asset: string;
   ok: boolean;
   counts: {
@@ -41,7 +41,7 @@ export interface BeadsDailyProject {
 }
 
 /** Rows were upserted (or there was nothing to upsert). */
-export interface BeadsDailyOutcome {
+export interface TaskDailyOutcome {
   days: number;
   rows: number;
   pruned: number;
@@ -55,7 +55,7 @@ type DailyRow = {
 
 /** The UTC calendar day an ISO instant falls in: the clock `captured_at` is
  * stamped on, so the poller and the Worker bucket alike. */
-export function beadsDay(iso: string): string {
+export function taskDay(iso: string): string {
   return iso.slice(0, 10);
 }
 
@@ -67,20 +67,20 @@ export function beadsDay(iso: string): string {
  * rows all dated `day` could be five closings or fifty.
  */
 export function closedOn(
-  project: BeadsDailyProject,
+  project: TaskDailyProject,
   day: string,
 ): { ids: string[]; complete: boolean } {
   const ids: string[] = [];
   let sawEarlier = false;
   for (const item of project.recentlyClosed) {
     if (!item.closedAt) continue;
-    const closedDay = beadsDay(item.closedAt);
+    const closedDay = taskDay(item.closedAt);
     if (closedDay === day) ids.push(item.id);
     else if (closedDay < day) sawEarlier = true;
   }
   return {
     ids,
-    complete: project.recentlyClosed.length < BEADS_CLOSED_LIMIT || sawEarlier,
+    complete: project.recentlyClosed.length < TASK_DAILY_CLOSED_LIMIT || sawEarlier,
   };
 }
 
@@ -134,13 +134,13 @@ const UPSERT = `INSERT INTO noticeos.task_daily_counts AS d
  * nothing: its counts are the absence of an answer, and a day whose last
  * capture failed keeps the last capture that worked.
  */
-export async function rollUpBeadsDay(
+export async function rollUpTaskDay(
   tx: Transaction,
-  projects: BeadsDailyProject[],
+  projects: TaskDailyProject[],
   capturedAt: string,
   nowMs: number,
-): Promise<BeadsDailyOutcome> {
-  const day = beadsDay(capturedAt);
+): Promise<TaskDailyOutcome> {
+  const day = taskDay(capturedAt);
   // The first run seeds from what the photographs still hold, before this
   // capture lands, so today's row is created by the backfill and then unioned
   // into by the write below.
@@ -163,7 +163,7 @@ export async function rollUpBeadsDay(
     if (written) rows += 1;
   }
 
-  const cutoff = beadsDay(new Date(nowMs - BEADS_DAILY_RETENTION_DAYS * 86_400_000).toISOString());
+  const cutoff = taskDay(new Date(nowMs - TASK_DAILY_RETENTION_DAYS * 86_400_000).toISOString());
   const pruned = await tx.execute(`DELETE FROM noticeos.task_daily_counts WHERE day < $1::date`, [cutoff]);
 
   const [days] = await tx.query<{ days: number }>(
@@ -175,7 +175,7 @@ export async function rollUpBeadsDay(
 
 async function writeDay(
   tx: Transaction,
-  project: BeadsDailyProject,
+  project: TaskDailyProject,
   day: string,
   capturedAt: string,
   stored: DailyRow | undefined,
@@ -222,7 +222,7 @@ async function backfillFromSnapshots(tx: Transaction): Promise<number> {
   let rows = 0;
   for (const snapshot of results) {
     const capturedAt = javascriptInstant(snapshot.captured_at);
-    const day = beadsDay(capturedAt);
+    const day = taskDay(capturedAt);
     for (const project of readSnapshotProjects(snapshot.payload)) {
       if (!project.ok) continue;
       const written = await writeDay(tx, project, day, capturedAt, undefined);
@@ -242,7 +242,7 @@ function whole(value: unknown): number | undefined {
  * possibly under an older schema, and a backfill that threw on one unreadable
  * project would cost the whole history.
  */
-export function readSnapshotProjects(payload: string): BeadsDailyProject[] {
+export function readSnapshotProjects(payload: string): TaskDailyProject[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payload);
@@ -250,7 +250,7 @@ export function readSnapshotProjects(payload: string): BeadsDailyProject[] {
     return [];
   }
   if (!isRecord(parsed) || !Array.isArray(parsed.projects)) return [];
-  const out: BeadsDailyProject[] = [];
+  const out: TaskDailyProject[] = [];
   for (const entry of parsed.projects) {
     if (!isRecord(entry)) continue;
     const asset = typeof entry.asset === 'string' ? entry.asset.trim() : '';

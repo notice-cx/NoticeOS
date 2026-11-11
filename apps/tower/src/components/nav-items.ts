@@ -71,7 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
     keywords: ["assets", "sites", "properties", "domains"],
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
-  { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
+  { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
   { to: AGENTS_ROUTE, label: "Agents", icon: Bot, keywords: ["agents", "models", "velocity", "leaderboard", "who closed"] },
   {
     to: "/financials",

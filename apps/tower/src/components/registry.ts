@@ -856,7 +856,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "TaskComposer / FileTaskButton",
     file: "components/TaskComposer.tsx",
     purpose:
-      "File a task with a button: a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied `bd create` command is rendered from. Title, project and priority first with Enter filing; under More the type, parent, the kind of change (a segmented control, Not recorded until picked), labels, the description with a Write | Preview toggle (MarkdownText), Done when as a checklist editor sent as `- [ ]` lines, and Why it is worth doing: the card's figures with likelihood and signal pills, checked by `taskCardProblem` only once started and ranked live with WhyItRanks; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
+      "File a task with a button: a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied MCP instructions are rendered from. Title, project and priority first with Enter filing; under More the type, parent, the kind of change (a segmented control, Not recorded until picked), labels, the description with a Write | Preview toggle (MarkdownText), Done when as a checklist editor sent as `- [ ]` lines, and Why it is worth doing: the card's figures with likelihood and signal pills, checked by `taskCardProblem` only once started and ranked live with WhyItRanks; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
     variants: [
       "handoff prefill (locked labels, linked line)",
       "new task (nothing prefilled)",

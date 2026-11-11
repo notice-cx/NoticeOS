@@ -6,7 +6,7 @@
 
 import { dataForSeoReportsFor } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";
-import type { BeadsSnapshot } from "./beads-snapshot";
+import type { TaskSnapshot } from "./task-snapshot";
 import type { PanelReview } from "../shared/wall";
 
 const MS_PER_DAY = 86_400_000;
@@ -20,7 +20,7 @@ const MS_PER_DAY = 86_400_000;
  * states the obligation in; a panel-less asset owes the same weekly read.
  * `asset` narrows to one asset. */
 export function cardPanelReviewsOf(
-  snapshot: BeadsSnapshot | null,
+  snapshot: TaskSnapshot | null,
   panelAssets: ReadonlySet<string>,
   asset?: string,
 ): Map<string, PanelReview> {

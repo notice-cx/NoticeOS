@@ -1,11 +1,11 @@
 // runner/task-hub.mjs — the saved task projects as the runner's task lanes
 // read them.
 
-import { beadsDatabaseName } from '../task-project-config.mjs';
+import { taskDatabaseName } from '../task-project-config.mjs';
 
 /** The runner's resolved project roster; relative repo paths remain
  * supported for injected fixtures. */
-export function parseBeadsProjects(raw) {
+export function parseTaskProjects(raw) {
   let cfg;
   try {
     cfg = JSON.parse(raw);
@@ -32,7 +32,7 @@ export function parseBeadsProjects(raw) {
       ...(typeof spoke.unavailableReason === 'string' ? { unavailableReason: spoke.unavailableReason } : {}),
       // "the backup would use this" and "this is a usable name" are one
       // question with one answer, and it is spelled out in exactly one place.
-      database: beadsDatabaseName(database),
+      database: taskDatabaseName(database),
     });
   }
   return projects;
@@ -40,9 +40,9 @@ export function parseBeadsProjects(raw) {
 
 /** The saved projects, or the skip reason a lane logs when the store could not
  * be read. An empty list is an answer, not a failure: each lane names it. */
-export async function readBeadsProjects(readConfig) {
+export async function readTaskProjectList(readConfig) {
   try {
-    return { projects: parseBeadsProjects(await readConfig()) };
+    return { projects: parseTaskProjects(await readConfig()) };
   } catch (err) {
     return { unreadable: `the task map is unreadable (${err.message})` };
   }

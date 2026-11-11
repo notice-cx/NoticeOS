@@ -75,16 +75,16 @@ export const CONFIG = {
   towerLanHost: '0.0.0.0',
   towerPort: 5173,
   // How often the runner records whether a task service is connected.
-  beadsHubCheckCron: '*/15 * * * *',
+  taskServiceCheckCron: '*/15 * * * *',
   // How often the task boards are photographed into the central store for the
   // Tower's work board. Every minute: a minute-old answer is current and a
   // ten-minute-old one is a lie about what an agent is doing right now.
-  beadsPollCron: '* * * * *',
+  taskPollCron: '* * * * *',
   // How often the runner asks whether a weekly DataForSEO collection has landed
   // with no review bead against it. Hourly, off the top of the hour so it does
   // not share a tick with the wrangler crons.
   panelFilerCron: '25 * * * *',
-  // How often closed bets are carried to the beads that own their readings.
+  // How often closed bets are carried to the tasks that own their readings.
   // Hourly at :50 — off every other lane's tick. Verdicts only appear when the
   // 03:30 sweep closes something, so it stays silent on ticks with nothing to
   // carry.

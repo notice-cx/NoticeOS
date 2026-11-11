@@ -63,8 +63,8 @@ export function useTaskProjects() {
  * named — a deployed build must never fire this and collect a 501 per mount.
  *
  * No polling interval: this read is already live, and every write from this
- * session invalidates it. A board that re-shelled `bd` across seven spokes on a
- * timer would spend the operator's machine on a question nothing asked.
+ * session invalidates it. A board that re-read every project from Ntasks on a
+ * timer would spend requests on a question nothing asked.
  */
 export function useTasks(project: string | null, status?: string) {
   const { fetchTasks } = useTowerApi();
