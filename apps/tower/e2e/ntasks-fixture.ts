@@ -77,6 +77,7 @@ function base64url(bytes: Buffer): string {
 }
 const escapeHtml = (text: string) => text.replace(/[&<>"]/gu, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]!);
 
+/** An Ntasks for one journey, held in memory, whose apps, codes and tokens last as long as the journey's fixture. */
 export function createFixtureNtasks(options: {
   rows: () => FixtureRow[];
   /** After a change, so the Tower's snapshot follows (the harness's `publishTasks`). */
@@ -107,6 +108,7 @@ export function createFixtureNtasks(options: {
   const project = (): NtasksProject => ({ projectId: PROJECT_ID, logicalKey: options.project().asset, displayName: "Journey Example",
     prefix: options.project().prefix });
 
+  /** A JSON answer with Ntasks's API version, readable by a page at a registered app's origin. */
   function answer(request: Request, body: unknown, init: ResponseInit = {}): Response {
     const headers = new Headers(init.headers);
     headers.set("x-ntasks-api-version", String(apiVersion));
@@ -125,6 +127,7 @@ export function createFixtureNtasks(options: {
     return bearer === undefined ? null : access.get(bearer) ?? null;
   }
 
+  /** New access and refresh tokens for the journey's person, through the app `clientId`. */
   function issue(clientId: string): Record<string, unknown> {
     const token = base64url(randomBytes(24)), renewal = base64url(randomBytes(24));
     access.set(token, { kind: "person", name: JOURNEY_NTASKS_PERSON, app: clientId });
@@ -167,6 +170,7 @@ export function createFixtureNtasks(options: {
     options.changed();
   }
 
+  /** One request to this Ntasks, from the Tower's server or, through the fixture route, from a page. */
   async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -291,7 +295,7 @@ export function createFixtureNtasks(options: {
     backend: async () => "ntasks",
     origin: async () => JOURNEY_NTASKS_ORIGIN,
     appClientId: async () => savedClientId,
-    // The ingest's part: Ntasks's answer for this address, whose first client id is saved.
+    /** The ingest's part: Ntasks's app for this address, whose first client id is saved. */
     async registerApp(sentRedirect) {
       const reply = await handle(new Request(`${JOURNEY_NTASKS_ORIGIN}/api/auth/oauth2/register`, { method: "POST",
         headers: { authorization: `Bearer ${SERVICE_CREDENTIAL}`, "content-type": "application/json" },

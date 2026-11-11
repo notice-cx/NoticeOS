@@ -16,6 +16,7 @@ export function fixtureOrigins(origin) {
   return [origin, `http://localhost:${source.port}`];
 }
 
+/** The proxy every guarded browser sends its requests through, which passes on only those to the fixture server's origins. */
 export async function startOfflineProxy(origin) {
   const source = new URL(origin);
   if (source.origin !== origin || source.protocol !== 'http:' || source.hostname !== '127.0.0.1' || !source.port || source.username || source.password) {
@@ -30,6 +31,7 @@ export async function startOfflineProxy(origin) {
     socket.once('close', () => sockets.delete(socket));
     return socket;
   };
+  /** The URL a proxied request or CONNECT tunnel names when it is on a fixture origin, or null, recording the attempt. */
   const target = (request, tunnel = false) => {
     try {
       // Reject userinfo, relative paths and authority/header disagreement.

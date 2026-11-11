@@ -141,6 +141,7 @@ globalThis.fetch = async (input) => {
   throw new Error("Outbound fetch is forbidden in the isolated journey server");
 };
 
+/** The fixture's own routes, under /api/ and /__journey/, for the server's two addresses; every other path goes to Vite. */
 dispatch = async (req, res, next) => {
   const pathname = new URL(req.url ?? "/", `http://127.0.0.1:${port}`).pathname;
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/__journey/")) return next();
