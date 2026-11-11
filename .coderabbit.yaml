@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# A rate-limited or paused review still passes the `CodeRabbit` check. The
+# approval below comes only once CodeRabbit has reviewed the latest commit and
+# its threads are resolved, so a ruleset requiring one approval holds a pull
+# request until then. Every agent opens pull requests as their author, so the
+# author's `@coderabbitai approve` command stays off.
+inheritance: true
+reviews:
+  auto_approvals:
+    enabled: true
+    allow_author_approval: false
