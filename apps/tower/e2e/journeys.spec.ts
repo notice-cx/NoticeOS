@@ -3635,6 +3635,8 @@ test("global purpose switching preserves routes, filters and asset tabs while th
   await addAssetByApi(page);
   expect((await request.post("/__journey/task-source")).ok()).toBe(true);
   expect((await request.post("/__journey/tasks-snapshot")).ok()).toBe(true);
+  // The Agents page reads its statistics from the installation's Ntasks.
+  expect((await request.post("/__journey/ntasks")).ok()).toBe(true);
   const documentsBefore = (await (await request.get("/__journey/status")).json()).documents;
   const wallBefore = documentsBefore["config/tower.json"]?.wall ?? null;
   const workspaceBefore = documentsBefore["config/tower.json"]?.view ?? null;
