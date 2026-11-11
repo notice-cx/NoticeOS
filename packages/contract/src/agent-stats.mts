@@ -51,6 +51,11 @@ export interface AgentStats {
   /** In name order, Other last. */
   workers: ModelStats[];
   velocity: { weeks: VelocityWeek[]; keys: string[]; names: Record<string, string> };
+  /** The last 7 days, with no players: a Tower page loaded before the
+   * ranking was removed still reads it. */
+  race: { from: number; to: number; players: [] };
+  /** Always empty, for the same pages. */
+  trophies: [];
   week: number;
   lastWeek: number;
   inHand: number;
@@ -160,6 +165,7 @@ export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: nu
   });
   return {
     workers, velocity: { weeks, keys: [...named, ...(weeks.some(week => (week.counts[''] ?? 0) > 0) ? [''] : [])], names: Object.fromEntries([...named.map(name => [name, name]), ['', OTHER_MODEL]]) },
+    race: { from, to: nowMs, players: [] }, trophies: [],
     week: [...groups.values()].reduce((sum, group) => sum + group.week, 0), lastWeek: [...groups.values()].reduce((sum, group) => sum + group.lastWeek, 0),
     inHand: workers.reduce((sum, group) => sum + group.inHand, 0), blocked: workers.reduce((sum, group) => sum + group.blocked, 0), medianHours: medianOf(cycles),
     shipped: null, shippedLastWeek: null,

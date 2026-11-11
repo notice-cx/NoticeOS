@@ -118,6 +118,7 @@ export function readAgentStats(projects, nowMs) {
     });
     return {
         workers, velocity: { weeks, keys: [...named, ...(weeks.some(week => (week.counts[''] ?? 0) > 0) ? [''] : [])], names: Object.fromEntries([...named.map(name => [name, name]), ['', OTHER_MODEL]]) },
+        race: { from, to: nowMs, players: [] }, trophies: [],
         week: [...groups.values()].reduce((sum, group) => sum + group.week, 0), lastWeek: [...groups.values()].reduce((sum, group) => sum + group.lastWeek, 0),
         inHand: workers.reduce((sum, group) => sum + group.inHand, 0), blocked: workers.reduce((sum, group) => sum + group.blocked, 0), medianHours: medianOf(cycles),
         shipped: null, shippedLastWeek: null,

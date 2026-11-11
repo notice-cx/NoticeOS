@@ -75,7 +75,7 @@ function AgentsBoard({ work, broken, complete, failed }: {
           <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
             ariaLabel="Tasks closed a week, by model" className="min-h-56" />
         </section> : null,
-          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers} emphasis={view.id === "reliability" ? "blocked" : view.id === "delivery" ? "inHand" : undefined}
+          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers}
             className={view.id === "overview" || !work.velocity.weeks.some(week => week.total > 0) ? "lg:col-span-2" : undefined} /> : null,
         } satisfies Record<AgentSection, ReactNode>)[section]}</Fragment>)}
       </div>

@@ -95,6 +95,8 @@ describe('aggregate agent statistics', () => {
     expect(work.workers.map(worker => worker.name)).toEqual(['Claude Opus 5.5', 'Claude Sonnet 5.5', 'GPT-6.1 Sol', 'Other']);
     expect([work.shipped, work.shippedLastWeek]).toEqual([null, null]);
     expect(work.workers.map(worker => worker.shipped)).toEqual([null, null, null, null]);
+    // A Tower page loaded before the ranking was removed still reads these.
+    expect([work.race.players, work.trophies]).toEqual([[], []]);
   });
 
   it('lets the newest state win over an overlapping closed read', () => {

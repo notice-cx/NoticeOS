@@ -13,7 +13,7 @@ The top of the page shows changes shipped in the last 7 days compared with the 7
 
 **Velocity** shows the last 8 calendar weeks, including the current week. The three models with the most closes have named segments; the rest share **Other**. Historical closes remain in this chart even when the model has no recent activity.
 
-**Who's working** shows one row per model, in name order with **Other** last, for each model with closes or changes shipped in the last 7 days, work in progress or blocked work. Assigned open and deferred tasks do not add rows. Each row shows the changes shipped with one of the model's tasks, current work counts, daily closes, total closes, median claim-to-close time and blocked tasks. A change with tasks of two models counts once in each row and once at the top.
+**Who's working** shows one row per model, in name order with **Other** last, for each model with closes or changes shipped in the last 7 days, work in progress or blocked work. Assigned open and deferred tasks do not add rows. Every view keeps this order. Each row shows the changes shipped with one of the model's tasks, current work counts, daily closes, total closes, median claim-to-close time and blocked tasks. A change with tasks of two models counts once in each row and once at the top.
 
 **Review tasks →** opens [Tasks](/tower/tasks), where task pages show descriptions, comments and close evidence.
 

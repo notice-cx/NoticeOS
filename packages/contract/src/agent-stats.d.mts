@@ -45,6 +45,15 @@ export interface AgentStats {
         keys: string[];
         names: Record<string, string>;
     };
+    /** The last 7 days, with no players: a Tower page loaded before the
+     * ranking was removed still reads it. */
+    race: {
+        from: number;
+        to: number;
+        players: [];
+    };
+    /** Always empty, for the same pages. */
+    trophies: [];
     week: number;
     lastWeek: number;
     inHand: number;

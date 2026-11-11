@@ -38,11 +38,13 @@ it("shows each model's changes shipped only where merges are recorded", () => {
   const { shipped: _shipped, ...older } = row();
   const page = render(<WorkerRows workers={[row(), older as ModelStats]} />);
   expect(screen.getAllByRole('columnheader')).toHaveLength(5);
-  page.rerender(<WorkerRows workers={[row({ shipped: 4 }), row({ id: 'GPT-6.1 Sol', name: 'GPT-6.1 Sol', shipped: 0 })]} />);
-  const [, first, second] = screen.getAllByRole('row');
+  page.rerender(<WorkerRows workers={[row({ shipped: 4 }), row({ id: 'GPT-6.1 Sol', name: 'GPT-6.1 Sol', shipped: 0 }), row({ id: 'o3 mini', name: 'o3 mini' })]} />);
+  const [, first, second, third] = screen.getAllByRole('row');
   expect(screen.getAllByRole('columnheader')).toHaveLength(6);
   expect(within(first!).getAllByRole('cell')[0]).toHaveTextContent('4');
   expect(within(second!).getAllByRole('cell')[0]).toHaveTextContent('0');
+  // Not measured is not zero.
+  expect(within(third!).getAllByRole('cell')[0]).not.toHaveTextContent(/\d/u);
 });
 
 it('leads with changes shipped against the 7 days before, and falls back to tasks closed without merges', () => {
@@ -72,7 +74,7 @@ it('prioritizes blocked work and keeps every chart and outcome evidence accessib
   const stats = empty();
   stats.work.blocked = 3;
   stats.work.inHand = 2;
-  stats.work.workers = [row({ blocked: 3 })];
+  stats.work.workers = [row({ id: 'Claude Opus 5.5', name: 'Claude Opus 5.5', blocked: 1 }), row({ blocked: 3 })];
   stats.work.velocity.weeks[0]!.total = 1;
   stats.work.velocity.weeks[0]!.counts = { Other: 1 };
   stats.work.velocity.keys = ['Other'];
@@ -83,6 +85,8 @@ it('prioritizes blocked work and keeps every chart and outcome evidence accessib
   page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
   const panels = page.container.querySelector('[data-agent-section-order]')!;
   expect(panels.firstElementChild).toHaveAttribute('data-agent-rows');
+  // Rows keep name order, Other last, whatever each has blocked.
+  expect([...panels.querySelectorAll('[data-agent-row]')].map(row => row.getAttribute('data-agent-row'))).toEqual(['Claude Opus 5.5', 'Other']);
   expect(screen.getByRole('region', { name: 'Velocity' })).toBeInTheDocument();
   state.view = 'revenue';
   page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);

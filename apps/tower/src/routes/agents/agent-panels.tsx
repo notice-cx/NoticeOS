@@ -11,8 +11,7 @@ export const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 
 /** Active model groups, in name order: recent closes, work in progress,
  * blocked work and changes shipped. The shipped column shows only where the
  * task source records merges. */
-export function WorkerRows({ workers, emphasis, className }: { workers: readonly ModelStats[]; emphasis?: "blocked" | "inHand"; className?: string }) {
-  const ordered = emphasis ? [...workers].sort((a, b) => b[emphasis] - a[emphasis] || a.name.localeCompare(b.name)) : workers;
+export function WorkerRows({ workers, className }: { workers: readonly ModelStats[]; className?: string }) {
   const ceiling = Math.max(1, ...workers.flatMap(worker => worker.days));
   // An Ntasks older than the shipped counts leaves the field out.
   const shipped = workers.some(worker => (worker.shipped ?? null) !== null);
@@ -26,12 +25,13 @@ export function WorkerRows({ workers, emphasis, className }: { workers: readonly
               <tr><th scope="col" className="pb-2">Model</th>{shipped ? <th scope="col" className="pr-3 pb-2 text-right">Shipped, 7 days</th> : null}<th scope="col" className="pb-2 text-right">In progress</th><th scope="col" className="px-3 pb-2">Closed, 7 days</th><th scope="col" className="pb-2 text-right">Claim to close</th><th scope="col" className="pl-3 pb-2 text-right">Blocked</th></tr>
             </thead>
             <tbody>
-              {ordered.map(worker => (
+              {workers.map(worker => (
                 <tr key={worker.id} data-agent-row={worker.id} className="border-t border-border/70">
                   <th scope="row" className="py-3 pr-3 font-semibold text-foreground">
                     <span className="flex min-w-0 items-center gap-2.5"><AgentMark name={worker.name} /><span>{worker.name}</span></span>
                   </th>
-                  {shipped ? <td className="py-3 pr-3 text-right font-semibold tabular-nums" data-agent-shipped={worker.shipped ?? 0}>{formatInt(worker.shipped ?? 0)}</td> : null}
+                  {shipped ? <td className="py-3 pr-3 text-right font-semibold tabular-nums">{(worker.shipped ?? null) === null
+                    ? <span className="font-normal text-muted-foreground">not measured</span> : formatInt(worker.shipped!)}</td> : null}
                   <td className="py-3 text-right tabular-nums">{formatInt(worker.inHand)}</td>
                   <td className="px-3 py-3"><span className="flex items-center gap-2"><span className="font-semibold tabular-nums" data-agent-week={worker.week}>{formatInt(worker.week)}</span><DayTicks days={worker.days} ceiling={ceiling} label={`${worker.name}: closed a day, last 7 days`} /></span></td>
                   <td className="whitespace-nowrap py-3 text-right tabular-nums">{worker.medianHours === null ? <span className="text-muted-foreground">not yet</span> : formatHours(worker.medianHours)}</td>
