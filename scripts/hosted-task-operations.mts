@@ -18,7 +18,7 @@ import { hostedTaskAction, HumanDecisionRefused, readRelatedTasks, recordedTaskC
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsPayload, type AgentStatsProject } from '../packages/contract/src/agent-stats.mjs';
 
-/** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
+/** Runs one task operation in the server-selected workspace (standalone-tasks). */
 export interface TaskOperationExecutor {
   execute(proof: Request, workspaceId: string, request: HostedTaskRequest,
     controls?: { readonly deadline?: number; readonly signal?: AbortSignal }): Promise<unknown>;

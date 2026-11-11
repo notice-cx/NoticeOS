@@ -5,7 +5,7 @@ import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { type WorkspaceAdmission } from './workspace-admission.mjs';
 import { type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { type AgentStatsPayload } from '../packages/contract/src/agent-stats.mjs';
-/** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
+/** Runs one task operation in the server-selected workspace (standalone-tasks). */
 export interface TaskOperationExecutor {
     execute(proof: Request, workspaceId: string, request: HostedTaskRequest, controls?: {
         readonly deadline?: number;

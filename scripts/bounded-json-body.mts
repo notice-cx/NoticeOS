@@ -1,6 +1,5 @@
 /** A JSON request's text, bounded in bytes and in time: the one reader the
- * hosted Tasks API (hosted-task-http) and the MCP endpoints (mcp-protocol)
- * share. Only `application/json` is read: a browser can send a text/plain
+ * MCP endpoints (mcp-protocol) share. Only `application/json` is read: a browser can send a text/plain
  * POST cross-site without a preflight, never an application/json one. Any
  * refusal throws BoundedJsonRefused; the caller chooses the answer.
  */

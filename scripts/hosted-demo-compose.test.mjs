@@ -26,7 +26,7 @@ import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 // The persistent demo against its real task store: the demo's own Ntasks, the
 // pinned build (scripts/demo-ntasks-build.mjs) in Miniflare, provisioned as
 // its ntasks service provisions it, with the sites' projects loaded empty. It
-// needs a built Ntasks in NOTICEOS_NTASKS_ROOT, which the CI task-store job
+// needs a built Ntasks in NOTICEOS_NTASKS_ROOT, which the CI demo-ntasks job
 // builds; the root suite skips it and runs the demo's other proofs in
 // hosted-demo.test.mjs.
 

@@ -114,8 +114,8 @@ test('cloud launcher preserves exit status, private modes and runtime isolation 
   fs.mkdirSync(path.join(repo, 'node_modules'));
   fs.writeFileSync(path.join(repo, 'node_modules/.noticeos-environment.json'), JSON.stringify({ key: pins.dependencies }));
   fs.mkdirSync(path.join(repo, 'scripts/test-fixtures'), { recursive: true });
-  const guard = pathToFileURL(path.join(root, 'scripts/test-fixtures/hosted-task-projects.mjs')).href;
-  fs.writeFileSync(path.join(repo, 'scripts/test-fixtures/hosted-task-projects.mjs'), `export { assertTaskFixtureOutsideGit } from ${JSON.stringify(guard)};`);
+  const guard = pathToFileURL(path.join(root, 'scripts/test-fixtures/outside-git.mjs')).href;
+  fs.writeFileSync(path.join(repo, 'scripts/test-fixtures/outside-git.mjs'), `export { assertOutsideGit } from ${JSON.stringify(guard)};`);
   const probe = path.join(base, 'probe.mjs');
   fs.writeFileSync(probe, `
     import fs from 'node:fs'; import path from 'node:path'; import assert from 'node:assert/strict';
@@ -195,14 +195,14 @@ test('default cloud preparation reconciles dependencies and fetches no browser, 
   const prepare = (...args) => run('bash', [path.join(cloud, 'prepare.sh'), ...args], { ...env, CLOUD_TEST_CALLS: calls, PATH: `${stubs}:${process.env.PATH}` });
   const usage = prepare('--everything');
   assert.equal(usage.status, 2);
-  assert.match(usage.stderr, /\[--browser\] \[--with-deps\] \[--task-store\]/);
+  assert.match(usage.stderr, /\[--browser\] \[--with-deps\]\n/);
   const result = prepare();
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /Prepared checkout \w+ with dependency key/);
   const log = fs.readFileSync(calls, 'utf8');
   assert.match(log, /^pnpm .* fetch --store-dir \S+\/pnpm-store$/m);
   assert.match(log, /^pnpm install --offline --frozen-lockfile --store-dir \S+\/pnpm-store$/m);
-  assert.doesNotMatch(log, /journey:install|task-store|^docker |^npm /m);
+  assert.doesNotMatch(log, /journey:install|^docker |^npm /m);
   assert.equal(JSON.parse(fs.readFileSync(path.join(repo, 'node_modules/.noticeos-environment.json'))).key, pins.dependencies);
   assert.deepEqual(fs.readdirSync(env.NOTICEOS_CLOUD_CACHE).sort(), [], 'the npm download cache and the fetch staging folder are gone');
 });

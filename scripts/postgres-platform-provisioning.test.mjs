@@ -24,17 +24,6 @@ const { Pool } = require('pg');
 const refused = { name: 'PlatformProvisioningRefused', message: 'Platform provisioning refused' };
 const trustedOrigin = 'https://provision.example.test';
 
-test('real initialized task ownership gates native and ordinary Worker activation', {
-  skip: process.env.NOTICEOS_TEST_PLATFORM_ACTIVATION !== '1', timeout: 240000,
-}, async t => {
-  const { withOwnedTaskProjects } = await import('./test-fixtures/hosted-task-projects.mjs');
-  const { provePlatformActivation } = await import('./test/platform-activation-fixture.mjs');
-  await withOwnedTaskProjects(async (physical, controls) => {
-    await provePlatformActivation(t, physical);
-    await controls.assertUnchangedPhysicalRoots();
-  });
-});
-
 async function workerPreparation(root, options, admin) {
   const workerRequire = createRequire(createRequire(path.join(REPO_ROOT, 'workers/ingest/package.json')).resolve('wrangler/package.json'));
   const wranglerPath = workerRequire.resolve('wrangler/package.json');

@@ -5,7 +5,7 @@
 // tools read it as a visitor and every change from them is refused; the
 // simulator files, claims, closes and comments through the demo credential;
 // the history setup writes ends where the live boards stand at the cutoff.
-// It needs a built Ntasks: NOTICEOS_NTASKS_ROOT names one (the CI task-store
+// It needs a built Ntasks: NOTICEOS_NTASKS_ROOT names one (the CI demo-ntasks
 // job builds it), and without one these tests are skipped.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

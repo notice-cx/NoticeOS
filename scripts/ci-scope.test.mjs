@@ -43,7 +43,7 @@ test('a pull request runs the PR lane; the merge queue, main, the nightly run an
     assert.deepEqual(neededJobs(event, ['docs/14-design.md']), EVERY_JOB_BUT_SMOKE, `${event} runs every job, whatever it changes`);
   }
   assert.deepEqual(neededJobs('pull_request', ['pnpm-lock.yaml']), {
-    'tower-unit': true, 'ingest-unit': true, scripts: true, smoke: true, browser: false, 'flow-gate': false, 'task-store': false,
+    'tower-unit': true, 'ingest-unit': true, scripts: true, smoke: true, browser: false, 'flow-gate': false, 'demo-ntasks': false,
   });
   assert.deepEqual(neededJobs('pull_request', ['docs/14-design.md', 'AGENTS.md']), DOCS_ONLY);
 });
@@ -61,8 +61,8 @@ test('a pull request runs a job only when a changed file reaches its code', () =
   assert.deepEqual(jobsFor(['packages/contract/src/schema.ts']), ['tower-unit', 'ingest-unit', 'smoke']);
   assert.deepEqual(jobsFor(['scripts/shared.mjs'], { 'ingest-unit': ['scripts/shared.mjs'] }), ['ingest-unit'], 'a module the ingest code imports');
   assert.deepEqual(jobsFor(['scripts/unreached.mjs', 'scripts/unreached.test.mjs', 'deploy/compose/README.md', '.githooks/pre-commit',
-    '.github/dependabot.yml', 'db/postgres/README.md', 'deploy/compose/Dockerfile', 'scripts/hosted-task-operations-compose.test.mjs']), [],
-    'files only the root script suite reads; the task store runs in the full lane');
+    '.github/dependabot.yml', 'db/postgres/README.md', 'deploy/compose/Dockerfile', 'scripts/hosted-demo-compose.test.mjs']), [],
+    'files only the root script suite reads; the demo\'s Ntasks suites run in the full lane');
 });
 
 test('dependencies, CI, the store schema and unknown paths run every PR-lane job; config and TypeScript settings run what reads them', () => {
@@ -124,7 +124,7 @@ test('the browser dependency graph follows imported unit fixtures without seedin
 test('a root package.json change reaches every job unless it changes scripts alone', () => {
   const every = ['tower-unit', 'ingest-unit', 'smoke'];
   assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['audit:copy'] }), []);
-  assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['test:task-store'] }), []);
+  assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['test:demo-ntasks'] }), []);
   assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts', 'engines'], scripts: [] }), every);
   assert.deepEqual(jobsFor(['package.json'], {}, null), every, 'an unreadable manifest runs everything');
 });
