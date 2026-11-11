@@ -1364,13 +1364,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["eight weeks, three contributors and the current week"],
   },
   {
-    name: "RaceChart",
-    file: "components/viz/RaceChart.tsx",
-    purpose:
-      "A running total per contestant over one window up to now: the leader in milestone green, each line named at its end with its place, and Replay drawing the lines again from the start.",
-    variants: ["three contestants over seven days"],
-  },
-  {
     name: "FitLabel",
     file: "components/viz/FitLabel.tsx",
     purpose:

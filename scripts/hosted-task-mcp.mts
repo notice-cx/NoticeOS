@@ -836,7 +836,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       return { projects: (await operations.projects(proof, workspaceId)).map(entry => ({
         projectId: entry.projectId, key: entry.logicalKey, name: entry.displayName, prefix: entry.prefix })) };
     } },
-  { name: 'get_agent_stats', description: 'Agent work statistics grouped by model: current and blocked counts, closes in 7 days and the 7 before, eight weeks of velocity, ranking and leaders. Unknown models share Other. Returns aggregates without task details. Omit project for the whole workspace; failed projects are named in broken.',
+  { name: 'get_agent_stats', description: 'Agent work statistics grouped by model, in name order: current and blocked counts, closes in 7 days and the 7 before, changes shipped where merges are recorded, and eight weeks of velocity. No ranking or awards. Unknown models share Other. Returns aggregates without task details. Omit project for the whole workspace; failed projects are named in broken.',
     inputSchema: schema({ project: { ...PROJECT, description: 'The projectId from list_projects; omit for workspace totals.' } }), annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
       only(args, ['project']);

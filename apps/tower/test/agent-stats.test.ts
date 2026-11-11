@@ -34,7 +34,6 @@ describe('aggregate agent statistics', () => {
       { project: 'second', tasks: [task('ex-a', 'claude-opus-5-5', { assignee: 'claude/build-sponsor', priority: 0 })] },
     ], NOW);
     expect(work.workers.map(worker => [worker.name, worker.week])).toEqual([['Claude Opus 5.5', 2], ['GPT-6.1 Sol', 1]]);
-    expect(work.race.players[0]).toMatchObject({ name: 'Claude Opus 5.5', points: 7, closes: [NOW - 2 * HOUR, NOW - 2 * HOUR] });
     expect(work.week).toBe(3);
   });
 
@@ -48,7 +47,6 @@ describe('aggregate agent statistics', () => {
     ]);
     expect(work.workers.map(worker => worker.name)).toEqual(['Claude Sonnet 5.5', 'Other']);
     expect([work.week, work.inHand, work.blocked]).toEqual([0, 1, 1]);
-    expect(work.race.players).toEqual([]);
     expect(work.velocity.weeks.reduce((sum, week) => sum + week.total, 0)).toBe(1);
   });
 
@@ -56,9 +54,7 @@ describe('aggregate agent statistics', () => {
     const work = stats([task('ex-a', null), task('ex-b', 'Verifier 1', { assignee: 'Astra' }), task('ex-c', null, { assignee: null })]);
     expect(work.workers).toHaveLength(1);
     expect(work.workers[0]).toMatchObject({ name: 'Other', week: 3 });
-    expect(work.race.players).toHaveLength(1);
     expect(work.velocity.names['']).toBe('Other');
-    expect(work.trophies).toEqual([]);
     expect(work.week).toBe(3);
   });
 
@@ -88,7 +84,17 @@ describe('aggregate agent statistics', () => {
   it('uses disjoint seven-day windows and never counts a future claim as a close', () => {
     const work = stats([task('ex-boundary', 'Opus 5.5', { closedAt: at(7 * 24) }), task('ex-previous', 'Opus 5.5', { closedAt: at(14 * 24) }), task('ex-now', 'Opus 5.5', { closedAt: at(0) })]);
     expect([work.week, work.lastWeek]).toEqual([1, 1]);
-    expect(work.race.players[0]?.closes).toHaveLength(work.week);
+  });
+
+  it('ranks no model: rows in name order whatever each closed, and no change counted as shipped without merges', () => {
+    const work = stats([
+      ...Array.from({ length: 9 }, (_, i) => task(`ex-many-${i}`, 'Sonnet 5.5', { priority: 0 })),
+      task('ex-one', 'GPT-6.1-Sol'), task('ex-other', null),
+      task('ex-held', 'Opus 5.5', { status: 'in_progress', closedAt: null }),
+    ]);
+    expect(work.workers.map(worker => worker.name)).toEqual(['Claude Opus 5.5', 'Claude Sonnet 5.5', 'GPT-6.1 Sol', 'Other']);
+    expect([work.shipped, work.shippedLastWeek]).toEqual([null, null]);
+    expect(work.workers.map(worker => worker.shipped)).toEqual([null, null, null, null]);
   });
 
   it('lets the newest state win over an overlapping closed read', () => {

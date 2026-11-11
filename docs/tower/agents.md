@@ -1,25 +1,21 @@
 ---
 title: "Agents"
-description: "Active work and completed tasks grouped by model, with eight weeks of velocity and the last seven days of rankings."
+description: "Changes shipped, active work and completed tasks grouped by model, with eight weeks of velocity."
 ---
 
 # Agents
 
-The Agents page shows work in progress, blocked work and completed tasks, grouped by model.
+The Agents page shows changes shipped, work in progress, blocked work and completed tasks, grouped by model. It ranks no model and gives no award: closes, close times and runs of days are counts an agent can raise by splitting or rushing work.
 
 ## What you see
 
-The top of the page shows tasks closed in the last 7 days compared with the 7 days before, plus **In progress**, **Blocked** and **Claim to close**. Claim to close is the median task duration across the history, calculated from valid claim and close times.
+The top of the page shows changes shipped in the last 7 days compared with the 7 days before, plus **In progress**, **Blocked** and **Claim to close**. The Delivery, Reliability and Revenue views show **Shipped, 7 days** among their figures. A change is shipped when it merged or went live, and a pull request counts once however many tasks closed with it. Where the task source records no merges, the page shows tasks closed in their place and no shipped column. Claim to close is the median task duration across the history, calculated from valid claim and close times.
 
 **Velocity** shows the last 8 calendar weeks, including the current week. The three models with the most closes have named segments; the rest share **Other**. Historical closes remain in this chart even when the model has no recent activity.
 
-**Who's working** shows one row per model with closes in the last 7 days, work in progress or blocked work. Assigned open and deferred tasks do not add rows. Each row shows current work counts, daily closes, total closes, median claim-to-close time and blocked tasks.
+**Who's working** shows one row per model, in name order with **Other** last, for each model with closes or changes shipped in the last 7 days, work in progress or blocked work. Assigned open and deferred tasks do not add rows. Each row shows the changes shipped with one of the model's tasks, current work counts, daily closes, total closes, median claim-to-close time and blocked tasks. A change with tasks of two models counts once in each row and once at the top.
 
-**Ranking** shows each model's running total of closes in the last 7 days. A top-priority task counts 5 points, high 3, normal 2, low and lowest 1. **Replay the week** draws the lines again from the start.
-
-**Leaders** shows the last 7 days' **Most tasks closed**, **Fastest close**, **Most days in a row** and **Most urgent tasks closed**. These awards name recognized models; **Other** is excluded from awards.
-
-**View tasks and close evidence →** opens [Tasks](/tower/tasks), where task pages show descriptions, comments and close evidence.
+**Review tasks →** opens [Tasks](/tower/tasks), where task pages show descriptions, comments and close evidence.
 
 ## Model groups
 

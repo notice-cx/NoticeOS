@@ -1,3 +1,7 @@
+/** Agent statistics as the Agents page and get_agent_stats read them: work in
+ * hand, closes and the changes that shipped, by model. Nothing ranks one model
+ * against another or awards one, since closes, close times and runs of days
+ * are counts an agent can raise by splitting or rushing work. */
 import { modelIdentity } from './actor-names.mjs';
 import { recordsClose, TASK_METADATA } from './task-metadata.mjs';
 
@@ -33,6 +37,9 @@ export interface ModelStats {
   week: number;
   lastWeek: number;
   medianHours: number | null;
+  /** The changes merged or live in the last 7 days with one of this model's
+   * tasks; null where the task source records no merges. */
+  shipped: number | null;
 }
 export interface VelocityWeek {
   start: string;
@@ -40,29 +47,20 @@ export interface VelocityWeek {
   counts: Record<string, number>;
   total: number;
 }
-export interface AgentRacePlayer {
-  key: string;
-  name: string;
-  closes: number[];
-  points: number;
-}
-export interface AgentAward {
-  key: 'most' | 'fastest' | 'streak' | 'urgent';
-  award: string;
-  holder: string;
-  value: string;
-  detail: string | null;
-}
 export interface AgentStats {
+  /** In name order, Other last. */
   workers: ModelStats[];
   velocity: { weeks: VelocityWeek[]; keys: string[]; names: Record<string, string> };
-  race: { from: number; to: number; players: AgentRacePlayer[] };
-  trophies: AgentAward[];
   week: number;
   lastWeek: number;
   inHand: number;
   blocked: number;
   medianHours: number | null;
+  /** The changes merged or live in the last 7 days, each pull request once;
+   * null where the task source records no merges. */
+  shipped: number | null;
+  /** The same, for the 7 days before. */
+  shippedLastWeek: number | null;
 }
 export interface AgentStatsPayload {
   readAt: string;
@@ -84,17 +82,6 @@ export function medianOf(values: readonly number[]): number | null {
   const sorted = [...values].sort((a, b) => a - b), middle = sorted.length >> 1;
   return sorted.length % 2 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
-export function taskPoints(priority: number): number {
-  return priority <= 0 ? 5 : priority === 1 ? 3 : priority === 2 ? 2 : 1;
-}
-export function streakOf(days: readonly number[]): number {
-  let streak = 0;
-  for (let i = days.length - 1; i >= 0; i--) {
-    if (days[i]! > 0) streak++;
-    else if (i !== days.length - 1) break;
-  }
-  return streak;
-}
 export function formatHours(hours: number): string {
   if (hours < 1) return 'under 1 h';
   if (hours < 48) return `${Math.round(hours)} h`;
@@ -114,7 +101,8 @@ const cycleOf = (task: AgentStatsTask): number | null => {
 };
 
 /** Aggregate before serialization: no task bodies, identities or metadata leave
- * the server. Historical closes still count when their model is no longer active. */
+ * the server. Historical closes still count when their model is no longer active.
+ * These tasks carry no delivery, so nothing here counts a change shipped. */
 export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: number): AgentStats {
   const seen = new Map<string, AgentStatsTask>();
   for (const project of projects) for (const task of project.tasks) {
@@ -136,14 +124,11 @@ export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: nu
   const groups = new Map<string, ModelStats & { cycles: number[] }>();
   const get = (name: string) => {
     let group = groups.get(name);
-    if (!group) { group = { id: name, name, inHand: 0, blocked: 0, days: Array<number>(7).fill(0), week: 0, lastWeek: 0, medianHours: null, cycles: [] }; groups.set(name, group); }
+    if (!group) { group = { id: name, name, inHand: 0, blocked: 0, days: Array<number>(7).fill(0), week: 0, lastWeek: 0, medianHours: null, shipped: null, cycles: [] }; groups.set(name, group); }
     return group;
   };
-  const players = new Map<string, AgentRacePlayer>();
   const totals = new Map<string, number>();
   const cycles: number[] = [];
-  const urgent = new Map<string, number>();
-  let fastest: { name: string; hours: number } | null = null;
   for (const task of closed) {
     const name = modelOf(task), group = get(name), at = Date.parse(task.closedAt!), hours = cycleOf(task);
     if (at >= starts[0]!) totals.set(name, (totals.get(name) ?? 0) + 1);
@@ -152,12 +137,6 @@ export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: nu
       group.week++;
       const day = Math.floor(at / DAY) - Math.floor(nowMs / DAY) + 6;
       if (day >= 0 && day < 7) group.days[day]!++;
-      const player = players.get(name) ?? { key: name, name, closes: [], points: 0 };
-      player.closes.push(at); player.points += taskPoints(task.priority); players.set(name, player);
-      if (name !== OTHER_MODEL) {
-        if (hours !== null && (!fastest || hours < fastest.hours)) fastest = { name, hours };
-        if (task.priority <= 1) urgent.set(name, (urgent.get(name) ?? 0) + 1);
-      }
     } else if (at > nowMs - 14 * DAY) group.lastWeek++;
   }
   for (const task of tasks) if (task.assignee && (task.status === 'in_progress' || task.status === 'blocked')) {
@@ -167,7 +146,7 @@ export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: nu
   }
   const workers = [...groups.values()].filter(group => group.week > 0 || group.inHand > 0 || group.blocked > 0)
     .map(({ cycles: durations, ...group }) => ({ ...group, medianHours: medianOf(durations) }))
-    .sort((a, b) => Number(a.name === OTHER_MODEL) - Number(b.name === OTHER_MODEL) || b.week - a.week || b.inHand - a.inHand || b.blocked - a.blocked || a.name.localeCompare(b.name));
+    .sort((a, b) => Number(a.name === OTHER_MODEL) - Number(b.name === OTHER_MODEL) || a.name.localeCompare(b.name));
   const named = [...totals].filter(([name]) => name !== OTHER_MODEL).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([name]) => name);
   const weeks = starts.map(start => {
     const counts: Record<string, number> = {};
@@ -179,20 +158,10 @@ export function readAgentStats(projects: readonly AgentStatsProject[], nowMs: nu
     }
     return { start: new Date(start).toISOString().slice(0, 10), current: start === current, counts, total: Object.values(counts).reduce((sum, count) => sum + count, 0) };
   });
-  const racers = [...players.values()].map(player => ({ ...player, closes: player.closes.sort((a, b) => a - b) }))
-    .sort((a, b) => b.points - a.points || b.closes.length - a.closes.length || a.name.localeCompare(b.name));
-  const trophies: AgentAward[] = [];
-  const most = racers.filter(player => player.name !== OTHER_MODEL).sort((a, b) => b.closes.length - a.closes.length || b.points - a.points)[0];
-  if (most) trophies.push({ key: 'most', award: 'Most tasks closed', holder: most.name, value: `${most.closes.length}`, detail: most.closes.length === 1 ? 'task' : 'tasks' });
-  if (fastest) trophies.push({ key: 'fastest', award: 'Fastest close', holder: fastest.name, value: formatHours(fastest.hours), detail: null });
-  const streak = workers.filter(worker => worker.name !== OTHER_MODEL).map(worker => ({ name: worker.name, days: streakOf(worker.days) })).sort((a, b) => b.days - a.days)[0];
-  if (streak && streak.days > 1) trophies.push({ key: 'streak', award: 'Most days in a row', holder: streak.name, value: `${streak.days}`, detail: 'days' });
-  const mostUrgent = [...urgent].sort((a, b) => b[1] - a[1])[0];
-  if (mostUrgent) trophies.push({ key: 'urgent', award: 'Most urgent tasks closed', holder: mostUrgent[0], value: `${mostUrgent[1]}`, detail: mostUrgent[1] === 1 ? 'high-priority close' : 'high-priority closes' });
   return {
     workers, velocity: { weeks, keys: [...named, ...(weeks.some(week => (week.counts[''] ?? 0) > 0) ? [''] : [])], names: Object.fromEntries([...named.map(name => [name, name]), ['', OTHER_MODEL]]) },
-    race: { from, to: nowMs, players: racers }, trophies,
     week: [...groups.values()].reduce((sum, group) => sum + group.week, 0), lastWeek: [...groups.values()].reduce((sum, group) => sum + group.lastWeek, 0),
     inHand: workers.reduce((sum, group) => sum + group.inHand, 0), blocked: workers.reduce((sum, group) => sum + group.blocked, 0), medianHours: medianOf(cycles),
+    shipped: null, shippedLastWeek: null,
   };
 }
