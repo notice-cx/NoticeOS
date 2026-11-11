@@ -11,7 +11,7 @@ import { ALL_STATUSES, boardKey, labelKey, readCached, readSyncState, writeCache
 import { HANDOFF_LABELS } from '../../packages/contract/src/task-metadata.mjs';
 import { PANEL_REVIEW_LABEL } from '../panel-review-summary.mjs';
 import { mapTaskProjects, TaskServiceUnavailable, withNoticeosRecords } from '../task-service.mjs';
-import { BEADS_CLOSES_DAYS, beadsClosedSince, beadsClosesSince, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
+import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, taskProjectError, summarizeTaskProject } from '../task-snapshot-summary.mjs';
 
 export const FEED_PAGE = 200;
 export const FEED_PAGES = 5;
@@ -92,7 +92,7 @@ async function readLabels(service, projectId, labels) {
 }
 
 /** The closes the snapshot reaches back over, as one closed-only board read. */
-const closesKey = (asset) => boardKey(asset, 'closed', BEADS_CLOSES_DAYS);
+const closesKey = (asset) => boardKey(asset, 'closed', TASK_CLOSES_DAYS);
 
 /** One board task as `bd list --json` reported it: the shape the snapshot
  * summary reads (scripts/task-snapshot-summary.mjs). */
@@ -112,7 +112,7 @@ const answered = (rows) => ({ code: 0, stdout: JSON.stringify(rows), stderr: '' 
 const waitsOnBlocker = (task) => (task.dependencies ?? []).some((edge) => edge.type === 'blocks' && edge.status !== 'closed');
 
 /** The snapshot summary's inputs from a project's two boards: every status
- * (with its epics), and the closes over BEADS_CLOSES_DAYS, and the label reads
+ * (with its epics), and the closes over TASK_CLOSES_DAYS, and the label reads
  * (LABEL_READS) where Ntasks answered them; a read it did not answer stays
  * absent, which the cards show as one never made. */
 export function boardResults(board, closes, labelled = {}) {
@@ -157,7 +157,7 @@ export async function readFeed(service, cursor, { pages = FEED_PAGES, limit = FE
 /** Reads one project's two boards and keeps them; false when Ntasks gave neither. */
 async function refreshBoards(service, project, cacheDir, now) {
   const id = encodeURIComponent(project.project.projectId);
-  const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${BEADS_CLOSES_DAYS}`]
+  const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
     .map((path) => service.call({ method: 'GET', path })));
   if (board.status !== 200 || closes.status !== 200) return false;
   await writeCached(cacheDir, boardKey(project.asset, ALL_STATUSES), { ...board.body, project: project.asset }, now);
@@ -197,19 +197,19 @@ export async function syncTaskService({ service, spokes, cacheDir, now = Date.no
     }
   }
   await writeSyncState(cacheDir, { origin, cursor: feed.cursor, boards });
-  const reach = { closedSince: beadsClosedSince(now()), closesSince: beadsClosesSince(now()) };
+  const reach = { closedSince: tasksClosedSince(now()), closesSince: tasksClosesSince(now()) };
   const entries = [];
   for (const project of projects) {
-    if (!project.project) { entries.push(beadsProjectError(project, `No Ntasks project has the prefix ${project.prefix}`)); continue; }
+    if (!project.project) { entries.push(taskProjectError(project, `No Ntasks project has the prefix ${project.prefix}`)); continue; }
     const board = await readCached(cacheDir, boardKey(project.asset, ALL_STATUSES));
     const closes = await readCached(cacheDir, closesKey(project.asset));
-    if (failed.has(project.asset) || !board || !closes) { entries.push(beadsProjectError(project, `Ntasks did not answer for ${project.project.displayName}`)); continue; }
+    if (failed.has(project.asset) || !board || !closes) { entries.push(taskProjectError(project, `Ntasks did not answer for ${project.project.displayName}`)); continue; }
     const labelled = {};
     for (const read of Object.keys(LABEL_READS)) {
       const kept = await readCached(cacheDir, labelKey(project.asset, read));
       if (Array.isArray(kept?.body)) labelled[read] = kept.body;
     }
-    entries.push(summarizeBeadsProject(project, boardResults(board.body, closes.body, labelled), reach));
+    entries.push(summarizeTaskProject(project, boardResults(board.body, closes.body, labelled), reach));
   }
   return { body: { capturedAt: new Date(now()).toISOString(), projects: entries }, feed };
 }

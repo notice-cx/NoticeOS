@@ -1,7 +1,7 @@
 // The tasks contract: what the live lane returns, as against the snapshot
 // board's `shared/work.ts`. The snapshot is a bounded summary the poller
-// POSTs to the store; the live read runs `bd` in the project and hands back
-// the rows unbounded, with the fields a task page needs. It exists only where
+// POSTs to the store; the live read asks the connected Ntasks for the project
+// and hands back the rows unbounded, with the fields a task page needs. It exists only where
 // the lane does; a deployed build has `live: false` and keeps the snapshot
 // board. `LiveTask` extends `WorkItem` rather than restating it. Tasks are
 // coordination state, not signals.
@@ -22,19 +22,19 @@ export function isTaskId(value: unknown): value is string {
   return typeof value === "string" && /^[a-z0-9]+-{1,2}[a-z0-9]+(\.[0-9]+)*$/i.test(value);
 }
 
-/** One dependency edge, flattened. `bd` reports these two ways — a plain
- * edge on `bd list`, a whole embedded issue on `bd show` — and the lane
- * normalizes both to this. */
+/** One dependency edge, flattened. A board row carries a plain edge and a
+ * task's own read the other task's title and status; the lane normalizes both
+ * to this. */
 export interface TaskDependency {
   /** The task on the other end. */
   id: string;
-  /** `blocks`, `parent-child`, `discovered-from`, … — `bd`'s own vocabulary,
+  /** `blocks`, `parent-child`, `discovered-from`, … — Ntasks's own vocabulary,
    * not an enum: it accepts types this build has never heard of. */
   type: string;
-  /** Present only when the read carried it (`bd show`); null on a list row. */
+  /** Present only when the read carried it (a task's own read); null on a list row. */
   title: string | null;
   /** The other task's own status, when the read embedded the whole issue
-   * (`bd show`); null on a plain edge. A closed blocker is no longer in the
+   * (a task's own read); null on a plain edge. A closed blocker is no longer in the
    * way, and the task page has to be able to say so. */
   status: string | null;
   projectId?: string;
@@ -51,7 +51,7 @@ export interface LiveTask extends WorkItem {
   description: string;
   acceptance: string;
   labels: string[];
-  /** Claimable now: this id appeared in the same poll's `bd ready`, which is
+  /** Claimable now: Ntasks marked it ready in the same read, which is
    * blocker-aware in a way the stored `status` is not. */
   ready: boolean;
   dependencies: TaskDependency[];
@@ -62,7 +62,7 @@ export interface LiveTask extends WorkItem {
    * finding (config/beads.README.md §Handoff metadata), null otherwise. */
   metadata: Record<string, unknown> | null;
   createdAt: string | null;
-  /** When somebody claimed it (`bd`'s `started_at`), null while nobody has.
+  /** When somebody claimed it (Ntasks's `startedAt`), null while nobody has.
    * Distinct from `updatedAt`, which any later edit moves. */
   startedAt: string | null;
   /** Why it was closed — the completion evidence, which is the one thing a
@@ -77,7 +77,7 @@ export interface LiveTask extends WorkItem {
   cardShipped?: TaskCardShipped | null;
 }
 
-/** One container task with its all-time child progress (`bd epic status`) —
+/** One container task with its all-time child progress (the board's `epics`) —
  * the only honest denominator, since a list read is a window. */
 export interface LiveEpic {
   id: string;
@@ -86,7 +86,7 @@ export interface LiveEpic {
   priority: number;
   total: number;
   closed: number;
-  /** `bd`'s own judgment that every child is done and the container could be
+  /** Ntasks's own judgment that every child is done and the container could be
    * closed. Surfaced rather than re-derived. */
   eligibleForClose: boolean;
 }
@@ -101,14 +101,14 @@ export interface LiveTasksPayload {
   prefix: string;
   /** The project's repo path as configured (relative to the repo root). */
   repo: string;
-  /** When the lane ran `bd`. Not a snapshot age: this read is live, and the
+  /** When the lane read Ntasks. Not a snapshot age: this read is live, and the
    * stamp is here so a stale tab can tell. */
   readAt: string;
   /** UTC lower boundary used by the complete closed-task query. Older cached
    * clients may omit it; current lane replies always include it. */
   closedSince?: string;
   tasks: LiveTask[];
-  /** null when this project's `bd` could not answer `epic status` — the board
+  /** null when Ntasks gave no epics for this project — the board
    * falls back to flat lists. */
   epics: LiveEpic[] | null;
   /** Present when the task service could not be reached and this is the copy

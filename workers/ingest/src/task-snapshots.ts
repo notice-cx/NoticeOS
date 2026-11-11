@@ -1,4 +1,4 @@
-// The beads-snapshot writer: one photograph of what every task project has in
+// The task snapshot writer: one photograph of what every task project has in
 // flight, produced by the runner's poller and read by the Tower's board (the
 // newest row only) and the Wall's feed (the last day's photographs).
 //
@@ -21,7 +21,7 @@ import { isTaskChangeClass, TASK_CHANGE_CLASSES, type TaskChangeClass } from '@n
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
 export type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
-import { rollUpBeadsDay, type BeadsDailyProject } from './beads-daily.js';
+import { rollUpTaskDay, type TaskDailyProject } from './task-daily.js';
 import {
   ASSET_ID_MAX,
   FUTURE_SKEW_MS,
@@ -38,7 +38,7 @@ import { isRecord } from './shared.js';
 /** How much history the table keeps. The Tower reads the newest row; the one
  * reader of older rows is the Wall's feed, which reaches at most
  * `WALL_FEED_REACH_HOURS` back. Two days covers that with margin. */
-export const BEADS_SNAPSHOT_RETENTION_DAYS = 2;
+export const TASK_SNAPSHOT_RETENTION_DAYS = 2;
 
 /** The farthest back the Wall's feed reads a photograph, in hours: 6 PM the day
  * before, seen just before the next local midnight, plus a DST hour. A mirror
@@ -87,23 +87,23 @@ export function supersededPayload(payload: string): string {
 }
 
 /** A sanity bound on a malformed body, not a portfolio limit. */
-export const BEADS_MAX_PROJECTS = 64;
+export const TASK_SNAPSHOT_MAX_PROJECTS = 64;
 /** The outer bound on what the poller may send per list. */
-export const BEADS_MAX_ITEMS = 50;
-export const BEADS_ID_MAX = 128;
-export const BEADS_TITLE_MAX = 512;
-export const BEADS_ASSIGNEE_MAX = 128;
-export const BEADS_STATUS_MAX = 64;
-export const BEADS_TYPE_MAX = 64;
+export const TASK_SNAPSHOT_MAX_ITEMS = 50;
+export const TASK_ID_MAX = 128;
+export const TASK_TITLE_MAX = 512;
+export const TASK_ASSIGNEE_MAX = 128;
+export const TASK_STATUS_MAX = 64;
+export const TASK_TYPE_MAX = 64;
 /** `bd` uses P0–P4; the headroom keeps a custom scale from failing the write. */
 export { BEADS_PRIORITY_MAX } from '@noticeos/contract/task-snapshot';
-export const BEADS_ERROR_MAX = 500;
-export const BEADS_PREFIX_MAX = 32;
+export const TASK_SNAPSHOT_ERROR_MAX = 500;
+export const TASK_PREFIX_MAX = 32;
 /** How many priority bands a queue-shape array carries (`bd` ships P0–P4). */
-export const BEADS_PRIORITY_BANDS = 5;
+export const TASK_PRIORITY_BANDS = 5;
 /** A sanity bound on a malformed body. */
-export const BEADS_MAX_EPICS = 100;
-export const BEADS_PANEL_REVIEW_STATUSES = ['open', 'closed'] as const;
+export const TASK_SNAPSHOT_MAX_EPICS = 100;
+export const TASK_PANEL_REVIEW_STATUSES = ['open', 'closed'] as const;
 /**
  * The Tower surfaces that file work, as the emitter writes them
  * (`apps/tower/src/lib/task-handoff.ts`). Wider than `decisions.kind`: a page
@@ -112,13 +112,13 @@ export const BEADS_PANEL_REVIEW_STATUSES = ['open', 'closed'] as const;
  * because a kind a later Tower invents must not blank the board.
  */
 export { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
-export const BEADS_HANDOFF_STATUSES = ['open', 'closed'] as const;
+export const TASK_HANDOFF_STATUSES = ['open', 'closed'] as const;
 /** The poller ranks and truncates before it gets here; this is the same ceiling
  * every other per-project list carries. */
-export const BEADS_MAX_HANDOFFS = BEADS_MAX_ITEMS;
+export const TASK_SNAPSHOT_MAX_HANDOFFS = TASK_SNAPSHOT_MAX_ITEMS;
 /** A normalized query or a card key. */
-export const BEADS_KEY_MAX = 512;
-export type BeadsSnapshotResult =
+export const TASK_KEY_MAX = 512;
+export type TaskSnapshotResult =
   | {
       ok: true;
       capturedAt: string;
@@ -219,10 +219,10 @@ type StoredWorker = Omit<BeadsWorkerInput, 'model'> & { model: string | null };
 /** A pick carries its option and label; a claim or close carries neither key. */
 type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence' | 'option' | 'label' | 'resolution'>
   & { model: string | null; evidence: string | null; option?: TaskChoiceKey; label?: string; resolution?: NotDone };
-export const BEADS_MAX_WORKERS = 20;
-export const BEADS_MAX_WORK = 12;
-export const BEADS_MODEL_MAX = 128;
-export const BEADS_EVIDENCE_MAX = 300;
+export const TASK_SNAPSHOT_MAX_WORKERS = 20;
+export const TASK_SNAPSHOT_MAX_WORK = 12;
+export const TASK_MODEL_MAX = 128;
+export const TASK_EVIDENCE_MAX = 300;
 
 interface StoredProject {
   asset: string;
@@ -305,9 +305,9 @@ function parseDependencies(issues: Issues, value: unknown, path: string): Stored
   const out: StoredDependency[] = [];
   for (const [index, raw] of rows.entries()) {
     const at = `${path}.${index}`;
-    const id = requiredString(issues, raw.id, `${at}.id`, BEADS_ID_MAX);
-    const type = requiredString(issues, raw.type, `${at}.type`, BEADS_TYPE_MAX);
-    const status = optionalString(issues, raw.status, `${at}.status`, BEADS_STATUS_MAX);
+    const id = requiredString(issues, raw.id, `${at}.id`, TASK_ID_MAX);
+    const type = requiredString(issues, raw.type, `${at}.type`, TASK_TYPE_MAX);
+    const status = optionalString(issues, raw.status, `${at}.status`, TASK_STATUS_MAX);
     if (id === null || type === null) return null;
     out.push({ id, type, ...(status === null ? {} : { status }) });
   }
@@ -315,26 +315,26 @@ function parseDependencies(issues: Issues, value: unknown, path: string): Stored
 }
 
 function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string): StoredIssue | null {
-  const id = requiredString(issues, raw.id, `${path}.id`, BEADS_ID_MAX);
-  const title = requiredString(issues, raw.title, `${path}.title`, BEADS_TITLE_MAX);
-  const status = requiredString(issues, raw.status, `${path}.status`, BEADS_STATUS_MAX);
-  const issueType = requiredString(issues, raw.issueType, `${path}.issueType`, BEADS_TYPE_MAX);
+  const id = requiredString(issues, raw.id, `${path}.id`, TASK_ID_MAX);
+  const title = requiredString(issues, raw.title, `${path}.title`, TASK_TITLE_MAX);
+  const status = requiredString(issues, raw.status, `${path}.status`, TASK_STATUS_MAX);
+  const issueType = requiredString(issues, raw.issueType, `${path}.issueType`, TASK_TYPE_MAX);
   const priority = nonNegativeInteger(issues, raw.priority, `${path}.priority`, BEADS_PRIORITY_MAX);
-  const assignee = optionalString(issues, raw.assignee, `${path}.assignee`, BEADS_ASSIGNEE_MAX);
+  const assignee = optionalString(issues, raw.assignee, `${path}.assignee`, TASK_ASSIGNEE_MAX);
   const updatedAt = optionalInstant(issues, raw.updatedAt, `${path}.updatedAt`);
   const closedAt = optionalInstant(issues, raw.closedAt, `${path}.closedAt`);
-  const parent = optionalString(issues, raw.parent, `${path}.parent`, BEADS_ID_MAX);
+  const parent = optionalString(issues, raw.parent, `${path}.parent`, TASK_ID_MAX);
   const deferUntil = optionalInstant(issues, raw.deferUntil, `${path}.deferUntil`);
   const createdAt = optionalInstant(issues, raw.createdAt, `${path}.createdAt`);
-  const filedBy = optionalString(issues, raw.filedBy, `${path}.filedBy`, BEADS_ASSIGNEE_MAX);
-  const filedModel = optionalString(issues, raw.filedModel, `${path}.filedModel`, BEADS_MODEL_MAX);
+  const filedBy = optionalString(issues, raw.filedBy, `${path}.filedBy`, TASK_ASSIGNEE_MAX);
+  const filedModel = optionalString(issues, raw.filedModel, `${path}.filedModel`, TASK_MODEL_MAX);
   // The shape's rules are the contract's (task-choices.mts), the ones the task tools enforce.
   const choices = raw.choices === undefined || raw.choices === null ? null : taskChoicesOf(raw.choices);
   if (raw.choices !== undefined && raw.choices !== null && choices === null) {
     issues.add(`${path}.choices`, 'custom', `${path}.choices must be a question with two to six options, one recommended`);
   }
   const choice = raw.choice === undefined || raw.choice === null ? null : taskChoiceOf(raw.choice);
-  if (raw.choice !== undefined && raw.choice !== null && (choice === null || choice.by.length > BEADS_ASSIGNEE_MAX
+  if (raw.choice !== undefined && raw.choice !== null && (choice === null || choice.by.length > TASK_ASSIGNEE_MAX
     || choice.label.length > TASK_CHOICE_LIMITS.label || (choice.note?.length ?? 0) > TASK_CHOICE_LIMITS.note)) {
     issues.add(`${path}.choice`, 'custom', `${path}.choice must be a recorded pick: option, label, by and at`);
   }
@@ -348,7 +348,7 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     issues.add(`${path}.changeClass`, 'custom', `${path}.changeClass must be one of ${TASK_CHANGE_CLASSES.join(', ')}`);
   }
   const resolution = optionalResolution(issues, raw.resolution, `${path}.resolution`);
-  const duplicateOf = optionalString(issues, raw.duplicateOf, `${path}.duplicateOf`, BEADS_ID_MAX);
+  const duplicateOf = optionalString(issues, raw.duplicateOf, `${path}.duplicateOf`, TASK_ID_MAX);
   if (duplicateOf !== null && resolution !== 'duplicate') {
     issues.add(`${path}.duplicateOf`, 'custom', `${path}.duplicateOf goes with resolution duplicate only`);
   }
@@ -378,7 +378,7 @@ function parseIssueList(
   value: unknown,
   path: string,
 ): StoredIssue[] | null {
-  const rows = asObjectArray(issues, value, path, BEADS_MAX_ITEMS);
+  const rows = asObjectArray(issues, value, path, TASK_SNAPSHOT_MAX_ITEMS);
   if (!rows) return null;
   const out: StoredIssue[] = [];
   for (let i = 0; i < rows.length; i++) {
@@ -454,11 +454,11 @@ function parsePriorities(
     issues.add(path, 'invalid_type', `${path} must be an array`);
     return null;
   }
-  if (value.length !== BEADS_PRIORITY_BANDS) {
+  if (value.length !== TASK_PRIORITY_BANDS) {
     issues.add(
       path,
       'invalid_format',
-      `${path} must hold exactly ${BEADS_PRIORITY_BANDS} bands`,
+      `${path} must hold exactly ${TASK_PRIORITY_BANDS} bands`,
     );
     return null;
   }
@@ -473,9 +473,9 @@ function parsePriorities(
 
 /** One epic grouping row: the shape is enforced, the vocabulary is not. */
 function parseEpic(issues: Issues, raw: Record<string, unknown>, path: string): StoredEpic | null {
-  const id = requiredString(issues, raw.id, `${path}.id`, BEADS_ID_MAX);
-  const title = requiredString(issues, raw.title, `${path}.title`, BEADS_TITLE_MAX);
-  const status = requiredString(issues, raw.status, `${path}.status`, BEADS_STATUS_MAX);
+  const id = requiredString(issues, raw.id, `${path}.id`, TASK_ID_MAX);
+  const title = requiredString(issues, raw.title, `${path}.title`, TASK_TITLE_MAX);
+  const status = requiredString(issues, raw.status, `${path}.status`, TASK_STATUS_MAX);
   const priority = nonNegativeInteger(issues, raw.priority, `${path}.priority`, BEADS_PRIORITY_MAX);
   const total = nonNegativeInteger(issues, raw.total, `${path}.total`);
   const closed = nonNegativeInteger(issues, raw.closed, `${path}.closed`);
@@ -515,7 +515,7 @@ function parseEpicList(
   path: string,
 ): StoredEpic[] | null | undefined {
   if (value === undefined || value === null) return undefined;
-  const rows = asObjectArray(issues, value, path, BEADS_MAX_EPICS);
+  const rows = asObjectArray(issues, value, path, TASK_SNAPSHOT_MAX_EPICS);
   if (!rows) return null;
   const out: StoredEpic[] = [];
   for (let i = 0; i < rows.length; i++) {
@@ -544,9 +544,9 @@ function parsePanelReview(
     return null;
   }
   const raw = value as Record<string, unknown>;
-  const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, BEADS_ID_MAX);
+  const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, TASK_ID_MAX);
   const panelDate = isoDate(issues, raw.panelDate, `${path}.panelDate`);
-  const status = enumValue(issues, raw.status, `${path}.status`, BEADS_PANEL_REVIEW_STATUSES);
+  const status = enumValue(issues, raw.status, `${path}.status`, TASK_PANEL_REVIEW_STATUSES);
   const dueAt = optionalInstant(issues, raw.dueAt, `${path}.dueAt`);
   const closedAt = optionalInstant(issues, raw.closedAt, `${path}.closedAt`);
 
@@ -570,13 +570,13 @@ export interface DroppedHandoff {
 }
 
 export interface DroppedHandoffEvent {
-  event: 'beads_handoff_kind_unknown';
+  event: 'task_handoff_kind_unknown';
   dropped: DroppedHandoff[];
 }
 
 /** Built apart from the printing so the suite can pin its shape. */
 export function droppedHandoffEvent(dropped: DroppedHandoff[]): DroppedHandoffEvent {
-  return { event: 'beads_handoff_kind_unknown', dropped };
+  return { event: 'task_handoff_kind_unknown', dropped };
 }
 
 /** What `parseHandoff` returns for a kind it has never heard of. Distinct from
@@ -612,9 +612,9 @@ function parseHandoff(
     return UNKNOWN_KIND;
   }
   const kind = enumValue(issues, raw.kind, `${path}.kind`, BEADS_HANDOFF_KINDS);
-  const key = requiredString(issues, raw.key, `${path}.key`, BEADS_KEY_MAX);
-  const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, BEADS_ID_MAX);
-  const status = enumValue(issues, raw.status, `${path}.status`, BEADS_HANDOFF_STATUSES);
+  const key = requiredString(issues, raw.key, `${path}.key`, TASK_KEY_MAX);
+  const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, TASK_ID_MAX);
+  const status = enumValue(issues, raw.status, `${path}.status`, TASK_HANDOFF_STATUSES);
   const closedAt = optionalInstant(issues, raw.closedAt, `${path}.closedAt`);
 
   if (kind === null || key === null || beadId === null || status === null) return null;
@@ -636,7 +636,7 @@ function parseHandoffList(
   dropped: DroppedHandoff[],
 ): StoredHandoff[] | null | undefined {
   if (value === undefined || value === null) return undefined;
-  const rows = asObjectArray(issues, value, path, BEADS_MAX_HANDOFFS);
+  const rows = asObjectArray(issues, value, path, TASK_SNAPSHOT_MAX_HANDOFFS);
   if (!rows) return null;
   const out: StoredHandoff[] = [];
   for (let i = 0; i < rows.length; i++) {
@@ -651,13 +651,13 @@ function parseHandoffList(
 /** An OPTIONAL issue list — absent stays absent, present must be valid. */
 function parseWorkers(issues: Issues, value: unknown, path: string): StoredWorker[] | null | undefined {
   if (value === undefined || value === null) return undefined;
-  const rows = asObjectArray(issues, value, path, BEADS_MAX_WORKERS);
+  const rows = asObjectArray(issues, value, path, TASK_SNAPSHOT_MAX_WORKERS);
   if (!rows) return null;
   const out: StoredWorker[] = [];
   for (const [index, raw] of rows.entries()) {
     const at = `${path}.${index}`;
-    const id = requiredString(issues, raw.id, `${at}.id`, BEADS_ASSIGNEE_MAX);
-    const model = optionalString(issues, raw.model, `${at}.model`, BEADS_MODEL_MAX);
+    const id = requiredString(issues, raw.id, `${at}.id`, TASK_ASSIGNEE_MAX);
+    const model = optionalString(issues, raw.model, `${at}.model`, TASK_MODEL_MAX);
     const closedRecent = nonNegativeInteger(issues, raw.closedRecent, `${at}.closedRecent`);
     const inProgress = nonNegativeInteger(issues, raw.inProgress, `${at}.inProgress`);
     if (id === null || closedRecent === null || inProgress === null) return null;
@@ -668,19 +668,19 @@ function parseWorkers(issues: Issues, value: unknown, path: string): StoredWorke
 
 function parseRecentWork(issues: Issues, value: unknown, path: string): StoredWorkEvent[] | null | undefined {
   if (value === undefined || value === null) return undefined;
-  const rows = asObjectArray(issues, value, path, BEADS_MAX_WORK);
+  const rows = asObjectArray(issues, value, path, TASK_SNAPSHOT_MAX_WORK);
   if (!rows) return null;
   const out: StoredWorkEvent[] = [];
   for (const [index, raw] of rows.entries()) {
     const at = `${path}.${index}`;
     const kind = raw.kind === 'claimed' || raw.kind === 'closed' || raw.kind === 'chosen' ? raw.kind : null;
     if (kind === null) issues.add(`${at}.kind`, 'custom', `${at}.kind must be claimed, closed or chosen`);
-    const taskId = requiredString(issues, raw.taskId, `${at}.taskId`, BEADS_ID_MAX);
-    const title = requiredString(issues, raw.title, `${at}.title`, BEADS_TITLE_MAX);
-    const by = requiredString(issues, raw.by, `${at}.by`, BEADS_ASSIGNEE_MAX);
-    const model = optionalString(issues, raw.model, `${at}.model`, BEADS_MODEL_MAX);
+    const taskId = requiredString(issues, raw.taskId, `${at}.taskId`, TASK_ID_MAX);
+    const title = requiredString(issues, raw.title, `${at}.title`, TASK_TITLE_MAX);
+    const by = requiredString(issues, raw.by, `${at}.by`, TASK_ASSIGNEE_MAX);
+    const model = optionalString(issues, raw.model, `${at}.model`, TASK_MODEL_MAX);
     const instant = optionalInstant(issues, raw.at, `${at}.at`);
-    const evidence = optionalString(issues, raw.evidence, `${at}.evidence`, BEADS_EVIDENCE_MAX);
+    const evidence = optionalString(issues, raw.evidence, `${at}.evidence`, TASK_EVIDENCE_MAX);
     // A pick names the option and its label; nothing else does.
     const option = kind === 'chosen' && (TASK_CHOICE_KEYS as readonly unknown[]).includes(raw.option) ? raw.option as TaskChoiceKey : null;
     const label = kind === 'chosen' ? requiredString(issues, raw.label, `${at}.label`, TASK_CHOICE_LIMITS.label) : null;
@@ -760,12 +760,12 @@ function parseProject(
   dropped: DroppedHandoff[],
 ): StoredProject | null {
   const asset = requiredString(issues, raw.asset, `${path}.asset`, ASSET_ID_MAX);
-  const prefix = requiredString(issues, raw.prefix, `${path}.prefix`, BEADS_PREFIX_MAX);
+  const prefix = requiredString(issues, raw.prefix, `${path}.prefix`, TASK_PREFIX_MAX);
   if (typeof raw.ok !== 'boolean') {
     issues.add(`${path}.ok`, 'invalid_type', `${path}.ok must be a boolean`);
     return null;
   }
-  const error = optionalString(issues, raw.error, `${path}.error`, BEADS_ERROR_MAX);
+  const error = optionalString(issues, raw.error, `${path}.error`, TASK_SNAPSHOT_ERROR_MAX);
   const counts = parseCounts(issues, raw.counts, `${path}.counts`);
   const priorities = parsePriorities(issues, raw.priorities, `${path}.priorities`);
   const epics = parseEpicList(issues, raw.epics, `${path}.epics`);
@@ -887,11 +887,11 @@ function parseProject(
  * post-dated: a snapshot from the future would sit at the top of the board
  * forever and make a dead poller look fresh.
  */
-export async function writeBeadsSnapshot(
+export async function writeTaskSnapshot(
   env: Pick<IngestEnv, 'STORE'>,
   input: BeadsSnapshotInput,
   nowMs: number = Date.now(),
-): Promise<BeadsSnapshotResult> {
+): Promise<TaskSnapshotResult> {
   const issues = new Issues();
 
   const capturedAt =
@@ -899,7 +899,7 @@ export async function writeBeadsSnapshot(
       ? new Date(nowMs).toISOString()
       : pastInstant(issues, input.capturedAt, 'capturedAt', nowMs, FUTURE_SKEW_MS);
 
-  const rawProjects = asObjectArray(issues, input.projects, 'projects', BEADS_MAX_PROJECTS);
+  const rawProjects = asObjectArray(issues, input.projects, 'projects', TASK_SNAPSHOT_MAX_PROJECTS);
   const projects: StoredProject[] = [];
   const dropped: DroppedHandoff[] = [];
   if (rawProjects) {
@@ -932,7 +932,7 @@ export async function writeBeadsSnapshot(
     // inserting a duplicate: the Tower ages the board off the newest
     // captured_at and retention prunes by it, while the history keeps one row
     // per distinct state. The store compares the two as jsonb values. The same
-    // order the Tower's reader uses (apps/tower/worker/beads-snapshot.ts).
+    // order the Tower's reader uses (apps/tower/worker/task-snapshot.ts).
     const [latest] = await tx.query<{ snapshot_id: bigint; captured_at: string; payload: string; same: boolean }>(
       `SELECT snapshot_id, captured_at, payload::text AS payload, payload = $1::jsonb AS same
          FROM noticeos.task_snapshots
@@ -944,10 +944,10 @@ export async function writeBeadsSnapshot(
     // The day's rollup runs on every capture, the deduplicated touch included:
     // an unchanged board still moves the day on at midnight, and a quiet day's
     // flat line is the interesting one.
-    const rollup = await rollUpBeadsDay(
+    const rollup = await rollUpTaskDay(
       tx,
       projects.map(
-        (project): BeadsDailyProject => ({
+        (project): TaskDailyProject => ({
           asset: project.asset,
           ok: project.ok,
           counts: project.counts,
@@ -961,7 +961,7 @@ export async function writeBeadsSnapshot(
       nowMs,
     );
     const historyDays = rollup.days;
-    const cutoff = new Date(nowMs - BEADS_SNAPSHOT_RETENTION_DAYS * 86_400_000).toISOString();
+    const cutoff = new Date(nowMs - TASK_SNAPSHOT_RETENTION_DAYS * 86_400_000).toISOString();
 
     if (latest?.same) {
       // Never backwards: a backdated tick that saw the same board says nothing
@@ -991,7 +991,7 @@ export async function writeBeadsSnapshot(
       [tx.workspaceId, capturedAt, isNewest ? payload : supersededPayload(payload)],
     );
     if (!inserted) {
-      throw new Error('beads_snapshot_write_failed: insert returned no row');
+      throw new Error('task_snapshot_write_failed: insert returned no row');
     }
     if (latest && isNewest) {
       // Left alone when compacting changes nothing (the store compares values).

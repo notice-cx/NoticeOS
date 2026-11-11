@@ -27,7 +27,7 @@ const defines = {
   __DASHBOARD__: {}, __OS_TIME_ZONE__: 'UTC', __NO_NIGHTLY_REPORT__: null, __SCHEDULES__: null,
   __SERP_PANEL__: { assets: {} }, __SIGNAL_PANELS__: { assets: {} }, __VALUE_EVENTS__: { assets: {} },
   __GA4_EVENT_PARAMS__: { assets: {} }, __DOMAIN_COSTS__: [], __RECURRING_COSTS__: [],
-  __ENTITIES__: [], __BEADS__: { spokes: [] }, __RUNNER_LANE__: false,
+  __ENTITIES__: [], __TASK_PROJECTS__: { spokes: [] }, __RUNNER_LANE__: false,
 };
 
 export async function bundleWorkerFixture(root, name, entry) {

@@ -18,7 +18,7 @@ import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs'
 // boundaries must agree.
 //
 // Drift is SURVIVABLE: the ingest validator drops an unrecognized kind's own
-// row and logs `beads_handoff_kind_unknown`, instead of 422'ing the whole
+// row and logs `task_handoff_kind_unknown`, instead of 422'ing the whole
 // project's snapshot and blanking the portfolio's board. It is not VISIBLE,
 // though: a fifth kind added to the emitter and forgotten in the contract is a
 // marker that simply never appears on the row that raised it, with nothing red
@@ -90,7 +90,7 @@ function pollerKinds() {
 /** The ingest validator imports the released shared contract. */
 function validatorKinds() {
   assert.match(
-    source('workers/ingest/src/beads-snapshots.ts'),
+    source('workers/ingest/src/task-snapshots.ts'),
     /import\s*\{\s*BEADS_HANDOFF_KINDS\s*\}\s*from\s*['"]@noticeos\/contract\/task-snapshot['"];/,
     'The ingest validator must use the shared handoff-kind contract.',
   );
@@ -103,7 +103,7 @@ function validatorKinds() {
  */
 function towerReaderKinds() {
   const chain = capture(
-    'apps/tower/worker/beads-snapshot.ts',
+    'apps/tower/worker/task-snapshot.ts',
     /if \(((?:\s*kind !== "[^"]+"\s*(?:&&)?)+)\)/,
     'the `kind !== …` chain in `readHandoff`',
   );
@@ -160,8 +160,8 @@ function readmeKinds() {
 const SOURCES = [
   { where: 'apps/tower/src/lib/task-handoff.ts', what: 'TaskHandoffKind', read: emitterKinds },
   { where: 'scripts/runner/task-snapshot.mjs', what: 'HANDOFF_KINDS', read: pollerKinds },
-  { where: 'workers/ingest/src/beads-snapshots.ts', what: 'BEADS_HANDOFF_KINDS', read: validatorKinds },
-  { where: 'apps/tower/worker/beads-snapshot.ts', what: 'readHandoff', read: towerReaderKinds },
+  { where: 'workers/ingest/src/task-snapshots.ts', what: 'BEADS_HANDOFF_KINDS', read: validatorKinds },
+  { where: 'apps/tower/worker/task-snapshot.ts', what: 'readHandoff', read: towerReaderKinds },
   { where: 'apps/tower/shared/asset-detail.ts', what: 'HandoffKind', read: sharedTypeKinds },
   { where: 'config/beads.README.md', what: '§Handoff metadata table', read: readmeKinds },
 ];

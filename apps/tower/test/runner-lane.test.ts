@@ -166,7 +166,7 @@ describe("proxying the ingest's own routes", () => {
         return new Response(JSON.stringify({ ok: true }), { status: 201 });
       }),
     });
-    const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}/api/beads-snapshot`, {
+    const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}/api/task-snapshot`, {
       method: "POST",
       headers: { authorization: "Bearer operator-token", "content-type": "application/json" },
       body: JSON.stringify({ projects: [] }),
@@ -176,7 +176,7 @@ describe("proxying the ingest's own routes", () => {
     expect(response.status).toBe(201);
 
     const forwarded = seen[0]!;
-    expect(new URL(forwarded.url).pathname).toBe("/api/beads-snapshot");
+    expect(new URL(forwarded.url).pathname).toBe("/api/task-snapshot");
     expect(forwarded.method).toBe("POST");
     // The ingest's own operator check must still run — the Tower adds no
     // authority to a proxied request, it only carries it across.

@@ -264,7 +264,7 @@ function OpenAlertRow({ item, nowMs, focused, quiet = false, showSite = false }:
       rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
       actions={
         <>
-          {item.handoffBeads?.map((bead) => <HandoffBeadBadge key={bead.beadId} bead={bead} />)}
+          {item.handoffTasks?.map((bead) => <HandoffBeadBadge key={bead.beadId} bead={bead} />)}
           <FlagActions flagId={item.id} assetId={item.asset} ruleId={item.ruleId} metric={item.metric} only={["acknowledge", "tune"]} />
           {/* Mark read and Resolve say what was done with the ALERT; a task is
               what is being done about the CONDITION, so filing leaves the

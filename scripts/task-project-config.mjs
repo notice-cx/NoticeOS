@@ -18,7 +18,7 @@ export function taskHostFile(repoRoot = REPO_ROOT, env = process.env) {
     return readablePath(HOST_FILE, { root: repoRoot, env });
 }
 /** Canonical physical database identifier for backup, poll and drift readers. */
-export function beadsDatabaseName(value) {
+export function taskDatabaseName(value) {
     if (typeof value !== 'string')
         return null;
     const name = value.trim();

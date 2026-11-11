@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 const PART: Record<BackupPart, { name: string; unit: string; folder: string }> = {
   postgres: { name: 'Operational database', unit: 'databases', folder: 'postgres/' },
   r2: { name: 'Reports and stored files', unit: 'files', folder: 'r2/' },
-  taskHub: { name: 'Task databases', unit: 'databases', folder: 'beads/' },
+  taskHub: { name: 'Tasks', unit: 'exports', folder: 'ntasks/' },
   assets: { name: 'Asset databases', unit: 'databases', folder: 'cloudflare-d1/ · assets/' },
   history: { name: 'Historical reports', unit: 'sets', folder: 'history/' },
   recovery: { name: 'Recovery keys and settings', unit: 'files', folder: 'recovery/' },

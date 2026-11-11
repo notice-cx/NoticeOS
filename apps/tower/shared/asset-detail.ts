@@ -127,14 +127,14 @@ export type DecisionKind = "query" | "finding";
 /** Tower surfaces that can file work into an asset's task register. Wider than
  * `DecisionKind`: a page decision and an alert can each file a task, but neither
  * has a display-state row in `decisions`. The same four values are
- * `BEADS_HANDOFF_KINDS` (workers/ingest/src/beads-snapshots.ts) and the poller's
+ * `BEADS_HANDOFF_KINDS` (workers/ingest/src/task-snapshots.ts) and the poller's
  * `HANDOFF_KINDS` (scripts/runner/task-snapshot.mjs). */
 export type HandoffKind = DecisionKind | "page" | "alert";
 
 /**
  * decisions.status — what the operator wants displayed, and nothing else. There
  * is no `open`: an untouched item has no row at all, and clearing a decision
- * deletes it. Whether a task was filed is answered by `handoffBeads`, never by
+ * deletes it. Whether a task was filed is answered by `handoffTasks`, never by
  * this vocabulary.
  */
 export type DecisionStatus = "marked" | "dismissed";
@@ -153,7 +153,7 @@ export interface AssetDecision {
 /**
  * A task somebody filed from this asset's Tower handoff, joined back to it by
  * the handoff's own metadata: `apps/tower/src/lib/task-handoff.ts` writes
- * `noticeos_key` / `noticeos_kind` / `noticeos_asset` into the `bd create`, the
+ * `noticeos_key` / `noticeos_kind` / `noticeos_asset` into the task it files, the
  * poller reads them back, and `key` here is that `noticeos_key` byte for byte.
  * Nothing in the OS creates these tasks; a finding with no task simply has none.
  *
@@ -164,13 +164,13 @@ export interface AssetDecision {
 export interface HandoffBead {
   kind: HandoffKind;
   /** `noticeos_key` verbatim. Byte-exact, because a query may contain a comma
-   * and `bd` splits label values on commas, so the `key:` label is a lossy slug. */
+   * and label lists split on commas, so the `key:` label is a lossy slug. */
   key: string;
   /** The task id in the asset's own project — the ref the commit, annotation
    * and watch window all quote. */
   beadId: string;
   /**
-   * `bd`'s richer statuses collapse to two: in_progress, blocked and deferred
+   * A task's richer statuses collapse to two: in_progress, blocked and deferred
    * are all ways of the work not having landed yet. `closed` records a task
    * decision, not proof of shipment or outcome; nothing rendering this may
    * treat a closed task as a resolved finding.
@@ -1636,12 +1636,12 @@ export interface AssetDetailPayload {
    * saw them, matched by `key` like `decisions`. null is not an empty list:
    * `[]` means the poller looked and nobody has filed anything; `null` means
    * it could not look (no snapshot, the asset is not a project in
-   * `config/beads.json`, `bd` failed, or the snapshot predates the field). A
+   * `config/beads.json`, Ntasks could not answer, or the snapshot predates the field). A
    * card must never turn "could not ask the register" into "nothing filed".
    */
-  handoffBeads: HandoffBead[] | null;
+  handoffTasks: HandoffBead[] | null;
   /** The asset's human-action posture from the same task snapshot that
-   * supplied `handoffBeads` and `panelReview`. Tasks are coordination state,
+   * supplied `handoffTasks` and `panelReview`. Tasks are coordination state,
    * not asset signals; this slice never feeds health or growth derivations. */
   operator: AssetOperatorPosture;
   /** What changed on this asset, newest first, plus a count of older rows the

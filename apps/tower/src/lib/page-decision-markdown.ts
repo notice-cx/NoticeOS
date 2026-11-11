@@ -191,7 +191,7 @@ const LANE_IMPERATIVE: Record<PageDecisionLane, string> = {
   wait: "Hold",
 };
 
-/** `bd` priority, 0 highest. Acting and protecting are both time-sensitive: one
+/** Task priority, 0 highest. Acting and protecting are both time-sensitive: one
  * is losable ground, the other is holdable ground. */
 const LANE_PRIORITY: Record<PageDecisionLane, number> = {
   act: 1,

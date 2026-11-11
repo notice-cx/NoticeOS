@@ -7,12 +7,12 @@ import type { TaskSourceView } from "@/hooks/useTaskSource";
 export const TASK_SOURCE_KEY = ["task-source"] as const;
 
 export const taskSourceMock: { connected: TaskSourceId | null; settled: boolean } = {
-  connected: "beads",
+  connected: "snapshots",
   settled: true,
 };
 
 export function resetTaskSourceMock(): void {
-  taskSourceMock.connected = "beads";
+  taskSourceMock.connected = "snapshots";
   taskSourceMock.settled = true;
 }
 

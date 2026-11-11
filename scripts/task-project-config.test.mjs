@@ -3,9 +3,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { beadsDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
-import { parseBeadsProjects } from './runner/task-hub.mjs';
-import { runBeadsPoll } from './runner/task-snapshot.mjs';
+import { taskDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
+import { parseTaskProjects } from './runner/task-hub.mjs';
+import { runTaskPoll } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 let fixtureRoot;
@@ -49,7 +49,7 @@ test('stored membership wins over exported map while repository paths come only 
   const config = options({ spokes: [current], hub: { host: 'untrusted.example' } }, { repoRoot, readHost: undefined });
   const projects = await readTaskProjects(config);
   assert.deepEqual(projects, [{ ...current, repo: '../linked-checkout' }]);
-  assert.deepEqual(parseBeadsProjects(await readTaskProjectConfig(config)), projects);
+  assert.deepEqual(parseTaskProjects(await readTaskProjectConfig(config)), projects);
   assert.equal(JSON.stringify(projects).includes('untrusted'), false);
 });
 
@@ -79,7 +79,7 @@ test('empty membership stays empty; unavailable or invalid configuration never f
 test('the runner files the acknowledged map, each project from its Ntasks project and one with none as an error', async () => {
   const posted = [];
   const map = options({ spokes: [old, current] });
-  await runBeadsPoll({ running: true, ready: true }, {
+  await runTaskPoll({ running: true, ready: true }, {
     taskService: ntasks([current.prefix]), cacheDir: taskCache(), readConfig: () => readTaskProjectConfig(map), readToken: async () => 'op',
     post: async (_url, init) => { posted.push(JSON.parse(init.body)); return { ok: true }; },
     state: { skipping: null }, stopped: () => false, emit: () => {}, now: () => Date.parse('2026-09-09T12:00:00Z'),
@@ -96,7 +96,7 @@ test('physical backup inventory remains available without the workspace store an
   assert.equal(active.length, 1);
   assert.equal(local.repositories.length, 2);
   const brokenCheckout = await readTaskHost({ readHost: async () => JSON.stringify({ repositories: [old, { ...current, repo: null }, { database: 'bad;sql' }] }) });
-  assert.deepEqual(brokenCheckout.repositories.map((row) => beadsDatabaseName(row?.database)), ['old', 'cur', null]);
+  assert.deepEqual(brokenCheckout.repositories.map((row) => taskDatabaseName(row?.database)), ['old', 'cur', null]);
   await assert.rejects(readTaskHost({ readHost: async () => JSON.stringify({ repositories: null }) }));
 });
 
@@ -106,11 +106,11 @@ test('an acknowledged empty map clears the board; an unreadable map never clears
     post: async (_url, init) => { posted.push(JSON.parse(init.body)); return { ok: true }; },
     state: { skipping: null }, stopped: () => false, emit: () => {},
   };
-  await runBeadsPoll({ running: true, ready: true }, { ...deps, readConfig: () => readTaskProjectConfig(options({ spokes: [] })) });
+  await runTaskPoll({ running: true, ready: true }, { ...deps, readConfig: () => readTaskProjectConfig(options({ spokes: [] })) });
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].projects, []);
   for (const readConfig of [async () => { throw new Error('store unavailable'); }, async () => '{}', async () => JSON.stringify({ spokes: [{}] })]) {
-    await runBeadsPoll({ running: true, ready: true }, { ...deps, readConfig });
+    await runTaskPoll({ running: true, ready: true }, { ...deps, readConfig });
   }
   assert.equal(posted.length, 1);
 });
@@ -124,5 +124,5 @@ test('pending readbacks report a configuration outage without claiming projects 
   assert.deepEqual(result.posted, []);
   assert.match(result.failed[0], /configuration unavailable: store unavailable/);
   assert.match(emitted[0], /configuration unavailable/);
-  assert.doesNotMatch(result.failed[0], /no beads spoke/);
+  assert.doesNotMatch(result.failed[0], /no task project/);
 });

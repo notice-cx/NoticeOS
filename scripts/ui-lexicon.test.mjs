@@ -107,7 +107,6 @@ const ALLOWED_PHRASES = [
   //    labels, kept verbatim by doc 14's owner-chip row.
   'config/beads.json',
   'config/beads.README.md',
-  "'beads/'", // The actual backup-set directory, displayed as code beside Task databases.
   'config/changesets',
   // 2. STORED, WIRE AND DOM VALUES. Renaming one is a data migration or a
   //    broken link, not a copy change.
@@ -137,13 +136,6 @@ const ALLOWED_PHRASES = [
   // 4. SEARCH ALIASES in the command palette's `keywords`, which are matched
   //    against and never rendered: an operator who knows the old word should
   //    still find the page.
-  '"beads", "todo"',
-  // The task source's id, declared once (apps/tower/shared/task-source.ts):
-  // a key and a wire value, never a label.
-  'BEADS = "beads"',
-  // …and its NAME on the Integrations row: the product a stranger installs,
-  // as a provider row names Bing (doc 14, "Beads (a task source)").
-  'name: "Beads"',
   '"knobs", "preferences"',
   // 5. WALL METRIC TILES: individual figures/charts within whole sections,
   //    a separate editable object defined in doc 14's Lexicon.

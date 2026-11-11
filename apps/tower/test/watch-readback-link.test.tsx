@@ -27,7 +27,7 @@ function show(watch: WatchWindowItem) {
     <MemoryRouter initialEntries={["/activity"]}>
       <Routes>
         <Route path="/activity" element={
-          <WatchesStrip watches={{ open: [], closed: [watch], history: [] }} beads={[]} />
+          <WatchesStrip watches={{ open: [], closed: [watch], history: [] }} handoffs={[]} />
         } />
         <Route path="/tasks/task-a2.1" element={<h1>Recorded readback task</h1>} />
       </Routes>

@@ -528,7 +528,7 @@ export function everyTabPayload(): AssetDetailPayload {
       currency: "USD",
     },
     decisions: [],
-    handoffBeads: [],
+    handoffTasks: [],
     operator: {
       capturedAt: "2026-07-05T11:59:00.000Z",
       waiting: 0,

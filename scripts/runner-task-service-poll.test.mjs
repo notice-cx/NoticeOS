@@ -4,10 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { backupTaskHub, boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, NO_TASK_SERVICE, readFeed, readLabelled, syncTaskService, taskServiceCheck } from './runner/task-service-poll.mjs';
-import { runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runTaskPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
-import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
+import { summarizeTaskProject } from './task-snapshot-summary.mjs';
 import { labelKey, readCached, readSyncState } from './task-service-cache.mjs';
 import { TaskServiceUnavailable } from './task-service.mjs';
 
@@ -67,7 +67,7 @@ const boardReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks
 const labelReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && call.includes('label='));
 
 test('a board reads as the bd lists the snapshot summary was written for', () => {
-  const entry = summarizeBeadsProject(SPOKES[0], boardResults(BOARD, CLOSES));
+  const entry = summarizeTaskProject(SPOKES[0], boardResults(BOARD, CLOSES));
   assert.equal(entry.ok, true);
   assert.deepEqual(entry.ready.map((row) => row.id), ['ex-1', 'ex-4']);
   assert.deepEqual(entry.blocked.map((row) => row.id), ['ex-2']);
@@ -126,16 +126,16 @@ test('the snapshot lane files the Ntasks snapshot, and nothing while Ntasks does
   const posted = [], lines = [];
   const deps = { taskService: service, cacheDir: dir, // A site with tasks in Ntasks has no checkout link on this host.
     readConfig: async () => JSON.stringify({ spokes: [{ ...SPOKES[0], database: 'ex', repo: '', unavailableReason: 'example.com has no matching task connection on this host' }] }),
-    readToken: async () => 'operator-token', url: 'http://door.test/api/beads-snapshot',
+    readToken: async () => 'operator-token', url: 'http://door.test/api/task-snapshot',
     post: async (_url, init) => { posted.push(JSON.parse(init.body)); return { ok: true, status: 201, text: async () => '' }; },
     now: () => Date.parse('2026-11-06T12:00:00.000Z'), state: { skipping: null }, emit: (level, text) => lines.push(`${level} ${text}`), stopped: () => false };
-  const body = await runBeadsPoll({ running: true, ready: true }, deps);
+  const body = await runTaskPoll({ running: true, ready: true }, deps);
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].projects.map((entry) => [entry.asset, entry.ok]), [['example.com', true]]);
   assert.equal(body.projects[0].counts.ready, 2);
 
   state.down = true;
-  assert.equal(await runBeadsPoll({ running: true, ready: true }, deps), null);
+  assert.equal(await runTaskPoll({ running: true, ready: true }, deps), null);
   assert.equal(posted.length, 1, 'nothing is filed while Ntasks does not answer');
   assert.match(lines.at(-1), /Ntasks did not answer \(network\)/u);
 });
@@ -169,9 +169,9 @@ for (const [name, service, reason] of [
     const lines = [], posted = [], asked = [];
     const never = () => { throw new Error('must not run'); };
     const emit = (_level, text) => lines.push(text);
-    const snapshot = await runBeadsPoll({ running: true, ready: true }, { taskService: service, cacheDir: dir,
+    const snapshot = await runTaskPoll({ running: true, ready: true }, { taskService: service, cacheDir: dir,
       readConfig: async () => JSON.stringify({ spokes: [SPOKES[0]] }), readToken: async () => 'operator-token',
-      url: 'http://door.test/api/beads-snapshot', post: async () => { posted.push(1); return { ok: true, status: 201, text: async () => '' }; },
+      url: 'http://door.test/api/task-snapshot', post: async () => { posted.push(1); return { ok: true, status: 201, text: async () => '' }; },
       state: { skipping: null }, emit, stopped: () => false });
     assert.equal(snapshot, null);
     assert.deepEqual(posted, [], 'no task snapshot is filed');

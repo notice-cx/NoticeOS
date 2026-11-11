@@ -266,7 +266,7 @@ export async function setupHostedDemo(input) {
         }
         const history = demoTaskHistory(seed, scenario);
         for (const snapshot of history) {
-            const written = await helpers.writeBeadsSnapshot(watch.capability, snapshot, Date.parse(snapshot.capturedAt));
+            const written = await helpers.writeTaskSnapshot(watch.capability, snapshot, Date.parse(snapshot.capturedAt));
             if (!written.ok)
                 refuse();
         }

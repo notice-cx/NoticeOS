@@ -176,10 +176,10 @@ pnpm project:prepare -- --repo /absolute/project-checkout --check
 pnpm project:prepare -- --repo /absolute/project-checkout --write
 ```
 
-It prepares local repository files only (task instructions, a freeze
-register, Git exclusions, a shared lock for an existing `.beads/`); it never
-initializes a database, changes credentials, saves settings or calls a
-service, and refuses tracked task state or conflicting instruction blocks.
+It writes the task instructions block into the project's `AGENTS.md`, and into
+`CLAUDE.md` when one exists; it never initializes a database, changes
+credentials, saves settings or calls a service, and refuses a project that
+tracks `.beads` files or holds conflicting instruction blocks.
 
 # The runner (`os-up`)
 
@@ -469,11 +469,11 @@ runs no task database. The runner's task lanes, each a module under
 connected. With none connected, or while the ingest has not said whether one
 is, each lane records a skip and reads or changes nothing:
 
-- **The snapshot poller** (every minute, `beadsPollCron`) reads Ntasks's change
-  feed and the boards it names, and files one `POST /api/beads-snapshot`
+- **The snapshot poller** (every minute, `taskPollCron`) reads Ntasks's change
+  feed and the boards it names, and files one `POST /api/task-snapshot`
   through the ingest door
   ([how the snapshot stays current](../docs/guides/keep-tasks-in-ntasks.md#how-the-snapshot-stays-current)).
-- **Task service health** (`beadsHubCheckCron`) records whether a task service
+- **Task service health** (`taskServiceCheckCron`) records whether a task service
   is connected.
 
 ### The panel-review filer

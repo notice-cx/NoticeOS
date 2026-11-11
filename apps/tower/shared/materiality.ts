@@ -230,7 +230,7 @@ export const ASSET_PAYLOAD_INVENTORY = {
   ledger: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "FinancialsTab → AssetLedger" },
   osTimeZone: { class: "configuration", placement: "derived-only", destination: "FinancialsTab daily revenue window end" },
   decisions: { class: "supporting-evidence", placement: "primary-content", destination: "Executive decisions" },
-  handoffBeads: { class: "supporting-evidence", placement: "primary-content", destination: "Handoff badges" },
+  handoffTasks: { class: "supporting-evidence", placement: "primary-content", destination: "Handoff badges" },
   operator: { class: "material-current", placement: "primary-content", destination: "OverviewTab / NeedsYou preview linking to task details and Tasks" },
   annotations: { class: "history", placement: "primary-content", destination: "ActivityTab / Timeline" },
   watches: { class: "material-current", placement: "primary-content", destination: "ActivityTab / WatchesStrip" },

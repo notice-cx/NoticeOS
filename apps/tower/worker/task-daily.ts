@@ -1,5 +1,5 @@
 // The one reader of `noticeos.task_daily_counts`, the rollup behind the Tasks
-// strip's trend. `./beads-snapshot` reads the present and is pruned within a
+// strip's trend. `./task-snapshot` reads the present and is pruned within a
 // week; these rows are the only record of a past day, since the hub keeps no
 // history of its own counts.
 
@@ -17,7 +17,7 @@ type DailyRow = {
   closedIds: string | null;
 };
 
-export interface BeadsDailyHistory {
+export interface TaskDailyHistory {
   /** One entry per project the rollup holds days for. A project with no rows is
    * simply absent — the payload gives it an empty history. */
   byProject: Map<string, WorkCountsHistory>;
@@ -44,7 +44,7 @@ function closedCount(stored: string | null): number | null {
  * `since` on. A null count is a day missing from that one series, never a
  * zero: a zero would draw a queue that emptied on the day nobody looked.
  */
-export async function loadBeadsDailyHistory(store: WorkspaceStore, { since }: { since?: string } = {}): Promise<BeadsDailyHistory> {
+export async function loadTaskDailyHistory(store: WorkspaceStore, { since }: { since?: string } = {}): Promise<TaskDailyHistory> {
   const rows = await store.read((tx) =>
     tx.query<DailyRow>(
       `SELECT project AS asset,

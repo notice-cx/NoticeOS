@@ -2052,7 +2052,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
   await expect(row).toHaveAttribute("data-integration-status", "working");
-  // Connect the beads task source: its project saved and the runner's first
+  // Connect the task snapshot source: its project saved and the runner's first
   // snapshot filed. The task screens below appear.
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
 

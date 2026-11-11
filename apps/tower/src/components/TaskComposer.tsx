@@ -62,7 +62,7 @@ export const filedTaskPath = taskPath;
 
 const FIELD = cn(fieldClass, "w-full py-1.5");
 
-/** The types `bd create -t` accepts. */
+/** The task types the composer files. */
 const TASK_TYPES = ["task", "bug", "feature", "chore"] as const;
 
 /** What a handoff's `noticeos_kind` is, in the operator's words. The composer
@@ -386,8 +386,8 @@ export function TaskComposer({
       next.title = "A task needs a title somebody could read cold.";
     }
     const cleanParent = parent.trim();
-    // A parent from another project is one `bd` cannot resolve, and the
-    // refusal would arrive as a shell error rather than as a field.
+    // A parent from another project is one the task service refuses, and the
+    // refusal would arrive as a server error rather than as a field.
     if (cleanParent && spoke && !cleanParent.startsWith(`${spoke.prefix}-`)) {
       next.parent = `An epic in ${spoke.asset} starts with \`${spoke.prefix}-\`.`;
     }
@@ -428,7 +428,7 @@ export function TaskComposer({
       onFiled?.(created);
       onClose();
     } catch (err) {
-      // The lane returns `bd`'s own stderr; showing it beats a generic failure,
+      // The lane returns Ntasks's own error message; showing it beats a generic failure,
       // because what an operator does next depends on whether the hub is down
       // or the parent id was wrong.
       setErrors({ form: fileFailureMessage(err) });
@@ -1007,7 +1007,7 @@ export function TaskComposer({
   );
 }
 
-/** The lane hands `bd`'s own stderr back, and that sentence is more useful
+/** The lane hands Ntasks's own error message back, and that sentence is more useful
  * than any wording invented here. */
 function fileFailureMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;

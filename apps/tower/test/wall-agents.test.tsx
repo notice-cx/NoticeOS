@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { WallAgents } from "@/components/wall/WallAgents";
 import { wallAgentsOf } from "../worker/wall-payload";
-import type { BeadsSnapshot, SnapshotProject } from "../worker/beads-snapshot";
+import type { TaskSnapshot, SnapshotProject } from "../worker/task-snapshot";
 
 const project = (over: Partial<SnapshotProject>): SnapshotProject => ({
   asset: "example.com", prefix: "ex", ok: true, error: null,
@@ -15,7 +15,7 @@ const project = (over: Partial<SnapshotProject>): SnapshotProject => ({
 // closes summed across projects, the leader first.
 describe("wallAgentsOf", () => {
   it("sums agents across projects and leaves people out", () => {
-    const snapshot: BeadsSnapshot = { capturedAt: "2026-10-16T12:00:00.000Z", projects: [
+    const snapshot: TaskSnapshot = { capturedAt: "2026-10-16T12:00:00.000Z", projects: [
       project({ workers: [{ id: "claude", model: "Opus 5.5", closedRecent: 6, inProgress: 1 }, { id: "Mara", model: null, closedRecent: 5, inProgress: 2 }] }),
       project({ asset: "b.example.com", workers: [{ id: "claude", model: "Opus 5.5", closedRecent: 4, inProgress: 0 }, { id: "codex", model: "GPT-5-Codex", closedRecent: 3, inProgress: 1 }] }),
       project({ asset: "c.example.com", ok: false, workers: [{ id: "claude", model: "Opus 5.5", closedRecent: 99, inProgress: 0 }] }),
@@ -27,7 +27,7 @@ describe("wallAgentsOf", () => {
   });
 
   it("counts every spelling of one agent and of one model as one standing", () => {
-    const snapshot: BeadsSnapshot = { capturedAt: "2026-10-16T12:00:00.000Z", projects: [
+    const snapshot: TaskSnapshot = { capturedAt: "2026-10-16T12:00:00.000Z", projects: [
       project({ workers: [
         { id: "claude", model: "claude-opus-5-5", closedRecent: 4, inProgress: 1 },
         { id: "claude/fable-lead", model: "Claude Opus 5.5", closedRecent: 2, inProgress: 0 },

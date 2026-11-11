@@ -29,7 +29,7 @@ export interface BoardTask extends WorkItem {
   labels: string[];
   /** Work classification for filters; stored status remains available to detail views. */
   workStatus?: string;
-  /** Claimable now — `bd ready`'s blocker-aware answer, never re-derived. */
+  /** Claimable now — Ntasks's blocker-aware ready answer, never re-derived. */
   ready: boolean;
   awaitType: string | null;
   /** What the live read says the task asks for; the photograph carries
@@ -81,8 +81,8 @@ export interface BoardProject {
   totals: { waiting: number; tasks: number };
 }
 
-/** A gate is the wait condition in front of a task, not a task — `bd` titles
- * every one of them "Gate: human" and holds work out of the claimable queue
+/** A gate is the wait condition in front of a task, not a task — a human gate
+ * is titled "Gate: human" and holds work out of the claimable queue
  * until it is resolved. The photograph marks one with `issueType`; the live read
  * marks it with `awaitType`, so both are read — and a row from the photograph
  * alone (Home's Waiting on you, a site's Needs you) carries no `awaitType`. */
@@ -92,8 +92,8 @@ export function isGate(task: Pick<WorkItem, "issueType"> & { awaitType?: string 
 
 /**
  * What the operator's inbox asks of a task, or null when it is not waiting on
- * the operator: a human gate is approved (`bd gate resolve`), a ready task
- * labelled `human` is answered or dismissed (`bd human respond` / `dismiss`),
+ * the operator: a human gate is approved (the resolve operation), a ready task
+ * labelled `human` is answered or dismissed (the respond and dismiss operations),
  * and one that carries choices nobody has picked yet is chosen (the choose
  * operation), with Answer and Dismiss still offered. The board's Waiting on
  * you, a task's own page and the agents' task tools all read the one rule,
@@ -367,7 +367,7 @@ function boardTotals(projects: BoardProject[]): {
   };
 }
 
-/** P0..P4, clamped — `bd` will hand back a priority outside the five bands and
+/** P0..P4, clamped — a task can carry a priority outside the five bands, and
  * a row must still land in exactly one of them. */
 function clampBand(priority: number): number {
   return Math.min(Math.max(Math.trunc(priority), 0), 4);

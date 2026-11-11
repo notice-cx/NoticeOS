@@ -12,7 +12,7 @@ import { parseOsTimeZone } from "../../packages/contract/src/time-zone-setting";
 import { portfolioReviewAssetIds, noNightlyReportAssets } from "../../packages/contract/src/configuration.mjs";
 import { readProductEnv } from "../../scripts/product-env.mjs";
 import { applyResourceNames, readResourceNames } from "../../scripts/resource-names.mjs";
-import beadsJson from "../../config/beads.json";
+import taskProjectsJson from "../../config/beads.json";
 import constantsJson from "../../config/constants.json";
 import countersJson from "../../config/counters.json";
 import integrationsJson from "../../config/integrations.json";
@@ -133,7 +133,7 @@ const entities = (entitiesJson as { entities?: unknown[] }).entities ?? [];
 
 // A project's local fields cross only while `vite` is serving: a deployed
 // bundle carries the logical project map alone.
-const beadsSpokes = (beadsJson as { spokes?: unknown[] }).spokes ?? [];
+const taskProjectSpokes = (taskProjectsJson as { spokes?: unknown[] }).spokes ?? [];
 
 // This cap covers metered data collection; briefing inference is separate.
 const monthlyCaps = {
@@ -317,8 +317,8 @@ export default defineConfig(({ command }) => {
     __GA4_EVENT_PARAMS__: JSON.stringify(ga4EventParams),
     __RECURRING_COSTS__: JSON.stringify(recurringCosts),
     __ENTITIES__: JSON.stringify(entities),
-    __BEADS__: JSON.stringify({
-      spokes: command === "serve" ? beadsSpokes : logicalTaskProjects(beadsSpokes),
+    __TASK_PROJECTS__: JSON.stringify({
+      spokes: command === "serve" ? taskProjectSpokes : logicalTaskProjects(taskProjectSpokes),
       local: serverProfile === "standalone" && command === "serve",
     }),
     // A build substitutes `false` and the bundler drops the whole runner

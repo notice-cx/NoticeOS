@@ -158,7 +158,7 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
         : null, onStart });
     },
     onReady: () => {
-      fireFirstBeadsPoll(runtime, lanes);
+      fireFirstTaskPoll(runtime, lanes);
       // An initially unavailable store must delay recovery, not discard it.
       // Do not await recovery: refreshes must still observe pauses while it runs.
       void runStartupCatchups(runtime, records, crons, lanes).catch((error) => {
@@ -337,7 +337,7 @@ async function runStartupCatchups(runtime, records, configuredCrons, lanes, nowM
  * the board a minute stale after every restart. If ingest has not come up by
  * the time the regular tick would have covered it anyway, this gives up
  * silently — it is an optimization, not a second scheduler. */
-function fireFirstBeadsPoll(runtime, lanes) {
+function fireFirstTaskPoll(runtime, lanes) {
   const deadline = Date.now() + CONFIG.readyGraceMs * 2;
   const timer = setInterval(() => {
     if (isShuttingDown() || Date.now() > deadline) {
@@ -349,7 +349,7 @@ function fireFirstBeadsPoll(runtime, lanes) {
     if (!scheduledJobRunner?.current('beads-snapshot')?.enabled) return;
     clearInterval(timer);
     oneShotTimers.delete(timer);
-    // Through the same lane wrapper as the scheduled poll: this IS the beads
+    // Through the same lane wrapper as the scheduled poll: this IS the task
     // snapshot lane firing, and a record that skipped the first one after every
     // restart would understate how often it runs.
     void scheduledJobRunner.runOnce('beads-snapshot');

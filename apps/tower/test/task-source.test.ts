@@ -9,8 +9,8 @@ import {
 } from "../shared/task-source";
 import { TASK_PROJECTS_PATH } from "../shared/tasks";
 import {
-  beadsConnected,
-  beadsTaskSource,
+  snapshotConnected,
+  snapshotTaskSource,
   buildTaskBoard,
   buildTaskSourcePayload,
   readTaskSources,
@@ -21,7 +21,7 @@ import { addSites } from "./sites";
 import { seedSnapshot, workCounts, workProject } from "./panel-fixtures";
 
 // The task source seam: "Connected" is derived from the source's own reading,
-// never stored; the Beads hub is the first adapter and wraps the runner's
+// never stored; the snapshot source is the first adapter and wraps the runner's
 // snapshot unchanged.
 
 const CAPTURED = "2026-09-06T11:59:30.000Z";
@@ -50,55 +50,55 @@ afterEach(() => ctx.close());
 
 describe("when a task source is connected", () => {
   it("is not connected on a fresh install: no snapshot has ever been filed", async () => {
-    expect(await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 0 } })).toEqual({
+    expect(await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 0 } })).toEqual({
       connected: null,
-      sources: [{ id: "beads", connected: false, projects: 0, readAt: null, failing: 0 }],
+      sources: [{ id: "snapshots", connected: false, projects: 0, readAt: null, failing: 0 }],
     });
   });
 
   it("is not connected while the runner reads no project — the empty snapshot a fresh install files", async () => {
     await seedSnapshot(ctx, CAPTURED, []);
-    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 0 } });
+    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 0 } });
     expect(payload.connected).toBeNull();
-    expect(beadsConnected({ capturedAt: CAPTURED, projects: [] })).toBe(false);
+    expect(snapshotConnected({ capturedAt: CAPTURED, projects: [] })).toBe(false);
   });
 
   it("is being set up, not connected, when a project is saved and the runner has not read it yet", async () => {
     await seedSnapshot(ctx, CAPTURED, []);
-    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 1 } });
+    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 1 } });
     expect(payload.connected).toBeNull();
     expect(taskSourceConnection(payload.sources[0]!, NOW.getTime())).toBe("collecting");
   });
 
   it("is connected once the runner's newest snapshot reads a task project", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
-    expect(await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 2 } })).toEqual({
-      connected: "beads",
-      sources: [{ id: "beads", connected: true, projects: 2, readAt: CAPTURED, failing: 0 }],
+    expect(await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 2 } })).toEqual({
+      connected: "snapshots",
+      sources: [{ id: "snapshots", connected: true, projects: 2, readAt: CAPTURED, failing: 0 }],
     });
   });
 
   it("stays connected when a project cannot be read, so the failure shows where the tasks are", async () => {
     await seedSnapshot(ctx, CAPTURED, [workProject({ asset: "example.com", prefix: "ex", ok: false, error: "bd ready exited 1" })]);
-    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 1 } });
-    expect(payload.connected).toBe("beads");
+    const payload = await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 1 } });
+    expect(payload.connected).toBe("snapshots");
     expect(taskSourceConnection(payload.sources[0]!, NOW.getTime())).toBe("failing");
   });
 
   it("disconnects when the last project is removed: the runner files an empty snapshot over the old one", async () => {
     await seedSnapshot(ctx, "2026-09-06T11:58:30.000Z", connectedProjects());
     await seedSnapshot(ctx, CAPTURED, []);
-    expect((await buildTaskSourcePayload({ store: ctx.call, savedProjects: { beads: 0 } })).connected).toBeNull();
+    expect((await buildTaskSourcePayload({ store: ctx.call, savedProjects: { snapshots: 0 } })).connected).toBeNull();
   });
 });
 
-describe("the beads adapter wraps today's snapshot unchanged", () => {
+describe("the snapshot adapter wraps today's snapshot unchanged", () => {
   it("keeps configured archive identities with no snapshot and suppresses archived read failures", async () => {
     await addSites(ctx, [{ id: "example.com", displayName: "Archived", status: "retired", senseOnly: 0 }]);
     const context = { store: ctx.call, projects: [{ asset: "example.com", prefix: "ex" }] };
     expect((await buildTaskBoard(context, NOW)).archivedProjects).toEqual(context.projects);
     await seedSnapshot(ctx, CAPTURED, [workProject({ asset: "example.com", prefix: "ex", ok: false, error: "Unavailable" })]);
-    const reading = await beadsTaskSource.read(context);
+    const reading = await snapshotTaskSource.read(context);
     expect(reading.status).toMatchObject({ connected: true, projects: 0, failing: 0 });
     expect(reading.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 0 });
   });
@@ -106,21 +106,21 @@ describe("the beads adapter wraps today's snapshot unchanged", () => {
   it("removes archived inbox contributions while preserving connection status", async () => {
     await addSites(ctx, [{ id: "example.com", displayName: "Archived", status: "retired", senseOnly: 0 }]);
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
-    const reading = await beadsTaskSource.read({ store: ctx.call });
+    const reading = await snapshotTaskSource.read({ store: ctx.call });
     expect(reading.status.connected).toBe(true);
     expect(reading.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 1, measuredProjects: 1 });
     expect(reading.inbox("example.com").items).toEqual([]);
     expect((await reading.board(NOW)).projects.map(row => row.asset)).toEqual(["shop.example.com"]);
     await ctx.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired'", []));
     await seedSnapshot(ctx, "2026-09-06T11:59:45.000Z", [connectedProjects()[0]!]);
-    const empty = await beadsTaskSource.read({ store: ctx.call });
+    const empty = await snapshotTaskSource.read({ store: ctx.call });
     expect(empty.status.connected).toBe(true);
     expect(empty.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 0 });
   });
 
   it("answers the board, Needs attention and an asset's inbox from one reading", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
-    const reading = await beadsTaskSource.read({ store: ctx.call });
+    const reading = await snapshotTaskSource.read({ store: ctx.call });
     expect(reading.status.connected).toBe(true);
     expect(await reading.board(NOW)).toEqual(await buildWorkPayload(ctx.call, { now: NOW }));
     expect(reading.needsYou()).toEqual({
@@ -147,14 +147,14 @@ describe("the beads adapter wraps today's snapshot unchanged", () => {
   it("reads the registered source and identifies it when connected", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const { readings, connected } = await readTaskSources({ store: ctx.call });
-    expect(readings.map((reading) => reading.status.id)).toEqual(["beads"]);
-    expect(connected?.status.id).toBe("beads");
+    expect(readings.map((reading) => reading.status.id)).toEqual(["snapshots"]);
+    expect(connected?.status.id).toBe("snapshots");
   });
 });
 
 describe("the core task hub reading", () => {
   const status = (overrides: Partial<TaskSourceStatus>): TaskSourceStatus => ({
-    id: "beads", connected: true, projects: 2, readAt: CAPTURED, failing: 0, ...overrides,
+    id: "snapshots", connected: true, projects: 2, readAt: CAPTURED, failing: 0, ...overrides,
   });
   const now = NOW.getTime();
 
@@ -169,7 +169,7 @@ describe("the core task hub reading", () => {
   });
 
   it("keeps core project management on the existing Settings surface", () => {
-    expect(TASK_SOURCES.beads.setupPath).toBe(TASK_PROJECTS_PATH);
+    expect(TASK_SOURCES.snapshots.setupPath).toBe(TASK_PROJECTS_PATH);
     expect(TASK_SOURCES_PATH).toBe(TASK_PROJECTS_PATH);
   });
 });
@@ -177,7 +177,7 @@ describe("the core task hub reading", () => {
 describe("reading a /api/task-source reply", () => {
   it("reads the actual connection without controlling core navigation", () => {
     expect(connectedTaskSource({ connected: null, sources: [] })).toBeNull();
-    expect(connectedTaskSource({ connected: "beads", sources: [] })).toBe("beads");
+    expect(connectedTaskSource({ connected: "snapshots", sources: [] })).toBe("snapshots");
   });
 
   it("does not invent a connection from a reply it cannot read", () => {

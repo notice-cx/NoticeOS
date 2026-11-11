@@ -2,13 +2,13 @@ import { env } from 'cloudflare:test';
 import { javascriptInstant } from '@noticeos/postgres';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  BEADS_CLOSED_LIMIT,
-  BEADS_DAILY_RETENTION_DAYS,
+  TASK_DAILY_CLOSED_LIMIT,
+  TASK_DAILY_RETENTION_DAYS,
   closedOn,
   mergeClosedIds,
   readSnapshotProjects,
-} from '../src/beads-daily.js';
-import { BEADS_SNAPSHOT_RETENTION_DAYS, type BeadsSnapshotInput, writeBeadsSnapshot } from '../src/beads-snapshots.js';
+} from '../src/task-daily.js';
+import { TASK_SNAPSHOT_RETENTION_DAYS, type BeadsSnapshotInput, writeTaskSnapshot } from '../src/task-snapshots.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { asOwner, call, emptyTables, reset, storedCount } from './helpers.js';
 
@@ -69,7 +69,7 @@ function project(overrides: Record<string, unknown> = {}) {
 
 async function post(body: unknown) {
   return call(
-    new Request('https://ingest.local/api/beads-snapshot', {
+    new Request('https://ingest.local/api/task-snapshot', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -129,10 +129,10 @@ describe('daily rollup fixture clock', () => {
       expect(dayOf(early)).toBe(dayOf(late));
       expect(Date.parse(early)).toBeLessThan(Date.parse(late));
       expect(Date.parse(late)).toBeLessThan(nowMs);
-      expect(Date.parse(early)).toBeGreaterThan(nowMs - BEADS_DAILY_RETENTION_DAYS * DAY_MS);
+      expect(Date.parse(early)).toBeGreaterThan(nowMs - TASK_DAILY_RETENTION_DAYS * DAY_MS);
     }
     expect(Date.parse(tick(0, 'T08:00:00.000Z', nowMs))).toBeGreaterThan(
-      nowMs - BEADS_SNAPSHOT_RETENTION_DAYS * DAY_MS,
+      nowMs - TASK_SNAPSHOT_RETENTION_DAYS * DAY_MS,
     );
   });
 });
@@ -234,7 +234,7 @@ describe('the daily rollup — one row per project per day', () => {
 describe('the daily rollup — what closed that day', () => {
   it('counts CLOSINGS across the day, not the length of the capped list', async () => {
     const at = (hour: string) => tick(0, `T${hour}:00:00.000Z`);
-    // Nine beads close over the day. Every capture can carry at most five, so
+    // Nine tasks close over the day. Every capture can carry at most five, so
     // any single capture bucketed by day would report five at most.
     const closes = Array.from({ length: 9 }, (_unused, index) => `md-c${index}`);
     for (let index = 0; index < closes.length; index++) {
@@ -256,7 +256,7 @@ describe('the daily rollup — what closed that day', () => {
     expect(stored).toHaveLength(1);
     expect(JSON.parse(stored[0]!.closed_ids!).sort()).toEqual([...closes].sort());
     expect(JSON.parse(stored[0]!.closed_ids!)).toHaveLength(9);
-    expect(BEADS_CLOSED_LIMIT).toBe(5);
+    expect(TASK_DAILY_CLOSED_LIMIT).toBe(5);
   });
 
   it('counts only the closings dated that day', async () => {
@@ -286,7 +286,7 @@ describe('the daily rollup — what closed that day', () => {
     // that the union across the day's captures is the answer.
     const day = '2026-09-01';
     const capped = project({
-      recentlyClosed: Array.from({ length: BEADS_CLOSED_LIMIT }, (_unused, index) =>
+      recentlyClosed: Array.from({ length: TASK_DAILY_CLOSED_LIMIT }, (_unused, index) =>
         closedIssue(`md-${index}`, `${day}T0${index}:00:00.000Z`),
       ),
     }) as unknown as Parameters<typeof closedOn>[0];
@@ -391,7 +391,7 @@ describe('the daily rollup — first run and retention', () => {
     await post({ capturedAt: tick(0), projects: [project()] });
 
     expect((await rows()).map((row) => row.day)).not.toContain('2020-01-01');
-    expect(BEADS_DAILY_RETENTION_DAYS).toBe(400);
+    expect(TASK_DAILY_RETENTION_DAYS).toBe(400);
   });
 });
 
@@ -402,7 +402,7 @@ describe('the daily rollup — one unit of work with its photograph', () => {
     await asOwner(`CREATE FUNCTION noticeos.refuse_task_day() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture rejection'; END $$;
 CREATE TRIGGER refuse_task_day BEFORE INSERT ON noticeos.task_daily_counts FOR EACH ROW EXECUTE FUNCTION noticeos.refuse_task_day();`);
     try {
-      await expect(writeBeadsSnapshot(env, { capturedAt: tick(0), projects: [project()] } as BeadsSnapshotInput)).rejects.toThrow();
+      await expect(writeTaskSnapshot(env, { capturedAt: tick(0), projects: [project()] } as BeadsSnapshotInput)).rejects.toThrow();
       expect(await rows()).toEqual([]);
       expect(await storedCount('SELECT count(*)::int AS n FROM noticeos.task_snapshots')).toBe(0);
     } finally {

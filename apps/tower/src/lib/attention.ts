@@ -38,7 +38,7 @@ export function kindLabel(item: AttentionItem): string {
  *
  * The key is `flags.id`, not the rule id: a rule fires repeatedly on one site,
  * and only the flag id names the firing on screen. `rule:` carries the
- * `rule_id`, so `bd list -l rule:watch-window-closed` still gathers the family.
+ * `rule_id`, so a label filter on `rule:watch-window-closed` still gathers the family.
  *
  * The TITLE is the TRANSLATED headline — what happened in plain words with its
  * magnitude — never the rule's stored `message`, the statistics line the desk

@@ -114,7 +114,7 @@ interface PageDecision {
 export function PageDecisions({
   pages,
   asset,
-  handoffBeads = null,
+  handoffTasks = null,
   annotations = null,
   collapsed = false,
   statedState = null,
@@ -123,7 +123,7 @@ export function PageDecisions({
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
   /** What the task hub holds for this asset. `null` means it could not be
    * asked and renders no stronger claim than an empty result can support. */
-  handoffBeads?: HandoffBead[] | null;
+  handoffTasks?: HandoffBead[] | null;
   /** The asset's change timeline: a release inside the comparison window is
    * the first likely cause of a click move. `null` names no release. */
   annotations?: AnnotationTimeline | null;
@@ -136,7 +136,7 @@ export function PageDecisions({
 }) {
   const assess = useRecommendationAssessor();
   const filed = new Map(
-    (handoffBeads ?? [])
+    (handoffTasks ?? [])
       .filter((entry) => entry.kind === "page")
       .map((entry) => [entry.key, entry]),
   );

@@ -15,7 +15,7 @@ describe("the core task hub status", () => {
     [{ connected: true, projects: 1, readAt: "2026-09-12T11:50:00Z", failing: 0 }, "overdue", "Stale"],
     [{ connected: true, projects: 1, readAt: "2026-09-12T11:59:30Z", failing: 1 }, "failing", "Unavailable"],
   ] satisfies [Omit<TaskSourceStatus, "id">, string, string][])("uses actual hub evidence: %j", (status, kind, label) => {
-    render(<TaskSourceRows payload={{ connected: status.connected ? "beads" : null, sources: [{ id: "beads", ...status }] }} nowMs={NOW} />);
+    render(<TaskSourceRows payload={{ connected: status.connected ? "snapshots" : null, sources: [{ id: "snapshots", ...status }] }} nowMs={NOW} />);
     expect(document.querySelector("[data-task-hub-state]")).toHaveAttribute("data-task-hub-state", kind);
     expect(screen.getByText(label)).toBeVisible();
     expect(screen.getByText(`${status.projects} ${status.projects === 1 ? "project" : "projects"}`)).toBeVisible();
@@ -24,7 +24,7 @@ describe("the core task hub status", () => {
   });
 
   it("exposes partial failures beside the available core hub", () => {
-    render(<TaskSourceRows payload={{ connected: "beads", sources: [{ id: "beads", connected: true, projects: 2, readAt: "2026-09-12T11:59:30Z", failing: 1 }] }} nowMs={NOW} />);
+    render(<TaskSourceRows payload={{ connected: "snapshots", sources: [{ id: "snapshots", connected: true, projects: 2, readAt: "2026-09-12T11:59:30Z", failing: 1 }] }} nowMs={NOW} />);
     expect(screen.getByText("Available")).toBeVisible();
     expect(screen.getByText("1 unavailable")).toBeVisible();
   });

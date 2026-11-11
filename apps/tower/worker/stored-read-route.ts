@@ -169,7 +169,7 @@ export async function handleStoredRead(request: Request, {
     if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET" } });
     const cfg = await config();
     try {
-      const payload = await buildTaskSourcePayload({ store, savedProjects: { beads: cfg.beads.spokes.length }, projects: cfg.beads.spokes });
+      const payload = await buildTaskSourcePayload({ store, savedProjects: { snapshots: cfg.beads.spokes.length }, projects: cfg.beads.spokes });
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -181,7 +181,7 @@ export async function handleStoredRead(request: Request, {
   }
 
   // The task board (desk-only), through the connected task source: for the
-  // beads hub, the newest snapshot the local runner filed. An installation
+  // snapshot source, the newest snapshot the local runner filed. An installation
   // with no task source connected gets an empty board.
   if (url.pathname === "/api/work") {
     try {

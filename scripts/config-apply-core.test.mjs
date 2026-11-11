@@ -1006,7 +1006,7 @@ const VALUE_EVENTS = { assets: { 'meadow.example': { valueEvents: ['sign_up', 'a
 // `SIGNAL_PANELS` and `SERP_PANEL` are declared at the top of this file: they
 // are the same two files a whole-asset add/remove touches, and the same two an
 // operator edits row by row.
-const BEADS = {
+const TASK_PROJECTS_DOC = {
   hub: { host: '127.0.0.1' },
   spokes: [{ asset: 'root-os', prefix: 'ro', database: 'ro', repo: '.' }],
 };
@@ -1705,7 +1705,7 @@ test('a roster row is left alone when nothing can answer about its lanes', async
 });
 
 test('the task-hub spokes are a register, and the hub itself is not', async () => {
-  const root = await tempRepo({ 'config/beads.json': BEADS });
+  const root = await tempRepo({ 'config/beads.json': TASK_PROJECTS_DOC });
   const spoke = { asset: 'northwind.example', prefix: 'nw', database: 'nw', repo: '../nw' };
   const cs = changeset([
     { kind: 'file-json-insert', file: 'config/beads.json', pointer: '/spokes/-', value: spoke },

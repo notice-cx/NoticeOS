@@ -107,7 +107,7 @@ export function SearchTab({
           <QueryVisibilityRankings
             trends={data.executive?.searchQueries ?? null}
             asset={data.asset}
-            handoffBeads={data.handoffBeads}
+            handoffTasks={data.handoffTasks}
             onWatch={onWatch}
             statedState={statedState}
             collapsed
@@ -118,7 +118,7 @@ export function SearchTab({
           <PageDecisions
             pages={data.executive?.searchPages ?? null}
             asset={data.asset}
-            handoffBeads={data.handoffBeads}
+            handoffTasks={data.handoffTasks}
             annotations={data.annotations}
             statedState={statedState}
             collapsed

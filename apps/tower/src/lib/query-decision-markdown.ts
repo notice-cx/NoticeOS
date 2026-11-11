@@ -103,8 +103,8 @@ export function queryDecisionMarkdown({
 /**
  * The task this decision becomes in the asset's own repo. `null` when the row
  * carries no usable key: an unkeyed row still hands off its evidence, it just
- * cannot name the task the work files under. Exported because the copied `bd
- * create` and the row's File task button file the same task.
+ * cannot name the task the work files under. Exported because the copied MCP
+ * instructions and the row's File task button file the same task.
  */
 export function queryTaskHandoff({
   row,
@@ -141,7 +141,7 @@ const LANE_IMPERATIVE: Record<QueryDecisionLane, string> = {
   wait: "Hold",
 };
 
-/** `bd` priority, 0 highest. Acting and protecting are both time-sensitive:
+/** Task priority, 0 highest. Acting and protecting are both time-sensitive:
  * one is losable ground, the other is holdable ground. */
 const LANE_PRIORITY: Record<QueryDecisionLane, number> = {
   act: 1,

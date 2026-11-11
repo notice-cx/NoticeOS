@@ -44,7 +44,7 @@ async function checkout(t, { defaults = {}, installed = {} } = {}) {
 // The real files' shapes, example-named.
 const PULL = [{ asset: 'shop.example', url: 'https://shop.example/api/internal/metrics', enabled: true, format: 'prometheus', metrics: { signups: { counter: 'profiles' } } }];
 const HOST = { repositories: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop.example', database: 'shop' }] };
-const BEADS = { spokes: [{ asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' }] };
+const TASK_PROJECTS_DOC = { spokes: [{ asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' }] };
 
 test('the folder is installation/ in the checkout unless the variable moves it', () => {
   const root = '/srv/noticeos';
@@ -94,7 +94,7 @@ test('the host\'s repository links come from the installation, and a fresh clone
 
 test('the runner resolves the stored task projects against the installation\'s links', async (t) => {
   const home = await checkout(t, { defaults: { 'task-host.json': { repositories: [] } }, installed: { 'task-host.json': HOST } });
-  const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 3, body: BEADS }] });
+  const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 3, body: TASK_PROJECTS_DOC }] });
   const connected = await readTaskProjects({ repoRoot: home, env: {}, token: 'op', fetchImpl: store });
   assert.deepEqual(connected, [
     { asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' },
@@ -114,7 +114,7 @@ test('a folder pnpm db:try-tower made, with no inventory at all, links no checko
   assert.deepEqual(await readTaskHost({ repoRoot: started, absentLinksNone: true }), { repositories: [] });
   // The managed host's backup reads a lost inventory as lost, not as empty.
   await assert.rejects(readTaskHost({ repoRoot: started }), { code: 'ENOENT' });
-  const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 1, body: BEADS }] });
+  const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 1, body: TASK_PROJECTS_DOC }] });
   const [project] = await readTaskProjects({ repoRoot: started, token: 'op', fetchImpl: store });
   assert.match(project.unavailableReason, /no matching task connection on this host/);
   // A file that is there but broken still fails.

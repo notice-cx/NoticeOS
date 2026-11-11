@@ -8,15 +8,15 @@ import { WORK_POLL_CADENCE_HOURS } from "./work";
 
 /** The task snapshots the runner files from Ntasks. An id, never a label: what a person reads is
  * `TASK_SOURCES[id].name`. */
-export const BEADS = "beads" as const;
+export const TASK_SNAPSHOTS = "snapshots" as const;
 
 /** The core hub adapters whose health this Tower can read. */
-export const TASK_SOURCE_IDS = [BEADS] as const;
+export const TASK_SOURCE_IDS = [TASK_SNAPSHOTS] as const;
 export type TaskSourceId = (typeof TASK_SOURCE_IDS)[number];
 
 /** The hub name and its existing project management surface. */
 export const TASK_SOURCES: Readonly<Record<TaskSourceId, { name: string; setupPath: string }>> = {
-  beads: { name: "Beads", setupPath: TASK_PROJECTS_PATH },
+  snapshots: { name: "Ntasks", setupPath: TASK_PROJECTS_PATH },
 };
 
 /**

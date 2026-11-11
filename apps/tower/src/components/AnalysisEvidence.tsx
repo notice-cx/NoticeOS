@@ -16,13 +16,13 @@ const EvidenceContext = createContext<{ context: RecommendationContext; nowMs: n
 /** All asset recommendation surfaces read one request-scoped snapshot; the
  * tabs that show recommendations mount it. Callers without it stay unverified. */
 export function RecommendationEvidenceProvider({ data, nowMs, children }: {
-  data: Pick<AssetDetailPayload, "executive" | "recommendationEvidence" | "handoffBeads" | "operator" | "decisions" | "annotations">;
+  data: Pick<AssetDetailPayload, "executive" | "recommendationEvidence" | "handoffTasks" | "operator" | "decisions" | "annotations">;
   nowMs: number;
   children: ReactNode;
 }) {
   const context: RecommendationContext = {
     generatedAt: data.executive?.generatedAt ?? null, sources: data.recommendationEvidence ?? null,
-    handoffs: data.handoffBeads, taskSnapshotAt: data.operator.capturedAt,
+    handoffs: data.handoffTasks, taskSnapshotAt: data.operator.capturedAt,
     decisions: data.decisions, annotations: data.annotations,
   };
   return <EvidenceContext.Provider value={{ context, nowMs }}>{children}</EvidenceContext.Provider>;

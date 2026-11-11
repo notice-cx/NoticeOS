@@ -480,7 +480,7 @@ export interface WorkSummary {
   blocked: number;
   /** Closed inside the poller's trailing-week window — momentum, not queue. */
   closedRecent: number;
-  /** Open work per `bd` priority band, P0..P4; index is the priority. null
+  /** Open work per priority band, P0..P4; index is the priority. null
    * when the snapshot did not carry one, and the card then draws nothing. */
   priorities: number[] | null;
   /** When the poller photographed the hub; the widget ages itself against the
@@ -929,7 +929,7 @@ export interface AttentionItem {
   firstFiredAt: string;
   /** Tasks filed from this condition's flag numbers in the latest hub snapshot.
    * Absent when the project or this snapshot field could not be read. */
-  handoffBeads?: import('./asset-detail').HandoffBead[];
+  handoffTasks?: import('./asset-detail').HandoffBead[];
   verification?: SignalVerification;
   /** The assets this row stands for, when one fact is true of several at once.
    * Absent on every ordinary row and on a group of one. Surfaces read the

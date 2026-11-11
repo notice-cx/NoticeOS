@@ -14,7 +14,7 @@ import { persistReport } from './mediavine.js';
 import { persistStripeDays } from './stripe.js';
 import { dates, pacificDay, shiftDate } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
-import { writeBeadsSnapshot } from './beads-snapshots.js';
+import { writeTaskSnapshot } from './task-snapshots.js';
 import { runWatchWindows, type WatchWindowEvaluation } from './watch-windows.js';
 import { writeAnnotation } from './annotations.js';
 import { writeWatchWindow } from './routes/watch-windows.js';
@@ -179,7 +179,7 @@ export async function writeDemoOutcomeChecks(store: WorkspaceStore, at: string):
 }
 
 export async function writeDemoTaskSnapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }> {
-  const result = await writeBeadsSnapshot({ STORE: store }, snapshot);
+  const result = await writeTaskSnapshot({ STORE: store }, snapshot);
   if (!result.ok) throw new Error('Synthetic task summary rejected by the ordinary writer.');
   return { written: result.unchanged ? 0 : 1 };
 }

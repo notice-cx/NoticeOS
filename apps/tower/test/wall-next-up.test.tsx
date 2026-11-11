@@ -11,7 +11,7 @@ import { DEFAULT_WALL_LAYOUT, WALL_WIDGET_LIBRARY, type WallLayout } from "@shar
 import { WallCanvas } from "@/components/WallCanvas";
 import { NextUp, decisionLine, decisionsFigure, workingLine } from "@/components/wall/NextUp";
 import { wallLibraryOptions } from "@/lib/wall-editor";
-import type { SnapshotProject } from "../worker/beads-snapshot";
+import type { SnapshotProject } from "../worker/task-snapshot";
 import { wallNextUpOf } from "../worker/wall-payload";
 
 const NOW = Date.parse("2026-10-21T12:00:00.000Z");

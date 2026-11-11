@@ -383,7 +383,7 @@ const ingestHttp = Object.freeze({
     '/api/reclamation-targets': ['GET', 'POST'], '/api/watch-windows': ['POST'],
     '/api/watch-readbacks': ['GET', 'POST'], '/api/credentials/rotate-key': ['POST'],
     '/api/config-documents': ['GET'], '/api/config-documents/seed': ['POST'], '/api/config-documents/apply': ['POST'],
-    '/api/beads-snapshot': ['POST'], '/api/job-runs': ['GET', 'POST'], '/api/insight-snapshot': ['POST'],
+    '/api/task-snapshot': ['POST'], '/api/job-runs': ['GET', 'POST'], '/api/insight-snapshot': ['POST'],
     '/api/asset-state': ['GET', 'POST'], '/api/signal-collect': ['POST'], '/api/bing-ai-export': ['POST'],
     '/api/research-log/lookup': ['POST'], '/api/research-log': ['POST'], '/api/provider-spend': ['GET'],
     '/api/serp-panel-landings': ['GET'], '/api/panel-source': ['GET'], '/api/signal-archives': ['GET'],

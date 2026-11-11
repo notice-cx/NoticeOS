@@ -188,7 +188,7 @@ function TimelineSection({
           {composing === "event" ? (
             <AnnotationComposer
               assetId={data.asset.id}
-              beads={data.handoffBeads}
+              handoffs={data.handoffTasks}
               onDone={() => setComposing(null)}
             />
           ) : (
@@ -231,7 +231,7 @@ function TimelineSection({
               <TimelineRow
                 key={item.id}
                 item={item}
-                beads={data.handoffBeads}
+                handoffs={data.handoffTasks}
                 nowMs={nowMs}
               />
             ))}
@@ -253,7 +253,7 @@ function TimelineSection({
 
       {/* The strip is its own `ListPanel`, so it needs no `Panel` around it to
           carry a heading. */}
-      <WatchesStrip watches={data.watches} beads={data.handoffBeads} />
+      <WatchesStrip watches={data.watches} handoffs={data.handoffTasks} />
     </>
   );
 }
@@ -296,11 +296,11 @@ const KIND_TONE: Partial<Record<AnnotationKind, ListRowTone>> = {
  * inside `ListRow`'s tone ring. */
 function TimelineRow({
   item,
-  beads,
+  handoffs,
   nowMs,
 }: {
   item: AssetDetailPayload["annotations"]["items"][number];
-  beads: HandoffBead[] | null;
+  handoffs: HandoffBead[] | null;
   nowMs: number;
 }) {
   const meta = ANNOTATION_KIND[item.kind];
@@ -309,7 +309,7 @@ function TimelineRow({
   // row's identity and the field Restore reads. The ref is machine text, so
   // the row renders the sentence instead of it.
   const move = parseLifecycleMoveRef(item.ref);
-  const task = item.ref ? (beads ?? []).find((b) => b.beadId === item.ref) : undefined;
+  const task = item.ref ? (handoffs ?? []).find((b) => b.beadId === item.ref) : undefined;
   // A move with no note IS the row's headline (below), so it is not repeated
   // as the row's evidence — and its machine ref is never shown.
   const evidence = (item.note ? move : null) ?? task ?? (move ? null : item.ref);
@@ -394,13 +394,13 @@ const ANNOTATION_KIND_OPTIONS: { value: AnnotationKind; label: string }[] = [
  */
 function AnnotationComposer({
   assetId,
-  beads,
+  handoffs,
   onDone,
 }: {
   assetId: string;
   /** Tasks filed against this asset, or null when the register could not be
    * asked. Both render the same: no chooser. */
-  beads: HandoffBead[] | null;
+  handoffs: HandoffBead[] | null;
   onDone: () => void;
 }) {
   const toast = useOwnerToast();
@@ -418,7 +418,7 @@ function AnnotationComposer({
   // One entry per task id: a task filed from two surfaces appears twice in the
   // slice.
   const tasks = [
-    ...new Map((beads ?? []).map((bead) => [bead.beadId, bead])).values(),
+    ...new Map((handoffs ?? []).map((bead) => [bead.beadId, bead])).values(),
   ];
 
   async function save() {

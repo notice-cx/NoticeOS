@@ -1,6 +1,6 @@
 // `/api/tasks/*` and `/api/gates/*` in a deployed Tower. Locally the Node task
 // lane (apps/tower/vite/task-lane.ts, `enforce: "pre"`) answers these first
-// because it can run `bd`; this runtime cannot, so it serves the read-only
+// because it can reach the connected Ntasks; this runtime cannot, so it serves the read-only
 // `/api/work` snapshot and a state code the Tower draws as a Read-only chip.
 
 import { JSON_HEADERS, jsonError } from "./http";

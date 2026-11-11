@@ -7,7 +7,7 @@ import { WallCanvas } from "@/components/WallCanvas";
 import { IncidentList } from "@/components/viz/IncidentList";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
 import { incidentsFromIssues } from "@/lib/viz-adapters";
-import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
+import { loadLatestTaskSnapshot } from "../worker/task-snapshot";
 import { wallAttentionTasksOf } from "../worker/wall-payload";
 import { WALL_FIXTURE_NOW, wallFixturePayload } from "../e2e/wall-fixture";
 import { render } from "./render";
@@ -47,7 +47,7 @@ describe("stored attention reaches the Wall beside Home's canonical problems", (
       { id: "ex-urgent", title: "Repair the unavailable page", priority: 0, status: "blocked", issueType: "task", decision: false },
     ] } }] };
     const store = { read: async (run: (transaction: { query: () => Promise<unknown[]> }) => Promise<unknown>) => run({ query: async () => [{ captured_at: WALL_FIXTURE_NOW, payload: JSON.stringify(raw) }] }) } as unknown as WorkspaceStore;
-    payload.attentionTasks = wallAttentionTasksOf(await loadLatestBeadsSnapshot(store));
+    payload.attentionTasks = wallAttentionTasksOf(await loadLatestTaskSnapshot(store));
     const issues = portfolioIssues({ assets: payload.assets, attention: payload.attention, system: payload.system, connections: NO_READS, nowMs });
     expect(issues.some(issue => issue.assets.includes(hidden.id))).toBe(true);
     const layout: WallLayout = { version: 1, rows: [{ id: "attention", height: "auto", widgets: [{ id: "needs", type: "needs", width: 1, ...(assets ? { settings: { assets } } : {}) }] }] };

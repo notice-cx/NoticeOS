@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { PullConfigEntry } from "../worker/asset-config";
 import {
-  BEADS_OWNER,
+  TASK_PROJECTS_OWNER,
   PULL_OWNER,
   buildSettingsPayload,
   type SettingsDeps,
@@ -198,7 +198,7 @@ describe("buildSettingsPayload", () => {
 
   it("carries the task-hub projects, their owner file and the connection", () => {
     const { taskHub } = buildSettingsPayload(deps());
-    expect(taskHub.owner).toBe(BEADS_OWNER);
+    expect(taskHub.owner).toBe(TASK_PROJECTS_OWNER);
     expect(taskHub.spokes).toEqual([
       { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
       { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },

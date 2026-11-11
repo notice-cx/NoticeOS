@@ -29,7 +29,7 @@ const WORKSPACE_NAME = "Journey Example";
 const SCOPES = ["tasks:read", "tasks:write", "tasks:decide"];
 const SERVICE_REFUSAL = "Only a person signed in to Ntasks decides; a service credential never does.";
 
-/** A task row as the harness keeps it, in `bd`'s shape. */
+/** A task row as the harness keeps it, in the snapshot summary's snake_case shape. */
 export interface FixtureRow {
   id: string;
   title: string;

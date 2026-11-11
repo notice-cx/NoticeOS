@@ -1,5 +1,5 @@
 import { CalendarDays, ListTodo, Plug } from "lucide-react";
-import { BEADS } from "@shared/task-source";
+import { TASK_SNAPSHOTS } from "@shared/task-source";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ export function IntegrationLogo({
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const showLogo = source !== undefined && source !== failedSource;
   // The task hub wears the Tasks glyph the sidebar uses.
-  const Icon = provider === "calendar" ? CalendarDays : provider === BEADS ? ListTodo : Plug;
+  const Icon = provider === "calendar" ? CalendarDays : provider === TASK_SNAPSHOTS ? ListTodo : Plug;
   return (
     <span
       aria-hidden

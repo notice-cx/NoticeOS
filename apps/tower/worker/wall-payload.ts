@@ -15,8 +15,8 @@ import { isAttentionEligible } from "../shared/signal-liveness";
 import type { PullConfigEntry, SerpPanelConfig } from "./asset-config";
 import { loadDataForSeoSpend } from "./metered-spend";
 import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
-import { alertHandoffsOf, type BeadsSnapshot, loadLatestBeadsSnapshot, type SnapshotProject } from "./beads-snapshot";
-import { beadsReading } from "./task-source";
+import { alertHandoffsOf, type TaskSnapshot, loadLatestTaskSnapshot, type SnapshotProject } from "./task-snapshot";
+import { snapshotReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
 import { readBackupLastGoodAt, readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
@@ -234,14 +234,14 @@ async function readChangesForAlerts(
 
 /**
  * Each asset's open work, keyed by asset id, from the same newest snapshot the
- * Tasks page reads (`./beads-snapshot`). A project the poller could not read
+ * Tasks page reads (`./task-snapshot`). A project the poller could not read
  * (`ok: false`) is absent, not zeroed, and an asset with no entry never lands
  * in the map; both become `work: null` on the card. There is no path here
  * that produces a zero the store did not observe. A count the poller did not
  * measure travels as null and is dropped one chip at a time rather than
  * costing the asset its whole widget.
  */
-export function cardWorkOf(snapshot: BeadsSnapshot | null, weeks: ReadonlyMap<string, WorkWeeks> = new Map()): Map<string, WorkSummary> {
+export function cardWorkOf(snapshot: TaskSnapshot | null, weeks: ReadonlyMap<string, WorkWeeks> = new Map()): Map<string, WorkSummary> {
   const out = new Map<string, WorkSummary>();
   if (!snapshot) return out;
   for (const project of snapshot.projects) {
@@ -266,7 +266,7 @@ export function cardWorkOf(snapshot: BeadsSnapshot | null, weeks: ReadonlyMap<st
  * model's closes and held work summed across the projects read, every
  * spelling of one agent and of one model as one standing. Null until a
  * worker has named a model. */
-export function wallAgentsOf(snapshot: BeadsSnapshot | null): WallAgents | null {
+export function wallAgentsOf(snapshot: TaskSnapshot | null): WallAgents | null {
   if (!snapshot) return null;
   const rows = snapshot.projects.filter((project) => project.ok).flatMap((project) => project.workers ?? []);
   const agents = new Set(rows.filter((row) => row.model !== null).map((row) => actorKey(row.id)));
@@ -338,7 +338,7 @@ function holdsOf(project: SnapshotProject, decision: WorkItem): number | null {
  * already most-blocking first, so the projects are merged by their heads and
  * no project's own order is changed.
  */
-export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNextUp | null {
+export function wallNextUpOf(snapshot: TaskSnapshot | null, now: Date): WallNextUp | null {
   if (!snapshot) return null;
   const nowMs = now.getTime();
   const read = snapshot.projects.filter((project) => project.ok);
@@ -394,7 +394,7 @@ export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNex
 
 /** Complete attention rows come from the snapshot's uncapped derivation.
  * Older snapshots retain their known rows without claiming full coverage. */
-export function wallAttentionTasksOf(snapshot: BeadsSnapshot | null): WallAttentionTasks {
+export function wallAttentionTasksOf(snapshot: TaskSnapshot | null): WallAttentionTasks {
   const items: WallAttentionTasks['items'] = [];
   let measuredProjects = 0;
   const ids = new Set<string>();
@@ -661,9 +661,9 @@ export async function buildWallPayload(
 
   // One task-hub snapshot feeds every site's work, its panel review and the
   // task source's one reading (`./task-source`).
-  const tasks = beadsReading(store, await loadLatestBeadsSnapshot(store), undefined, osTimeZone, sites);
-  const beadsSnapshot = tasks.snapshot;
-  const workByAsset = cardWorkOf(beadsSnapshot, await loadWorkWeeks(store, beadsSnapshot, now, osTimeZone));
+  const tasks = snapshotReading(store, await loadLatestTaskSnapshot(store), undefined, osTimeZone, sites);
+  const taskSnapshot = tasks.snapshot;
+  const workByAsset = cardWorkOf(taskSnapshot, await loadWorkWeeks(store, taskSnapshot, now, osTimeZone));
 
   // --- system: what the strip's one state and Home's System tile read -------
   // The metered data cap alone.
@@ -758,7 +758,7 @@ export async function buildWallPayload(
   // unknown counts, never an exact zero.
   const operator = tasks.needsYou();
   const panelReviewByAsset = cardPanelReviewsOf(
-    beadsSnapshot,
+    taskSnapshot,
     panelAssetIds,
   );
   const panelLandingByAsset = await loadLatestPanelLandings(
@@ -880,7 +880,7 @@ export async function buildWallPayload(
         ),
         occurrences,
         firstFiredAt,
-        handoffBeads: alertHandoffsOf(beadsSnapshot, newest.asset, firings.map((flag) => flag.id)),
+        handoffTasks: alertHandoffsOf(taskSnapshot, newest.asset, firings.map((flag) => flag.id)),
         verification,
         ...readingsOf(attentionReadings, newest.id),
       }),
@@ -947,9 +947,9 @@ export async function buildWallPayload(
     attention,
     snoozed,
     operator,
-    agents: wallAgentsOf(beadsSnapshot),
-    next: wallNextUpOf(beadsSnapshot, now),
-    attentionTasks: wallAttentionTasksOf(beadsSnapshot),
+    agents: wallAgentsOf(taskSnapshot),
+    next: wallNextUpOf(taskSnapshot, now),
+    attentionTasks: wallAttentionTasksOf(taskSnapshot),
     ledgerRecordedAt: ledger?.ts ? javascriptInstant(ledger.ts) : null,
   };
 }

@@ -865,7 +865,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     );
   }
 
-  /** The runner's task snapshot, as `runBeadsPoll` files it: one entry per
+  /** The runner's task snapshot, as `runTaskPoll` files it: one entry per
    * saved task project, and an empty one when none is saved, which preserves
    * the core snapshot's actual project availability. */
   function publishTasks() {
@@ -876,7 +876,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     const open = tasks.filter((task) => task.status === "open");
     // Only the operator's own asks wait on the operator; a filed task does not.
     const waiting = open.filter((task) => task.issue_type === "gate" || task.labels.includes("human"));
-    // A human gate is titled by its ask, as `runBeadsPoll` titles it.
+    // A human gate is titled by its ask, as `runTaskPoll` titles it.
     const toItem = (task: ReturnType<typeof initialTasks>[number]) => ({ id: task.id,
       title: task.await_type === "human" ? gateTitle(task.title, task.description) : task.title,
       priority: task.priority, status: task.status, issueType: task.issue_type, updatedAt: JOURNEY_NOW });
@@ -1209,7 +1209,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         versions.set("config/beads.json", (versions.get("config/beads.json") ?? 0) + 1);
       }
       publishTasks();
-      response = Response.json({ connected: "beads", project: JOURNEY_TASK_PROJECT.asset });
+      response = Response.json({ connected: "snapshots", project: JOURNEY_TASK_PROJECT.asset });
     } else if (url.pathname === "/__journey/every-source" && request.method === "POST") {
       // Before creating the asset: Add a site then writes a cell for every
       // property data source, exactly as it does against a full catalog.
@@ -1529,7 +1529,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       }
       response = Response.json({ seeded: true, timeZone, today, reportingTimeZone, reportingToday, through, days });
     } else if (url.pathname === "/api/config" && request.method === "PUT" && await savesTaskProject(request)) {
-      // A task project saved (the connect panel's Beads, Settings → Task
+      // A task project saved (the connect panel's task row, Settings → Task
       // projects). The Worker refuses these, since a project belongs to the
       // machine its checkout is on, and a local Tower's own write lane takes
       // them, store first (vite/config-write-lane.ts). This is that lane's

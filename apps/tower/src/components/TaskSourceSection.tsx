@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 
 import {
   TASK_SOURCES_PATH,
-  BEADS,
+  TASK_SNAPSHOTS,
   taskSourceConnection,
   type TaskSourcePayload,
 } from "@shared/task-source";
@@ -47,7 +47,7 @@ export function TaskSourceSection() {
   const { data, isError } = useTaskSource();
   const now = useNow();
   return data ? <TaskSourceRows payload={data} nowMs={now} /> : (
-    <StateChip tone={isError ? "caution" : "na"} label={isError ? "Task database status unavailable" : "Checking task database"} subject={`tasks:${BEADS}`} />
+    <StateChip tone={isError ? "caution" : "na"} label={isError ? "Task database status unavailable" : "Checking task database"} subject={`tasks:${TASK_SNAPSHOTS}`} />
   );
 }
 

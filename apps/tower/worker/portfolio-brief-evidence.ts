@@ -231,7 +231,7 @@ export function buildPortfolioBriefEvidence(
   for (const alert of alerts) add(`alert:${alert.id}`, clip(alert.message), '/alerts', alert.firedAt, {
     asset: alert.asset, severity: alert.severity, kind: alert.kind, rule: alert.ruleId,
     firstFiredAt: alert.firstFiredAt, metric: alert.metric,
-    linkedTasks: alert.handoffBeads?.slice(0, 3).map(task => ({ id: task.beadId, status: task.status })) ?? null,
+    linkedTasks: alert.handoffTasks?.slice(0, 3).map(task => ({ id: task.beadId, status: task.status })) ?? null,
   });
   const readable = work.projects.filter(project => project.ok);
   const workFresh = work.capturedAt !== null && Date.parse(work.capturedAt) <= now.getTime() && !isAmber(now.getTime(), work.capturedAt, work.pollCadenceHours);

@@ -18,7 +18,7 @@ import { McpToolError } from './mcp-protocol.mjs';
 import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
 import { boardResults, LABEL_READS, readLabelled } from './runner/task-service-poll.mjs';
-import { BEADS_CLOSES_DAYS, beadsClosedSince, beadsClosesSince, summarizeBeadsProject } from './task-snapshot-summary.mjs';
+import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, summarizeTaskProject } from './task-snapshot-summary.mjs';
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from '../packages/contract/src/agent-stats.mjs';
 import type { BeadsProjectInput, BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { generateDemoScenario } from './demo-scenario.mjs';
@@ -324,11 +324,11 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }: { ntas
       const at = now();
       // The label reads go through the same call, so the step's signal stops them too.
       const service = { call: ({ method, path: read }: { method: 'GET'; path: string }) => ntasks.call(method, read, { signal }) };
-      const reach = { closedSince: beadsClosedSince(at), closesSince: beadsClosesSince(at) };
+      const reach = { closedSince: tasksClosedSince(at), closesSince: tasksClosesSince(at) };
       const entries: BeadsProjectInput[] = [];
       for (const project of projects) {
         const id = encodeURIComponent(project.projectId);
-        const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${BEADS_CLOSES_DAYS}`]
+        const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
           .map(at => ntasks.call('GET', at, { signal })));
         const labelled: Record<string, unknown[]> = {};
         for (const [read, labels] of Object.entries(LABEL_READS) as [string, readonly string[]][]) {
@@ -336,7 +336,7 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }: { ntas
           for (const label of labels) for (const task of await readLabelled(service, project.projectId, label) as Record<string, unknown>[]) found.set(String(task.id), task);
           labelled[read] = [...found.values()];
         }
-        entries.push(summarizeBeadsProject(project, boardResults({ tasks: rowsOf(board!), epics: record(board!.body)?.epics },
+        entries.push(summarizeTaskProject(project, boardResults({ tasks: rowsOf(board!), epics: record(board!.body)?.epics },
           { tasks: rowsOf(closes!) }, labelled), reach) as BeadsProjectInput);
       }
       return { capturedAt: new Date(at).toISOString(), projects: entries };

@@ -15,7 +15,7 @@ The pulse-ingest and ledger Worker, its collectors and its scheduled lanes
 | `POST /api/watch-windows` | Bearer, operator | Register a pre-registered outcome check — see [Watch windows](#watch-windows-pre-registered-outcome-checks). |
 | `POST /api/reclamation-targets` | Bearer, operator | A link-outreach campaign's target list, from `pnpm reclamation:import` ([scripts/README](../../scripts/README.md#reclamation-importmjs--load-an-outreach-campaign-into-the-store)): `{asset, targets}`, stored in one transaction. Each page is inserted once, a status only moves forward and a verification stamp only moves forward, so importing the same list twice changes nothing. |
 | `GET /api/reclamation-targets?asset=&open=1` | Bearer, operator | An asset's open targets (not won, skipped or dead), in the order they were stored, for `pnpm reclamation:open-targets`, which writes the reclamation-match rule's input: `{ok, asset, targets: [{domain, referringPage, replaceWith, status}]}`. `422` for an unknown asset; `409` when the asset holds more than one list may carry (5,000), never a partial answer. |
-| `POST /api/beads-snapshot` | Bearer, operator | One photograph of the beads task hub, filed once a minute by the local runner's poller and rendered by the Tower's read-only `/work` board. Keeps the newest row whole, older rows only what the Wall feed reads, and prunes past 2 days — see [Beads snapshots](#beads-snapshots-the-task-hub-photograph). |
+| `POST /api/task-snapshot` | Bearer, operator | One photograph of the installation's Ntasks projects, filed once a minute by the local runner's poller and rendered by the Tower's read-only `/work` board. Keeps the newest row whole, older rows only what the Wall feed reads, and prunes past 2 days — see [Task snapshots](#task-snapshots-the-task-hub-photograph). |
 | `POST /api/job-runs` | Bearer, operator | A batch of scheduled-lane firings from the local runner — the evidence asset #0's `cronRunSuccess` is derived from. Idempotent on `(job, startedAt)`, because a runner catching up after an outage re-sends what it cannot know the store already has — see [Job runs](#job-runs-proof-that-the-scheduled-lanes-fired). |
 | `POST /api/insight-snapshot` | Bearer, operator | Publish one reviewed executive snapshot into `noticeos.asset_insight_snapshots` — what `pnpm signals:publish-insights` writes and the Tower's asset page reads. Stored verbatim and content-addressed, so a re-publish is a `200 {created:false}` no-op — see [Insight snapshots](#insight-snapshots-the-executive-publish). |
 | `POST /api/asset-state` | Bearer, operator | Set one sanctioned column of one asset row — `status` or `sense_only`, the only two db/README lets anything edit. The `store-asset-set` op of a changeset the operator applies with `pnpm config:apply` — see [Asset state](#asset-state-the-two-editable-columns). |
@@ -79,7 +79,7 @@ only by the Control Tower.
 `401` unauthorized · `400` unparseable body · `413` a codebase report body over 256 KiB, refused before it is parsed · `409` a concurrent revenue upload
 lost the race to the ledger's unique index · `422` authenticated-but-invalid
 envelope (pulse, codebase report), no revenue row accepted at all, or a rejected field / unknown
-asset (annotations, watch windows, asset state), or a rejected field (beads
+asset (annotations, watch windows, asset state), or a rejected field (task
 snapshot), with per-issue / per-row detail ·
 `201` pulse or codebase report written (`{ok, reportNumber, reportDate, revision}` for a codebase report), annotation created, watch registered, snapshot stored ·
 `200` revenue processed (per-row results; partial success is a 200, and so is an
@@ -100,7 +100,7 @@ asset: another run already holds that asset's PostHog lease.
 
 The `422` issue shape — `{ path, code, message }` — is identical across every
 lane. The pulse and revenue routes get it from the contract package's Zod
-schemas; the annotation, watch, and beads-snapshot routes hand-roll the same
+schemas; the annotation, watch, and task snapshot routes hand-roll the same
 shape (`src/routes/validate.ts`), because zod is not a dependency of this Worker
 and the operator-facing error body must not vary per route.
 
@@ -546,9 +546,9 @@ auditable the same way every other fired rule is.
 for the same `(date, metric)`, so each date resolves to its **latest** run's
 value — a window read after a GSC revision sees the revised number.
 
-## Beads snapshots (the task hub photograph)
+## Task snapshots (the task hub photograph)
 
-`POST /api/beads-snapshot` is how the installation's task projects become
+`POST /api/task-snapshot` is how the installation's task projects become
 readable by a Worker. The tasks live in Ntasks (`config/beads.README.md`); the
 local runner (`scripts/os-up.mjs`) reads each project's boards from Ntasks once
 a minute and files what it saw here, and the Tower's read-only `/work` board
@@ -885,7 +885,7 @@ curl -sS -X POST http://127.0.0.1:8791/api/insight-snapshot \
   the exact payload written, and `id` is `insight:<asset>:<first 24 hex>`. So an
   identical re-publish is provably the same row: `201 {created:true}` the first
   time, `200 {created:false, duplicate:true}` after. Normalizing the payload (the
-  way the beads-snapshot lane deliberately does) would change the bytes the hash
+  way the task snapshot lane deliberately does) would change the bytes the hash
   names, and the id would stop meaning *this exact analysis output*.
 - **Validated, not interpreted.** `schemaVersion`, `asset`, a non-future
   `generatedAt`, the window pair (both bounds or neither, in order), a whole

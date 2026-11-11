@@ -16,7 +16,7 @@ import type { SeriesPointOrGap } from "./surface";
 export const WORK_OWNER = "config/beads.json";
 
 /** How many days that history keeps — a mirror of the writer's own
- * `BEADS_DAILY_RETENTION_DAYS` (`workers/ingest/src/beads-daily.ts`), where
+ * `TASK_DAILY_RETENTION_DAYS` (`workers/ingest/src/task-daily.ts`), where
  * it is enforced; move the two together. */
 export const WORK_HISTORY_RETENTION_DAYS = 400;
 
@@ -24,13 +24,13 @@ export const WORK_HISTORY_RETENTION_DAYS = 400;
  * segment — `Sparkline`'s own floor. */
 export const WORK_HISTORY_MIN_POINTS = 3;
 
-/** How often the runner photographs the hub (`beadsPollCron` in
+/** How often the runner photographs the hub (`taskPollCron` in
  * `scripts/runner/config.mjs`); the board ages `capturedAt` against it. Keep
  * in step with the runner's cron. */
 export const WORK_POLL_CADENCE_HOURS = 1 / 60;
 
 /** One link from a task to another, on the task that waits: the other task's
- * id and `bd`'s link type (`blocks`, `related`, … — `TASK_BLOCKING_DEPENDENCIES`
+ * id and its Ntasks link type (`blocks`, `related`, … — `TASK_BLOCKING_DEPENDENCIES`
  * names the ones that hold a task back). `status` is the other task's stored
  * status where the read held that task. */
 export interface WorkDependency {
@@ -39,19 +39,19 @@ export interface WorkDependency {
   status?: string | null;
 }
 
-/** One task, exactly as the board renders it. `bd`'s vocabulary, flattened
+/** One task, exactly as the board renders it. Ntasks's vocabulary, flattened
  * by the poller; the OS adds nothing and interprets nothing. */
 export interface WorkItem {
-  /** `<prefix>-<hash>` — the id an agent quotes to `bd`, so it renders verbatim. */
+  /** `<prefix>-<hash>` — the id an agent quotes to Ntasks, so it renders verbatim. */
   id: string;
   title: string;
-  /** `bd`'s stored status. Not an enum here on purpose: `bd` supports custom
-   * statuses, and the board must render one it has never seen rather than
+  /** The task's stored status. Not an enum here on purpose: a task service may
+   * add statuses, and the board must render one it has never seen rather than
    * crash on it. */
   status: string;
   /** P0–P4, 0 = highest. */
   priority: number;
-  /** task | bug | feature | chore | epic | … (`bd types`). */
+  /** task | bug | feature | chore | epic | …, as Ntasks stores it. */
   issueType: string;
   assignee: string | null;
   updatedAt: string | null;
@@ -98,9 +98,9 @@ export interface WorkCounts {
   /** P0+P1 across everything not closed — the only count here that cuts
    * across statuses. null = the poller that wrote this row did not measure
    * it, which is rendered as an omitted chip, never as zero (the skew rule in
-   * `workers/ingest/src/beads-snapshots.ts`). */
+   * `workers/ingest/src/task-snapshots.ts`). */
   highPriority: number | null;
-  /** Claimable now — `bd ready`'s blocker-aware answer. */
+  /** Claimable now — Ntasks's blocker-aware ready answer. */
   ready: number;
   /** Someone (or some agent) is on it. */
   inProgress: number;
@@ -157,13 +157,13 @@ export function emptyWorkHistory(): WorkCountsHistory {
 }
 
 /** One container task and what its children are doing — the board's grouping
- * row. `total`/`closed` are all-time (`bd epic status`): the snapshot's closed
+ * row. `total`/`closed` are all-time (the board's `epics`): the snapshot's closed
  * list is a trailing week, so a container finished last month would otherwise
  * read as 0% done. */
 export interface WorkEpic {
   id: string;
   title: string;
-  /** `bd`'s stored status for the container itself. */
+  /** The stored status of the container itself. */
   status: string;
   priority: number;
   total: number;
@@ -198,7 +198,7 @@ export interface WorkProject {
    * `history`. Absent when the store holds neither, or from a Worker older
    * than the reading. */
   weeks?: WorkWeeks;
-  /** Open work per `bd` priority band, P0..P4. null when the poller that
+  /** Open work per priority band, P0..P4. null when the poller that
    * wrote this row did not send one. */
   priorities: number[] | null;
   /** Container grouping. null = this snapshot cannot describe structure, and
@@ -265,7 +265,7 @@ export interface WorkPayload {
   historyDays: number;
 }
 
-/** The five `bd` priority bands, P0..P4, as the operator's own words. Index is
+/** The five priority bands, P0..P4, as the operator's own words. Index is
  * the priority; a distribution has to name every band it draws, which is why
  * this exists beside `priorityLabel`. */
 export const PRIORITY_BANDS = ["top", "high", "normal", "low", "lowest"] as const;

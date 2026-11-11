@@ -1,12 +1,12 @@
 // GET /api/work — the read-only task board. The Tower never talks to the hub;
-// it reads the newest task snapshot ingest filed (`./beads-snapshot`), the daily
-// rollup (`./beads-daily`) and the site names, and writes nothing.
+// it reads the newest task snapshot ingest filed (`./task-snapshot`), the daily
+// rollup (`./task-daily`) and the site names, and writes nothing.
 
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { readSites, type SiteRecord } from "./asset-registry";
-import { loadBeadsDailyHistory } from "./beads-daily";
-import { loadLatestBeadsSnapshot, scopeTaskSnapshot, type BeadsSnapshot } from "./beads-snapshot";
+import { loadTaskDailyHistory } from "./task-daily";
+import { loadLatestTaskSnapshot, scopeTaskSnapshot, type TaskSnapshot } from "./task-snapshot";
 import {
   WORK_OWNER,
   WORK_POLL_CADENCE_HOURS,
@@ -22,7 +22,7 @@ export interface WorkPayloadOptions {
   now: Date;
   /** The snapshot the caller already read (the task source seam reads it once
    * per request, `./task-source`); absent reads the newest one here. */
-  snapshot?: BeadsSnapshot | null;
+  snapshot?: TaskSnapshot | null;
   /** The registry already read by the task source for this request. */
   sites?: readonly SiteRecord[];
   /** Configured asset/prefix identities, including projects not yet sampled. */
@@ -38,16 +38,16 @@ const WEEKS_HISTORY_DAYS = 8;
 
 /** The closes a project's snapshot entry carries, by asset id: a project the
  * poller could not read has none. */
-function closesByAsset(snapshot: BeadsSnapshot | null): Map<string, WorkCloses> {
+function closesByAsset(snapshot: TaskSnapshot | null): Map<string, WorkCloses> {
   return new Map((snapshot?.projects ?? []).flatMap((project) => (project.ok && project.closes ? [[project.asset, { ...project.closes, observedAt: snapshot!.capturedAt }] as const] : [])));
 }
 
 /** Each project's week against the week before, keyed by asset id: done from
  * the snapshot's closes, the states from the daily rollup's last few days.
  * What the Wall's work tile reads. A project with neither is absent. */
-export async function loadWorkWeeks(store: WorkspaceStore, snapshot: BeadsSnapshot | null, now: Date, timeZone: string): Promise<Map<string, WorkWeeks>> {
+export async function loadWorkWeeks(store: WorkspaceStore, snapshot: TaskSnapshot | null, now: Date, timeZone: string): Promise<Map<string, WorkWeeks>> {
   const since = new Date(now.getTime() - WEEKS_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const history = await loadBeadsDailyHistory(store, { since });
+  const history = await loadTaskDailyHistory(store, { since });
   const closes = closesByAsset(snapshot);
   const assets = new Set([...history.byProject.keys(), ...closes.keys()]);
   return new Map([...assets].map((asset) => [asset, workWeeks(history.byProject.get(asset) ?? emptyWorkHistory(), closes.get(asset), now, timeZone)]));
@@ -60,10 +60,10 @@ export async function buildWorkPayload(
 ): Promise<WorkPayload> {
   const generatedAt = now.toISOString();
 
-  const stored = given === undefined ? await loadLatestBeadsSnapshot(store) : given;
+  const stored = given === undefined ? await loadLatestTaskSnapshot(store) : given;
   const sites = givenSites ?? await readSites(store);
   const { snapshot, archivedProjects } = scopeTaskSnapshot(stored, sites, configured);
-  const history = await loadBeadsDailyHistory(store);
+  const history = await loadTaskDailyHistory(store);
 
   if (!snapshot) {
     // No snapshot has ever been filed: a fully-formed payload with no projects,

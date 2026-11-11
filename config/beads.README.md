@@ -197,12 +197,12 @@ The list of kinds is **stated in five places that ship separately** — the
 emitter's `TaskHandoffKind`, the contract's `BEADS_HANDOFF_KINDS`
 (`packages/contract/src/task-snapshot.mts`, which the poller and the ingest
 validator both import), the Tower reader's `readHandoff`
-(`apps/tower/worker/beads-snapshot.ts`), the shared type `HandoffKind`
+(`apps/tower/worker/task-snapshot.ts`), the shared type `HandoffKind`
 (`apps/tower/shared/asset-detail.ts`), and **the table above** — so widen all
 five together; `scripts/handoff-kinds.test.mjs` reads every one and names the
 odd one out. At runtime an unknown kind costs its own
 row, the rest of the project stores, and the Worker logs one
-`beads_handoff_kind_unknown` line per snapshot.
+`task_handoff_kind_unknown` line per snapshot.
 
 The grammar has a reader as well as an emitter: the runner reads every task
 carrying a handoff label from Ntasks and carries `noticeos_key` /

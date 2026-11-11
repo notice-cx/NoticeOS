@@ -504,7 +504,7 @@ export function executiveInsightMarkdown(
 
 /**
  * The task this finding becomes, in the asset's own repo: the one description
- * both the copied Markdown (as a `bd create`) and the File task composer read.
+ * both the copied Markdown and the File task composer read.
  * `null` when the row cannot name a real repo or key (an older snapshot, or the
  * gallery), so neither surface files against nothing.
  *
@@ -538,7 +538,7 @@ export function findingTaskHandoff(
   };
 }
 
-/** `bd` priority, 0 highest. A warning is ground already being lost; an insight
+/** Task priority, 0 highest. A warning is ground already being lost; an insight
  * is context that earns a slot only once the louder kinds are clear. */
 const FINDING_PRIORITY: Record<ExecutiveInsightKind, number> = {
   warning: 1,

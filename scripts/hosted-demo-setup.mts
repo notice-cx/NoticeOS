@@ -225,7 +225,7 @@ export async function setupHostedDemo(input: HostedDemoSetupRequest): Promise<{ 
     } finally { fs.rmSync(tokenFile, { force: true }); fs.rmSync(backupFile, { force: true }); fs.rmSync(seedFile, { force: true }); }
     const history = demoTaskHistory(seed, scenario);
     for (const snapshot of history) {
-      const written = await helpers.writeBeadsSnapshot(watch.capability, snapshot, Date.parse(snapshot.capturedAt));
+      const written = await helpers.writeTaskSnapshot(watch.capability, snapshot, Date.parse(snapshot.capturedAt));
       if (!written.ok) refuse();
     }
     const projects = scenario.manifest.taskProjects.map(project => ({ ...project, projectId: seed.projects.find(row => row.prefix === project.prefix)!.id }));

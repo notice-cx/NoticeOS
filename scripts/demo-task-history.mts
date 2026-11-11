@@ -10,7 +10,7 @@
  */
 import type { NtasksSeed, NtasksSeedTask } from './demo-ntasks-seed.mjs';
 import { boardResults, LABEL_READS } from './runner/task-service-poll.mjs';
-import { BEADS_CLOSES_DAYS, beadsClosedSince, beadsClosesSince, summarizeBeadsProject } from './task-snapshot-summary.mjs';
+import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, summarizeTaskProject } from './task-snapshot-summary.mjs';
 import type { BeadsProjectInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { generateDemoScenario } from './demo-scenario.mjs';
 import { shiftDemoDay } from './demo-scenario.mjs';
@@ -94,7 +94,7 @@ export function demoBoardsAt(seed: NtasksSeed, prefix: string, instant: string) 
       eligibleForClose: children.length > 0 && closed === children.length, createdAt: epic.createdAt };
   }).sort((a, b) => a.priority - b.priority || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
     .map(({ createdAt: _createdAt, ...epic }) => epic);
-  const closesFrom = new Date(Date.parse(instant) - BEADS_CLOSES_DAYS * DAY_MS).toISOString();
+  const closesFrom = new Date(Date.parse(instant) - TASK_CLOSES_DAYS * DAY_MS).toISOString();
   const closes = tasks.filter(task => task.status === 'closed' && (task.closedAt ?? '') >= closesFrom);
   const labelled = Object.fromEntries(Object.entries(LABEL_READS as Record<string, readonly string[]>)
     .map(([read, labels]) => [read, tasks.filter(task => task.labels.some(label => labels.includes(label)))]));
@@ -109,12 +109,12 @@ export function demoTaskHistory(seed: NtasksSeed, scenario: Scenario): { capture
   for (let day = first; day <= last; day = shiftDemoDay(day, 1)) {
     const instant = day === last ? scenario.manifest.cutoff : `${day}T23:59:59.000Z`;
     const at = Date.parse(instant);
-    const reach = { closedSince: beadsClosedSince(at), closesSince: beadsClosesSince(at) };
+    const reach = { closedSince: tasksClosedSince(at), closesSince: tasksClosesSince(at) };
     const projects: BeadsProjectInput[] = [];
     for (const project of scenario.manifest.taskProjects) {
       if (instant < scenario.assets.find(asset => asset.id === project.asset)!.createdAt) continue;
       const { board, closes, labelled } = demoBoardsAt(seed, project.prefix, instant);
-      const summary = summarizeBeadsProject({ asset: project.asset, prefix: project.prefix }, boardResults(board, closes, labelled), reach) as BeadsProjectInput;
+      const summary = summarizeTaskProject({ asset: project.asset, prefix: project.prefix }, boardResults(board, closes, labelled), reach) as BeadsProjectInput;
       if (!summary.ok) throw new Error(`The demo's task history for ${project.prefix} on ${day} does not summarize.`);
       projects.push(summary);
     }

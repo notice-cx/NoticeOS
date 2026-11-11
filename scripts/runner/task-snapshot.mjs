@@ -11,7 +11,7 @@ import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { captureWorkflowDiagnostic } from '../workflow-diagnostics.mjs';
-import { parseBeadsProjects } from './task-hub.mjs';
+import { parseTaskProjects } from './task-hub.mjs';
 import { syncTaskService, taskBackend, taskLaneSkip } from './task-service-poll.mjs';
 import { createTaskService, TaskServiceUnavailable } from '../task-service.mjs';
 import { taskCacheDir } from '../task-service-cache.mjs';
@@ -43,34 +43,34 @@ async function responseDiagnostic(response, token) {
   return { ...safe, truncated: safe.truncated || truncated };
 }
 
-export function beadsSnapshotUrl(config) {
-  return `http://${config.ingestHost}:${config.ingestPort}/api/beads-snapshot`;
+export function taskSnapshotUrl(config) {
+  return `http://${config.ingestHost}:${config.ingestPort}/api/task-snapshot`;
 }
 
-const beadsPollState = { skipping: null };
+const taskPollState = { skipping: null };
 
 /**
  * Take one snapshot and file it. Every dependency that touches the world is
  * injectable. Every failure is a log line: none takes the runner down, and
  * none stops the next tick.
  */
-export async function runBeadsPoll(runtime, deps = {}) {
+export async function runTaskPoll(runtime, deps = {}) {
   const {
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     readToken = operatorToken,
     post = fetch,
     now = Date.now,
-    state = beadsPollState,
+    state = taskPollState,
     emit = log,
     stopped = () => isShuttingDown(),
     // Where the snapshot is filed: the stack's door, unless the caller names its own.
-    url = beadsSnapshotUrl(CONFIG),
+    url = taskSnapshotUrl(CONFIG),
     // The runner passes its own (os-up.mjs); without one the lane stands down.
     taskService = null,
     cacheDir = taskCacheDir(HOME_ROOT),
   } = deps;
 
-  const { skip, resume } = laneSkips('beads snapshot', state, emit);
+  const { skip, resume } = laneSkips('task snapshot', state, emit);
 
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
@@ -83,7 +83,7 @@ export async function runBeadsPoll(runtime, deps = {}) {
     const raw = await readConfig();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed?.spokes)) throw new Error('invalid task project map');
-    projects = parseBeadsProjects(raw);
+    projects = parseTaskProjects(raw);
     if (projects.length !== parsed.spokes.length) throw new Error('invalid task project entries');
   } catch (err) {
     return skip(`the task map is unreadable (${err.message})`);
@@ -116,20 +116,20 @@ export async function runBeadsPoll(runtime, deps = {}) {
       const responseBody = await responseDiagnostic(res, token);
       emit(
         'ERROR',
-        `beads snapshot → HTTP ${res.status} (non-201) ${responseBody.text.slice(0, 200)}`,
+        `task snapshot → HTTP ${res.status} (non-201) ${responseBody.text.slice(0, 200)}`,
       );
       return { ...body, ok: false, response: { status: res.status, body: responseBody.text, truncated: responseBody.truncated, redacted: responseBody.redacted } };
     }
     emit(
       'INFO',
-      `beads snapshot filed — ${body.projects.length} project(s)` +
+      `task snapshot filed — ${body.projects.length} project(s)` +
         (failed.length > 0
           ? `, ${failed.length} unreadable: ${failed.map((e) => `${e.asset} (${e.error})`).join('; ')}`
           : ''),
     );
   } catch (err) {
     const error = captureWorkflowDiagnostic(err, { secrets: [token] });
-    emit('ERROR', `beads snapshot POST failed: ${captureWorkflowDiagnostic(err.message ?? String(err), { secrets: [token] }).text}`);
+    emit('ERROR', `task snapshot POST failed: ${captureWorkflowDiagnostic(err.message ?? String(err), { secrets: [token] }).text}`);
     return { ...body, ok: false, error };
   }
   return body;

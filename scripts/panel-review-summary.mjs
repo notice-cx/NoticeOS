@@ -1,6 +1,6 @@
 // Pure panel-review convention; no installation or runtime imports.
 import { TASK_METADATA, taskMetadataValue } from "../packages/contract/src/task-metadata.mjs";
-import { beadsLabelListArgs, beadsText, beadsInstant } from "./task-snapshot-values.mjs";
+import { taskLabelListArgs, taskText, taskInstant } from "./task-snapshot-values.mjs";
 // The panel-review convention: one task per property per collection day,
 // filed in that property's own tracker when its weekly collection lands, due
 // a week later. The review records evidence coverage, due readbacks and any
@@ -76,7 +76,7 @@ export function panelReviewListArgs(repoDir) {
   // Including closed: a property that finished its review this morning and
   // one that has never had a panel both have no open review, and only the
   // closed task separates them.
-  return beadsLabelListArgs(repoDir, PANEL_REVIEW_LABEL, { closed: true, limit: PANEL_REVIEW_LIMIT });
+  return taskLabelListArgs(repoDir, PANEL_REVIEW_LABEL, { closed: true, limit: PANEL_REVIEW_LIMIT });
 }
 
 /**
@@ -100,7 +100,7 @@ export function invalidPanelReview(row) {
     : typeof row?.labels === 'string'
       ? row.labels.split(',')
       : [];
-  return labels.some((label) => beadsText(label).trim() === INVALID_PANEL_REVIEW_LABEL);
+  return labels.some((label) => taskText(label).trim() === INVALID_PANEL_REVIEW_LABEL);
 }
 
 /**
@@ -126,16 +126,16 @@ export function panelReviewEntry(rows) {
   const reviews = [];
   for (const row of rows) {
     if (invalidPanelReview(row)) continue;
-    const beadId = beadsText(row?.id);
+    const beadId = taskText(row?.id);
     const panelDate = panelReviewPanelDate(row);
     if (beadId === '' || panelDate === null) continue;
-    const closed = beadsText(row?.status) === 'closed';
+    const closed = taskText(row?.status) === 'closed';
     reviews.push({
       beadId,
       panelDate,
-      dueAt: beadsInstant(row?.due_at),
+      dueAt: taskInstant(row?.due_at),
       status: closed ? 'closed' : 'open',
-      closedAt: closed ? beadsInstant(row?.closed_at) : null,
+      closedAt: closed ? taskInstant(row?.closed_at) : null,
     });
   }
   // Newest panel first in both passes.

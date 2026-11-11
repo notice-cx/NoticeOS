@@ -1,4 +1,4 @@
-// Pure Beads row normalization shared by standalone and hosted readers.
+// Pure task row normalization shared by standalone and hosted readers.
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 import { gateTitle } from "../packages/contract/src/task-gate.mjs";
 import { readTaskChoice, readTaskChoices } from "../packages/contract/src/task-choices.mjs";

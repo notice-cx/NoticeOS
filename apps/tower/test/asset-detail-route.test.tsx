@@ -404,7 +404,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     flags: { open: [], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 0 },
     ledger: { periods: [], recentRows: [], empty: true, currency: "USD" },
     decisions: [],
-    handoffBeads: [],
+    handoffTasks: [],
     operator: {
       capturedAt: "2026-07-05T11:59:00.000Z",
       waiting: 0,
@@ -1588,7 +1588,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
 
   it("keeps a finding after linked closure and names the review, not a resolved outcome", async () => {
     const data = reviewedPayload();
-    data.handoffBeads = [{ kind: "finding", key: data.executive!.items[0]!.key, beadId: "md-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
+    data.handoffTasks = [{ kind: "finding", key: data.executive!.items[0]!.key, beadId: "md-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
     stubFetch(200, data);
     const view = renderRoute("meadow.example");
     const panel = await view.findByRole("region", { name: "What matters" });
@@ -4258,7 +4258,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     stubFetch(
       200,
       payload({
-        handoffBeads: [
+        handoffTasks: [
           {
             kind: "query",
             key: "tornado kit specs",
@@ -5151,7 +5151,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const base = withQueryRow();
     return {
       ...base,
-      handoffBeads: [
+      handoffTasks: [
         {
           kind: "query" as const,
           key: "tornado kit specs",
@@ -5231,8 +5231,8 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const base = withFiledQueryRow();
     stubFetch(200, {
       ...base,
-      handoffBeads: [
-        { ...base.handoffBeads[0]!, status: "closed", closedAt: "2026-08-01T00:00:00.000Z" },
+      handoffTasks: [
+        { ...base.handoffTasks[0]!, status: "closed", closedAt: "2026-08-01T00:00:00.000Z" },
       ],
       annotations: {
         items: [

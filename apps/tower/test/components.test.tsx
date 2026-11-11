@@ -683,7 +683,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       caveat: "Estimated demand, not impressions.",
     },
   });
-  /** What the register holds for one query — the payload's `handoffBeads`
+  /** What the register holds for one query — the payload's `handoffTasks`
    * slice, joined to a row by the normalized query alone. */
   const filedBead = (key: string, over: Partial<HandoffBead> = {}): HandoffBead => ({
     kind: "query",
@@ -722,7 +722,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
             dfsRow("bravo query", 1000),
           ])}
           asset={asset}
-          handoffBeads={[filedBead("alpha query")]}
+          handoffTasks={[filedBead("alpha query")]}
         />,
         { wrapper: MemoryRouter },
       );
@@ -745,7 +745,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
-          handoffBeads={[
+          handoffTasks={[
             filedBead("alpha query", {
               status: "closed",
               closedAt: "2026-07-29T09:00:00.000Z",
@@ -776,7 +776,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
             asset={asset}
-            handoffBeads={[]}
+            handoffTasks={[]}
           />,
         );
 
@@ -804,7 +804,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
-          handoffBeads={null}
+          handoffTasks={null}
         />,
       );
 
@@ -817,7 +817,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
-          handoffBeads={[filedBead("alpha query")]}
+          handoffTasks={[filedBead("alpha query")]}
         />,
         { wrapper: MemoryRouter },
       );
@@ -839,7 +839,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
-          handoffBeads={[
+          handoffTasks={[
             filedBead("alpha query", { kind: "finding", beadId: "md-9zz" }),
           ]}
         />,
@@ -880,7 +880,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow(query, 2000)])}
             asset={asset}
-            handoffBeads={[filedBead(metadata.noticeos_key)]}
+            handoffTasks={[filedBead(metadata.noticeos_key)]}
           />,
           { wrapper: MemoryRouter },
         );
@@ -893,7 +893,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow(query, 2000)])}
             asset={asset}
-            handoffBeads={[filedBead("meal-plan-weekly")]}
+            handoffTasks={[filedBead("meal-plan-weekly")]}
           />,
           { wrapper: MemoryRouter },
         );
@@ -1254,7 +1254,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       <QueryVisibilityRankings
         trends={trends}
         asset={asset}
-        handoffBeads={[filedBead("alpha")]}
+        handoffTasks={[filedBead("alpha")]}
       />,
       { wrapper: MemoryRouter },
     );
@@ -1768,7 +1768,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     const { container } = render(
       <ExecutiveFindingsList
         snapshot={snapshot}
-        handoffBeads={[
+        handoffTasks={[
           {
             kind: "finding",
             key: "search-opportunity",
@@ -1963,7 +1963,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
 
     it("marks an open task with its id, quietly enough not to rival the severity", () => {
       const { container } = render(
-        <ExecutiveFindingsList snapshot={snapshot} handoffBeads={[filed()]} />,
+        <ExecutiveFindingsList snapshot={snapshot} handoffTasks={[filed()]} />,
         { wrapper: MemoryRouter },
       );
 
@@ -1984,7 +1984,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
-          handoffBeads={[filed({ status: "closed", closedAt: "2026-07-28T09:00:00.000Z" })]}
+          handoffTasks={[filed({ status: "closed", closedAt: "2026-07-28T09:00:00.000Z" })]}
         />,
         { wrapper: MemoryRouter },
       );
@@ -2002,7 +2002,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
-          handoffBeads={[filed({ key: "search-opportunity" })]}
+          handoffTasks={[filed({ key: "search-opportunity" })]}
         />,
         { wrapper: MemoryRouter },
       );
@@ -2019,7 +2019,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       // `null` is a snapshot the poller never wrote this field into, an asset
       // that is not a spoke, or a `bd` that failed, never "nothing is filed".
       const { container } = render(
-        <ExecutiveFindingsList snapshot={snapshot} handoffBeads={null} />,
+        <ExecutiveFindingsList snapshot={snapshot} handoffTasks={null} />,
       );
 
       expect(container.querySelector("[data-handoff-bead]")).toBeNull();
@@ -2029,7 +2029,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
-          handoffBeads={[filed({ kind: "query", beadId: "md-9zz" })]}
+          handoffTasks={[filed({ kind: "query", beadId: "md-9zz" })]}
         />,
       );
 
@@ -3321,7 +3321,7 @@ describe("PageDecisions", () => {
           { ...HARVEST, page: untouchedPage, path: "/plans" },
         ])}
         asset={asset}
-        handoffBeads={[
+        handoffTasks={[
           pageBead(openPage),
           pageBead(closedPage, {
             beadId: "md-shipped",
