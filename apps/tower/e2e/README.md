@@ -53,7 +53,9 @@ No page leaves its server, not even by a redirect. Playwright
 routes only the first request of a redirect chain, so a route answering 302 to
 another asset would take the browser to the real internet unseen.
 `offline-guard.mjs`, installed on every journey's context (`journey-test.ts`)
-and every flow-gate walk, aborts requests to other origins, refuses a
+and every flow-gate walk, aborts requests to other origins than the fixture
+server, which answers at its loopback address and at `localhost` on the same
+port, so a journey can open the Tower at a second address, refuses a
 navigation whose answer redirects to one, records any other redirect hop that
 leaves, and fails the test naming the first such URL. `google-consent.mjs`
 still answers Continue with Google's start, the one redirect a walk follows.

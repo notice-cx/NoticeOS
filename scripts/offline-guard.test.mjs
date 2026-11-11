@@ -42,6 +42,25 @@ test('a guarded context requires its own fixture transport and the proxy rejects
   assert.equal(foreignContacts, 0);
 });
 
+test('the proxy reaches the owned server under localhost on the same port, with that host', async t => {
+  const hosts = [];
+  const source = http.createServer((request, response) => { hosts.push(request.headers.host); response.end('owned source'); });
+  source.listen(0, '127.0.0.1'); await once(source, 'listening');
+  t.after(async () => { source.closeAllConnections(); await new Promise(resolve => source.close(resolve)); });
+  const port = source.address().port;
+  const transport = await startOfflineProxy(`http://127.0.0.1:${port}`);
+  t.after(() => transport.close());
+  const proxy = new URL(transport.proxy.server);
+  const status = await new Promise((resolve, reject) => {
+    const request = http.request({ hostname: proxy.hostname, port: proxy.port, path: `http://localhost:${port}/tasks`, headers: { host: `localhost:${port}` } },
+      response => { response.resume(); resolve(response.statusCode); });
+    request.on('error', reject); request.end();
+  });
+  assert.equal(status, 200);
+  assert.deepEqual(hosts, [`localhost:${port}`]);
+  assert.deepEqual(transport.escapes(), []);
+});
+
 test('the proxy retains a truncated owned response as a failure and closes held requests', async t => {
   let arrived;
   const pending = new Promise(resolve => { arrived = resolve; });

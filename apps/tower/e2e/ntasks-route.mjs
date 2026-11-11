@@ -7,9 +7,11 @@ import { JOURNEY_NTASKS_ORIGIN, JOURNEY_NTASKS_PATH } from "./ntasks-origin.mjs"
 // reaches with the installation's credential. The browser follows Ntasks's
 // redirect back to the Tower itself, so no hop leaves the fixture.
 
-/** Install the fixture Ntasks on a browser context whose Tower is at `base`. */
-export async function installFixtureNtasks(context, base) {
-  await context.route(`${JOURNEY_NTASKS_ORIGIN}/**`, async (route) => {
+/** Install the fixture Ntasks on a browser context, or one page of it, whose
+ * Tower is at `base`. A page's own route answers before its context's, so a
+ * page opened at the Tower's second address installs its own. */
+export async function installFixtureNtasks(target, base) {
+  await target.route(`${JOURNEY_NTASKS_ORIGIN}/**`, async (route) => {
     const request = route.request();
     const asked = new URL(request.url());
     // A page's call carries its origin, which Ntasks answers only for a
