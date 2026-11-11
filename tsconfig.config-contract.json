@@ -46,7 +46,6 @@
     "scripts/config-documents.mts",
     "scripts/config-defaults.mts",
     "scripts/released-defaults.mts",
-    "scripts/hosted-task-command.mts",
     "scripts/workspace-admission.mts",
     "scripts/browser-request-policy.mts",
     "scripts/bounded-json-body.mts",

@@ -5,7 +5,7 @@ import { createMcpMiddleware, mcpLane } from "../vite/mcp-lane";
 
 // vite/mcp-lane.ts: /api/mcp with every tool on a standalone Tower, reaching
 // whoever reaches the Tower. The tools themselves are proved in
-// scripts/standalone-tasks.test.mjs.
+// scripts/local-mcp.test.mjs and scripts/task-service.test.mjs.
 
 function request(url: string, { method = "POST", headers = {}, body = "" }: { method?: string; headers?: Record<string, string>; body?: string } = {}) {
   return Object.assign(Readable.from(body ? [Buffer.from(body)] : []), { url, method, headers });

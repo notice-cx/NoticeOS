@@ -178,11 +178,11 @@ dispatcher in `worker/stored-read-route.ts`. Paths that exist today:
 `POST /api/mcp` serves an MCP server over the same read models the Wall and
 asset pages use, so an agent can answer what an asset earned, what its decision
 lanes say, and whether a piece of search research has already been paid for.
-On a standalone installation the same path also carries the task tools: the
-dev-server lane (`vite/mcp-lane.ts`) answers it with
-`scripts/standalone-mcp.mts`, every tool over the installation's database and
-linked task projects, and passes the read-model calls through to this Worker.
-The task tools write through the task client; the operator-facing list is
+On a standalone installation the dev-server lane (`vite/mcp-lane.ts`)
+answers the same path with `scripts/standalone-mcp.mts`, which adds the panel
+and journey tools and passes the read-model calls through to this Worker. It
+lists no task tools: the installation's tasks live in Ntasks, and its
+`get_task_guide` names Ntasks's MCP endpoint. The operator-facing list is
 [Connect an agent](../../docs/guides/connect-an-agent.md).
 
 ```jsonc

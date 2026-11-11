@@ -21,13 +21,11 @@
     "scripts/hosted-job-runner.mts",
     "scripts/hosted-job-definition.mts",
     "scripts/demo-activity-definition.mts",
-    "scripts/hosted-task-operations.mts",
     "scripts/hosted-task-mcp.mts",
     "scripts/hosted-mcp.mts",
     "scripts/journey-management.mts",
     "scripts/journey-mcp.mts",
     "scripts/mcp-stdio.mts",
-    "scripts/standalone-tasks.mts",
     "scripts/standalone-mcp.mts",
     "scripts/task-service.mts",
     "scripts/task-service-cache.mts",
@@ -85,7 +83,6 @@
     "packages/postgres/src/platform-provisioning.mts",
     "packages/postgres/src/integration-oauth-custody.mts",
     "packages/postgres/src/mutation-audit.mts",
-    "packages/postgres/src/task-receipts.mts",
     "packages/postgres/src/notification-events.mts"
   ]
 }

@@ -178,8 +178,6 @@ safety.
 - [`postgres-agent-sign-in.test.mjs`](../../scripts/postgres-agent-sign-in.test.mjs)
   (`./agent-sign-in`): an agent's token reaches a workspace only as far as its
   person's approval and role allow.
-- [`postgres-task-receipts.test.mjs`](../../scripts/postgres-task-receipts.test.mjs)
-  (`./task-receipts`): a retried task write binds to one request and runs once.
 
 ## Notification event listener
 

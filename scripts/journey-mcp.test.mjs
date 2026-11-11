@@ -4,7 +4,6 @@ import { createHostedMcp } from './hosted-mcp.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
 import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { AGENT_SCOPES } from './agent-access.mjs';
-import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 const WORKSPACE = '11111111-1111-4111-8111-111111111111';
 const OTHER = '22222222-1111-4111-8111-111111111111';
@@ -17,10 +16,10 @@ const definition = () => ({ id: 'recipe-save', label: 'Recipe to cookbook', goal
       { eventName: 'recipe_quickadd', parameters: [{ name: 'action', value: 'save' }] },
     ] },
   ] });
-const operations = { write: async () => { throw new Error('task command must not run'); } };
+const taskHome = async () => ({ kind: 'none' });
 function endpoint(journeys) {
   return createHostedMcp({ profile: 'standalone', trustedOrigin: origin, standaloneWorkspaceId: WORKSPACE,
-    operations, ...(journeys ? { journeys } : {}) });
+    taskHome, ...(journeys ? { journeys } : {}) });
 }
 async function rpc(handle, method, params, headers = {}) {
   return (await handle(new Request(origin + '/api/mcp', { method: 'POST',
@@ -37,7 +36,7 @@ test('journey tools are offered only through an explicitly configured standalone
     assert.deepEqual(listed.filter(tool => /journey/u.test(tool.name)).map(tool => tool.name),
       configured ? ['get_journeys', 'save_journey'] : []);
     const access = (await call(handle, 'list_workspaces', {})).result.structuredContent.workspaces[0].access;
-    assert.deepEqual(access, ['tasks:read', 'tasks:write', ...(configured ? ['journeys:read', 'journeys:write'] : [])]);
+    assert.deepEqual(access, configured ? ['journeys:read', 'journeys:write'] : []);
     if (configured) for (const tool of listed.filter(tool => /journey/u.test(tool.name))) {
       assert.equal(tool.inputSchema.additionalProperties, false);
       assert.ok(tool.inputSchema.required.includes('workspace'));
@@ -45,9 +44,9 @@ test('journey tools are offered only through an explicitly configured standalone
     }
   }
   for (const profile of ['hosted', 'demo']) {
-    assert.throws(() => createHostedMcp({ profile, trustedOrigin: origin, operations, journeys: transport,
+    assert.throws(() => createHostedMcp({ profile, trustedOrigin: origin, journeys: transport,
       ...(profile === 'hosted' ? { agents: { verify: async () => ({ scopes: ['tasks:write'] }), workspaces: async () => [] } }
-        : { demoWorkspaceId: WORKSPACE }),
+        : { demoWorkspaceId: WORKSPACE, taskTools: async () => ({}) }),
     }), /MCP configuration refused/u);
   }
   assert.equal(Object.hasOwn(AGENT_SCOPES, 'journeys:write'), false);
@@ -130,8 +129,7 @@ test('typed endpoint conflicts and failures are tool errors without a provider r
 test('standalone runtime forwards journey HTTP with actor validation and no read-model marker', async t => {
   const forwarded = [];
   const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE,
-    close: async () => {}, inWorkspace: async () => { throw new Error('unexpected store access'); } },
-    receipts: memoryReceipts(Date.now), projects: async () => [], tower: 'http://127.0.0.1:5173',
+    close: async () => {} }, tower: 'http://127.0.0.1:5173',
     fetch: async (url, init) => {
       forwarded.push({ url, method: init.method, headers: new Headers(init.headers), body: init.body });
       return Response.json({ asset: 'example.com', journeys: [] });
@@ -168,8 +166,7 @@ test('standalone journey writes reject cross-site browser proof before the Tower
   const forwarded = [];
   const tower = 'http://127.0.0.1:5173';
   const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE,
-    close: async () => {}, inWorkspace: async () => { throw new Error('unexpected store access'); } },
-    receipts: memoryReceipts(Date.now), projects: async () => [], tower,
+    close: async () => {} }, tower,
     fetch: async (url, init) => { forwarded.push({ url, headers: new Headers(init.headers) }); return Response.json({ saved: true }); } });
   t.after(() => mcp.close());
   const args = { workspace: WORKSPACE, asset: 'example.com', journey: definition(), edit_token: null };

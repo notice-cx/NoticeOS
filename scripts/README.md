@@ -509,9 +509,10 @@ returns the task workflow and rules as Markdown with a version, opening with
 the dated lines of `WHATS_CHANGED`, and `list_workspaces` returns the same
 version as `guideVersion`; the server's instructions are built from the same
 lines (`taskGuide` and `taskInstructions` in
-[`hosted-task-mcp.mts`](hosted-task-mcp.mts)). A task tool reads an
-object-typed argument a stale client sends as JSON text, and its reply then
-carries `staleClient`.
+[`hosted-task-mcp.mts`](hosted-task-mcp.mts)). On a standalone installation
+the guide names Ntasks's endpoint, or that no task service is connected, and a
+task tool a client listed earlier is refused with the same sentence. A hosted
+workspace has no task service and lists no task tools.
 
 **Agent sign-in** ([`agent-access.mts`](agent-access.mts)). The MCP endpoint
 is an OAuth 2.1 protected resource whose authorization server is

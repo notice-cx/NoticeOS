@@ -1,41 +1,14 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import { main, parseOptions } from './local-mcp.mjs';
-import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient, storeSites, withStandaloneTaskMutation } from './standalone-mcp.mjs';
-
-const lockingStore = { inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ acquired: true }] }) };
-
-test('the Tower and MCP share a workspace mutation reservation and busy work never runs', async () => {
-  const queries = [];
-  let available = false, ran = 0;
-  const store = { inWorkspace: async (workspaceId, work) => work({ query: async (sql, params) => {
-    queries.push({ workspaceId, sql, params }); return [{ acquired: available }];
-  } }) };
-  await assert.rejects(withStandaloneTaskMutation(store, 'workspace-a', async () => { ran++; }), /retry/u);
-  assert.equal(ran, 0);
-  available = true;
-  assert.equal(await withStandaloneTaskMutation(store, 'workspace-a', async () => { ran++; return 'complete'; }), 'complete');
-  assert.equal(ran, 1);
-  assert.equal(queries[0].params[0], 'noticeos-task-mutations:workspace-a');
-  assert.equal(queries[0].sql, queries[1].sql);
-});
-import { standaloneProjectId } from './standalone-tasks.mjs';
-import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { openStore } from '../packages/postgres/src/store.mjs';
-import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
+import { actorOf, openStandaloneMcp } from './standalone-mcp.mjs';
 
 // scripts/standalone-mcp.mts and local-mcp.mjs: a standalone installation's MCP
-// endpoint (the Tower's /api/mcp and pnpm os:mcp). The served tools are proved
-// in standalone-tasks.test.mjs and hosted-mcp.test.mjs; this is their setup.
+// endpoint (the Tower's /api/mcp and pnpm os:mcp). Where its tasks live is
+// proved in task-service.test.mjs; the served tools in hosted-mcp.test.mjs,
+// panel-mcp.test.mjs and journey-mcp.test.mjs. This is their setup.
 
-const PROJECTS = [{ asset: 'example', prefix: 'ex', database: 'example_tasks', repo: '/spokes/example' },
-  { asset: 'second', prefix: 'se', database: 'second_tasks', repo: 'spokes/second' },
-  { asset: 'unlinked', prefix: 'un', database: 'unlinked_tasks', repo: '', unavailableReason: 'unlinked has no checkout linked on this host' }];
-
-test('an agent is named with --actor, in the grammar a task records, or is "agent"', () => {
+test('an agent is named with --actor, in the grammar a record takes, or is "agent"', () => {
   assert.deepEqual(parseOptions([]), { actor: 'agent' });
   assert.deepEqual(parseOptions(['--actor', 'claude:review-1']), { actor: 'claude:review-1' });
   for (const argv of [['--actor'], ['--actor', '-x'], ['--actor', 'a b'], ['--http'], ['--actor', 'a', 'b']]) {
@@ -53,50 +26,6 @@ test('a refused option stops before anything is read, and a missing database is 
   assert.match(said, /^NoticeOS MCP could not reach the installation's database: could not read \/nonexistent\/\.dev\.vars/u);
 });
 
-test('only linked projects are served, each in its own folder under its database\'s id, read again after a few seconds', async () => {
-  let reads = 0, time = 0;
-  const projects = linkedProjects({ read: async () => { reads++; return PROJECTS; }, root: '/opt/noticeos', now: () => time });
-  const first = await projects();
-  assert.deepEqual(first.map(project => [project.projectId, project.asset, project.cwd]), [
-    [standaloneProjectId('example_tasks'), 'example', '/spokes/example'], [standaloneProjectId('second_tasks'), 'second', '/opt/noticeos/spokes/second']]);
-  time = 4_000; assert.equal(await projects(), first);
-  time = 5_000; await projects();
-  assert.equal(reads, 2);
-});
-
-test('the asset list is read read-only in the store\'s workspace, kept a few seconds, and a failed read is not kept', async () => {
-  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', reads = [];
-  let time = 0, fail = false;
-  const rows = [{ id: 'example.com', displayName: 'Example', isOs: false }];
-  const sites = storeSites({ inWorkspace: async (workspaceId, work, options) => {
-    reads.push([workspaceId, options]);
-    if (fail) throw new Error('store unavailable');
-    return work({ workspaceId, query: async sql => { assert.match(sql, /FROM noticeos\.assets/u); return rows; } });
-  } }, WORKSPACE, () => time);
-  assert.deepEqual(await sites(), rows);
-  assert.deepEqual(reads, [[WORKSPACE, { readOnly: true }]]);
-  time = 4_000; await sites(); assert.equal(reads.length, 1);
-  time = 5_000; fail = true;
-  await assert.rejects(sites(), /store unavailable/u);
-  fail = false; assert.deepEqual(await sites(), rows);
-  assert.equal(reads.length, 3);
-});
-
-test('the task client runs in the project\'s folder with the installation\'s declared client, and its exit code is kept', async (t) => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'nos-task-client-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const bd = path.join(dir, 'bd');
-  writeFileSync(bd, `#!${process.execPath}\nif (process.argv.includes('hang')) setInterval(() => {}, 1000);\nelse {\nprocess.stdout.write(JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\nprocess.exit(process.argv.includes('fail') ? 3 : 0);\n}\n`);
-  chmodSync(bd, 0o755);
-  const result = await runTaskClient(['--sandbox', '--json', 'ready'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH });
-  assert.deepEqual([result.code, JSON.parse(result.stdout), result.timedOut], [0, { args: ['--sandbox', '--json', 'ready'], cwd: dir }, false]);
-  const failed = await runTaskClient(['fail'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH });
-  assert.deepEqual([failed.code, failed.timedOut], [3, false]);
-  // A client that outlives its time is killed, and the refusal can say so.
-  const hung = await runTaskClient(['hang'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH }, 300);
-  assert.deepEqual([hung.code, hung.timedOut], [1, true]);
-});
-
 test('a request acts as the agent its header names, or as agent', () => {
   const named = value => new Request('http://localhost/api/mcp', { headers: value === undefined ? {} : { 'x-noticeos-actor': value } });
   assert.equal(actorOf(named(undefined)), 'agent');
@@ -104,160 +33,25 @@ test('a request acts as the agent its header names, or as agent', () => {
   for (const value of ['-x', 'a b', 'x'.repeat(129)]) assert.equal(actorOf(named(value)), null, value);
 });
 
-test('the endpoint serves the store\'s one workspace as the named agent, and the Tower\'s read models', async () => {
-  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], forwarded = [];
+test('the endpoint serves the store\'s one workspace and the Tower\'s read models, with no task tools', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', forwarded = [];
   let closed = false;
-  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; },
-    inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ id: 'example', displayName: 'Example', isOs: false, acquired: true }] }) },
-    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
-    run: async argv => { commands.push(argv); return { code: 0, stdout: argv.includes('lint') ? '{"results":null}' : '{"id":"ex-1"}' }; },
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; } },
     tower: 'http://127.0.0.1:5173', fetch: async (url, init) => { forwarded.push([url, init.headers.get('x-noticeos-mcp-part')]); return Response.json({ jsonrpc: '2.0', id: 1, result: { structuredContent: { properties: [] } } }); } });
-  const call = (name, args, headers = {}) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))
+  const send = (method, params = {}) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }))
     .then(response => response.json());
-  assert.deepEqual((await call('list_projects', { workspace: WORKSPACE })).result.structuredContent.projects,
-    [{ projectId: standaloneProjectId('example'), key: 'example', name: 'Example', prefix: 'ex' }], 'a project is named from the store\'s asset list');
-  const created = await call('create_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), title: 'Probe', idempotency_key: 'local-create-0001' },
-    { 'x-noticeos-actor': 'claude' });
-  assert.equal(created.result.structuredContent.id, 'ex-1');
-  assert.equal(commands[0][2], '--actor=claude');
-  assert.match((await call('list_tasks', { workspace: WORKSPACE, project: standaloneProjectId('example') }, { 'x-noticeos-actor': 'a b' })).result.content[0].text, /^refused:/u);
+  const call = (name, args) => send('tools/call', { name, arguments: args });
+  assert.equal((await call('list_workspaces', {})).result.structuredContent.workspaces[0].workspaceId, WORKSPACE);
+  const { tools } = (await send('tools/list')).result;
+  assert.equal(tools.some(tool => tool.name === 'list_tasks'), false);
+  // With no task service passed, none is connected.
+  assert.match((await call('list_tasks', { workspace: WORKSPACE })).result.content[0].text, /^refused: This installation has no task service connected/u);
   assert.deepEqual((await call('list_properties', { workspace: WORKSPACE })).result.structuredContent, { properties: [] });
   assert.deepEqual(forwarded, [['http://127.0.0.1:5173/api/mcp', 'read-models']]);
   await mcp.close();
   assert.equal(closed, true);
-  await assert.rejects(openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
+  await assert.rejects(openStandaloneMcp({ store: { onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
     /no single workspace/u);
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
-});
-
-test('on the store, each project is named from the asset list: the System for the installation\'s own row, else its stored name', async (t) => {
-  let cluster;
-  try { cluster = await startTestCluster(); } catch (error) {
-    const reason = unavailableReason(error);
-    if (reason === null || postgresRequired()) throw error;
-    return t.skip(`no Postgres here: ${reason}`);
-  }
-  t.after(() => cluster.close());
-  const url = cluster.url(await cluster.createDatabase());
-  const seed = openStore(url, { maxConnections: 1 });
-  try {
-    await seed.inWorkspace(cluster.workspaceId, tx => tx.execute(`INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status, is_os)
-      VALUES ($1, 'os-test', NULL, 'Stored name of the OS row', 'live', true), ($1, 'example.com', 'example.com', 'Example', 'live', false)`,
-    [cluster.workspaceId]));
-  } finally { await seed.close(); }
-  const linked = [['os-test', 'sy'], ['example.com', 'ex'], ['unlisted.example', 'un']]
-    .map(([asset, prefix]) => ({ projectId: standaloneProjectId(prefix), asset, prefix, cwd: `/spokes/${prefix}` }));
-  const mcp = await openStandaloneMcp({ databaseUrl: url, projects: async () => linked, run: async () => ({ code: 1, stdout: '' }) });
-  t.after(() => mcp.close());
-  const listed = await mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_projects', arguments: { workspace: cluster.workspaceId } } }) }))
-    .then(response => response.json());
-  assert.deepEqual(listed.result.structuredContent.projects.map(project => [project.prefix, project.key, project.name]),
-    [['sy', 'os-test', 'System'], ['ex', 'example.com', 'Example'], ['un', 'unlisted.example', 'unlisted.example']]);
-});
-
-test('an agent\'s claim and close name its model, and its close records the agent as the closer', async () => {
-  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], CLOSED_AT = '2026-10-12T10:00:00Z';
-  const row = status => ({ id: 'ex-1', title: 'Probe', status, issue_type: 'task', priority: 2, assignee: 'claude', labels: [],
-    ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Done · abc1234' } : {}) });
-  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
-    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
-    run: async argv => {
-      commands.push(argv);
-      const stdout = argv.includes('lint') ? { results: null } : argv.includes('comments') ? [] : [row(argv.includes('close') ? 'closed' : 'in_progress')];
-      return { code: 0, stdout: JSON.stringify(stdout) };
-    } });
-  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
-    .then(response => response.json());
-  const writes = () => commands.filter(argv => !argv.includes('--readonly'));
-  assert.equal((await call('claim_task', { task: 'ex-1', model: 'Example Model 1', idempotency_key: 'local-claim-0001' })).result.isError, undefined);
-  assert.deepEqual(writes().at(-1).slice(2), ['--actor=claude', 'update', '--claim', '--metadata={"noticeos_claimed_model":"Example Model 1"}', '--', 'ex-1']);
-  assert.equal((await call('close_task', { task: 'ex-1', reason: 'Done · abc1234', model: 'Example Model 1', idempotency_key: 'local-close-0001' })).result.isError, undefined);
-  const [close, recorded] = writes().slice(-2);
-  assert.ok(close.includes('close') && close.includes('--actor=claude'));
-  assert.deepEqual(JSON.parse(recorded.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)),
-    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_closed_model: 'Example Model 1', noticeos_resolution: 'done' });
-  await mcp.close();
-});
-
-test('a close as a duplicate checks and links the other task first, then records the resolution with the closer', async () => {
-  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], CLOSED_AT = '2026-10-12T10:00:00Z';
-  // What the attribution writes, read back on the closed task.
-  let metadata = {};
-  const row = (id, status) => ({ id, title: 'Probe', status, issue_type: 'task', priority: 2, assignee: '', labels: [], metadata,
-    ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Same as ex-2' } : {}) });
-  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
-    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' },
-      { projectId: standaloneProjectId('other'), asset: 'other', prefix: 'ot', cwd: '/spokes/other' }],
-    run: async argv => {
-      commands.push(argv);
-      const written = argv.find(arg => arg.startsWith('--metadata='));
-      if (written) metadata = { ...metadata, ...JSON.parse(written.slice('--metadata='.length)) };
-      // ex-3 is the one id this project does not hold.
-      const listed = argv.find(arg => arg.startsWith('--id='));
-      const stdout = listed ? listed.slice('--id='.length).split(',').filter(id => id !== 'ex-3').map(id => row(id, 'open'))
-        : argv.includes('lint') ? { results: null } : argv.includes('comments') || argv.includes('ready') ? []
-        : argv.includes('dep') ? { status: 'added' } : [row('ex-1', argv.includes('close') || argv.includes('show') && commands.some(c => c.includes('close')) ? 'closed' : 'open')];
-      return { code: 0, stdout: JSON.stringify(stdout) };
-    } });
-  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
-    .then(response => response.json());
-  const writes = () => commands.filter(argv => !argv.includes('--readonly'));
-  const closing = { task: 'ex-1', reason: 'Same as ex-2', resolution: 'duplicate', duplicate_of: 'ex-2', idempotency_key: 'local-dup-0001' };
-  // Each refusal names the field or the task at fault, and nothing is written.
-  for (const [args, cause] of [
-    [{ ...closing, resolution: 'fixed' }, /resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled, no-longer-needed\)/u],
-    [{ ...closing, resolution: undefined }, /duplicate_of \(only with resolution duplicate\)/u],
-    [{ ...closing, duplicate_of: undefined }, /duplicate_of \(required with resolution duplicate/u],
-    [{ ...closing, duplicate_of: 'ex-1' }, /duplicate_of \(another task/u],
-    [{ ...closing, duplicate_of: 'ex-3', idempotency_key: 'local-dup-0002' }, /ex-3 is not a task in projectId/u],
-    [{ ...closing, duplicate_of: 'ot-1', idempotency_key: 'local-dup-0003' }, /ot-1 is not in projectId .*tasks with prefix ot are in projectId/u],
-  ]) {
-    const answer = (await call('close_task', args)).result;
-    assert.equal(answer.isError, true, String(cause));
-    assert.match(answer.content[0].text, cause);
-  }
-  assert.deepEqual(writes(), []);
-  const closed = (await call('close_task', closing)).result;
-  assert.equal(closed.isError, undefined);
-  assert.equal(closed.structuredContent.task.closeReason, 'Same as ex-2', 'the reason is the caller\'s own text');
-  assert.equal(closed.structuredContent.task.resolution, 'duplicate');
-  assert.equal(closed.structuredContent.task.duplicateOf, 'ex-2');
-  const [linked, close, recorded] = writes();
-  assert.deepEqual(linked.slice(2), ['--actor=claude', 'dep', 'add', '--type=related', '--', 'ex-1', 'ex-2']);
-  assert.deepEqual(close.slice(2), ['--actor=claude', 'close', '--reason=Same as ex-2', '--', 'ex-1']);
-  assert.deepEqual(JSON.parse(recorded.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)),
-    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_resolution: 'duplicate', noticeos_duplicate_of: 'ex-2' });
-  await mcp.close();
-});
-
-test('an agent\'s new tasks record the agent as their filer and the model it names, one at a time or several', async () => {
-  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [];
-  let filed = 0;
-  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
-    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
-    run: async argv => {
-      commands.push(argv);
-      return { code: 0, stdout: JSON.stringify(argv.includes('lint') ? { results: null } : { id: `ex-${++filed}` }) };
-    } });
-  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
-    .then(response => response.json());
-  assert.equal((await call('create_task', { title: 'Found work', model: 'Example Model 1', idempotency_key: 'local-file-0001' })).result.isError, undefined);
-  assert.equal((await call('create_tasks', { tasks: [{ title: 'First' }, { title: 'Second' }], model: 'Example Model 1',
-    idempotency_key: 'local-file-0002' })).result.isError, undefined);
-  assert.equal((await call('create_task', { title: 'No model named', idempotency_key: 'local-file-0003' })).result.isError, undefined);
-  const metadata = commands.filter(argv => argv.includes('create'))
-    .map(argv => JSON.parse(argv.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)));
-  assert.deepEqual(metadata.map(row => [row.noticeos_filed_by, row.noticeos_filed_model]), [
-    ['claude', 'Example Model 1'], ['claude', 'Example Model 1'], ['claude', 'Example Model 1'], ['claude', undefined]]);
-  assert.match((await call('create_task', { title: 'Padded', model: ' Example', idempotency_key: 'local-file-0004' })).result.content[0].text,
-    /^invalid arguments: model/u);
-  await mcp.close();
 });
