@@ -21,23 +21,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates
     && echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update && apt-get install --no-install-recommends -y postgresql-client-18=18.6-1.pgdg12+2 \
     && rm -rf /var/lib/apt/lists/*
-RUN case "$TARGETARCH" in \
-      amd64) digest=3219443a9734b89b93fb16ee8d65844759fa1b3cd3cf139c606b7353cfb0715c ;; \
-      arm64) digest=c3b32c71a6c0cd6358a12c28272b17e6818db991da192f87df52339c222e423a ;; \
-      *) exit 1 ;; \
-    esac && curl --fail --retry 5 --retry-all-errors --location --silent --show-error "https://github.com/gastownhall/beads/releases/download/v1.3.1/beads_1.3.1_linux_${TARGETARCH}.tar.gz" -o /tmp/beads.tar.gz \
-    && echo "$digest  /tmp/beads.tar.gz" | sha256sum --check - \
-    && tar -xzf /tmp/beads.tar.gz -C /usr/local/bin bd && rm /tmp/beads.tar.gz \
-    && bd version
-RUN case "$TARGETARCH" in \
-      amd64) digest=cd08696de8d185aa194c930f62cdf4a3599084534e589fbcb0d2207d1bc37370 ;; \
-      arm64) digest=f8c19f6d8827e6ef4d21a694073cfb50777f4099136fb52d805c397f7b571cc2 ;; \
-      *) exit 1 ;; \
-    esac && curl --fail --retry 5 --retry-all-errors --location --silent --show-error "https://github.com/dolthub/dolt/releases/download/v2.4.0/dolt-linux-${TARGETARCH}.tar.gz" -o /tmp/dolt.tar.gz \
-    && echo "$digest  /tmp/dolt.tar.gz" | sha256sum --check - \
-    && tar -xzf /tmp/dolt.tar.gz -C /tmp \
-    && install /tmp/dolt-linux-${TARGETARCH}/bin/dolt /usr/local/bin/dolt \
-    && rm -rf /tmp/dolt.tar.gz /tmp/dolt-linux-${TARGETARCH} && dolt version
 # The Docker CLI and Compose, for an installation's own commands run from this
 # image (deploy/compose/noticeos); the app itself never reaches Docker.
 RUN case "$TARGETARCH" in \
@@ -65,7 +48,6 @@ RUN pnpm install --frozen-lockfile \
     && ln -s /state/workers/ingest/.dev.secrets.json workers/ingest/.dev.secrets.json \
     && ln -s /state/workers/ingest/.dev.vars workers/ingest/.dev.vars
 ENV NOTICEOS_HOME=/state NOTICEOS_INSTALLATION_DIR=/state/installation
-ENV BEADS_BD_BIN=/usr/local/bin/bd
 ENV NOTICEOS_VITE_CACHE_DIR=/state/.local/vite-cache WRANGLER_SEND_METRICS=false
 USER node
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 CMD ["node", "deploy/compose/health.mjs"]

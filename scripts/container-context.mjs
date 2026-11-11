@@ -9,8 +9,7 @@ import { STACK_SOURCES } from './installation-layout.mjs';
 import { gitSourceVersion } from './source-version.mjs';
 
 const ROOT_FILES = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md']);
-const TOOL_NOTICES = ['deploy/compose/licenses/beads-1.3.1-LICENSE.txt',
-  'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/docker-cli-28.5.2-LICENSE.txt',
+const TOOL_NOTICES = ['deploy/compose/licenses/docker-cli-28.5.2-LICENSE.txt',
   'deploy/compose/licenses/docker-cli-28.5.2-NOTICE.txt', 'deploy/compose/licenses/docker-compose-2.40.3-LICENSE.txt',
   'deploy/compose/licenses/docker-compose-2.40.3-NOTICE.txt', 'deploy/compose/licenses/sources.json'];
 // An installation that runs from its image copies its stack definition and its launcher out of it.
