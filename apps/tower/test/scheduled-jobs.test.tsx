@@ -10,7 +10,7 @@ vi.mock('@/lib/api', async (original) => ({ ...await original<typeof import('@/l
 vi.mock('sonner', () => ({ toast: { success: mock.success, error: mock.error } }));
 vi.mock('@/hooks/useConfigWritable', () => ({ useConfigWritable: () => ({ writable: true, reason: null, sources: {} }) }));
 const backup = SCHEDULED_JOBS.find((job) => job.id === 'backup')!;
-const overrides = { backup: { enabled: true, cron: '0 4 * * *' }, 'task-map': { enabled: false, cron: '5 * * * *' } };
+const overrides = { backup: { enabled: true, cron: '0 4 * * *' }, 'panel-refresh': { enabled: false, cron: '0 3 * * *' } };
 let client: QueryClient;
 let data: ScheduledJobsPayload;
 
@@ -66,7 +66,7 @@ describe('scheduled job editing', () => {
   it('restores one default without removing another job’s pause', async () => {
     mount(<ScheduleEditor job={backup} overrides={overrides} writable onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Restore default' }));
-    await waitFor(() => expect(mock.save).toHaveBeenCalledWith([expect.objectContaining({ value: { 'task-map': overrides['task-map'] }, expect: overrides })], 'schedule-backup'));
+    await waitFor(() => expect(mock.save).toHaveBeenCalledWith([expect.objectContaining({ value: { 'panel-refresh': overrides['panel-refresh'] }, expect: overrides })], 'schedule-backup'));
   });
 
   it('keeps failed edits visible and never reports an unconfirmed save as success', async () => {

@@ -92,8 +92,6 @@ export const CONFIG = {
   // 03:30 sweep closes something, so it stays silent on ticks with nothing to
   // carry.
   watchReadbackCron: '50 * * * *',
-  // The task-map lane's tick, hourly at :05 (runner/task-map.mjs).
-  beadsMapCheckCron: '5 * * * *',
   // How often every rostered property's local signal panels are rebuilt
   // (config/signal-panels.json). 13:10 UTC: after both archive crons have
   // landed — the daily GA4/GSC/BWT lane at 12:15 and the weekly DataForSEO

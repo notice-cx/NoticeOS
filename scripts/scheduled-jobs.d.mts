@@ -135,6 +135,9 @@ export declare function scheduleCronRefusal(cron: unknown): string | null;
  * Null for an expression the editor does not offer.
  */
 export declare function cronIntervalMinutes(cron: string): number | null;
+/** Removed jobs an installation may still hold saved settings for. They run
+ * nothing, and their settings must not prevent other schedules from starting. */
+export declare const RETIRED_JOB_IDS: readonly string[];
 export declare function schedulesRefusal(value: unknown): string | null;
 export declare function schedulesOpRefusal(op: {
     file?: string;

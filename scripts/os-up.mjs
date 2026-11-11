@@ -60,7 +60,6 @@ import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime } from './runner/scheduler.mjs';
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
-import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
 import { BACKUP_TASKS_UNKNOWN, backupTaskHub, taskServiceCheck } from './runner/task-service-poll.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
@@ -336,7 +335,6 @@ export function hostLanes(runtime) {
     'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), emit: observed.emit }), { resultMetadata: result => result?.response ?? result?.error ?? {} }),
     'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), emit: observed.emit })),
     'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ taskService: runnerTaskService(), emit: observed.emit })),
-    'task-map': traced('task-map', observed => runTaskMapCheck({ taskService: runnerTaskService(), emit: observed.emit })),
     'panel-refresh': traced('panel-refresh', observed => runPanelRefresh(runtime, { run: observed.runCommand, emit: observed.emit })),
     backup: { run: () => runBackup(), outcomeOf: backupRunOutcome },
   };

@@ -434,7 +434,7 @@ it fires exactly once (`CRON_CATCHUP_POLICIES` in `scripts/job-runs.mjs`):
 | Lane cadence | Recovery window | Behavior |
 |---|---:|---|
 | 15-minute counters + Google signals | 1 hour | one current refresh, never a tick-by-tick replay |
-| Hourly freshness, operator notifications, panel review, task project checks | 2 hours | one latest reconciliation |
+| Hourly freshness, operator notifications, panel review | 2 hours | one latest reconciliation |
 | Daily ingest lanes (including the PostHog archive), panel refresh, backup | 36 hours | one latest daily obligation; trailing-window collectors store an unchanged window as `unchanged` |
 | Mediavine (`10,30,50 * * * *`) | 36 hours | checks the cutoff and stored coverage; requests a report only when due |
 | Weekly DataForSEO collection | 8 days | one missed weekly collection |
@@ -475,8 +475,6 @@ is, each lane records a skip and reads or changes nothing:
   ([how the snapshot stays current](../docs/guides/keep-tasks-in-ntasks.md#how-the-snapshot-stays-current)).
 - **Task service health** (`beadsHubCheckCron`) records whether a task service
   is connected.
-- **The task-map lane** (`beadsMapCheckCron`) records a skip: Ntasks keeps no
-  task databases to check.
 
 ### The panel-review filer
 

@@ -123,14 +123,12 @@ function handoffRank(a, b) {
   );
 }
 
-// Task snapshot poller — the hub's state, once a minute, into the central
-// store so the Tower can render it. The Tower cannot read the hub directly, so
-// this process shells the `bd` CLI once per spoke and POSTs what it saw to the
-// ingest worker. `bd` resolves its own connection settings from each repo's
-// `.beads/config.yaml`, so the poller never holds hub credentials; it only
-// says where to look (-C). This is a read: the poller never creates, closes
-// or edits a task (runner/panel-review.mjs and runner/task-map.mjs are
-// separate lanes that write).
+// Task snapshot poller — each task project's boards, once a minute, into the
+// central store so the Tower can render them. The runner reads the boards from
+// Ntasks (runner/task-service-poll.mjs) and POSTs what it saw to the ingest
+// worker. This is a read: the poller never creates, closes or edits a task
+// (runner/panel-review.mjs and runner/watch-readbacks.mjs are separate lanes
+// that write).
 
 /** How many of each list a project reports: the board shows the head of the
  * queue, not the queue. */
