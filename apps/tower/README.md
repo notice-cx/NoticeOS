@@ -93,18 +93,18 @@ config entry is not. The composition is `shared/asset-wizard.ts`.
 ### Tasks are managed here
 
 An installation's tasks live in Ntasks. While `vite` serves the Tower, a
-dev-only lane (`vite/task-lane.ts`, `apply: "serve"`) answers the task paths
-from the installation's task service (`vite/task-service-lane.ts`), which maps
+dev-only request handler (`vite/task-lane.ts`, `apply: "serve"`) returns the
+task paths from the installation's task service (`vite/task-service-lane.ts`), which maps
 each saved task project to the Ntasks project with its prefix. Writes carry
 the installation's service credential; a decision that only a person may make
 is sent from their own browser after they sign in to Ntasks. With no task
 service connected, as in the synthetic viewer, every task path but
 `/api/tasks/capabilities` and `/api/tasks/service` returns
 `task_service_not_connected`, and the Tasks pages show **Connect Ntasks**.
-The lane checks the same origin on every path but the capabilities
+The handler checks the same origin on every path but the capabilities
 (`vite/lane.ts`).
 
-A deployed Worker answers `GET /api/tasks/capabilities` with
+A deployed Worker returns `GET /api/tasks/capabilities` as
 `{ live: false, reason }` and `501` on every other task path, so the board
 renders the once-a-minute `/api/work` snapshot with its actions disabled
 rather than offering a claim that cannot land. Agents use Ntasks's own MCP
@@ -283,8 +283,8 @@ above; `build` and `preview` are the Vite commands.
 `scripts/demo-viewer.mjs` serves a completed synthetic generation through the
 ordinary Tower readers. It requires the clean public source release the
 generation recorded, matching evaluator inputs and a healthy owned loopback
-Postgres; it refuses ordinary installations and inherited installation
-selectors. From that verified public checkout:
+Postgres, and it stops on an ordinary installation's folder or an inherited
+installation selector. From that verified public checkout:
 
 ```sh
 node scripts/demo-viewer.mjs --dir /absolute/synthetic-home --port 6360 --release <commit>
