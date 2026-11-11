@@ -14,7 +14,6 @@ See traffic, revenue, costs, alerts and work in one place, on your laptop, phone
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
 [![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Dolt 2](https://img.shields.io/badge/Dolt-2-6B45CB)](https://www.dolthub.com/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
 
 **[Documentation](https://docs.notice.cx/)** · **[Install](#install-with-docker)** · **[Try the demo](docs/start/try-the-demo.md)** · **[Contribute](CONTRIBUTING.md)**
@@ -73,8 +72,8 @@ docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
 
 Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup makes the
 installation folder `~/noticeos` with its own secrets and starts Postgres, the
-Dolt task database, the app and its backup worker as one Docker Compose stack, from
-main's newest published image. The folder's launcher runs its commands:
+app and its backup worker as one Docker Compose stack, from main's newest
+published image. The folder's launcher runs its commands:
 `~/noticeos/noticeos status`, `logs`, `apply`, `update`.
 [Install with Docker](docs/start/install-with-docker.md) covers the options,
 the commands and updates.
@@ -99,8 +98,7 @@ pnpm os:setup
 Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup fetches the app
 image published for `main` (or builds it when none is published), makes the
 installation folder `~/noticeos` with its own secrets, starts
-Postgres, the Dolt task database, the app and its backup worker as one Docker Compose
-stack, and points the `pnpm os:*` commands at it. It starts with no user
+Postgres, the app and its backup worker as one Docker Compose stack, and points the `pnpm os:*` commands at it. It starts with no user
 websites or provider accounts, and existing databases are never changed.
 
 [Install from source](docs/start/install-from-source.md) covers the options;
@@ -122,17 +120,20 @@ and [bootstrap credential setup](docs/06-operations.md#bootstrap-secrets-vs-inte
 
 ## One shared place for work
 
-**Beads provides the task model; Dolt stores the tasks in one central database.**
-People and agents coordinate the same tasks across NoticeOS and the projects
-it manages, with status, ownership, dependencies, approval gates and evidence.
-New installations include a NoticeOS task project, so Tasks works before you
-add a website. [Connect a task project](docs/guides/connect-a-task-project.md) covers
-a project's shared tasks, repository access and agent instructions.
+**[Ntasks](https://github.com/notice-cx/Ntasks) holds the tasks.** People and
+agents coordinate the same tasks across NoticeOS and the projects it manages,
+with status, ownership, dependencies, approval gates and evidence. Connect an
+Ntasks in **Settings** > **Task projects**
+([Keep tasks in Ntasks](docs/guides/keep-tasks-in-ntasks.md)). New installations
+list the System's task project there; Ntasks needs a project with the same
+prefix, and [Connect a task project](docs/guides/connect-a-task-project.md)
+covers making it and each website's project.
 
-People work on the **Tasks** page. A coding agent such as Claude Code reaches
-the same tasks, and the asset reports, through the MCP server the Tower serves
-at `/api/mcp`; [Connect an agent](docs/guides/connect-an-agent.md) shows how to
-set it up with one command. Installable agent skills and hooks, and connections
+People work on the **Tasks** page, which is the Ntasks web app. A coding agent
+such as Claude Code reaches the tasks through Ntasks's MCP endpoint, and the
+asset reports through the MCP server the Tower serves at `/api/mcp`;
+[Connect an agent](docs/guides/connect-an-agent.md) shows how to set it up
+with one command. Installable agent skills and hooks, and connections
 to tools such as Jira or Linear, are planned; they are not available yet.
 
 ## Deployment status
@@ -146,7 +147,7 @@ to tools such as Jira or Linear, are planned; they are not available yet.
 Standalone has no user login: anyone who can reach it can operate it. Keep it
 behind an access proxy, VPN or private network.
 
-The demo package runs the built app, Postgres and Dolt on a Linux server or VM,
+The demo package runs the built app, Postgres and its own Ntasks on a Linux server or VM,
 including Proxmox. Put its application port behind an HTTPS reverse proxy.
 Visitors explore the same product and task model; they cannot change data or
 connect real providers. Follow the demo guide for setup, updates and recovery.

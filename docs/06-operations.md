@@ -451,57 +451,46 @@ system, for no benefit to anyone using the product:
 | the product's old slug, as an id | the id of NoticeOS's own asset row (a historical row) | an id that every stored row, report and token is keyed on. The row is always shown as System and identified by `is_os`, never by this id; the `ReindexOS` its `display_name` still stores is legacy data that no screen displays |
 | `reindex-os-raw-signals` | the R2 bucket an older store was made under, named in that installation's own `resource-names.json`, never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only |
 | an older checkout's path | the maintainer's checkout | the task database server keeps its Dolt data inside it |
-| the Dolt task databases and the `ro-` task prefix | the task database server | every task id and every project's link to the task database server |
+| the `ro-` task prefix | the maintainers' task project in Ntasks | every task id carries it |
 | the private repository's remote | the maintainers' repository | agents never rename or move a repository or a remote |
 | the old name in `docs/reports` and `docs/artifacts` | dated records | they keep their original wording |
 <!-- legacy-names:end -->
 
-## The task database
+## Tasks
 
-Operator and agent work is tracked in [Beads](https://github.com/gastownhall/beads)
-(`bd`), a Dolt-backed task tracker. One shared Dolt SQL server holds the task
-databases; each configured repository is a task project that connects to that
-server in server mode and has no task database of its own. The saved asset ↔
-prefix ↔ database map is kept in the store; the
-[product task-map default](../config/beads.json) is empty. The
-[task contract](../config/beads.README.md) defines those identities.
+Operator and agent work is tracked in [Ntasks](https://github.com/notice-cx/Ntasks),
+a task hub that runs as a Cloudflare Worker outside the installation's stack.
+The installation connects to it under **Settings** > **Task projects** with
+one service credential, and each site maps to the Ntasks project with its task
+prefix ([Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md)). The saved
+asset ↔ prefix map is kept in the store; the
+[product task-map default](../config/beads.json) is empty, and the
+[task contract](../config/beads.README.md) defines its fields.
 
-**The declared task service runs the task database server independently of
-the runner.** It is the stack's `dolt` service ([Compose profile](../db/dolt/host/README.md)),
-declared to the app in its protected `/state/task-client.json`. Health checks
-and backups use that declaration. A missing or invalid declaration fails with
-an explicit error. The runner checks the endpoint at startup, on its 15-minute
-health check and before each snapshot read; it logs state changes and backs up
-the declared service nightly. It does not start, stop or supervise the task
-service.
-
-Recover the exact declared project, service and volume through the
-[Compose recovery procedure](../db/dolt/host/README.md#backup-and-recovery),
-with approval for changes to existing services or stores. Never start the
-retired source to recover a Compose task database server. Homebrew recovery
-applies only to an installation still using the
-[legacy native profile](../config/dolt-server.README.md).
-Dolt holds an exclusive write lock per database; a second server must never
-open the same data directory.
+**The installation runs no task database.** The runner reads Ntasks's change
+feed once a minute for the task snapshot, files panel and outcome reviews in
+Ntasks, and checks every 15 minutes that the task service responds
+(**Task service health** on the scheduled jobs page). It does not start, stop
+or supervise Ntasks. While Ntasks is unreachable, the **Tasks** pages show
+the copy Ntasks last gave and offer no actions.
 
 **Tasks are coordination state, not signals.** A task records what someone
-intends to do; a report records what an asset observed. The task database is a
-second store, separate from the ledger — nothing in it enters the report
-envelope or the signal contract ([doc 02](02-signal-contract.md)), and no task
-is evidence of an outcome. A record of intent must never be counted as a
-measurement.
+intends to do; a report records what an asset observed. Ntasks is a second
+store, separate from the ledger — nothing in it enters the report envelope or
+the signal contract ([doc 02](02-signal-contract.md)), and no task is evidence
+of an outcome. A record of intent must never be counted as a measurement.
 
-**Durability.** The runner's nightly 04:00 UTC job backs up all
-three stores into the same dated directory under `.local/backups/`, on the same
-30-day retention: the declared Compose Postgres through a custom-format
-`pg_dump`, the R2 raw-archive store's sqlite via sqlite's **online-backup API**
-(a raw file copy of a live WAL database can be left inconsistent if it is taken
+**Durability.** The runner's nightly 04:00 UTC job backs up every store into
+the same dated directory under `.local/backups/`, on the same 30-day
+retention: the declared Compose Postgres through a custom-format `pg_dump`,
+the R2 raw-archive store's sqlite via sqlite's **online-backup API** (a raw
+file copy of a live WAL database can be left inconsistent if it is taken
 mid-checkpoint), R2's content-addressed blobs as plain copies (immutable once
-written), and one consistent `DOLT_BACKUP` per task database into
-`<date>/beads/<database>/`. The task database backup is a call to the live
-server and requires the task **service** to be running (not the runner). Every
-required store is attempted, but a failed store blocks publication, offsite
-handoff and pruning. The previous complete backup remains available.
+written), and, while Ntasks is connected, Ntasks's whole store read through
+its backup route into `<date>/ntasks/backup.json`
+([the nightly backup](guides/keep-tasks-in-ntasks.md#the-nightly-backup)).
+Every required store is attempted, but a failed store blocks publication,
+offsite handoff and pruning. The previous complete backup remains available.
 Each published dated dir contains a generated `RESTORE.md` that lists what it
 holds and how to restore it. Each store is consistent on its own; the stores
 are not captured at one shared instant, and the restore proof also checks their
@@ -515,12 +504,11 @@ installation's `host-backup.json` ([`config/host-backup.README.md`](../config/ho
 which a sync client copies offsite with no extra tool or credential. Only
 the *completed* copy
 is synced, never live stores, so the sync client never reads a partly written
-file; pruning removes offsite copies on the same 30-day window. The
-`DOLT_BACKUP` dirs in that copy restore via `dolt backup restore file://…`,
-which also provides the task databases' off-machine copy; a Dolt remote is
-not built unless a drill shows the copied backups are insufficient. A backup
+file; pruning removes offsite copies on the same 30-day window. The copied
+`ntasks/backup.json` is the tasks' off-machine copy; an Ntasks checkout of the
+version it was taken from restores it into a new store. A backup
 that has never been restored is not known to work, so the quarterly restore
-drill restores from the **offsite copy alone**, all three stores, into an
+drill restores from the **offsite copy alone**, every store, into an
 isolated scratch location (procedure in [`scripts/README.md`](../scripts/README.md)).
 
 ## Data retention

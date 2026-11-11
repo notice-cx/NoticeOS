@@ -11,7 +11,8 @@ background job and export. A deployment can serve one workspace or many.
 
 Hosted tenancy follows comparative research of hosted tenancy models:
 invitation-only customer onboarding and an open, read-only public demo. The
-shared Postgres schema and the Beads/Dolt task authority remain. The
+shared Postgres schema remains, and tasks live in Ntasks
+([Ntasks is the task authority](#ntasks-is-the-task-authority)). The
 [glossary](../CONTEXT.md) defines the product terms.
 
 This is the accepted implementation contract, not evidence of hosted safety.
@@ -32,16 +33,15 @@ The source establishes the starting point:
   [Configuration caching](../workers/ingest/src/config-store.ts) already includes
   workspace identity. Configuration documents and credentials are workspace
   rows; credentials currently allow one record per provider per workspace.
-- Native task consumers use saved logical project membership and a separate
-  [host capability map](../scripts/task-project-config.mjs). Matching asset,
-  prefix and database prevents arbitrary checkout selection, but the caller
-  still needs a trusted workspace. Hosted task actions were not implemented at that baseline.
+- Tasks live in Ntasks. Each site maps to the Ntasks project with its task
+  prefix, and the installation reaches Ntasks with one service credential
+  ([Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md)).
 - Browser state, native job dispatch, some private caches and object paths
   assumed one installation at that baseline. Environment credential fallback
   was not yet restricted to an explicit standalone owner.
-- The current [demo seeder](../scripts/demo-seed.mjs) writes real Postgres and
-  Beads records in a fresh isolated installation. It is neither a hosted
-  membership implementation nor an ongoing simulator.
+- The local [demo seeder](../scripts/demo-seed.mjs) fills a fresh isolated
+  installation with synthetic records. It is neither a hosted membership
+  implementation nor an ongoing simulator.
 
 Current source has explicit hosted/demo admission, invitation-only identity,
 workspace-bound Tasks, scheduler journals/status and scoped archive readers.
@@ -129,12 +129,13 @@ holder. They do not change collection, conversion/value-event declarations or
 measurement rules. Whole-holder replacement/deletion, ancestor writes and
 neighboring measurement fields cannot use that exception.
 
-`tasks.decide` records a human response, dismissal or human-gate approval. It is
-limited to a current owner/operator person or an explicit standalone operator;
-workspace services cannot receive it, even through an explicit grant. Viewers
-and demo readers cannot decide. Ordinary task closure or removal of the human
-marker cannot substitute for this action. Recording a decision may unblock
-work; it does not execute or authorize a protected operation.
+A human response, choice, dismissal, approval or dispute on a task is recorded
+by Ntasks only for a person signed in to Ntasks, with the `tasks:decide` scope
+the Tower asks for when the person signs in. The installation's service
+credential cannot record one, and demo readers cannot decide. Ordinary task
+closure or removal of the human marker cannot substitute for this action.
+Recording a decision may unblock work; it does not execute or authorize a
+protected operation.
 
 ## Authorized execution context v1
 
@@ -168,9 +169,9 @@ Private Tower → ingest calls carry the bounded original request proof for a
 fixed receiver method. The receiver reconstructs fresh admission; a live context
 brand does not cross Worker realms. Service binding access alone is not
 end-user authority. A network caller cannot submit
-a serialized context or audit actor and have it accepted. Native middleware,
-tool APIs and task subprocesses use the same authorization decision before
-acquiring capabilities. Object ownership is checked within the context;
+a serialized context or audit actor and have it accepted. Native middleware
+and tool APIs use the same authorization decision before acquiring
+capabilities. Object ownership is checked within the context;
 denials expose neither foreign data nor whether the requested object exists.
 
 Context is immutable for the operation. Store transactions use its workspace;
@@ -250,7 +251,7 @@ remote deployment.
 | Assets, ledger, signals, findings, decisions | Workspace-owned records, including authenticated actor and provenance where relevant. |
 | Configuration and TV layout | Workspace; the existing document format remains behind the scoped store. Measurement protection is unchanged. |
 | Integration connection | Workspace plus opaque connection identity and revision; provider/account labels do not grant ownership. Encrypted secrets remain server-only. |
-| Task project and task history | Workspace owns the logical project; a trusted directory resolves approved Beads/Dolt capabilities. |
+| Task project and task history | Ntasks. A site maps to the Ntasks project with its task prefix; the installation's service credential fixes which projects it reaches. |
 | Workflow definition, schedule, run, step, approval | Workspace; a run pins its definition and initiating principal across retries. Execution success is not business outcome. |
 | Personal preference | Person; workspace-specific preferences additionally name workspace. A hosted person's view is stored in `noticeos.person_preferences` (workspace, person, name; one row per save, the newest is current), read and saved through `/api/me/preferences/view`. Browser caches use the same ownership. |
 | Device state and unsaved UI | Device/browser or memory: viewport, reduced motion, fullscreen, menus, drafts. Saved reporting timezone remains workspace data. |
@@ -290,7 +291,7 @@ is absent and the database proves the selected workspace is its sole workspace;
 invalid objects or failed reads never trigger that fallback. Hosted and demo
 profiles never use unscoped checkpoints.
 
-## Postgres, task execution and transport
+## Postgres and transport
 
 **One shared Postgres database and schema.** Retain workspace-leading
 keys, forced row security, the non-owner/no-bypass application role and
@@ -319,49 +320,53 @@ must satisfy the documented [outbound TCP restrictions](https://developers.cloud
 local loopback success does not prove remote connectivity. The explicit
 standalone transport path remains separate and unchanged.
 
-**Dolt remains the task authority, with `bd` the only write path.** Resolve
-`(workspace, taskProject)` through a trusted directory to the allowed database,
-restricted credential and executor/filesystem capability. Prefixes are unique
-inside a workspace; physical database names are unique within their server and
-are not derived from a tenant-supplied name without trusted provisioning.
+Versioned panel evidence and remote agent review of it are not built yet. One
+MCP endpoint for every NoticeOS tool in every workspace a person belongs to,
+and agent sign-in (OAuth 2.1 through the authentication component's maintained
+provider), exist locally; their activation and any public service remain
+unqualified.
 
-A tenant never chooses a host, database, checkout path, executable, arbitrary
-CLI arguments or raw volume. Provisioning, migration, backup and restore
-authority stays with platform maintenance. Branches are not tenant secrecy
-boundaries.
+## Ntasks is the task authority
 
-The approved UI/API-only hosted design uses **shared Dolt with separate project
-databases and restricted credentials behind trusted, fixed-command NoticeOS
-execution**. Tenants and agent harnesses use the authorized NoticeOS API; they
-never receive Dolt credentials, SQL access or arbitrary Beads execution. The
-server selects workspace credentials and checkout capabilities; command shapes
-exclude arbitrary flags, files, configuration and branch operations.
+An installation's tasks live in [Ntasks](https://github.com/notice-cx/Ntasks),
+a Cloudflare Worker over one D1 database. NoticeOS keeps no task store of its
+own; it is one of Ntasks's clients, over outbound HTTPS. Ntasks authenticates
+every call.
 
-Versioned panel evidence and remote agent review of it are not built yet.
-Retry-safe task writes, one MCP endpoint for every tool in every workspace a
-person belongs to, and agent sign-in (OAuth 2.1 through the authentication
-component's maintained provider) now exist locally ([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry));
-their activation and any public service remain unqualified.
+- The installation keeps one Ntasks service credential, encrypted in its store
+  like every other connection, and only the ingest Worker opens it
+  ([Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md)). The Tower's task
+  routes and the runner reach Ntasks through the ingest Worker. Each request
+  names who it is for, and Ntasks records the change as
+  `service:<credential name>/<name>`.
+- The credential fixes which Ntasks projects the installation reaches. A site
+  maps to the Ntasks project with its task prefix; a project the credential does
+  not reach does not exist for the installation.
+- A person's decisions are sent from their browser with their own Ntasks
+  sign-in, never with the installation's credential
+  ([Identity, membership and roles](#identity-membership-and-roles) lists what
+  a decision is).
+- Agents connect to Ntasks's own MCP endpoint and sign in to Ntasks. While
+  Ntasks holds the tasks, NoticeOS's MCP server lists no task tools.
 
-The [Dolt 2.4.0 / Beads 1.3.1 qualification](../scripts/dolt-tenant-permissions-compose.test.mjs)
-uses two generated databases with colliding task IDs. Restricted accounts
-support ordinary task changes and bounded history, while tested foreign
-database/revision access is denied. However, checkout permission also permits
-own branch creation, and `LOAD_FILE` returns an owned server canary without a
-`FILE` grant. Both databases share the server filesystem; SQL grants do not
-isolate that filesystem. Raw Beads also reads and writes files with its process
-permissions. That raw-credential proof supports the conditional placement contract, **not
-executor certification**. The separate
-[fixed executor proof](../scripts/hosted-task-executor-compose.test.mjs) and
-[actual browser composition proof](../scripts/hosted-task-browser-native.test.mjs)
-qualify the confined local path, not remote hosting or tenant SQL access. If
-tenant-controlled SQL or execution is later requested, reconsider separate
-per-workspace servers before accepting that broader capability.
+Ntasks enforces the task rules on its server: one successful claimant, a write
+carries the revision it relied on, an idempotency key replays the original
+result, state and history commit together, and readiness, gates and epic rules
+are derived there. NoticeOS does not repeat them.
+
+A task request never selects the Ntasks address, the credential or the mapping
+of sites to projects. An operator saves them under **Settings** >
+**Task projects**. Ntasks is connected on standalone installations only; a
+hosted deployment has no task service, and connecting one Ntasks workspace to
+each NoticeOS workspace is not built.
 
 ## Public demo and simulator
 
-The demo uses the same released application, Postgres schema, task service and
-Beads model as an ordinary workspace. The public entry resolves a configured
+The demo uses the same released application and Postgres schema as an ordinary
+workspace. Its tasks live in its own Ntasks, run inside the demo stack
+([demo profile](../deploy/demo/README.md)). The demo's workspace is that
+Ntasks's public workspace: a visitor reads it with no credential, and Ntasks
+stops every change a visitor sends. The public entry resolves a configured
 demo workspace on the server and **always** grants demo-reader authority, even
 when the browser also holds a customer session. A selector cannot turn it into
 a customer request. The UI always labels synthetic data as synthetic.
@@ -393,7 +398,8 @@ and publishing caps are not relaxed for the demo.
 
 The native [demo runtime](../scripts/hosted-demo-runtime.mts) composes an
 already seeded, explicitly bound workspace with the released ordinary input
-writers, scoped task executor and journal. It does not provision or migrate.
+writers, the stack's own Ntasks through the demo's credential, and its journal.
+It does not provision or migrate.
 Its one-minute timer has one in-flight tick and catches up at most seven owed
 dates per tick, oldest first. A busy, blocked or uncertain occurrence stops that
 batch; it cannot skip missing evidence to make the display look current.
@@ -475,7 +481,7 @@ Tests run through public APIs, private calls and background work, not just SQL.
 | Interleave successful and failed transactions on reused pooled connections | Each operation reads only its own workspace's data; state does not leak after commit/rollback. |
 | Concurrent saves and warm cache reuse; failed reads; credential rotation | Ownership remains correct; stale save is rejected atomically; no legacy or foreign fallback. |
 | Retry jobs after revocation/suspension; collide names and occurrence times | Authority rechecked, effects rejected when revoked, deduplication remains workspace-bound. |
-| Execute foreign task projects, branches, database selectors or file paths | Task executor and Dolt grants deny access; bd is still the write path. |
+| Read or change a task project the installation's credential does not reach; record a decision with that credential | Ntasks stops the request; nothing is read or changed. |
 | Switch/logout during reads, optimistic Saves and Undo; use two tabs | Late data/rollback cannot enter the new context; pending writes keep their owner. |
 | Invoke demo mutations through HTTP, RPC, tasks and tool APIs, including GET side effects | Server rejection independent of UI and HTTP verb, including a signed-in customer visiting demo. |
 | Run simulator beside customer activity; exceed public budgets | Only synthetic workspace inputs/tasks change; no real outward effect or unbounded shared work. |
@@ -484,5 +490,5 @@ Tests run through public APIs, private calls and background work, not just SQL.
 
 Independent verification re-executes the relevant tests and records source,
 fixture, runtime and schema versions. Native fixtures establish native behavior;
-hosted proof names the actual supported transport and task executor. A green
+hosted proof names the actual supported transport and task service. A green
 demo does not substitute for tests of real provider OAuth or delivery.
