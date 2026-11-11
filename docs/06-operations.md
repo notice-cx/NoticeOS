@@ -464,7 +464,7 @@ The installation connects to it under **Settings** > **Task projects** with
 one service credential, and each site maps to the Ntasks project with its task
 prefix ([Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md)). The saved
 asset ↔ prefix map is kept in the store; the
-[product task-map default](../config/beads.json) is empty, and the
+[product default](../config/beads.json) is empty, and the
 [task contract](../config/beads.README.md) defines its fields.
 
 **The installation runs no task database.** The runner reads Ntasks's change

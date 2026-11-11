@@ -6,7 +6,6 @@ import { test } from 'node:test';
 import { backupTaskHub, boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, NO_TASK_SERVICE, readFeed, readLabelled, syncTaskService, taskServiceCheck } from './runner/task-service-poll.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
-import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
 import { labelKey, readCached, readSyncState } from './task-service-cache.mjs';
@@ -179,8 +178,6 @@ for (const [name, service, reason] of [
     assert.match(lines.at(-1), reason);
     assert.equal(await runPanelReviewFiler({ running: true, ready: true }, { taskService: service, readConfig: never, get: never,
       state: { skipping: null, unmapped: new Set(), waiting: new Set() }, emit, stopped: () => false }), null);
-    assert.match(lines.at(-1), reason);
-    assert.equal(await runTaskMapCheck({ taskService: service, state: { skipping: null }, emit, stopped: () => false }), null);
     assert.match(lines.at(-1), reason);
     const readbacks = await runWatchReadbackFiler({ taskService: service, readToken: async () => 'operator-token', readConfig: never,
       fetchImpl: async (url, init = {}) => { asked.push(init.method ?? 'GET'); return Response.json({ pending: [{ windowId: 'w1', bead: 'ex-1', asset: 'example.com' }], reviews: [] }); },

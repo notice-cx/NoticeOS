@@ -1175,11 +1175,8 @@ function AssetLinks({ ids }: { ids: string[] }) {
 
 // --- 6. Task projects -----------------------------------------------------------
 /**
- * The map from an asset to the project its tasks live in. A row is a mapping,
- * not a project, so an Add answers with the remaining steps as commands. The
- * connection is a fixed fact because its port lives in three files that must
- * agree. A missing database is read from `/api/work`, never probed, so a down
- * store cannot blank this page; `shared/task-map.ts` owns the join.
+ * The map from an asset to its Ntasks project, which shares its prefix. A row
+ * is a mapping, not a project: making the project is a step in Ntasks.
  */
 /** A path or command the row cannot shorten: it wraps within this width rather than squeezing the row's label. */
 const LONG_VALUE = "block max-w-md";

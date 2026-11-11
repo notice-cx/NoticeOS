@@ -25,7 +25,7 @@ test('the catalog covers every ingest trigger and preserves local defaults', asy
   assert.deepEqual([...source.matchAll(/export const \w+ = '([^']+)'/g)].map((match) => match[1]), []);
   const keyed = [...source.matchAll(/dispatchKey\('([a-z0-9-]+)'\)/g)].map((match) => match[1]);
   assert.deepEqual(keyed.sort(), SCHEDULED_JOBS.filter((item) => !item.local).map((item) => item.id).sort());
-  const local = ['beadsHubCheckCron', 'beadsPollCron', 'panelFilerCron', 'watchReadbackCron', 'beadsMapCheckCron', 'panelRefreshCron', 'backupCron'];
+  const local = ['beadsHubCheckCron', 'beadsPollCron', 'panelFilerCron', 'watchReadbackCron', 'panelRefreshCron', 'backupCron'];
   assert.deepEqual(SCHEDULED_JOBS.filter((item) => item.local).map((item) => item.cron), local.map((key) => CONFIG[key]));
   assert.equal(new Set(SCHEDULED_JOBS.map((item) => item.id)).size, SCHEDULED_JOBS.length);
   for (const item of SCHEDULED_JOBS) assert.equal(schedulesRefusal({ [item.id]: scheduleFor(item) }), null);
@@ -47,11 +47,14 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
   }
 });
 
-test('retired unpublished-commit settings do not block or register any scheduled work', async () => {
+test('settings saved for a retired job are accepted and register no scheduled work', async () => {
+  // An installation may still hold a saved override for a removed job.
+  assert.equal(schedulesRefusal({ 'push-state': changed, 'task-map': { enabled: false, cron: '5 * * * *' }, backup: paused }), null);
+  assert.match(schedulesRefusal({ 'never-a-job': changed }), /Unknown scheduled job: never-a-job/u);
   const timers = [];
   const runner = createScheduledJobRunner({
     run: async () => {},
-    read: async () => ({ 'push-state': changed, backup: paused }),
+    read: async () => ({ 'push-state': changed, 'task-map': { enabled: true, cron: '5 * * * *' }, backup: paused }),
     createTimer: (cron) => {
       timers.push(cron);
       return { nextRun: () => null, stop: () => {} };
@@ -61,10 +64,13 @@ test('retired unpublished-commit settings do not block or register any scheduled
     await runner.refresh();
     assert.equal(runner.snapshot().error, null);
     assert.equal(runner.current('push-state'), null);
+    assert.equal(runner.current('task-map'), null);
     assert.equal(runner.current('backup').enabled, false);
     assert.equal(timers.length, SCHEDULED_JOBS.filter(job => !job.manualOnly).length - 1);
-    assert.equal(WORKFLOW_DEFINITIONS.some(item => item.id === 'push-state'), false);
-    assert.equal(STARTUP_CATCHUP_POLICIES.some(item => item.job === 'push-state'), false);
+    for (const id of ['push-state', 'task-map']) {
+      assert.equal(WORKFLOW_DEFINITIONS.some(item => item.id === id), false, id);
+      assert.equal(STARTUP_CATCHUP_POLICIES.some(item => item.job === id), false, id);
+    }
   } finally {
     runner.stop();
   }
