@@ -83,7 +83,7 @@ describe('backup run evidence', () => {
     expect(tasksRow(['ntasks'])).toMatch(/^Tasksntasks\/.*1 \/ 1 exports/);
     expect(tasksRow(['md', 'nw'])).toMatch(/^Task databasesbeads\/.*2 \/ 2 databases/);
     const unrecorded = tasksRow();
-    expect(unrecorded).toMatch(/^Tasks/);
+    expect(unrecorded).toMatch(/^Tasks.*8 \/ 8 items/);
     expect(unrecorded).not.toMatch(/ntasks\/|beads\//);
   });
   it('does not show another run’s contents or invent locations for an older report', () => {

@@ -19,10 +19,10 @@ const PART: Record<BackupPart, PartFace> = {
 const OLDER_TASK_SET: PartFace = { name: 'Task databases', unit: 'databases', folder: 'beads/' };
 /** What a part holds in this run's set. The task part follows the run's own
  * targets: the Ntasks export, an older set's task databases, or, with no
- * target recorded, no folder at all. */
+ * target recorded, no folder and a count in plain items. */
 function partFace(part: { id: BackupPart; targets: readonly string[] }): PartFace {
   if (part.id !== 'taskHub' || part.targets.includes('ntasks')) return PART[part.id];
-  return part.targets.length > 0 ? OLDER_TASK_SET : { ...PART.taskHub, folder: null };
+  return part.targets.length > 0 ? OLDER_TASK_SET : { ...PART.taskHub, unit: 'items', folder: null };
 }
 const STATUS: Record<BackupStatus, string> = { completed: 'Copied', failed: 'Failed', blocked: 'Not copied', not_configured: 'Not selected', unrecorded: 'Not recorded' };
 function Status({ status, label }: { status: BackupStatus; label?: string }) {
