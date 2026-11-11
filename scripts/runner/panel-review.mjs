@@ -312,8 +312,8 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     waiting.delete(collection);
 
-    let beadId;
-    try { beadId = await fileNtasksPanelReview(register, project, { ...landing, version,
+    let taskId;
+    try { taskId = await fileNtasksPanelReview(register, project, { ...landing, version,
       invalidated: rows.filter(row => invalidPanelReview(row) && panelReviewPanelDate(row) === landing.panelDate)
         .map(row => taskText(row.id)).filter(Boolean),
     }); }
@@ -321,10 +321,10 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
       emit('ERROR', `panel review: ${landing.asset} — review create failed: ${error.message}`);
       continue;
     }
-    filed.push({ asset: landing.asset, panelDate: landing.panelDate, beadId });
+    filed.push({ asset: landing.asset, panelDate: landing.panelDate, taskId });
     emit(
       'INFO',
-      `panel review filed — ${beadId} in Ntasks: ` +
+      `panel review filed — ${taskId} in Ntasks: ` +
         `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}", due ${panelReviewDueDate(landing.panelDate)}`,
     );
   }
