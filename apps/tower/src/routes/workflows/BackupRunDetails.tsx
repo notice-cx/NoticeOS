@@ -6,7 +6,8 @@ import type { BackupLocation, BackupPart, BackupStatus } from '../../../../../pa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-const PART: Record<BackupPart, { name: string; unit: string; folder: string }> = {
+interface PartFace { name: string; unit: string; folder: string | null }
+const PART: Record<BackupPart, PartFace> = {
   postgres: { name: 'Operational database', unit: 'databases', folder: 'postgres/' },
   r2: { name: 'Reports and stored files', unit: 'files', folder: 'r2/' },
   taskHub: { name: 'Tasks', unit: 'exports', folder: 'ntasks/' },
@@ -14,6 +15,15 @@ const PART: Record<BackupPart, { name: string; unit: string; folder: string }> =
   history: { name: 'Historical reports', unit: 'sets', folder: 'history/' },
   recovery: { name: 'Recovery keys and settings', unit: 'files', folder: 'recovery/' },
 };
+/** A set taken before tasks moved to Ntasks copied each task database into `beads/`. */
+const OLDER_TASK_SET: PartFace = { name: 'Task databases', unit: 'databases', folder: 'beads/' };
+/** What a part holds in this run's set. The task part follows the run's own
+ * targets: the Ntasks export, an older set's task databases, or, with no
+ * target recorded, no folder at all. */
+function partFace(part: { id: BackupPart; targets: readonly string[] }): PartFace {
+  if (part.id !== 'taskHub' || part.targets.includes('ntasks')) return PART[part.id];
+  return part.targets.length > 0 ? OLDER_TASK_SET : { ...PART.taskHub, folder: null };
+}
 const STATUS: Record<BackupStatus, string> = { completed: 'Copied', failed: 'Failed', blocked: 'Not copied', not_configured: 'Not selected', unrecorded: 'Not recorded' };
 function Status({ status, label }: { status: BackupStatus; label?: string }) {
   const Icon = status === 'completed' ? Check : status === 'failed' ? CircleX : CircleHelp;
@@ -51,14 +61,14 @@ export function BackupRunDetails({ run, captured, pending }: { run: WorkflowRun 
       <Destination name="Sync-folder copy" location={evidence.offsite} />
     </div>
     <Table stacked aria-label="Captured backup contents"><TableHeader><TableRow><TableHead>Contents</TableHead><TableHead>Captured</TableHead><TableHead>Local set</TableHead><TableHead>Sync folder</TableHead></TableRow></TableHeader>
-      <TableBody>{evidence.parts.map(part => <TableRow key={part.id}>
-        <TableCell label="Contents"><span className="font-medium">{PART[part.id].name}</span><code className="mt-1 block text-xs text-muted-foreground">{PART[part.id].folder}</code>
+      <TableBody>{evidence.parts.map(part => { const face = partFace(part); return <TableRow key={part.id}>
+        <TableCell label="Contents"><span className="font-medium">{face.name}</span>{face.folder === null ? null : <code className="mt-1 block text-xs text-muted-foreground">{face.folder}</code>}
           {part.targets.length > 0 && <p className="mt-1 break-words text-xs text-muted-foreground">{part.status === 'completed' ? 'Included' : 'Selected'}: {part.targets.join(', ')}{part.totalTargets > part.targets.length ? ` · ${part.totalTargets - part.targets.length} more` : ''}</p>}
         </TableCell>
-        <TableCell label="Captured" className="tabular-nums">{part.status === 'not_configured' ? 'None selected' : part.status === 'unrecorded' ? 'Unknown' : <>{part.copied.toLocaleString()} / {part.expected?.toLocaleString() ?? '?'} <span className="text-xs text-muted-foreground">{PART[part.id].unit}</span></>}</TableCell>
+        <TableCell label="Captured" className="tabular-nums">{part.status === 'not_configured' ? 'None selected' : part.status === 'unrecorded' ? 'Unknown' : <>{part.copied.toLocaleString()} / {part.expected?.toLocaleString() ?? '?'} <span className="text-xs text-muted-foreground">{face.unit}</span></>}</TableCell>
         <TableCell label="Local set"><Status status={part.status === 'completed' ? evidence.local.status : part.status} /></TableCell>
         <TableCell label="Sync folder">{part.id === 'recovery' && part.status !== 'unrecorded' ? <span className="text-sm text-muted-foreground">Excluded</span> : <Status status={part.status === 'completed' ? evidence.offsite.status : part.status} />}</TableCell>
-      </TableRow>)}</TableBody>
+      </TableRow>; })}</TableBody>
     </Table>
     <div className="flex flex-wrap gap-x-8 gap-y-2 border-y border-border py-3 text-sm text-muted-foreground"><span className="inline-flex items-center gap-2"><CircleHelp className="size-4" aria-hidden />Cloud upload: unverified</span><span className="inline-flex items-center gap-2"><CircleHelp className="size-4" aria-hidden />Restore test: unverified</span></div>
     <p className="text-xs text-muted-foreground">Recovery keys are excluded from sync-folder copies. Keep their recovery folder in your password manager.</p>

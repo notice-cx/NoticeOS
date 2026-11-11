@@ -107,6 +107,7 @@ const ALLOWED_PHRASES = [
   //    labels, kept verbatim by doc 14's owner-chip row.
   'config/beads.json',
   'config/beads.README.md',
+  "'beads/'", // the folder a backup set taken before Ntasks holds its task databases in
   'config/changesets',
   // 2. STORED, WIRE AND DOM VALUES. Renaming one is a data migration or a
   //    broken link, not a copy change.
