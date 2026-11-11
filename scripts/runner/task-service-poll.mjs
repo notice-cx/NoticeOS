@@ -117,17 +117,22 @@ const waitsOnBlocker = (task) => (task.dependencies ?? []).some((edge) => edge.t
  * answered them; a read it did not answer stays absent, which the cards show
  * as one never made. */
 export function boardReads(board, closes, labelled = {}) {
-  const tasks = Array.isArray(board?.tasks) ? board.tasks : [];
-  const open = tasks.filter((task) => task.status !== 'closed');
+  // A board without a task list is no answer: its lists stay absent, so the
+  // summary fails the project rather than reporting an empty one.
+  const tasks = Array.isArray(board?.tasks) ? board.tasks : null;
+  const closed = Array.isArray(closes?.tasks) ? closes.tasks : null;
+  const open = (tasks ?? []).filter((task) => task.status !== 'closed');
   const active = open.filter((task) => ['open', 'in_progress', 'blocked'].includes(task.status));
   return {
-    active: active.map(runnerRow),
-    ready: open.filter((task) => task.ready === true).map(runnerRow),
-    blocked: active.filter((task) => task.status === 'blocked' || (task.status === 'open' && task.ready !== true && waitsOnBlocker(task))).map(runnerRow),
-    closed: (Array.isArray(closes?.tasks) ? closes.tasks : []).filter((task) => task.status === 'closed').map(runnerRow),
-    deferred: open.filter((task) => task.status === 'deferred').map(runnerRow),
-    human: open.filter((task) => task.issueType !== 'gate' && (task.labels ?? []).includes('human')).map(runnerRow),
-    gates: open.filter((task) => task.issueType === 'gate').map((task) => ({ ...runnerRow(task), await_type: task.awaitType ?? 'human' })),
+    ...(tasks === null ? {} : {
+      active: active.map(runnerRow),
+      ready: open.filter((task) => task.ready === true).map(runnerRow),
+      blocked: active.filter((task) => task.status === 'blocked' || (task.status === 'open' && task.ready !== true && waitsOnBlocker(task))).map(runnerRow),
+      deferred: open.filter((task) => task.status === 'deferred').map(runnerRow),
+      human: open.filter((task) => task.issueType !== 'gate' && (task.labels ?? []).includes('human')).map(runnerRow),
+      gates: open.filter((task) => task.issueType === 'gate').map((task) => ({ ...runnerRow(task), await_type: task.awaitType ?? 'human' })),
+    }),
+    ...(closed === null ? {} : { closed: closed.filter((task) => task.status === 'closed').map(runnerRow) }),
     ...Object.fromEntries(Object.keys(LABEL_READS).filter((read) => Array.isArray(labelled[read]))
       .map((read) => [read, labelled[read].map(runnerRow)])),
     ...(Array.isArray(board?.epics) ? { epics: board.epics.map((epic) => ({
@@ -160,7 +165,7 @@ async function refreshBoards(service, project, cacheDir, now) {
   const id = encodeURIComponent(project.project.projectId);
   const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
     .map((path) => service.call({ method: 'GET', path })));
-  if (board.status !== 200 || closes.status !== 200) return false;
+  if (board.status !== 200 || closes.status !== 200 || !Array.isArray(board.body?.tasks) || !Array.isArray(closes.body?.tasks)) return false;
   await writeCached(cacheDir, boardKey(project.asset, ALL_STATUSES), { ...board.body, project: project.asset }, now);
   await writeCached(cacheDir, closesKey(project.asset), { ...closes.body, project: project.asset }, now);
   // A label read Ntasks did not answer is kept as unknown, never as the last answer.

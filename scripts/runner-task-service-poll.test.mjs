@@ -40,7 +40,7 @@ async function cacheDir(t) {
 /** A task service whose feed is `feed(after, limit)`; `down` answers nothing. */
 function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, backend, labelled = {}, labelStatus = 200 } = {}) {
   const calls = [];
-  const state = { down: false, failBoards: false, labelPage: null };
+  const state = { down: false, failBoards: false, labelPage: null, boardBody: null };
   const service = {
     connected: async () => connected,
     backend: async () => backend ?? (connected ? 'ntasks' : 'none'),
@@ -58,6 +58,7 @@ function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, b
         if (state.labelPage) return { status: 200, body: state.labelPage(url.searchParams.get('label'), url.searchParams.get('after')) };
         return { status: 200, body: { tasks: labelled[url.searchParams.get('label')] ?? [], next: null } };
       }
+      if (state.boardBody) return { status: 200, body: state.boardBody };
       return { status: 200, body: url.searchParams.get('status') === 'closed' ? CLOSES : BOARD };
     },
   };
@@ -160,6 +161,18 @@ test('a board read that failed is read again on the next tick, quiet feed or not
   const next = await sync();
   assert.equal(boardCalls(calls).length, 2, 'the failed project is reread with no event naming it');
   assert.equal(next.body.projects[0].ok, true);
+});
+
+test('a board without a task list fails its project instead of reading as empty', async (t) => {
+  assert.equal(summarizeTaskProject(SPOKES[0], boardReads({ epics: [] }, CLOSES)).ok, false);
+  assert.match(summarizeTaskProject(SPOKES[0], boardReads(BOARD, { tasks: null })).error, /no valid closed list/u);
+  // An answer without one is not kept, so the next tick asks again.
+  const dir = await cacheDir(t);
+  const { service, state } = ntasks({ feed: (after) => ({ events: after < 1 ? [{ seq: 1, projectId: PROJECT.projectId }] : [], lastSeq: 1 }) });
+  state.boardBody = { project: 'example.com', prefix: 'ex', epics: [] };
+  const result = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
+  assert.equal(result.body.projects[0].ok, false);
+  assert.equal((await readSyncState(dir, 'https://ntasks.example.com')).boards[PROJECT.projectId], undefined);
 });
 
 for (const [name, service, reason] of [
