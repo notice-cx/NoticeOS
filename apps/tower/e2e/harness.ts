@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -33,7 +32,7 @@ import { configWriteStatus } from "../worker/config-route";
 import { towerConfigResolver } from "../worker/config-source";
 import { recordConnectionStatusDay } from "../worker/connection-status-daily";
 import { HOURLY_TICK, runTowerCron } from "../worker/tower-cron";
-import { handleTasksRequest, ownsPath, readSpokes, type BdResult } from "../vite/task-lane";
+import { handleTasksRequest, ownsPath, readSpokes } from "../vite/task-lane";
 import { createFixtureNtasks, type FixtureNtasks } from "./ntasks-fixture";
 import { JOURNEY_NTASKS_ORIGIN, JOURNEY_NTASKS_PATH } from "./ntasks-origin.mjs";
 import {
@@ -544,26 +543,11 @@ function serializeMismatch(m: Mismatch): ConfigWriteMismatch {
 }
 
 /** Real Tower routes + Postgres reads. Doubles exist ONLY at external boundaries:
- * provider credentials/probes, fake bd, and disposable config persistence. The
+ * provider credentials/probes, the fixture Ntasks, and disposable config persistence. The
  * latter runs the production validation, compare-and-set and application code.
  * The ingest functions (asset creation, the credential store, integration
  * health) are the real ones, injected by server.mjs after Vite loads them.
  */
-/** A declared Dolt home with its profile and private credentials, made once per installation root. */
-function journeyDoltHome(home: string): string {
-  const dolt = path.join(home, "dolt");
-  if (fs.existsSync(path.join(dolt, "profile.json"))) return home;
-  fs.mkdirSync(path.join(dolt, "secrets"), { recursive: true, mode: 0o700 });
-  fs.mkdirSync(path.join(dolt, "client-home"), { recursive: true, mode: 0o700 });
-  const port = 5453;
-  const profile = { project: "noticeos-start-0123456789abcdef", composeFile: path.join(dolt, "compose.yaml"),
-    secretsDir: path.join(dolt, "secrets"), credentialsFile: path.join(dolt, "credentials"), port };
-  for (const name of ["root", "noticeos"]) fs.writeFileSync(path.join(profile.secretsDir, name), `${"a".repeat(64)}\n`, { mode: 0o600 });
-  fs.writeFileSync(profile.credentialsFile, `[127.0.0.1:${port}]\npassword=${"a".repeat(64)}\n`, { mode: 0o600 });
-  fs.writeFileSync(path.join(dolt, "profile.json"), JSON.stringify(profile), { mode: 0o600 });
-  return home;
-}
-
 export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: TestClusterHandle, installationRoot: string) {
   let bucket = journeyBucket();
   const postgres = journeyPostgres(postgresHandle);
@@ -607,7 +591,6 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
    * fixture Ntasks over the same rows, and a person can sign in to it. */
   let ntasks: FixtureNtasks | null = null;
   const requests: { method: string; path: string; status: number }[] = [];
-  const taskCommands: string[][] = [];
   const fixtureRoot = fileURLToPath(new URL("./fixture-repo", import.meta.url));
 
   const refuse = async (): Promise<never> => { throw new Error("External operation is not available in the isolated journey fixture"); };
@@ -848,95 +831,16 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   // Installation folders are absent from the public source export; the real
   // resolver still parses and matches every saved asset/prefix/database.
   const taskHost = JSON.stringify({ repositories: [JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT] });
-  const taskDirectories = new Set<string>();
-  // The bd lane serves only a Tower with no task service, as the synthetic
-  // viewer is, and runs with the task client its NOTICEOS_DOLT_HOME declares.
-  const doltHome = journeyDoltHome(path.join(installationRoot, "viewer-dolt-home"));
-  const readProjects = async () => {
-    const projects = await readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
-      fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot, NOTICEOS_DOLT_HOME: doltHome } });
-    for (const project of projects) if (!project.unavailableReason && project.cwd) taskDirectories.add(path.resolve(project.cwd));
-    return projects;
-  };
-
-  function runBd(argv: string[], cwd: string): BdResult {
-    if (path.resolve(cwd) !== path.resolve(fixtureRoot) || argv[0] !== "-C" || !taskDirectories.has(path.resolve(argv[1] ?? ""))) {
-      throw new Error("Task fixture escaped its own task client directory");
-    }
-    taskCommands.push([...argv]);
-    const verb = argv[2];
-    const arg = argv[3];
-    const answer = (value: unknown): BdResult => ({ code: 0, stdout: JSON.stringify(value), stderr: "" });
-    if (verb === "ready") return answer(tasks.filter((row) => row.status === "open" && row.issue_type === "task"));
-    if (verb === "epic" && arg === "status") return answer([]);
-    // An answer on a task that is not a decision: a comment, then the hand-back
-    // to ready work (open, unassigned, the human label off).
-    if (verb === "comments" && arg === "add") {
-      const row = tasks.find((task) => task.id === argv[4]);
-      if (!row || typeof argv[5] !== "string" || argv[5].trim() === "") return { code: 1, stdout: "", stderr: "A fixture task and comment text are required" };
-      row.comment_count += 1;
-      publishTasks();
-      return answer({ id: `jt-comment-${row.comment_count}`, issue_id: row.id, text: argv[5] });
-    }
-    if (verb === "comments") return answer([]);
-    if (verb === "update") {
-      const row = tasks.find((task) => task.id === arg);
-      const value = (flag: string) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined);
-      if (!row || row.issue_type === "gate") return { code: 1, stdout: "", stderr: "Unknown fixture task" };
-      if (value("--if-assignee") !== undefined && value("--if-assignee") !== (row.assignee ?? "")) return { code: 13, stdout: "", stderr: "assignee mismatch" };
-      const status = value("--status");
-      if (status !== undefined) row.status = status;
-      if (value("--assignee") !== undefined) row.assignee = value("--assignee") || null;
-      if (value("--remove-label") !== undefined) row.labels = row.labels.filter((label) => label !== value("--remove-label"));
-      // A pick is recorded as metadata first; `bd` merges the keys it is given.
-      const metadata = value("--metadata");
-      if (metadata !== undefined) row.metadata = { ...(row.metadata ?? {}), ...(JSON.parse(metadata) as Record<string, unknown>) };
-      publishTasks();
-      return answer([{ id: row.id, status: row.status }]);
-    }
-    if (verb === "list") {
-      const statuses = argv[argv.indexOf("--status") + 1]?.split(",") ?? ["open"];
-      return answer(tasks.filter((row) => statuses.includes(row.status) && (row.issue_type !== "gate" || argv.includes("--include-gates"))));
-    }
-    if (verb === "show") return answer(tasks.filter((row) => row.id === arg));
-    if (verb === "gate" && arg === "resolve") {
-      const row = tasks.find((task) => task.id === argv[4]);
-      if (!row || row.issue_type !== "gate") return { code: 1, stdout: "", stderr: "Unknown fixture gate" };
-      if (row.id === REFUSED_GATE) return { code: 1, stdout: "", stderr: "This fixture gate refuses approval" };
-      row.status = "closed";
-      row.closed_at = JOURNEY_NOW;
-      publishTasks();
-      return answer({ id: row.id });
-    }
-    // The inbox's other two answers and a filed task, so the journeys prove
-    // each one reaches `bd` through the real lane.
-    if (verb === "human" && (arg === "respond" || arg === "dismiss")) {
-      const row = tasks.find((task) => task.id === argv[4]);
-      if (!row || row.issue_type === "gate" || !row.labels.includes("human")) return { code: 1, stdout: "", stderr: "Unknown fixture ask" };
-      if (arg === "respond" && !argv.includes("--response")) return { code: 1, stdout: "", stderr: "A response is required" };
-      row.status = "closed";
-      row.closed_at = JOURNEY_NOW;
-      publishTasks();
-      return answer({ id: row.id });
-    }
-    if (verb === "create" && typeof arg === "string" && arg.trim() !== "") {
-      const id = `${taskProject.prefix}-f${tasks.length + 1}`;
-      tasks.push({ ...initialTasks()[0]!, priority: 1, id, title: arg, labels: [], description: "", acceptance_criteria: "" });
-      publishTasks();
-      return answer({ id });
-    }
-    if (verb === "close") {
-      const row = tasks.find((task) => task.id === arg);
-      const reason = argv.includes("--reason") ? argv[argv.indexOf("--reason") + 1]?.trim() : "";
-      if (!row || !reason) return { code: 1, stdout: "", stderr: "A fixture task and completion evidence are required" };
-      row.status = "closed";
-      row.closed_at = JOURNEY_NOW;
-      row.close_reason = reason;
-      publishTasks();
-      // As `bd close --json` answers: the closed row, whose close time the closer's record copies.
-      return answer([{ id: row.id, status: row.status, closed_at: row.closed_at }]);
-    }
-    return { code: 1, stdout: "", stderr: "This synthetic task executor does not implement that command" };
+  const readProjects = () => readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
+    fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot } });
+  /** A task the Tower filed through the fixture Ntasks, as the board then lists it. */
+  function fileTask(fields: Record<string, unknown>): string {
+    const id = `${taskProject.prefix}-f${tasks.length + 1}`;
+    tasks.push({ ...initialTasks()[0]!, priority: 1, id, title: String(fields.title), labels: Array.isArray(fields.labels) ? fields.labels.map(String) : [],
+      description: typeof fields.description === "string" ? fields.description : "", acceptance_criteria: "",
+      metadata: fields.metadata !== null && typeof fields.metadata === "object" ? fields.metadata as Record<string, unknown> : null });
+    publishTasks();
+    return id;
   }
 
   /** The task projects the fixture has saved, as the runner reads them. */
@@ -1155,12 +1059,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       response = Response.json({ isolated: true, now: JOURNEY_NOW,
         connected: await connected("bing-webmaster"), tested: await tested("bing-webmaster"), collected,
         assets: await storedSites(),
-        documents, tasks, requests, taskCommands, ntasksDecisions: ntasks?.decisions() ?? [], ntasksRegistrations: ntasks?.registrations() ?? 0 });
+        documents, tasks, requests, ntasksDecisions: ntasks?.decisions() ?? [], ntasksRegistrations: ntasks?.registrations() ?? 0 });
     } else if (url.pathname === "/__journey/reset" && request.method === "POST") {
       await postgres.reset(); bucket = journeyBucket(); documents = structuredClone(INITIAL_DOCUMENTS);
       versions = new Map(Object.keys(documents).map((file) => [file, 1]));
       collected = false; failNextSave = false; hostedGoogle = false; posthogQueryDenied = false; googleReportsDenied = false; tasks = initialTasks(); taskProject = JOURNEY_TASK_PROJECT;
-      requests.length = 0; taskCommands.length = 0; ntasks = null;
+      requests.length = 0; ntasks = null;
       response = Response.json({ reset: true });
     } else if (url.pathname === "/__journey/ntasks" && request.method === "POST") {
       // Tasks live in Ntasks from here, the Tower registered there as a
@@ -1170,7 +1074,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // `?app=unregistered` starts with no Tower client id saved; `?app=refused` with an Ntasks that will not register it.
       const apiVersion = url.searchParams.has("apiVersion") ? Number(url.searchParams.get("apiVersion")) : undefined;
       const app = url.searchParams.get("app");
-      ntasks = createFixtureNtasks({ rows: () => tasks, changed: publishTasks, project: () => taskProject, towerOrigin: url.origin, now: JOURNEY_NOW,
+      ntasks = createFixtureNtasks({ rows: () => tasks, changed: publishTasks, create: fileTask, project: () => taskProject, towerOrigin: url.origin, now: JOURNEY_NOW,
         app: app === "unregistered" || app === "refused" ? app : "registered", ...(apiVersion === undefined ? {} : { apiVersion }) });
       response = Response.json({ origin: JOURNEY_NTASKS_ORIGIN });
     } else if (url.pathname.startsWith(`${JOURNEY_NTASKS_PATH}/`)) {
@@ -1281,7 +1185,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       response = Response.json({ added: CHOICE_TASK });
     } else if (url.pathname === "/__journey/core-tasks" && request.method === "POST") {
       // A provisioned core project uses the existing is_os asset model. Only
-      // this fixture's Postgres and fake bd receive writes; no user site exists.
+      // this fixture's Postgres and its fixture Ntasks receive writes; no user site exists.
       taskProject = JOURNEY_CORE_PROJECT;
       tasks = [];
       await postgres.current().store.write((tx) => tx.execute(
@@ -1641,7 +1545,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     } else if (ownsPath(url.pathname)) {
       const reply = await handleTasksRequest({ method: request.method, url: request.url,
         headers: Object.fromEntries(request.headers), body: request.method === "GET" ? "" : await request.text() },
-      { repoRoot: fixtureRoot, readProjects, actor: "journey-fixture", now: () => new Date(JOURNEY_NOW), run: runBd,
+      { repoRoot: fixtureRoot, readProjects, now: () => new Date(JOURNEY_NOW),
         ...(ntasks === null ? {} : { taskService: ntasks.service, taskCacheDir: path.join(installationRoot, "task-cache") }) });
       response = Response.json(reply.body, { status: reply.status });
     } else if (url.pathname.startsWith("/api/")) {

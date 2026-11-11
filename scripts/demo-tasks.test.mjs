@@ -3,10 +3,11 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { configureDemoTasks, createDemoTasks, demoHandoffIssues, demoHistoricalProject } from './demo-tasks.mjs';
+import { configureDemoTasks, createDemoTasks } from './demo-tasks.mjs';
 import { demoStoreCapability } from './demo-evaluator.mjs';
 import { generateDemoScenario } from './demo-scenario.mjs';
-import { demoTaskIssuesAt } from './demo-task-facts.mjs';
+import { demoNtasksProjectId, demoNtasksSeed } from './demo-ntasks-seed.mjs';
+import { demoTaskHistory } from './demo-task-history.mjs';
 import { demoIntegrationAssets, demoSchedules } from './demo-display.mjs';
 import { validateSchemaAndSafety } from './config-documents.mjs';
 import { readStoredSchedules } from './scheduled-job-runner.mjs';
@@ -67,7 +68,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
         return defect === 'stale' ? { ok: false, error: 'version_mismatch' } : { ok: true, applied: scenario.manifest.taskProjects.length, documents: [{ file: 'config/beads.json', version: 2, body: { spokes: scenario.manifest.taskProjects } }] };
       },
     };
-    const receipt = { projects: scenario.manifest.taskProjects.map(project => ({ ...project, repo: path.join(home, 'tasks', project.prefix) })) };
+    const receipt = { projects: scenario.manifest.taskProjects.map(project => ({ ...project, projectId: demoNtasksProjectId(scenario.manifest.workspaceId, project.prefix) })) };
     const execute = () => configureDemoTasks({ plan: { root, home, installation }, scenario, receipt, capability: {}, helpers });
     if (defect) {
       await assert.rejects(execute());
@@ -83,22 +84,36 @@ test('the own project map uses the ordinary register apply and version guard; fa
     }
   }
 });
-test('task custody cannot adopt prior task folders, symlinks or an unproven store', async t => {
+test('the task history is the Ntasks seed\'s daily snapshots, written through the released writer, with each project\'s demo Ntasks id', async t => {
+  const home = realpathSync(mkdtempSync(path.join(tmpdir(), 'noticeos-demo-tasks-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const written = [];
+  const writeSnapshot = async (_capability, snapshot, nowMs) => { written.push({ snapshot, nowMs }); return { ok: true }; };
+  const story = scenario.manifest.stories.problem;
+  const joins = [{ task: story.ref, asset: story.asset, rule: 'poisson-drop', key: '37' }];
+  const receipt = await createDemoTasks({ plan: { home }, scenario, createdPostgres: { created: true, schema: {} }, capability: { STORE: {} }, writeSnapshot, joins });
+  const history = demoTaskHistory(demoNtasksSeed(scenario, joins), scenario);
+  assert.deepEqual(written.map(entry => entry.snapshot), history);
+  assert.deepEqual(written.map(entry => entry.nowMs), history.map(snapshot => Date.parse(snapshot.capturedAt)));
+  assert.deepEqual(receipt.projects, scenario.manifest.taskProjects.map(project => ({ ...project, projectId: demoNtasksProjectId(scenario.manifest.workspaceId, project.prefix) })));
+  assert.equal(receipt.snapshots, history.length);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'demo-tasks.json'), 'utf8')), receipt);
+});
+test('task custody refuses an unproven store, an existing receipt, a linked folder or a refused snapshot', async t => {
   const base = realpathSync(mkdtempSync(path.join(tmpdir(), 'noticeos-demo-tasks-boundary-')));
   t.after(() => rmSync(base, { recursive: true, force: true }));
-  let effects = 0;
-  const options = { check: async () => { effects++; throw new Error('Unexpected executable probe'); } };
   const good = { created: true, schema: { frozenSha256: 'a'.repeat(64) } };
-  for (const defect of ['missing-proof', 'existing-tasks', 'existing-dolt', 'receipt', 'link']) {
+  for (const defect of ['missing-proof', 'receipt', 'link', 'refused']) {
     const home = path.join(base, defect); mkdirSync(home);
-    if (defect === 'existing-tasks') mkdirSync(path.join(home, 'tasks'));
-    if (defect === 'existing-dolt') mkdirSync(path.join(home, 'dolt'));
     if (defect === 'receipt') writeFileSync(path.join(home, 'demo-tasks.json'), 'held');
     const target = defect === 'link' ? path.join(base, 'linked-home') : home;
     if (defect === 'link') symlinkSync(home, target);
-    await assert.rejects(createDemoTasks({ plan: { home: target }, scenario, createdPostgres: defect === 'missing-proof' ? { created: false } : good, capability: { STORE: {} }, writeSnapshot: async () => {}, env: {} }, options));
+    let writes = 0;
+    const writeSnapshot = async () => { writes++; return { ok: defect !== 'refused' }; };
+    await assert.rejects(createDemoTasks({ plan: { home: target }, scenario, createdPostgres: defect === 'missing-proof' ? { created: false } : good, capability: { STORE: {} }, writeSnapshot }));
+    assert.equal(writes, defect === 'refused' ? 1 : 0, defect);
+    if (defect !== 'receipt') assert.equal(existsSync(path.join(home, 'demo-tasks.json')), false, defect);
   }
-  assert.equal(effects, 0);
 });
 
 test('the demo capability exposes only the exact application workspace and refuses every other binding', async () => {
@@ -112,35 +127,4 @@ test('the demo capability exposes only the exact application workspace and refus
   assert.equal(await capability.STORE.write(tx => tx.own), true);
   assert.deepEqual(calls, [{ workspace: scenario.manifest.workspaceId, options: { readOnly: true } }, { workspace: scenario.manifest.workspaceId, options: undefined }]);
   for (const binding of ['POSTGRES', 'SIGNAL_RAW', 'INGEST', 'OPERATOR_API_TOKEN', 'DATABASE_URL']) assert.throws(() => capability[binding], /Unexpected demo binding/u);
-});
-
-test('handoff identity uses the real public flag key without changing other tasks or dependencies', () => {
-  const rows = demoTaskIssuesAt(scenario.tasks, scenario.manifest.cutoff);
-  const story = scenario.manifest.stories.problem;
-  const output = demoHandoffIssues(rows, [{ task: story.ref, asset: story.asset, rule: 'poisson-drop', key: '37' }]);
-  const task = output.find(row => row.id === story.ref);
-  assert.equal(task.metadata.noticeos_key, '37');
-  assert.equal(task.metadata.noticeos_kind, 'alert');
-  assert.equal(task.metadata.noticeos_asset, story.asset);
-  assert.ok(task.labels.includes('noticeos-handoff'));
-  assert.deepEqual(task.dependencies, rows.find(row => row.id === story.ref).dependencies);
-  assert.deepEqual(output.filter(row => row.id !== story.ref), rows.filter(row => row.id !== story.ref));
-});
-
-test('historical summaries window actual closed timestamps while preserving native blocker and epic semantics', () => {
-  const result = rows => ({ code: 0, stdout: JSON.stringify(rows) });
-  const epic = { id: 'gw-epic', title: 'Operating work', issue_type: 'epic', status: 'open', priority: 2 };
-  const work = { id: 'gw-work', title: 'Ready work', issue_type: 'task', status: 'open', priority: 1 };
-  const gate = { id: 'gw-gate', title: 'Approve headings', issue_type: 'gate', await_type: 'human', status: 'open', priority: 2 };
-  const parked = { id: 'gw-parked', title: 'Parked work', issue_type: 'task', status: 'deferred', priority: 2 };
-  const reads = { active: result([epic, work]), ready: result([epic, work]), blocked: result([]), closed: result([
-    { ...work, id: 'gw-old', status: 'closed', closed_at: '2025-09-01T12:00:00Z' },
-    { ...work, id: 'gw-recent', status: 'closed', closed_at: '2025-10-15T12:00:00Z' },
-  ]), epics: result([]), human: result([]), gates: result([gate]), deferred: result([parked]) };
-  const project = demoHistoricalProject({ asset: scenario.assets[0].id, prefix: 'gw' }, reads, scenario.manifest.cutoff);
-  assert.equal(project.ok, true);
-  assert.deepEqual(project.counts, { open: 1, highPriority: 1, ready: 1, inProgress: 0, blocked: 0, closedRecent: 1, deferred: 1, waiting: 1 });
-  assert.equal(project.waitingUrgent, 1);
-  assert.deepEqual(project.recentlyClosed.map(row => row.id), ['gw-recent']);
-  assert.deepEqual(JSON.parse(reads.closed.stdout).map(row => row.id), ['gw-old', 'gw-recent']);
 });

@@ -3,9 +3,8 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { demoInspectionEnvironment, demoViewerEnvironment, main, parseDemoViewerArgs, prepareDemoViewerRuntime, serveDemoViewer, verifyDemoClient, verifyDemoResources, verifyDemoStore } from './demo-viewer.mjs';
+import { demoInspectionEnvironment, demoViewerEnvironment, main, parseDemoViewerArgs, prepareDemoViewerRuntime, serveDemoViewer, verifyDemoResources, verifyDemoStore } from './demo-viewer.mjs';
 import { runCommand } from './run-command.mjs';
-import { createHash } from 'node:crypto';
 import { PRODUCT_ENV } from './product-env.mjs';
 
 function resources(t) {
@@ -13,10 +12,9 @@ function resources(t) {
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   const root = path.join(home, 'public'); fs.mkdirSync(root);
   const project = 'noticeos-start-1234567890abcdef';
-  const installation = { home, postgresProject: project, postgresPort: 6202,
-    dolt: { project, port: 6203, secretsDir: path.join(home, 'dolt/secrets'), credentialsFile: path.join(home, 'dolt/credentials'), composeFile: path.join(root, 'db/dolt/host/compose.yaml') } };
+  const installation = { home, postgresProject: project, postgresPort: 6202 };
   const definitions = {}, containers = {}, volumes = {};
-  for (const [service, port, target, destination, id] of [['postgres', 6202, 5432, '/var/lib/postgresql', 'a'.repeat(64)], ['dolt', 6203, 3306, '/var/lib/dolt', 'b'.repeat(64)]]) {
+  for (const [service, port, target, destination, id] of [['postgres', 6202, 5432, '/var/lib/postgresql', 'a'.repeat(64)]]) {
     const secretDir = path.join(home, service, 'secrets'); fs.mkdirSync(secretDir, { recursive: true });
     const secret = path.join(secretDir, 'own'); fs.writeFileSync(secret, 'synthetic verifier');
     const volumeName = `${project}_${service}-data`, image = `synthetic-${service}@sha256:${'1'.repeat(64)}`;
@@ -33,7 +31,8 @@ function resources(t) {
     let body;
     if (args[0] === 'compose') {
       assert.equal(args[2], project); assert.deepEqual(args.slice(5), ['--env-file', '/dev/null', 'config', '--format', 'json']);
-      body = definitions[args[4].includes('/postgres/') ? 'postgres' : 'dolt'];
+      assert.equal(args[4], path.join(root, 'db/postgres/host/compose.yaml'));
+      body = definitions.postgres;
     } else if (args[1] === 'ls') {
       assert.deepEqual(args, ['container', 'ls', '--all', '--no-trunc', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.ID}}']);
       return { code: 0, stdout: Object.keys(containers).join('\n') };
@@ -44,28 +43,27 @@ function resources(t) {
   };
   return { installation, root, run, calls, definitions, containers, volumes };
 }
-test('resource acceptance reads only the exact project, two service IDs and declared volumes', async t => {
+test('resource acceptance reads only the exact project, its one service ID and declared volume', async t => {
   const f = resources(t);
   const accepted = await verifyDemoResources(f.installation, { root: f.root, env: {}, run: f.run });
-  assert.deepEqual(accepted.services, ['dolt', 'postgres']); assert.equal(Object.isFrozen(accepted), true);
-  assert.equal(f.calls.length, 7);
+  assert.deepEqual(accepted.services, ['postgres']); assert.equal(Object.isFrozen(accepted), true);
+  assert.equal(f.calls.length, 4);
   assert.equal(f.calls.some(args => args.some(arg => ['up', 'down', 'exec', 'run', 'stop', 'rm', 'prune'].includes(arg))), false);
 });
 test('unpublished image ports do not add host listeners to the declared services', async t => {
   const f = resources(t);
-  Object.assign(f.containers['b'.repeat(64)].ports, { '33060/tcp': null, '7007/tcp': null });
-  f.containers['a'.repeat(64)].ports['15432/tcp'] = [];
+  Object.assign(f.containers['a'.repeat(64)].ports, { '15433/tcp': null, '7007/tcp': null, '15432/tcp': [] });
   const accepted = await verifyDemoResources(f.installation, { root: f.root, env: {}, run: f.run });
-  assert.deepEqual(accepted.services, ['dolt', 'postgres']);
+  assert.deepEqual(accepted.services, ['postgres']);
 });
 test('any extra published listener, duplicate binding or malformed port map refuses', async t => {
   for (const defect of ['loopback', 'public', 'duplicate', 'missing', 'malformed', 'array']) {
-    const f = resources(t), c = f.containers['b'.repeat(64)];
-    Object.assign(c.ports, { '33060/tcp': null, '7007/tcp': null });
+    const f = resources(t), c = f.containers['a'.repeat(64)];
+    Object.assign(c.ports, { '15433/tcp': null, '7007/tcp': null });
     if (defect === 'loopback') c.ports['7007/tcp'] = [{ HostIp: '127.0.0.1', HostPort: '6207' }];
     if (defect === 'public') c.ports['7007/tcp'] = [{ HostIp: '0.0.0.0', HostPort: '6207' }];
-    if (defect === 'duplicate') c.ports['3306/tcp'].push({ HostIp: '127.0.0.1', HostPort: '6204' });
-    if (defect === 'missing') c.ports['3306/tcp'] = null;
+    if (defect === 'duplicate') c.ports['5432/tcp'].push({ HostIp: '127.0.0.1', HostPort: '6204' });
+    if (defect === 'missing') c.ports['5432/tcp'] = null;
     if (defect === 'malformed') c.ports['7007/tcp'] = {};
     if (defect === 'array') c.ports = [];
     await assert.rejects(verifyDemoResources(f.installation, { root: f.root, env: {}, run: f.run }), /declared local profile/u, defect);
@@ -97,10 +95,10 @@ test('volume ownership changes and failed or unbounded inspection never authoriz
 });
 
 test('the launcher requires explicit local targets and a bounded lifetime', () => {
-  const good = ['--dir', '/private/tmp/own-demo', '--port', '6200', '--release', '1'.repeat(40), '--bd-bin', '/private/tmp/owned-bd'];
+  const good = ['--dir', '/private/tmp/own-demo', '--port', '6200', '--release', '1'.repeat(40)];
   assert.equal(parseDemoViewerArgs(good).durationMs, 12 * 60 * 60 * 1000);
   for (const argv of [[], [...good, '--port', '6200'], [...good, '--unexpected', 'value'], good.map(value => value === '6200' ? '5173' : value),
-    [...good, '--duration-ms', 'Infinity'], [...good, '--duration-ms', '1'], [...good, '--duration-ms', String(12 * 60 * 60 * 1000 + 1)]]) assert.throws(() => parseDemoViewerArgs(argv));
+    [...good, '--bd-bin', '/private/tmp/owned-bd'], [...good, '--duration-ms', 'Infinity'], [...good, '--duration-ms', '1'], [...good, '--duration-ms', String(12 * 60 * 60 * 1000 + 1)]]) assert.throws(() => parseDemoViewerArgs(argv));
   assert.throws(() => demoInspectionEnvironment({ DOCKER_HOST: 'tcp://another.example:2375' }));
   assert.equal(demoInspectionEnvironment({ DOCKER_CONTEXT: 'remote', HOME: '/private/tmp/own-home' }).DOCKER_CONTEXT, 'default');
 });
@@ -108,33 +106,32 @@ test('the launcher requires explicit local targets and a bounded lifetime', () =
 test('viewer environment replaces installation selectors and never carries caller or cloud credentials', t => {
   const f = resources(t), databaseFile = path.join(f.installation.home, 'database.url'); fs.writeFileSync(databaseFile, 'synthetic-own-address');
   const env = demoViewerEnvironment({ ...f.installation, databaseFile }, { runtime: path.join(f.installation.home, 'viewer-fixture'), port: 6200 });
-  assert.equal(env.NOTICEOS_HOME, f.installation.home); assert.equal(env.NOTICEOS_DOLT_HOME, f.installation.home);
+  assert.equal(env.NOTICEOS_HOME, f.installation.home);
   assert.equal(env.OS_UP_INGEST_DOOR_PORT, '6201'); assert.equal(env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV, 'false');
-  assert.equal(env.BEADS_DOLT_SERVER_PORT, '6203');
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, path.join(f.installation.home, 'viewer-fixture/vite-cache'));
   for (const key of ['NODE_OPTIONS', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_INCLUDE_PROCESS_ENV', 'CLOUDFLARE_ENV', 'DATABASE_URL',
-    'GOOGLE_SIGNAL_ACCOUNTS', 'ASSET_TOKENS', 'DOCKER_CONFIG', 'BEADS_DB', 'BEADS_DOLT_SERVER_PASSWORD']) assert.equal(env[key], undefined);
+    'GOOGLE_SIGNAL_ACCOUNTS', 'ASSET_TOKENS', 'DOCKER_CONFIG']) assert.equal(env[key], undefined);
 });
 
 test('each failed identity boundary stops before later reads or any runtime preparation', async () => {
-  const args = ['--dir', '/private/tmp/owned-demo', '--port', '6200', '--release', '1'.repeat(40), '--bd-bin', '/private/tmp/own-bd'];
-  for (const failed of ['source', 'files', 'resources', 'client', 'store', 'after']) {
+  const args = ['--dir', '/private/tmp/owned-demo', '--port', '6200', '--release', '1'.repeat(40)];
+  for (const failed of ['source', 'files', 'resources', 'store', 'after']) {
     const calls = []; let sourceCalls = 0;
     const call = name => { calls.push(name); if (name === failed) throw new Error('private details must not print'); };
-    const installation = { home: '/private/tmp/owned-demo', postgresPort: 6202, dolt: { port: 6203, secretsDir: '/private/tmp/owned-demo/dolt/secrets' } };
+    const installation = { home: '/private/tmp/owned-demo', postgresPort: 6202 };
     let error = '';
     const result = await main(args, { root: '/private/tmp/public-source', env: {}, err: { write: text => { error += text; } },
       verifySource: async () => { call(sourceCalls++ ? 'after' : 'source'); return { release: '1'.repeat(40), tree: '2'.repeat(40) }; },
       readInstallation: () => { call('files'); return installation; },
-      verifyResources: async () => call('resources'), verifyClient: async () => call('client'), verifyStore: async () => call('store'),
+      verifyResources: async () => call('resources'), verifyStore: async () => call('store'),
       prepareRuntime: () => { assert.fail('An uncertain generation prepared runtime state'); }, serve: () => { assert.fail('An uncertain viewer started'); } });
     assert.equal(result, 1); assert.equal(calls.at(-1), failed); assert.doesNotMatch(error, /private details/u);
   }
 });
 
 test('inherited selectors refuse before source, resource or database reads', async () => {
-  const args = ['--dir', '/private/tmp/owned-demo', '--port', '6200', '--release', '1'.repeat(40), '--bd-bin', '/private/tmp/own-bd'];
-  for (const key of ['DATABASE_URL', PRODUCT_ENV.home.name, 'NOTICEOS_DOLT_HOME', PRODUCT_ENV.installationDir.name,
+  const args = ['--dir', '/private/tmp/owned-demo', '--port', '6200', '--release', '1'.repeat(40)];
+  for (const key of ['DATABASE_URL', PRODUCT_ENV.home.name, PRODUCT_ENV.installationDir.name,
     'NOTICEOS_DEMO_VIEWER_FILE', PRODUCT_ENV.workerConfigRoot.name,
     PRODUCT_ENV.installationDir.legacy, PRODUCT_ENV.workerConfigRoot.legacy]) {
     assert.equal(await main(args, { env: { [key]: 'another-installation' }, err: { write() {} }, verifySource: () => assert.fail('Read after selector refusal') }), 1);
@@ -144,7 +141,7 @@ test('inherited selectors refuse before source, resource or database reads', asy
 test('store identity checks are read-only and close their pool on every refusal', async t => {
   const f = resources(t), databaseFile = path.join(f.installation.home, 'database.url'); fs.writeFileSync(databaseFile, 'synthetic-own-address');
   const installation = { ...f.installation, databaseFile, viewer: { workspaceId: 'own-workspace' }, assetIds: ['example.com'],
-    projects: [{ asset: 'example.com', prefix: 'ex', database: 'demo_ex', repo: path.join(f.installation.home, 'tasks/ex') }],
+    projects: [{ asset: 'example.com', prefix: 'ex', database: 'demo_ex', projectId: '8b3adafa-0d35-8bd9-b981-7a238b7cf410' }],
     display: { 'config/tower.json': { countdown: { label: 'Portfolio review' } }, 'config/counters.json': { assets: {} } },
     integrations: { 'example.com': { ga4: { status: 'live', since: '2026-01-01' } } } };
   for (const defect of [null, 'workspace', 'profile', 'credentials', 'assets', 'documents', 'taskRoster', 'providerRoster', 'display']) {
@@ -179,7 +176,7 @@ test('runtime preparation writes only owned local configs, removes all crons and
     const file = path.join(f.root, relative); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(sourceConfig));
   }
   const prepared = prepareDemoViewerRuntime({ ...f.installation, databaseFile, tree: '2'.repeat(40), viewer: { synthetic: true } },
-    { root: f.root, port: 6200, binary: '/private/tmp/explicit-owned-bd', node: process.execPath });
+    { root: f.root, port: 6200, node: process.execPath });
   for (const relative of ['apps/tower', 'workers/ingest']) {
     const config = JSON.parse(fs.readFileSync(path.join(prepared.runtime, relative, 'wrangler.jsonc'), 'utf8'));
     assert.deepEqual(config.triggers, { crons: [] });
@@ -187,23 +184,14 @@ test('runtime preparation writes only owned local configs, removes all crons and
     const vars = fs.readFileSync(path.join(prepared.runtime, relative, '.dev.vars'), 'utf8');
     assert.match(vars, /^OPERATOR_TOKEN=/u); assert.doesNotMatch(vars, /DATABASE_URL|GOOGLE|ASSET_TOKENS/u);
   }
-  assert.equal(fs.readlinkSync(path.join(prepared.runtime, 'bin/bd')), '/private/tmp/explicit-owned-bd');
+  assert.deepEqual(fs.readdirSync(path.join(prepared.runtime, 'bin')), ['node']);
   const secretFile = path.join(f.installation.home, 'workers/ingest/.dev.secrets.json');
   const before = fs.readFileSync(secretFile);
   const again = prepareDemoViewerRuntime({ ...f.installation, databaseFile, tree: '2'.repeat(40), viewer: { synthetic: true } },
-    { root: f.root, port: 6210, binary: '/private/tmp/explicit-owned-bd' });
+    { root: f.root, port: 6210 });
   assert.notEqual(again.runtime, prepared.runtime); assert.deepEqual(fs.readFileSync(secretFile), before);
   const badFile = path.join(f.root, 'apps/tower/wrangler.jsonc'); fs.writeFileSync(badFile, JSON.stringify({ ...sourceConfig, r2_buckets: [{ remote: true }] }));
-  assert.throws(() => prepareDemoViewerRuntime({ ...f.installation, databaseFile }, { root: f.root, port: 6220, binary: '/private/tmp/explicit-owned-bd' }), /remote bindings/u);
-});
-
-test('only the exact completed task executable bytes and version may enter the viewer', async t => {
-  const f = resources(t), binary = path.join(f.installation.home, 'owned-bd'); fs.writeFileSync(binary, 'synthetic executable', { mode: 0o700 });
-  const client = { version: '1.3.1', sha256: createHash('sha256').update('synthetic executable').digest('hex') };
-  let calls = 0;
-  const run = async (command, args) => { calls++; assert.equal(command, binary); assert.deepEqual(args, ['--version']); return { code: 0, stdout: 'bd version 1.3.1 (owned synthetic proof)' }; };
-  await verifyDemoClient({ client }, binary, { env: {}, run }); assert.equal(calls, 1);
-  fs.writeFileSync(binary, 'replaced executable'); await assert.rejects(verifyDemoClient({ client }, binary, { env: {}, run })); assert.equal(calls, 1);
+  assert.throws(() => prepareDemoViewerRuntime({ ...f.installation, databaseFile }, { root: f.root, port: 6220 }), /remote bindings/u);
 });
 
 test('real viewer child output is private and redacted, and EOF records the actual result', async t => {

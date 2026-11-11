@@ -465,6 +465,7 @@ FLOWS["file-task-from-finding"] = {
   title: "File a task from a finding (prefilled, on the asset page)",
   async setup(page, fixture) {
     await seedPopulated(page, fixture);
+    await fixture("/__journey/ntasks");
     await fixture("/__journey/finding");
     await page.goto(`/assets/${ASSET}`);
   },
@@ -551,6 +552,7 @@ FLOWS["see-money-sources"] = {
   countStart: false,
   async setup(page, fixture) {
     await seedPopulated(page, fixture);
+    await fixture("/__journey/ntasks");
     await fixture("/__journey/revenue-history");
     await page.goto("/");
   },

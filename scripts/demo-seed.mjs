@@ -45,7 +45,7 @@ export async function releaseEvaluator({ root, release }) {
         return { evaluatePulse: loaded.evaluatePulse, codebaseRules, ...workers, provenance: { ...source, artifacts, workers: workers.provenance } };
     } finally { rmSync(output, { recursive: true, force: true }); }
 }
-const TARGET_VARIABLES = ['DATABASE_URL', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'NOTICEOS_HOME', 'NOTICEOS_INSTALLATION_DIR', 'NOTICEOS_DOLT_HOME'];
+const TARGET_VARIABLES = ['DATABASE_URL', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'NOTICEOS_HOME', 'NOTICEOS_INSTALLATION_DIR'];
 export function demoTargetRefusal(plan, env = {}) {
     if (TARGET_VARIABLES.some(name => env[name] !== undefined))
         return 'Demo setup refuses inherited installation selectors.';
@@ -62,7 +62,7 @@ export function demoTargetRefusal(plan, env = {}) {
         return 'Demo setup refuses a symbolic-link folder.';
     if (existsSync(plan.home) && readdirSync(plan.home).length)
         return 'Demo setup needs a new empty folder.';
-    for (const privateRoot of ['installation', '.beads', '.local/runtime', '.local/runtime-a', '.local/runtime-b', '.local/task-compose']) {
+    for (const privateRoot of ['installation', '.local/runtime', '.local/runtime-a', '.local/runtime-b', '.local/task-compose']) {
         const relative = path.relative(path.join(plan.root, privateRoot), plan.home);
         if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)))
             return 'Demo setup refuses an installation-owned folder.';
@@ -247,7 +247,7 @@ export async function recordDemoOsObservation(capability, scenario, runAssetZero
         || Object.keys(report.metrics ?? {}).sort().join() !== [...observed].sort().join()) throw new Error('The synthetic OS observation cannot claim scheduler activity.');
     return { synthetic: true, generatedAt: report.generatedAt, asset: report.asset, capabilities: report.capabilities, metrics: report.metrics };
 }
-export async function createDemoInstallation({ home, port, scenario, root = ROOT, env = process.env, binary = env.BEADS_BD_BIN }, { prepare = prepareFreshPostgres, open = openStore, mark = markDemoDevelopment, loadEvaluator = releaseEvaluator, tasks = createDemoTasks, configureTasks = configureDemoTasks } = {}) {
+export async function createDemoInstallation({ home, port, scenario, root = ROOT, env = process.env }, { prepare = prepareFreshPostgres, open = openStore, mark = markDemoDevelopment, loadEvaluator = releaseEvaluator, tasks = createDemoTasks, configureTasks = configureDemoTasks } = {}) {
     if (typeof home !== 'string' || !path.isAbsolute(home))
         throw new Error('Name an absolute new demo folder.');
     const plan = startPlan({ root, dir: home, port });
@@ -292,7 +292,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const uptime = await recordDemoUptime(watch.capability, scenario, helpers.runUptimeChecks);
         const siteChecks = await recordDemoSiteChecks(watch.capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
         const searchReports = await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
-        const taskReceipt = await tasks({ plan, scenario, createdPostgres: setup, capability: watch.capability, writeSnapshot: helpers.writeBeadsSnapshot, joins, env, binary });
+        const taskReceipt = await tasks({ plan, scenario, createdPostgres: setup, capability: watch.capability, writeSnapshot: helpers.writeBeadsSnapshot, joins });
         const taskConfig = await configureTasks({ plan, scenario, receipt: taskReceipt, capability: watch.capability, helpers });
         const display = await seedDemoDisplay({ home, installation: plan.installation, scenario, capability: watch.capability, helpers });
         const osReport = await recordDemoOsObservation(watch.capability, scenario, helpers.runAssetZeroPulse);

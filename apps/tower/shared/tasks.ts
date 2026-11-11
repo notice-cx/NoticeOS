@@ -125,9 +125,9 @@ export interface TaskServiceStatus {
   projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string; projectId: string } | null }[] | null;
   /** Why `projects` is null while connected. */
   reason?: string;
-  /** True on an installation, whose tasks live only in its task service;
-   * absent where this Tower's tasks come from elsewhere (a deployed Tower, the
-   * synthetic viewer). */
+  /** True on a Tower served from this machine (an installation, the
+   * synthetic viewer), whose tasks live only in its task service; absent on a
+   * deployed Tower, whose tasks come from elsewhere. */
   required?: true;
   /** The Tower as a connected app of this Ntasks, when its client id is
    * saved: what a person's browser signs in to Ntasks with, so their

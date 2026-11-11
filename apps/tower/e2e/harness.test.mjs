@@ -3,7 +3,7 @@
 // leak into the test runner or an owner's runtime.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,7 +33,7 @@ before(async () => {
 after(async () => {
   try {
     await server?.stop();
-    if (server) assert.equal(existsSync(server.installationRoot), false, "The stopped server's task client files are removed");
+    if (server) assert.equal(existsSync(server.installationRoot), false, "The stopped server's installation files are removed");
     assert.deepEqual(checkoutEntries(), beforeEntries, "Journey task operations leave the fixture checkout unchanged");
   } finally {
     await cluster?.close();
@@ -155,31 +155,21 @@ test("real handlers support an isolated fresh-install journey and exact task/gat
   assert.equal(clicks.slice(-7).reduce((total, point) => total + point.v, 0), 224);
   assert.equal(clicks.slice(-28).reduce((total, point) => total + point.v, 0), 602);
   assert.deepEqual(detail.body.performance.webSearchClicks.google.series, []);
-  // A saved project cannot authorize a different database on this host.
-  const commandsBefore = (await request("/__journey/status")).body.taskCommands;
-  const changeDatabase = (expect, value) => request("/api/config", "PUT", { ops: [{ kind: "file-json-set",
-    file: "config/beads.json", pointer: "/spokes/0/database", expect, value }] });
-  assert.equal((await changeDatabase("journey_fixture", "unlinked_fixture")).status, 200);
-  const unlinked = await request(`/api/tasks?project=${asset}`);
-  assert.equal(unlinked.status, 409);
-  assert.equal(unlinked.body.error, "project_not_linked");
-  assert.deepEqual((await request("/__journey/status")).body.taskCommands, commandsBefore);
-  assert.equal((await changeDatabase("unlinked_fixture", "journey_fixture")).status, 200);
+  // Until Ntasks is connected the task routes say so and read nothing.
+  const unconnected = await request(`/api/tasks?project=${asset}`);
+  assert.equal(unconnected.status, 409);
+  assert.equal(unconnected.body.error, "task_service_not_connected");
+  assert.equal((await request("/__journey/ntasks", "POST")).status, 200);
   const list = await request(`/api/tasks?project=${asset}`);
   assert.equal(list.status, 200, JSON.stringify(list.body));
   assert.deepEqual(list.body.tasks.map((row) => row.id).sort(), ["jt-approve", "jt-review"]);
-  const clients = path.join(server.installationRoot, "task-projects");
-  const clientFolders = readdirSync(clients);
-  assert.equal(clientFolders.length, 1);
-  const metadata = JSON.parse(readFileSync(path.join(clients, clientFolders[0], ".beads/metadata.json"), "utf8"));
-  assert.equal(metadata.dolt_database, "journey_fixture");
-  assert.deepEqual(checkoutEntries(), beforeEntries, "Task discovery writes only the runner-owned installation");
   const task = await request("/api/tasks/jt-review");
   assert.equal(task.status, 200);
   assert.equal(task.body.task.id, "jt-review");
-  assert.equal((await request("/api/gates/jt-approve/resolve", "POST", { reason: "Fixture only" })).status, 200);
+  // A gate is a person's to approve: the installation's own credential is refused.
+  assert.equal((await request("/api/gates/jt-approve/resolve", "POST", { reason: "Fixture only" })).status, 403);
   state = (await request("/__journey/status")).body;
-  assert.equal(state.tasks.find((row) => row.id === "jt-approve").status, "closed");
+  assert.equal(state.tasks.find((row) => row.id === "jt-approve").status, "open");
   assert.equal(state.assets.length, 1);
   assert.equal(JSON.stringify(state).includes("journey-only-not-a-real-key"), false, "Credential sentinel must never appear in reads/journals");
 });
@@ -189,7 +179,8 @@ test("fixture rejects cross-origin writes and unsupported external operations", 
   assert.equal(foreign.status, 403);
   assert.equal((await request("/api/integrations/bing-webmaster/credential", "PUT", { fields: { BING_WEBMASTER_API_KEY: "anything-else" } })).status, 422);
   assert.equal((await request("/api/runner/scheduled", "POST", {})).status, 404);
-  assert.equal((await request("/api/tasks/jt-review/delete", "POST", {})).status, 400);
+  assert.equal((await request("/__journey/ntasks", "POST")).status, 200);
+  assert.equal((await request("/api/tasks/jt-review/delete", "POST", {})).status, 404);
   const state = (await request("/__journey/status")).body;
   assert.equal(state.isolated, true);
   assert.equal(state.assets.length, 1);

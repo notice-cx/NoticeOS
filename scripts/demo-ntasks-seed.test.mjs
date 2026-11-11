@@ -82,3 +82,15 @@ test('a gate waits on a person and the task it holds waits on the gate; a card a
 test('the same scenario always gives the same seed', () => {
   assert.deepEqual(demoNtasksSeed(generateDemoScenario(input)), seed);
 });
+
+test('a task that answers an alert carries the alert identity and the hand-off label; no other task changes', () => {
+  const story = scenario.manifest.stories.problem;
+  const joined = demoNtasksSeed(scenario, [{ task: story.ref, asset: story.asset, rule: 'poisson-drop', key: '37' }]);
+  const task = joined.tasks.find(row => row.id === story.ref);
+  assert.deepEqual({ source: task.metadata.noticeos_source, asset: task.metadata.noticeos_asset, kind: task.metadata.noticeos_kind,
+    rule: task.metadata.noticeos_rule, key: task.metadata.noticeos_key }, { source: 'noticeos-handoff', asset: story.asset, kind: 'alert', rule: 'poisson-drop', key: '37' });
+  assert.ok(task.labels.includes('noticeos-handoff'));
+  assert.deepEqual(task.links, byId.get(story.ref).links);
+  assert.deepEqual(joined.tasks.filter(row => row.id !== story.ref), seed.tasks.filter(row => row.id !== story.ref));
+  assert.throws(() => demoNtasksSeed(scenario, [{ task: story.ref, asset: 'another.example', rule: 'poisson-drop', key: '37' }]), /names no task of its site/u);
+});

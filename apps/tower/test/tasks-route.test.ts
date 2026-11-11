@@ -7,10 +7,10 @@ import {
   isTasksPath,
 } from "../worker/tasks-route";
 
-// What a deployed Tower says when asked to read or write the task hub. Locally
-// the task lane answers these paths first, so these cases pin a deployment with
-// neither `bd` nor a Dolt server: the board degrades rather than breaks, and the
-// capability answer is a state code, never a paragraph.
+// What a deployed Tower says when asked to read or write tasks. Locally the
+// task lane answers these paths first, so these cases pin a deployment with no
+// task service: the board degrades rather than breaks, and the capability
+// answer is a state code, never a paragraph.
 
 function ask(pathname: string): Response {
   return handleTasksRequest(new URL(`https://tower.example${pathname}`));

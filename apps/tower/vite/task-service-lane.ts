@@ -177,7 +177,7 @@ async function agentStats(opts: TaskServiceLaneOptions, url: URL): Promise<LaneR
 /** GET /api/tasks/service for Settings → Task projects. */
 export async function taskServiceStatus(service: TaskService | null,
   readProjects: TaskServiceLaneOptions["readProjects"]): Promise<TaskServiceStatus> {
-  if (!service) return { connected: false, origin: null, projects: null };
+  if (!service) return { connected: false, origin: null, projects: null, required: true };
   const connected = await service.connected().catch(() => null);
   if (connected !== true) return { connected, origin: null, projects: null, required: true };
   const origin = await service.origin().catch(() => null);

@@ -107,7 +107,6 @@ const ALLOWED_PHRASES = [
   //    labels, kept verbatim by doc 14's owner-chip row.
   'config/beads.json',
   'config/beads.README.md',
-  '/.beads/config.yaml',
   "'beads/'", // The actual backup-set directory, displayed as code beside Task databases.
   'config/changesets',
   // 2. STORED, WIRE AND DOM VALUES. Renaming one is a data migration or a
@@ -146,12 +145,7 @@ const ALLOWED_PHRASES = [
   // as a provider row names Bing (doc 14, "Beads (a task source)").
   'name: "Beads"',
   '"knobs", "preferences"',
-  // 5. A COMMAND PASSED TO A LABELLED BLOCK rather than written inline. The
-  //    Settings checklist renders it under "Terminal · run in <repo>" with a
-  //    Copy button, which is the labelling doc 14 asks for; it is not inline
-  //    prose, so the inline-markup rule below cannot see it.
-  'bd init --server',
-  // 6. WALL METRIC TILES: individual figures/charts within whole sections,
+  // 5. WALL METRIC TILES: individual figures/charts within whole sections,
   //    a separate editable object defined in doc 14's Lexicon.
   'Row tiles',
   'Remove tile',
