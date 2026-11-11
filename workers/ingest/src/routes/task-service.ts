@@ -73,18 +73,22 @@ function redirectUriOf(value: unknown): string | null {
   return ['http:', 'https:'].includes(url.protocol) && value === `${url.origin}${SIGNED_IN_PATH}` ? value : null;
 }
 
-/** What POST /api/task-service/app answers, always with 200. */
+/** What POST /api/task-service/app answers, always with 200. `registered`
+ * says this answer saved the client id with the connection. */
 export type TaskServiceAppAnswer =
-  | { readonly clientId: string; readonly registered: boolean }
+  | { readonly clientId: string; readonly registered: boolean; readonly held: boolean }
   | { readonly refused: { readonly status: number; readonly error: string } }
   | { readonly answered: false; readonly reason: 'not-connected' | 'changed' | TaskServiceError['failure']['kind']; readonly status?: number };
 
 /**
  * POST /api/task-service/app ({ redirectUri }): the Tower's client id as a
- * connected app of this installation's Ntasks, for a person's browser to sign
- * in with. The saved one when there is one; otherwise Ntasks registers the
- * Tower with the service credential, and the client id is saved with the
- * connection. Guarded as GET and POST /api/task-service are.
+ * connected app of this installation's Ntasks returning to `redirectUri`, for
+ * a person's browser there to sign in with, and whether Ntasks holds that
+ * address until a workspace owner allows it. Ntasks registers one app for each
+ * address, answering the same one again, so the Tower opened at another
+ * address gets its own; the first client id is saved with the connection,
+ * and answers for an Ntasks that cannot register the Tower. Guarded as GET
+ * and POST /api/task-service are.
  */
 export async function handleTaskServiceApp(request: Request, env: IngestEnv, fetchImpl: typeof fetch = fetch): Promise<Response> {
   if (workspaceProfile(env) !== 'standalone' || request.headers.has('origin')) return json({ error: 'forbidden' }, 403);
@@ -100,17 +104,23 @@ export async function handleTaskServiceApp(request: Request, env: IngestEnv, fet
   const resolved = await resolveCredential(env, 'ntasks', 'store-only');
   if (resolved.source !== 'store') return json({ answered: false, reason: 'not-connected' } satisfies TaskServiceAppAnswer);
   const saved = ntasksAppClientId(resolved.fields);
-  if (saved !== null) return json({ clientId: saved, registered: false } satisfies TaskServiceAppAnswer);
   try {
     const registration = await registerNtasksApp(resolved.fields, redirectUri, fetchImpl);
     if (!registration.registered) {
+      // An Ntasks that cannot register the Tower still signs in with a client id
+      // saved by hand; one that refuses this address refuses it with any app.
+      if (saved !== null && registration.error !== 'invalid_redirect_uri') {
+        return json({ clientId: saved, registered: false, held: false } satisfies TaskServiceAppAnswer);
+      }
       return json({ refused: { status: registration.status, error: registration.error } } satisfies TaskServiceAppAnswer);
     }
+    const { clientId, held } = registration;
+    if (saved !== null) return json({ clientId, registered: false, held } satisfies TaskServiceAppAnswer);
     // Ntasks answers the same app again for the same address, so a save lost here costs no second app.
-    if (!(await saveNtasksAppClientId(env, resolved, registration.clientId))) {
+    if (!(await saveNtasksAppClientId(env, resolved, clientId))) {
       return json({ answered: false, reason: 'changed' } satisfies TaskServiceAppAnswer);
     }
-    return json({ clientId: registration.clientId, registered: true } satisfies TaskServiceAppAnswer);
+    return json({ clientId, registered: true, held } satisfies TaskServiceAppAnswer);
   } catch (error) {
     if (!(error instanceof TaskServiceError)) throw error;
     return json({ answered: false, reason: error.failure.kind, ...(error.failure.status === undefined ? {} : { status: error.failure.status }) } satisfies TaskServiceAppAnswer);

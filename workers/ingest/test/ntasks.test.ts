@@ -126,13 +126,14 @@ it('forwards one call for the operator, and says why when Ntasks gave no answer'
 });
 
 const SIGNED_IN = 'https://tower.example.com/tasks/signed-in';
+const HOME_SIGNED_IN = 'http://tower.local:5173/tasks/signed-in';
 function appDoor(body: unknown) {
   return new Request('http://ingest.local/api/task-service/app', { method: 'POST',
     headers: { authorization: `Bearer ${OPERATOR_TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 }
 const savedClientId = async () => (await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json() as { appClientId: string | null }).appClientId;
 
-it('registers the Tower in Ntasks once with the service credential, saves its client id, and answers the saved one after', async () => {
+it('asks Ntasks for the Tower’s app at each address with the service credential, and saves the first client id', async () => {
   expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'))).json())
     .toEqual({ answered: false, reason: 'not-connected' });
   expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields })).toMatchObject({ ok: true });
@@ -140,19 +141,24 @@ it('registers the Tower in Ntasks once with the service credential, saves its cl
   const ntasks = vi.fn<typeof fetch>(async (input, init) => {
     expect(String(input)).toBe('https://ntasks.example.com/api/auth/oauth2/register');
     expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-service-token');
-    registrations.push(JSON.parse(String(init?.body)));
-    return Response.json({ client_id: 'tower-registered', client_name: 'NoticeOS Tower', redirect_uris: [SIGNED_IN] }, { status: 201 });
+    const metadata = JSON.parse(String(init?.body)) as { redirect_uris: string[] };
+    registrations.push(metadata);
+    // Ntasks registers one app per address, and holds a home-network one until an owner allows it.
+    const home = metadata.redirect_uris[0] === HOME_SIGNED_IN;
+    return Response.json({ client_id: home ? 'tower-at-home' : 'tower-registered', client_name: 'NoticeOS Tower', redirect_uris: metadata.redirect_uris,
+      held_redirect_uris: home ? [HOME_SIGNED_IN] : [] }, { status: 201 });
   });
   expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'), ntasks)).json())
-    .toEqual({ clientId: 'tower-registered', registered: true });
+    .toEqual({ clientId: 'tower-registered', registered: true, held: false });
   expect(registrations).toEqual([expect.objectContaining({ client_name: 'NoticeOS Tower', redirect_uris: [SIGNED_IN], token_endpoint_auth_method: 'none',
     scope: 'tasks:read tasks:write tasks:decide offline_access' })]);
   expect(await savedClientId()).toBe('tower-registered');
   expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).fields).toEqual({ ...fields, NTASKS_APP_CLIENT_ID: 'tower-registered' });
 
-  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'), ntasks)).json())
-    .toEqual({ clientId: 'tower-registered', registered: false });
-  expect(ntasks).toHaveBeenCalledTimes(1);
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: HOME_SIGNED_IN }), inProfile('standalone'), ntasks)).json())
+    .toEqual({ clientId: 'tower-at-home', registered: false, held: true });
+  expect(await savedClientId()).toBe('tower-registered');
+  expect(ntasks).toHaveBeenCalledTimes(2);
 });
 
 it('answers only the code Ntasks refused a registration with, and saves nothing', async () => {
@@ -163,6 +169,12 @@ it('answers only the code Ntasks refused a registration with, and saves nothing'
   expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
     async () => Response.json({ error: 'temporarily_unavailable' }, { status: 503 }))).json()).toEqual({ answered: false, reason: 'http', status: 503 });
   expect(await savedClientId()).toBeNull();
+  // A client id saved by hand still signs in where Ntasks cannot register the Tower, but not at an address it refuses.
+  expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields: { ...fields, NTASKS_APP_CLIENT_ID: 'tower-by-hand' } })).toMatchObject({ ok: true });
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
+    async () => Response.json({ error: 'invalid_client_metadata' }, { status: 400 }))).json()).toEqual({ clientId: 'tower-by-hand', registered: false, held: false });
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: HOME_SIGNED_IN }), inProfile('standalone'),
+    async () => Response.json({ error: 'invalid_redirect_uri' }, { status: 400 }))).json()).toEqual({ refused: { status: 400, error: 'invalid_redirect_uri' } });
   for (const body of [{ redirectUri: 'https://tower.example.com/elsewhere' }, { redirectUri: 'javascript:alert(1)' },
     { redirectUri: `${SIGNED_IN}?next=/` }, { redirectUri: SIGNED_IN, extra: 1 }, {}]) {
     expect((await handleTaskServiceApp(appDoor(body), inProfile('standalone'), async () => { throw new Error('must not be called'); })).status, JSON.stringify(body)).toBe(400);

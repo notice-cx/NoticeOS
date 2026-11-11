@@ -574,12 +574,12 @@ async function fetchTaskServiceRequest(fetch: ApiTransport, signal?: AbortSignal
 /** The client id Sign in to Ntasks signs in with: the one saved, or, when
  * none is, the one Ntasks answers once the installation registered the Tower
  * there for this page's origin. */
-async function registerNtasksAppRequest(fetch: ApiTransport): Promise<{ clientId: string }> {
+async function registerNtasksAppRequest(fetch: ApiTransport): Promise<{ clientId: string; held: boolean }> {
   const res = await fetch(TASK_SERVICE_APP_PATH, { method: "POST", headers: JSON_WRITE_HEADERS, body: "{}" });
   if (!res.ok) throw await refusal(res, `POST ${TASK_SERVICE_APP_PATH} failed: ${res.status}`);
   const body: unknown = await res.json();
   if (!isRecord(body) || typeof body.clientId !== "string") throw new ApiError("The Tower answered no Ntasks client id.", res.status);
-  return { clientId: body.clientId };
+  return { clientId: body.clientId, held: body.held === true };
 }
 
 /** The read-only work board (desk-only). Always a fully-formed payload with a

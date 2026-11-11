@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { TaskServiceStatus } from "@shared/tasks";
 import { useBrowserRuntime, useOwnerPreferences, useTowerApi } from "@/lib/browser-context";
 import type { TowerApi } from "@/lib/api";
-import { createPersonSession, personDecisions, type NtasksApp, type PersonSession, type TokenStorage } from "@/lib/ntasks-sign-in";
+import { createPersonSession, keptApp, personDecisions, type NtasksApp, type PersonSession, type TokenStorage } from "@/lib/ntasks-sign-in";
 import { useTaskService } from "@/hooks/useTaskService";
 
 /**
@@ -48,7 +48,10 @@ export function useNtasksSignIn(): NtasksSignIn {
   const storage = useOwnerPreferences();
   const app = ntasksApp(data);
   const origin = app === null ? null : app === "unconfigured" ? data!.origin! : app.origin;
-  const clientId = app === null || app === "unconfigured" ? null : app.clientId;
+  // The app this Tower address signed in with wins over the installation's
+  // saved one, which Ntasks registered for the address the Tower first signed in from.
+  const kept = origin === null ? null : keptApp(storage, origin);
+  const clientId = app === null ? null : kept?.clientId ?? (app === "unconfigured" ? null : app.clientId);
   const session = useMemo(() => origin !== null && clientId !== null ? personSession(runtime, { origin, clientId }, storage) : null,
     [runtime, origin, clientId, storage]);
   const state = useSyncExternalStore(session?.subscribe ?? NO_SUBSCRIPTION, session?.snapshot ?? (() => SIGNED_OUT), session?.snapshot ?? (() => SIGNED_OUT));

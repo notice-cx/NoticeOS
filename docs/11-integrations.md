@@ -162,7 +162,8 @@ The **Tower client ID** is the Tower's client ID as a connected app of that
 Ntasks; with it, people sign in to Ntasks on the **Tasks** pages and their
 decisions are recorded under their own names. The first **Sign in to Ntasks**
 registers the Tower and saves it, so the field is filled by hand only for an
-Ntasks that cannot register the Tower.
+Ntasks that cannot register the Tower. A browser at another address of the
+Tower signs in with the app Ntasks registers for that address.
 [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
 mapping sites to projects, registering the Tower for sign-in, connecting agents
 and what the Tower shows while Ntasks does not answer.

@@ -24,9 +24,11 @@ const NTASKS_APP_SCOPE = 'tasks:read tasks:write tasks:decide offline_access';
 /** Ntasks's own refusal codes, as RFC 7591 names them; nothing else of its answer is passed on. */
 const REFUSAL_CODE = /^[a-z_]{1,64}$/u;
 
-/** Ntasks's answer to registering the Tower: its client id, or the code and status it refused with. */
+/** Ntasks's answer to registering the Tower: its client id and whether Ntasks
+ * holds the address until a workspace owner allows it, or the code and status
+ * it refused with. */
 export type NtasksAppRegistration =
-  | { readonly registered: true; readonly clientId: string }
+  | { readonly registered: true; readonly clientId: string; readonly held: boolean }
   | { readonly registered: false; readonly status: number; readonly error: string };
 
 /**
@@ -47,7 +49,9 @@ export async function registerNtasksApp(fields: Record<string, string>, redirect
   const clientId = typeof answer.client_id === 'string' ? answer.client_id : '';
   if (status === 200 || status === 201) {
     if (!CLIENT_ID.test(clientId)) throw new TaskServiceError({ kind: 'invalid-response', status });
-    return { registered: true, clientId };
+    // An Ntasks older than home-network addresses sends no held_redirect_uris and holds none.
+    const held = Array.isArray(answer.held_redirect_uris) && answer.held_redirect_uris.includes(redirectUri);
+    return { registered: true, clientId, held };
   }
   const error = typeof answer.error === 'string' && REFUSAL_CODE.test(answer.error) ? answer.error : 'refused';
   return { registered: false, status, error };

@@ -52,11 +52,11 @@ test('registering the Tower answers its client id, and the next status read name
     assert.equal(url, `${DOOR}/api/task-service/app`);
     asked.push(JSON.parse(init.body));
     saved = 'tower-registered';
-    return Response.json({ clientId: saved, registered: true });
+    return Response.json({ clientId: saved, registered: true, held: true });
   };
   const tasks = service(fetch);
   assert.equal(await tasks.appClientId(), null);
-  assert.equal(await tasks.registerApp('https://tower.example.com/tasks/signed-in'), 'tower-registered');
+  assert.deepEqual(await tasks.registerApp('https://tower.example.com/tasks/signed-in'), { clientId: 'tower-registered', held: true });
   assert.deepEqual(asked, [{ redirectUri: 'https://tower.example.com/tasks/signed-in' }]);
   assert.equal(await tasks.appClientId(), 'tower-registered');
 

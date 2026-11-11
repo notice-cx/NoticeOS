@@ -198,7 +198,7 @@ export async function taskServiceStatus(service: TaskService | null,
 /** The sentence a person reads when Ntasks refused to register the Tower. */
 function refusedSentence(error: TaskServiceAppRefused, redirectUri: string): string {
   if (error.code === "invalid_redirect_uri") {
-    return `Ntasks does not accept ${redirectUri} as a sign-in address. Open the Tower at an https address, or at localhost on this machine.`;
+    return `Ntasks does not accept ${redirectUri} as a sign-in address. Open the Tower at an https address or at localhost on this machine, or update Ntasks to sign in from a home-network address.`;
   }
   if (error.code === "invalid_token") {
     return "Ntasks did not take this installation's service credential to register the Tower. Update Ntasks, or replace the credential in Settings → Task projects.";
@@ -207,12 +207,14 @@ function refusedSentence(error: TaskServiceAppRefused, redirectUri: string): str
 }
 
 /**
- * POST /api/tasks/service/app: the client id a person's browser signs in to
- * Ntasks with. When none is saved, the installation registers the Tower in
- * Ntasks with its service credential, returning to this page's origin, and
- * saves the client id (scripts/task-service.mts registerApp). The origin is the
- * browser's own, which the lane's same-origin check has already compared
- * with the host it reached.
+ * POST /api/tasks/service/app: the client id a person's browser at this
+ * page's origin signs in to Ntasks with, and whether Ntasks holds that
+ * address until a workspace owner allows it. The installation asks Ntasks
+ * with its service credential, which registers the Tower for that address
+ * the first time and saves the first client id
+ * (scripts/task-service.mts registerApp). The origin is the browser's own,
+ * which the lane's same-origin check has already compared with the host it
+ * reached.
  */
 export async function registerTowerApp(service: TaskService | null, request: LaneRequest): Promise<LaneReply> {
   if (request.method !== "POST") return { status: 405, body: { error: "method_not_allowed" } };
@@ -224,7 +226,8 @@ export async function registerTowerApp(service: TaskService | null, request: Lan
   }
   const redirectUri = `${origin}${NTASKS_SIGNED_IN_PATH}`;
   try {
-    return { status: 200, body: { clientId: await service.registerApp(redirectUri) } };
+    const { clientId, held } = await service.registerApp(redirectUri);
+    return { status: 200, body: { clientId, held } };
   } catch (error) {
     if (error instanceof TaskServiceAppRefused) {
       return { status: 502, body: { error: "ntasks_registration_refused", code: error.code, detail: refusedSentence(error, redirectUri) } };

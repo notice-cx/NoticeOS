@@ -189,6 +189,9 @@ importers:
       '@atlaskit/pragmatic-drag-and-drop':
         specifier: 4.0.0
         version: 4.0.0
+      '@noble/hashes':
+        specifier: 2.4.0
+        version: 2.4.0
       '@notice-cx/ntasks-ui':
         specifier: 0.4.0
         version: 0.4.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)

@@ -4,10 +4,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { personSession } from "@/hooks/useNtasksSignIn";
 import { useBrowserRuntime, useOwnerPreferences } from "@/lib/browser-context";
 import { useDocumentTitle } from "@/lib/document-title";
-import { finishSignIn } from "@/lib/ntasks-sign-in";
+import { finishSignIn, keepApp } from "@/lib/ntasks-sign-in";
 
 /** One exchange per code: a page drawn twice must not spend it twice. */
-const exchanges = new Map<string, Promise<{ returnTo: string }>>();
+const exchanges = new Map<string, ReturnType<typeof finishSignIn>>();
 
 /** The address Ntasks returns the person's browser to after sign-in: the code
  * is exchanged for their tokens here, and the page they started from opens. */
@@ -25,7 +25,11 @@ export function NtasksSignedInRoute() {
       exchange = finishSignIn(search, { sessionFor: (app) => personSession(runtime, app, storage) });
       exchanges.set(search, exchange);
     }
-    exchange.then(({ returnTo }) => { if (current) navigate(/^\/(?!\/)/u.test(returnTo) ? returnTo : "/tasks", { replace: true }); },
+    exchange.then(({ returnTo, app }) => {
+      // A sign-in that finished here shows Ntasks no longer holds this address.
+      keepApp(storage, app.origin, { clientId: app.clientId, held: false });
+      if (current) navigate(/^\/(?!\/)/u.test(returnTo) ? returnTo : "/tasks", { replace: true });
+    },
       (error: unknown) => { if (current) setFailure(error instanceof Error ? error.message : String(error)); });
     return () => { current = false; };
   }, [search, runtime, storage, navigate]);

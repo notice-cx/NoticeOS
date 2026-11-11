@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { API_VERSION } from "@notice-cx/ntasks-ui";
-import { fireEvent, render, screen } from "./render";
+import { cleanup, fireEvent, render, screen } from "./render";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TaskServiceStatus } from "@shared/tasks";
@@ -19,7 +19,8 @@ const CONNECTED: TaskServiceStatus = { connected: true, origin: ORIGIN, required
 const UNREGISTERED: TaskServiceStatus = { ...CONNECTED, app: null };
 
 const state = vi.hoisted(() => ({ service: undefined as TaskServiceStatus | undefined }));
-const api = vi.hoisted(() => ({ registerNtasksApp: vi.fn(async (): Promise<{ clientId: string }> => ({ clientId: "tower-registered" })) }));
+// Ntasks answers the app it has for this Tower address, the saved one unless a test says otherwise.
+const api = vi.hoisted(() => ({ registerNtasksApp: vi.fn(async (): Promise<{ clientId: string; held: boolean }> => ({ clientId: "tower-client", held: false })) }));
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn(), message: vi.fn() }), Toaster: () => null }));
 vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), ...api }));
@@ -32,6 +33,7 @@ import { toast } from "sonner";
 import { deskRoutes } from "@/App";
 import { ApiError } from "@/lib/api";
 import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
+import { heldSentence } from "@/lib/ntasks-sign-in";
 import { NEWER_NTASKS, OLDER_NTASKS, versionProblem } from "@/routes/TasksRoute";
 
 /** An Ntasks at ORIGIN of the given API version, where nobody is signed in unless a request carries `person-token`. */
@@ -140,6 +142,7 @@ describe("the Ntasks UI inside the Tower", () => {
 
   it("with no Tower client ID saved, registers the Tower in Ntasks on the press, then signs in with the new one", async () => {
     state.service = UNREGISTERED;
+    api.registerNtasksApp.mockResolvedValueOnce({ clientId: "tower-registered", held: false });
     const fetch = ntasks();
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
@@ -150,6 +153,24 @@ describe("the Ntasks UI inside the Tower", () => {
     await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
     expect(api.registerNtasksApp).toHaveBeenCalledOnce();
     expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe("tower-registered");
+  });
+
+  it("signs in at another address with the app Ntasks answers for it, and says where an owner allows an address Ntasks holds", async () => {
+    state.service = CONNECTED;
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    api.registerNtasksApp.mockResolvedValueOnce({ clientId: "tower-at-home", held: true });
+    renderAt("/tasks");
+    expect(document.querySelector("[data-ntasks-address-held]")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in to Ntasks" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe("tower-at-home");
+
+    // Back on the page, as after an owner has not allowed the address yet.
+    cleanup();
+    renderAt("/tasks");
+    expect(await screen.findByText(heldSentence(window.location.origin))).toBeInTheDocument();
   });
 
   it("says why when the Tower could not be registered, and starts no sign-in", async () => {
