@@ -1,6 +1,6 @@
 // Pure panel-review convention; no installation or runtime imports.
 import { TASK_METADATA, taskMetadataValue } from "../packages/contract/src/task-metadata.mjs";
-import { taskLabelListArgs, taskText, taskInstant } from "./task-snapshot-values.mjs";
+import { taskText, taskInstant } from "./task-snapshot-values.mjs";
 // The panel-review convention: one task per property per collection day,
 // filed in that property's own tracker when its weekly collection lands, due
 // a week later. The review records evidence coverage, due readbacks and any
@@ -12,9 +12,9 @@ import { taskLabelListArgs, taskText, taskInstant } from "./task-snapshot-values
 // packages/contract/src/task-metadata.mts reads both). Two title forms, one
 // identity: a property with a panel says "serp panel", one without says
 // "signal collection"; the dedupe fallback reads both, because the title is
-// what identifies a task whose metadata `bd` did not hand back.
+// what identifies a task that carries no metadata.
 //
-// Shared vocabulary: the poller (runner/task-snapshot.mjs) reads these tasks
+// Shared vocabulary: the poller (runner/task-service-poll.mjs) reads these tasks
 // into the board's payload and the filer writes them. The label, the title
 // and the two metadata keys are a contract with the Tower; a rename here
 // silently empties a card there.
@@ -48,15 +48,14 @@ export const PANEL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const PANEL_REVIEW_TITLE_RE = /^Triage the (\d{4}-\d{2}-\d{2}) (?:serp panel|signal collection) for \S/;
 
 /** The task's title. It carries the collection day because it is the
- * fallback the readers below use when `bd` hands back a task without its
- * metadata. `hasPanel` picks the noun and nothing else. */
+ * fallback the readers below use for a task without its metadata. `hasPanel` picks the noun and nothing else. */
 export function panelReviewTitle(asset, panelDate, hasPanel = true) {
   const what = hasPanel ? 'serp panel' : 'signal collection';
   return `Triage the ${panelDate} ${what} for ${asset}`;
 }
 
 /**
- * When the review is due, as the YYYY-MM-DD `bd --due` takes. Measured from
+ * When the review is due, as a YYYY-MM-DD day. Measured from
  * the panel day, never from when the filer noticed: a runner catching up
  * after downtime must not hand the reviewer extra days.
  */
@@ -68,21 +67,9 @@ export function panelReviewDueDate(panelDate) {
 }
 
 /**
- * Every review task one spoke holds, any status. One query for both lanes: if
- * the poller and the filer asked different questions, the filer could file a
- * duplicate the board would then fail to show.
- */
-export function panelReviewListArgs(repoDir) {
-  // Including closed: a property that finished its review this morning and
-  // one that has never had a panel both have no open review, and only the
-  // closed task separates them.
-  return taskLabelListArgs(repoDir, PANEL_REVIEW_LABEL, { closed: true, limit: PANEL_REVIEW_LIMIT });
-}
-
-/**
  * Which panel day a review task is about, or null if it is not one of ours.
- * Metadata first; the title is the fallback, because `bd`'s list JSON omits
- * metadata for a task that carries none.
+ * Metadata first; the title is the fallback, for a task that carries no
+ * metadata.
  */
 export function panelReviewPanelDate(row) {
   const tagged = taskMetadataValue(row?.metadata, 'panelDate');
@@ -92,8 +79,8 @@ export function panelReviewPanelDate(row) {
 }
 
 /** A false automated review stays in the ledger for audit, but leaves both
- * operational readers. The string fallback keeps snapshots from thinner `bd`
- * clients safe. */
+ * operational readers. Labels are read as a list or as one comma-separated
+ * string. */
 export function invalidPanelReview(row) {
   const labels = Array.isArray(row?.labels)
     ? row.labels
@@ -118,7 +105,7 @@ export function panelReviewAlreadyFiled(rows, panelDate) {
 /**
  * What the board reports for one property: the open review if there is one,
  * else the most recently closed, so a card can tell a property that finished
- * its triage from one that never had a panel. `bd`'s richer statuses collapse
+ * its triage from one that never had a panel. A task's richer statuses collapse
  * to open/closed: in_progress, blocked and deferred are all not triaged yet.
  */
 export function panelReviewEntry(rows) {

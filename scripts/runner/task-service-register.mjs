@@ -2,11 +2,11 @@
 // (panel-review.mjs, watch-readbacks.mjs) do in the task register while it is
 // Ntasks: read a project's tasks, read one task, comment, file and link, each
 // through the installation's task service and named for the lane's own agent.
-// Rows come back in the shape `bd --json` gave (task-service-poll.mjs bdRow),
-// so the lanes' rules read them unchanged.
+// Rows come back as `runnerRow` (task-service-poll.mjs) makes them, the shape
+// the lanes' rules read.
 
 import { mapTaskProjects, TaskServiceUnavailable } from '../task-service.mjs';
-import { bdRow, readLabelled } from './task-service-poll.mjs';
+import { runnerRow, readLabelled } from './task-service-poll.mjs';
 
 function failed(what, reply) {
   const detail = typeof reply.body?.detail === 'string' ? `: ${reply.body.detail}` : '';
@@ -32,12 +32,12 @@ export function ntasksRegister(service, actor) {
   return Object.freeze({
     /** Every task carrying `label`, open or closed at any time. */
     async labelled(spoke, label) {
-      return (await readLabelled(service, await projectOf(spoke), label)).map(bdRow);
+      return (await readLabelled(service, await projectOf(spoke), label)).map(runnerRow);
     },
     async show(spoke, taskId) {
       const body = await get(`/api/tasks/${encodeURIComponent(taskId)}?project=${encodeURIComponent(await projectOf(spoke))}`, 'task read');
       if (body?.task?.id !== taskId) throw new Error('Ntasks answered for another task');
-      return bdRow(body.task);
+      return runnerRow(body.task);
     },
     async comment(spoke, taskId, text, idempotencyKey) {
       const reply = await service.call({ method: 'POST', path: `/api/tasks/${encodeURIComponent(taskId)}/comments`,

@@ -1,4 +1,4 @@
-// Pure task row normalization shared by standalone and hosted readers.
+// Pure task row normalization: a snake_case task row into the Tower's live task.
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 import { gateTitle } from "../packages/contract/src/task-gate.mjs";
 import { readTaskChoice, readTaskChoices } from "../packages/contract/src/task-choices.mjs";
@@ -20,8 +20,7 @@ function whole(value: unknown, fallback: number): number {
   return Number.isInteger(value) ? (value as number) : fallback;
 }
 
-/** `bd`'s default priority band. Named rather than inlined so a row missing the
- * field lands in the same band the CLI would have put it in. */
+/** The default priority band, for a row missing the field. */
 const DEFAULT_PRIORITY = 2;
 
 function dependencies(value: unknown): TaskDependency[] {
@@ -29,8 +28,8 @@ function dependencies(value: unknown): TaskDependency[] {
   const out: TaskDependency[] = [];
   for (const entry of value) {
     const row = entry as Record<string, unknown>;
-    // `bd list` reports a plain edge (`depends_on_id` + `type`); `bd show`
-    // embeds the whole issue (`id` + `dependency_type`). Same edge, two shapes.
+    // A row carries an edge as `depends_on_id` + `type`, or as the other task
+    // itself (`id` + `dependency_type`, as `runnerRow` writes it). Same edge, two shapes.
     const id = text(row.depends_on_id) || text(row.id);
     const type = text(row.type) || text(row.dependency_type, "blocks");
     if (id === "") continue;
@@ -39,9 +38,9 @@ function dependencies(value: unknown): TaskDependency[] {
   return out;
 }
 
-/** The epic this bead hangs off. `bd` reports it as a field on a list row and
- * as a parent-child dependency edge on a show row; both are read so a task page
- * and an index agree about where a bead belongs. */
+/** The epic this task hangs off: the row's `parent` field, else its
+ * parent-child dependency edge, so a task page and an index agree about where
+ * a task belongs. */
 function parentOf(row: Record<string, unknown>, deps: TaskDependency[]): string | null {
   const direct = text(row.parent);
   if (direct !== "") return direct;

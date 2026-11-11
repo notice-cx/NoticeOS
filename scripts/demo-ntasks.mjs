@@ -18,7 +18,7 @@ import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
-import { boardResults, LABEL_READS, readLabelled } from './runner/task-service-poll.mjs';
+import { boardReads, LABEL_READS, readLabelled } from './runner/task-service-poll.mjs';
 import { TASK_CLOSES_DAYS, tasksClosedSince, tasksClosesSince, summarizeTaskProject } from './task-snapshot-summary.mjs';
 import { AGENT_HISTORY_DAYS, readAgentStats } from '../packages/contract/src/agent-stats.mjs';
 /** Where the ntasks service listens, inside the network namespace it owns and the app and setup share. */
@@ -302,7 +302,7 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }) {
                             found.set(String(task.id), task);
                     labelled[read] = [...found.values()];
                 }
-                entries.push(summarizeTaskProject(project, boardResults({ tasks: rowsOf(board), epics: record(board.body)?.epics }, { tasks: rowsOf(closes) }, labelled), reach));
+                entries.push(summarizeTaskProject(project, boardReads({ tasks: rowsOf(board), epics: record(board.body)?.epics }, { tasks: rowsOf(closes) }, labelled), reach));
             }
             return { capturedAt: new Date(at).toISOString(), projects: entries };
         },

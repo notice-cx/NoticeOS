@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { mayReadOwnerConfig } from './test-config-isolation.mjs';
 
 import { resolveTowerExposure, runBackup, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
-import { BACKUP_TASKS_UNKNOWN } from './runner/task-service-poll.mjs';
+import { BACKUP_TASKS_UNKNOWN, LABEL_READS } from './runner/task-service-poll.mjs';
 import {
   JOB_RUN_CATCHUP_DAYS,
   JOB_RUN_OUTCOMES,
@@ -53,7 +53,7 @@ import {
 } from './runner/lifecycle.mjs';
 import { rotateLogFile } from './runner/log.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
-import { PANEL_REVIEW_VERSION_KEY, panelReviewListArgs } from './panel-review-summary.mjs';
+import { PANEL_REVIEW_VERSION_KEY } from './panel-review-summary.mjs';
 import {
   COLLECTION_REVIEW_ACCEPTANCE,
   INVALID_PANEL_REVIEW_LABEL,
@@ -98,10 +98,8 @@ import {
   HANDOFF_LIMIT,
   tasksClosedSince,
   taskGateReason,
-  taskPollArgs,
   taskSnapshotUrl,
   handoffEntries,
-  handoffListArgs,
   runTaskPoll,
   summarizeTaskProject,
 } from './runner/task-snapshot.mjs';
@@ -1038,11 +1036,12 @@ test('binary resolution prefers a known install over a service’s minimal PATH'
 
 // Task snapshot poller, the Tower work board's supply.
 //
-// Fixture shapes come from `bd` 1.1.2 output recorded against a throwaway
-// project, with personal identifiers replaced by examples. A bd upgrade that
-// renames a field breaks these rather than quietly emptying the board.
+// Fixture rows are in the snake_case shape `runnerRow`
+// (runner/task-service-poll.mjs) writes, plus fields the summary ignores, with
+// example identifiers. A renamed field breaks these rather than quietly
+// emptying the board.
 
-const BD_READY = JSON.stringify([
+const READY_ROWS = [
   {
     id: 'zz-135',
     title: 'Ready feature two',
@@ -1072,11 +1071,11 @@ const BD_READY = JSON.stringify([
     dependent_count: 1,
     comment_count: 0,
   },
-]);
+];
 
-const BD_ACTIVE = JSON.stringify([
-  JSON.parse(BD_READY)[0],
-  JSON.parse(BD_READY)[1],
+const ACTIVE_ROWS = [
+  READY_ROWS[0],
+  READY_ROWS[1],
   {
     id: 'zz-p6y',
     title: 'Work in flight',
@@ -1117,9 +1116,9 @@ const BD_ACTIVE = JSON.stringify([
     dependent_count: 0,
     comment_count: 0,
   },
-]);
+];
 
-const BD_BLOCKED = JSON.stringify([
+const BLOCKED_ROWS = [
   {
     id: 'zz-hfl',
     title: 'Blocked thing',
@@ -1133,9 +1132,9 @@ const BD_BLOCKED = JSON.stringify([
     blocked_by_count: 1,
     blocked_by: ['zz-4qr'],
   },
-]);
+];
 
-const BD_CLOSED = JSON.stringify([
+const CLOSED_ROWS = [
   {
     id: 'zz-0pb',
     title: 'Finished item',
@@ -1152,15 +1151,13 @@ const BD_CLOSED = JSON.stringify([
     dependent_count: 0,
     comment_count: 0,
   },
-]);
-
-const ok = (stdout) => ({ code: 0, stdout, stderr: '' });
+];
 
 const FULL_RESULTS = {
-  active: ok(BD_ACTIVE),
-  ready: ok(BD_READY),
-  blocked: ok(BD_BLOCKED),
-  closed: ok(BD_CLOSED),
+  active: ACTIVE_ROWS,
+  ready: READY_ROWS,
+  blocked: BLOCKED_ROWS,
+  closed: CLOSED_ROWS,
 };
 
 const PROJECT = { asset: 'root-os', prefix: 'ro', repo: '.' };
@@ -1199,8 +1196,8 @@ test('a half-declared spoke is dropped rather than half-polled', () => {
 });
 
 test('the declared database is carried, not required, and not dropped on the floor', () => {
-  // The poll never uses this field (`bd` resolves the database from the repo's
-  // own .beads/config.yaml), so requiring it would blank a working board over a
+  // The poll never uses this field (Ntasks names a project by its prefix), so
+  // requiring it would blank a working board over a
   // value only the backup reads. It travels, and travels as null when unusable.
   const raw = JSON.stringify({
     spokes: [
@@ -1227,30 +1224,9 @@ test('a broken task map costs the snapshot nothing but the snapshot', () => {
   assert.deepEqual(parseTaskProjects('{"spokes":"md"}'), []);
 });
 
-test('the recent-close window is seven days, at the grain bd accepts', () => {
+test('the recent-close window is seven days, at day grain', () => {
   assert.equal(tasksClosedSince(Date.parse('2026-08-01T09:00:00Z')), '2026-07-25');
   assert.equal(TASK_CLOSED_WINDOW_DAYS, 7);
-});
-
-test('the four reads are bounded by repo, not by the runner’s cwd', () => {
-  const args = taskPollArgs('/repos/nw', '2026-07-25');
-  for (const argv of Object.values(args)) {
-    assert.deepEqual(argv.slice(0, 2), ['-C', '/repos/nw']);
-    assert.ok(argv.includes('--json'));
-  }
-  // --limit 0 is unlimited: the COUNTS must be true even though the lists are
-  // truncated afterwards.
-  assert.ok(args.ready.includes('--limit') && args.ready.includes('0'));
-  assert.deepEqual(args.active.slice(2), [
-    'list',
-    '--status',
-    'open,in_progress,blocked',
-    '--json',
-    '--limit',
-    '0',
-  ]);
-  assert.deepEqual(args.blocked.slice(2), ['blocked', '--json']);
-  assert.ok(args.closed.includes('--closed-after') && args.closed.includes('2026-07-25'));
 });
 
 test('one project’s four reads become one board section', () => {
@@ -1269,16 +1245,16 @@ test('one project’s four reads become one board section', () => {
     blocked: 1,
     closedRecent: 1,
   });
-  // bd's own ranking is preserved — re-sorting here would disagree with what
-  // `bd ready` tells an agent in that repo to do next.
+  // The board's ready order is preserved — re-sorting here would disagree with
+  // what Ntasks tells an agent to do next.
   assert.deepEqual(entry.ready.map((i) => i.id), ['zz-135', 'zz-4qr']);
   assert.deepEqual(entry.inProgress.map((i) => i.id), ['zz-p6y']);
-  // `bd blocked` answers without links; the list read's row supplies them.
+  // The blocked list's row carries no links; the active list's row supplies them.
   assert.deepEqual(entry.blocked.map((i) => [i.id, i.dependencies]), [['zz-hfl', [{ id: 'zz-4qr', type: 'blocks', status: 'open' }]]]);
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-0pb']);
 });
 
-test('bd’s snake_case fields land as the camelCase the store speaks', () => {
+test('a row’s snake_case fields land as the camelCase the store speaks', () => {
   const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.deepEqual(entry.ready[0], {
     id: 'zz-135',
@@ -1291,7 +1267,7 @@ test('bd’s snake_case fields land as the camelCase the store speaks', () => {
     closedAt: null,
     // When it was filed — what tells the Wall feed a new task from an old one.
     createdAt: '2026-08-01T16:30:53.000Z',
-    // `parent` is bd's own field, and null means un-epiced rather than unknown.
+    // `parent` is the row's own field, and null means un-epiced rather than unknown.
     parent: null,
     // Only a deferred bead carries one.
     deferUntil: null,
@@ -1306,10 +1282,10 @@ test('bd’s snake_case fields land as the camelCase the store speaks', () => {
 test('a bead with no title still renders as something', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: ok(JSON.stringify([{ id: 'zz-abc', title: '   ', priority: 99 }])),
+    ready: [{ id: 'zz-abc', title: '   ', priority: 99 }],
   });
   assert.equal(entry.ready[0].title, 'zz-abc');
-  // An out-of-range priority falls back to bd's documented default.
+  // An out-of-range priority falls back to the default priority.
   assert.equal(entry.ready[0].priority, 2);
   assert.equal(entry.ready[0].status, 'open');
   assert.equal(entry.ready[0].issueType, 'task');
@@ -1329,15 +1305,13 @@ test('epic containers are not work, and are counted as none of it', () => {
     ...extra,
   });
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok(JSON.stringify([...JSON.parse(BD_ACTIVE), epic('zz-e1'), epic('zz-e2')])),
-    ready: ok(JSON.stringify([epic('zz-e1'), ...JSON.parse(BD_READY)])),
-    blocked: ok(JSON.stringify([...JSON.parse(BD_BLOCKED), epic('zz-e2')])),
-    closed: ok(
-      JSON.stringify([
-        ...JSON.parse(BD_CLOSED),
+    active: [...ACTIVE_ROWS, epic('zz-e1'), epic('zz-e2')],
+    ready: [epic('zz-e1'), ...READY_ROWS],
+    blocked: [...BLOCKED_ROWS, epic('zz-e2')],
+    closed: [
+        ...CLOSED_ROWS,
         epic('zz-e3', { status: 'closed', closed_at: '2026-07-30T00:00:00Z' }),
-      ]),
-    ),
+      ],
   });
 
   // Identical to the un-epic'd fixture: two extra open epics, one blocked, one
@@ -1351,7 +1325,7 @@ test('epic containers are not work, and are counted as none of it', () => {
     closedRecent: 1,
   });
   // And they are gone from the lists too, so a board cannot render a row its
-  // own count disagrees with. The epic led `bd ready`'s ranking — dropping it
+  // own count disagrees with. The epic led the ready order — dropping it
   // must not cost the real work behind it its place.
   assert.deepEqual(entry.ready.map((i) => i.id), ['zz-135', 'zz-4qr']);
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-0pb']);
@@ -1370,14 +1344,12 @@ test('the queue reports its shape, not just its size', () => {
   );
 });
 
-test('a priority beyond bd’s scale folds into the last band rather than vanishing', () => {
+test('a priority beyond P4 folds into the last band rather than vanishing', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    active: ok(
-      JSON.stringify([
+    active: [
         { id: 'zz-a', title: 'Way out there', status: 'open', priority: 7, issue_type: 'task' },
-      ]),
-    ),
+      ],
   });
   // An unusual priority is still open work somebody has to do.
   assert.deepEqual(entry.priorities, [0, 0, 0, 0, 1]);
@@ -1386,12 +1358,10 @@ test('a priority beyond bd’s scale folds into the last band rather than vanish
 test('epic containers are absent from the queue shape too', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    active: ok(
-      JSON.stringify([
-        ...JSON.parse(BD_ACTIVE),
+    active: [
+        ...ACTIVE_ROWS,
         { id: 'zz-e1', title: 'Epic', status: 'open', priority: 0, issue_type: 'epic' },
-      ]),
-    ),
+      ],
   });
   // A P0 epic must not paint the card's hottest band red.
   assert.deepEqual(entry.priorities, [1, 1, 1, 1, 0]);
@@ -1400,7 +1370,7 @@ test('epic containers are absent from the queue shape too', () => {
 test('a project the poller could not read reports no shape, not a flat one', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: { code: 1, stdout: '', stderr: 'Error: project not found' },
+    ready: undefined,
   });
   assert.equal(entry.ok, false);
   assert.deepEqual(entry.priorities, [0, 0, 0, 0, 0]);
@@ -1414,17 +1384,17 @@ test('high priority is P0 and P1 across everything not closed', () => {
 
   // It cuts ACROSS status rather than partitioning it: promote the in-flight
   // bug and the blocked-open chore and both stored statuses contribute.
-  const urgent = JSON.parse(BD_ACTIVE).map((issue) => ({ ...issue, priority: 1 }));
+  const urgent = ACTIVE_ROWS.map((issue) => ({ ...issue, priority: 1 }));
   const promoted = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    active: ok(JSON.stringify(urgent)),
+    active: urgent,
   });
   assert.equal(promoted.counts.highPriority, 4);
   assert.equal(promoted.counts.open, 3);
   assert.equal(promoted.counts.inProgress, 1);
 });
 
-const BD_EPICS = JSON.stringify([
+const EPICS_ROWS = [
   {
     epic: {
       id: 'zz-epc',
@@ -1437,9 +1407,9 @@ const BD_EPICS = JSON.stringify([
     closed_children: 4,
     eligible_for_close: false,
   },
-]);
+];
 
-const BD_DEFERRED = JSON.stringify([
+const DEFERRED_ROWS = [
   {
     id: 'zz-hib',
     title: 'Parked until the archive is deep enough',
@@ -1458,23 +1428,23 @@ const BD_DEFERRED = JSON.stringify([
     issue_type: 'task',
     updated_at: '2026-08-01T16:31:03Z',
   },
-]);
+];
 
-test('epic structure groups the live children and keeps bd’s all-time progress', () => {
+test('epic structure groups the live children and keeps the all-time progress', () => {
   // Every active bead in the fixture hangs off the one epic.
-  const parented = JSON.parse(BD_ACTIVE).map((issue) => ({ ...issue, parent: 'zz-epc' }));
+  const parented = ACTIVE_ROWS.map((issue) => ({ ...issue, parent: 'zz-epc' }));
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    active: ok(JSON.stringify(parented)),
-    epics: ok(BD_EPICS),
-    deferred: ok(BD_DEFERRED),
+    active: parented,
+    epics: EPICS_ROWS,
+    deferred: DEFERRED_ROWS,
   });
 
   assert.equal(entry.epics.length, 1);
   const epic = entry.epics[0];
   assert.equal(epic.id, 'zz-epc');
   assert.equal(epic.priority, 1);
-  // total/closed come from `bd epic status`, NOT from the trailing-week closed
+  // total/closed come from the board's epics, NOT from the trailing-week closed
   // list — an epic finished last month would otherwise read as 0% done.
   assert.equal(epic.total, 9);
   assert.equal(epic.closed, 4);
@@ -1488,7 +1458,7 @@ test('epic structure groups the live children and keeps bd’s all-time progress
 test('a bead with no epic is remainder, not a hidden row', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    epics: ok(BD_EPICS),
+    epics: EPICS_ROWS,
   });
   // Nothing in the base fixture is parented, so the epic keeps its all-time
   // progress but claims no live children.
@@ -1497,18 +1467,18 @@ test('a bead with no epic is remainder, not a hidden row', () => {
 });
 
 test('an epic nobody has used yet is not a card', () => {
-  const empty = JSON.stringify([
+  const empty = [
     { epic: { id: 'zz-nil', title: 'Never started', status: 'open', priority: 2 }, total_children: 0, closed_children: 0 },
-  ]);
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, epics: ok(empty) });
+  ];
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, epics: empty });
   assert.deepEqual(entry.epics, []);
 });
 
 test('parked work is collected, dated, and counted as none of the queue', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    epics: ok(BD_EPICS),
-    deferred: ok(BD_DEFERRED),
+    epics: EPICS_ROWS,
+    deferred: DEFERRED_ROWS,
   });
 
   assert.equal(entry.counts.deferred, 2);
@@ -1527,13 +1497,13 @@ test('parked work is collected, dated, and counted as none of the queue', () => 
   assert.deepEqual(entry.priorities, base.priorities);
 });
 
-// The skew rule applied to SHAPE rather than to a count: a bd too old for
-// `bd epic status` must give a flat board, not a dark one.
-test('a bd that cannot answer the optional reads still files a snapshot', () => {
+// The skew rule applied to SHAPE rather than to a count: a board without
+// epics must give a flat board, not a dark one.
+test('a project missing its optional lists still files a snapshot', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    epics: { code: 1, stdout: '', stderr: 'unknown command "epic"' },
-    deferred: { code: 1, stdout: '', stderr: 'unknown flag' },
+    epics: undefined,
+    deferred: undefined,
   });
 
   assert.equal(entry.ok, true);
@@ -1547,38 +1517,38 @@ test('a bd that cannot answer the optional reads still files a snapshot', () => 
   assert.equal(entry.counts.open, 3);
 });
 
-test('unparseable optional output degrades the same way', () => {
+test('an optional list that is not a list degrades the same way', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    epics: ok('<html>nope</html>'),
+    epics: '<html>nope</html>',
   });
   assert.equal(entry.ok, true);
   assert.equal(entry.epics, undefined);
 });
 
-const BD_HUMAN = JSON.stringify([
-  // This one is also in BD_READY: the label says WHO, ready says NOW.
+const HUMAN_ROWS = [
+  // This one is also in READY_ROWS: the label says WHO, ready says NOW.
   { id: 'zz-4qr', title: 'Decide the Korea trip', status: 'open', priority: 1, issue_type: 'task', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
   // Every tempting false positive the live hub exposed.
   { id: 'zz-h2', title: 'Export the Bing report later', status: 'deferred', priority: 3, issue_type: 'task', defer_until: '2026-09-01T00:00:00Z', updated_at: '2026-07-20T10:00:00Z', labels: ['human'] },
   { id: 'zz-hfl', title: 'Human ask behind another bead', status: 'open', priority: 3, issue_type: 'task', updated_at: '2026-07-20T10:00:00Z', labels: ['human'] },
   { id: 'zz-h4', title: 'Agent is already doing this', status: 'in_progress', priority: 1, issue_type: 'task', assignee: 'claude-areas', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
   { id: 'zz-h3', title: 'Already answered', status: 'closed', priority: 1, issue_type: 'task', updated_at: '2026-08-01T10:00:00Z', labels: ['human'] },
-]);
+];
 
-const BD_GATES = JSON.stringify([
+const GATES_ROWS = [
   { id: 'zz-g1', title: 'Gate: human', status: 'open', priority: 2, issue_type: 'gate', await_type: 'human', updated_at: '2026-08-01T09:00:00Z' },
   { id: 'zz-g2', title: 'Gate: timer', status: 'open', priority: 2, issue_type: 'gate', await_type: 'timer', updated_at: '2026-08-01T09:00:00Z' },
-]);
+];
 
 test('the operator inbox is ready human tasks plus gates that wait on a person', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    human: ok(BD_HUMAN),
-    gates: ok(BD_GATES),
+    human: HUMAN_ROWS,
+    gates: GATES_ROWS,
   });
 
-  // A gate leads — it holds a bead out of `bd ready`, unlike an ask merely
+  // A gate leads — it holds a task out of the ready list, unlike an ask merely
   // sitting in the inbox. Then priority, then longest untouched.
   assert.deepEqual(entry.waiting.map((i) => i.id), ['zz-g1', 'zz-4qr']);
   assert.equal(entry.counts.waiting, 2);
@@ -1593,7 +1563,7 @@ test('the operator inbox is ready human tasks plus gates that wait on a person',
   assert.equal(entry.waiting.some((i) => i.id === 'zz-hfl'), false);
   assert.equal(entry.waiting.some((i) => i.id === 'zz-h4'), false);
   assert.equal(entry.waiting.some((i) => i.id === 'zz-h3'), false);
-  // `bd`'s own issue_type says which row is a gate, so nothing extra rides the
+  // The row's own issue_type says which row is a gate, so nothing extra rides the
   // payload to mark one.
   assert.equal(entry.waiting[0].issueType, 'gate');
 });
@@ -1609,9 +1579,9 @@ test('urgent human count is authoritative when the rendered inbox head is trunca
   }));
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: ok(JSON.stringify(urgent)),
-    human: ok(JSON.stringify(urgent)),
-    gates: ok('[]'),
+    ready: urgent,
+    human: urgent,
+    gates: [],
   });
 
   assert.equal(entry.waiting.length, TASK_WAITING_LIMIT);
@@ -1619,11 +1589,11 @@ test('urgent human count is authoritative when the rendered inbox head is trunca
   assert.equal(entry.waitingUrgent, TASK_WAITING_LIMIT + 5);
 });
 
-// `bd gate create -r` writes the reason into the DESCRIPTION under a generated
-// first line — there is no reason field — so the gate's own title is always the
+// A gate's reason is in its DESCRIPTION under a generated first line — there
+// is no reason field — so the gate's own title is always the
 // mechanism ("Gate: human") and never the ask.
 test('a gate’s inbox row is its reason, not the word gate', () => {
-  const gates = JSON.stringify([
+  const gates = [
     {
       id: 'zz-g1',
       title: 'Gate: human',
@@ -1634,19 +1604,19 @@ test('a gate’s inbox row is its reason, not the word gate', () => {
       description:
         'Ad-hoc gate blocking zz-hpf\n\nReason: Approve seeding the July annotations. Time-sensitive: the 28-day check lands 2026-08-05.',
     },
-  ]);
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
+  ];
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: gates });
   assert.equal(
     entry.waiting[0].title,
     'Approve seeding the July annotations. Time-sensitive: the 28-day check lands 2026-08-05.',
   );
-  // The id still resolves in `bd`, and the row is still identifiably a gate.
+  // The id still resolves in Ntasks, and the row is still identifiably a gate.
   assert.equal(entry.waiting[0].id, 'zz-g1');
   assert.equal(entry.waiting[0].issueType, 'gate');
 });
 
 test('a gate created without a reason identifies its known blocked task', () => {
-  const gates = JSON.stringify([
+  const gates = [
     {
       id: 'zz-g1',
       title: 'Gate: human',
@@ -1656,12 +1626,12 @@ test('a gate created without a reason identifies its known blocked task', () => 
       await_type: 'human',
       description: 'Ad-hoc gate blocking zz-hpf',
     },
-  ]);
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
+  ];
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, gates: gates });
   assert.equal(entry.waiting[0].title, 'Review approval for zz-hpf');
 });
 
-test('a reason is read from bd’s own format and bounded', () => {
+test('a reason is read from the gate description’s own format and bounded', () => {
   assert.equal(taskGateReason('Ad-hoc gate blocking x\n\nReason: Decide the thing'), 'Decide the thing');
   // Multi-paragraph reasons keep their tail; only the length caps them.
   assert.match(taskGateReason('Reason: One.\nTwo.'), /One\.\nTwo\./);
@@ -1681,8 +1651,8 @@ test('projecting ready human work into the inbox never changes queue counts', ()
   const base = summarizeTaskProject(PROJECT, FULL_RESULTS);
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    human: ok(BD_HUMAN),
-    gates: ok(BD_GATES),
+    human: HUMAN_ROWS,
+    gates: GATES_ROWS,
   });
   assert.equal(entry.counts.open, base.counts.open);
   assert.equal(entry.counts.ready, base.counts.ready);
@@ -1693,11 +1663,11 @@ test('projecting ready human work into the inbox never changes queue counts', ()
   assert.equal(entry.counts.waiting, 2); // one ready human bead + one human gate
 });
 
-test('an inbox read the bd cannot answer leaves no zero behind', () => {
+test('a missing inbox list leaves no zero behind', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    human: { code: 1, stdout: '', stderr: 'unknown command "human"' },
-    gates: { code: 1, stdout: '', stderr: 'unknown command "gate"' },
+    human: undefined,
+    gates: undefined,
   });
   assert.equal(entry.ok, true);
   assert.equal(entry.waiting, undefined);
@@ -1705,34 +1675,28 @@ test('an inbox read the bd cannot answer leaves no zero behind', () => {
   assert.equal('waitingUrgent' in entry, false);
 });
 
-for (const human of ['null', '[]']) {
-  for (const gates of ['null', '[]']) {
-    test(`successful empty inbox lists human=${human} gates=${gates} license exact zero`, () => {
-      const entry = summarizeTaskProject(PROJECT, {
-        ...FULL_RESULTS, human: ok(human), gates: ok(gates),
-      });
-      assert.equal(entry.ok, true);
-      assert.equal(entry.counts.waiting, 0);
-      assert.equal(entry.waitingUrgent, 0);
-      assert.deepEqual(entry.waiting, []);
-      assert.equal(entry.counts.open, 3);
-      assert.equal(entry.counts.ready, 2);
-    });
-  }
-}
+test('empty human and gate lists license an exact zero', () => {
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: [], gates: [] });
+  assert.equal(entry.ok, true);
+  assert.equal(entry.counts.waiting, 0);
+  assert.equal(entry.waitingUrgent, 0);
+  assert.deepEqual(entry.waiting, []);
+  assert.equal(entry.counts.open, 3);
+  assert.equal(entry.counts.ready, 2);
+});
 
-test('a successful null gate list leaves ready human work exact', () => {
+test('an empty gate list leaves ready human work exact', () => {
   const entry = summarizeTaskProject(PROJECT, {
-    ...FULL_RESULTS, human: ok(BD_HUMAN), gates: ok('null'),
+    ...FULL_RESULTS, human: HUMAN_ROWS, gates: [],
   });
   assert.deepEqual(entry.waiting.map((item) => item.id), ['zz-4qr']);
   assert.equal(entry.counts.waiting, 1);
   assert.equal(entry.waitingUrgent, 1);
 });
 
-test('a successful null human list leaves human gates exact', () => {
+test('an empty human list leaves human gates exact', () => {
   const entry = summarizeTaskProject(PROJECT, {
-    ...FULL_RESULTS, human: ok('null'), gates: ok(BD_GATES),
+    ...FULL_RESULTS, human: [], gates: GATES_ROWS,
   });
   assert.deepEqual(entry.waiting.map((item) => item.id), ['zz-g1']);
   assert.equal(entry.counts.waiting, 1);
@@ -1741,15 +1705,14 @@ test('a successful null human list leaves human gates exact', () => {
 
 for (const failedRead of ['human', 'gates']) {
   for (const [failure, result] of [
-    ['failed', { code: 1, stdout: '', stderr: 'temporarily unavailable' }],
-    ['failed with null stdout', { code: 1, stdout: 'null', stderr: 'temporarily unavailable' }],
-    ['malformed JSON', ok('<html>unavailable</html>')],
-    ['non-list JSON', ok('{}')],
     ['missing', undefined],
+    ['null', null],
+    ['a string', '<html>unavailable</html>'],
+    ['an object', {}],
   ]) {
-    test(`${failedRead} ${failure} cannot license an exact empty inbox`, () => {
+    test(`a ${failedRead} list that is ${failure} cannot license an exact empty inbox`, () => {
       const entry = summarizeTaskProject(PROJECT, {
-        ...FULL_RESULTS, human: ok('[]'), gates: ok('[]'), [failedRead]: result,
+        ...FULL_RESULTS, human: [], gates: [], [failedRead]: result,
       });
       assert.equal(entry.ok, true);
       assert.equal(entry.error, null);
@@ -1759,21 +1722,12 @@ for (const failedRead of ['human', 'gates']) {
       assert.equal(entry.counts.open, 3);
       assert.equal(entry.counts.ready, 2);
     });
-    test(`${failedRead} ${failure} stays unknown beside a successful null counterpart`, () => {
-      const entry = summarizeTaskProject(PROJECT, {
-        ...FULL_RESULTS, human: ok('null'), gates: ok('null'), [failedRead]: result,
-      });
-      assert.equal(entry.ok, true);
-      assert.equal('waiting' in entry.counts, false);
-      assert.equal('waitingUrgent' in entry, false);
-      assert.deepEqual(entry.waiting, []);
-    });
   }
 
   test(`${failedRead} failure preserves the other inbox read as known rows`, () => {
     const entry = summarizeTaskProject(PROJECT, {
-      ...FULL_RESULTS, human: ok(BD_HUMAN), gates: ok(BD_GATES),
-      [failedRead]: { code: 1, stdout: '', stderr: 'temporarily unavailable' },
+      ...FULL_RESULTS, human: HUMAN_ROWS, gates: GATES_ROWS,
+      [failedRead]: undefined,
     });
     assert.equal(entry.ok, true);
     assert.equal('waiting' in entry.counts, false);
@@ -1782,29 +1736,15 @@ for (const failedRead of ['human', 'gates']) {
   });
 }
 
-test('both inbox reads must recover before empty totals are exact again', () => {
-  const failure = { code: 1, stdout: '', stderr: 'temporarily unavailable' };
-  const complete = { ...FULL_RESULTS, human: ok('[]'), gates: ok('[]') };
-  const failed = summarizeTaskProject(PROJECT, { ...complete, human: failure, gates: failure });
+test('both inbox lists must return before empty totals are exact again', () => {
+  const complete = { ...FULL_RESULTS, human: [], gates: [] };
+  const failed = summarizeTaskProject(PROJECT, { ...complete, human: undefined, gates: undefined });
   assert.equal(failed.waiting, undefined);
   assert.equal('waiting' in failed.counts, false);
-  const partial = summarizeTaskProject(PROJECT, { ...complete, gates: failure });
-  assert.equal('waiting' in partial.counts, false);
-  const recovered = summarizeTaskProject(PROJECT, complete);
-  assert.equal(recovered.counts.waiting, 0);
-  assert.equal(recovered.waitingUrgent, 0);
-  assert.deepEqual(recovered.waiting, []);
-});
-
-test('null inbox responses recover to exact zero only after both commands succeed', () => {
-  const failure = { code: 1, stdout: 'null', stderr: 'temporarily unavailable' };
-  const failed = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: failure, gates: failure });
-  assert.equal(failed.waiting, undefined);
-  assert.equal('waiting' in failed.counts, false);
-  const partial = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: failure });
+  const partial = summarizeTaskProject(PROJECT, { ...complete, gates: undefined });
   assert.deepEqual(partial.waiting, []);
   assert.equal('waiting' in partial.counts, false);
-  const recovered = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, human: ok('null'), gates: ok('null') });
+  const recovered = summarizeTaskProject(PROJECT, complete);
   assert.equal(recovered.counts.waiting, 0);
   assert.equal(recovered.waitingUrgent, 0);
   assert.deepEqual(recovered.waiting, []);
@@ -1818,7 +1758,7 @@ test('lists are truncated but counts stay true', () => {
     priority: 2,
     issue_type: 'task',
   }));
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, ready: ok(JSON.stringify(many)) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, ready: many });
   assert.equal(entry.counts.ready, 25);
   assert.equal(entry.ready.length, TASK_READY_LIMIT);
   assert.equal(entry.ready[0].id, 'zz-0');
@@ -1833,7 +1773,7 @@ test('recently closed is ordered by when it closed, newest first', () => {
     { id: 'zz-e', title: 'e', status: 'closed', priority: 2, issue_type: 'task', closed_at: '2026-07-27T00:00:00Z' },
     { id: 'zz-f', title: 'f', status: 'closed', priority: 2, issue_type: 'task', closed_at: '2026-07-26T00:00:00Z' },
   ];
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, closed: ok(JSON.stringify(closed)) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, closed: closed });
   assert.equal(entry.counts.closedRecent, 6);
   assert.equal(entry.recentlyClosed.length, TASK_DAILY_CLOSED_LIMIT);
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-b', 'zz-d', 'zz-c', 'zz-a', 'zz-e']);
@@ -1859,47 +1799,40 @@ test('recently filed work is sent newest first and capped, whatever became of it
   const deferred = [bead('zz-later', '2026-07-31T07:00:00Z', { status: 'deferred' })];
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    active: ok(JSON.stringify(active)),
-    closed: ok(JSON.stringify(closed)),
-    deferred: ok(JSON.stringify(deferred)),
+    active: active,
+    closed: closed,
+    deferred: deferred,
   });
   assert.equal(entry.recentlyCreated.length, TASK_CREATED_LIMIT);
   assert.deepEqual(entry.recentlyCreated.map((i) => i.id), ['zz-quick', 'zz-2', 'zz-3', 'zz-later', 'zz-4']);
   assert.equal(entry.recentlyCreated[0].createdAt, '2026-07-31T10:00:00.000Z');
   // The same bead from two reads is one entry.
-  const twice = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])), closed: ok('[]'), deferred: ok(JSON.stringify([bead('zz-2', '2026-07-31T09:00:00Z')])) });
+  const twice = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: [bead('zz-2', '2026-07-31T09:00:00Z')], closed: [], deferred: [bead('zz-2', '2026-07-31T09:00:00Z')] });
   assert.deepEqual(twice.recentlyCreated.map((i) => i.id), ['zz-2']);
 });
 
-test('a failed bd call fails that project and nothing about it looks like work', () => {
+test('a project missing a required list fails, and nothing about it looks like work', () => {
   const entry = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    ready: { code: 1, stdout: '', stderr: 'Error: cannot use -C directory "/x": project not found' },
+    ready: undefined,
   });
   assert.equal(entry.ok, false);
-  assert.match(entry.error, /bd ready exited 1/);
-  assert.match(entry.error, /project not found/);
+  assert.match(entry.error, /Ntasks gave no valid ready list/);
   // "we could not look" must never render as "nothing to do".
   assert.deepEqual(entry.counts, { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 });
   assert.deepEqual(entry.ready, []);
   assert.deepEqual(entry.inProgress, []);
   assert.deepEqual(entry.recentlyClosed, []);
-  // Nor any structure: an unreadable repo groups nothing and parks nothing.
+  // Nor any structure: an unreadable project groups nothing and parks nothing.
   assert.deepEqual(entry.epics, []);
   assert.deepEqual(entry.deferred, []);
   assert.deepEqual(entry.waiting, []);
 });
 
-test('unparseable bd output is an error, not an empty board', () => {
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, active: ok('<html>nope</html>') });
-  assert.equal(entry.ok, false);
-  assert.match(entry.error, /bd active returned unparseable JSON/);
-});
-
 test('successful empty arrays are measured empty required lists', () => {
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok('[]'), ready: ok('[]'), blocked: ok('[]'), closed: ok('[]'),
-    human: ok('null'), gates: ok('null'),
+    active: [], ready: [], blocked: [], closed: [],
+    human: [], gates: [],
   });
   assert.equal(entry.ok, true);
   assert.equal(entry.error, null);
@@ -1913,49 +1846,32 @@ test('successful empty arrays are measured empty required lists', () => {
 });
 
 for (const key of ['active', 'ready', 'blocked', 'closed']) {
-  for (const [shape, stdout] of [
-    ['empty object', '{}'],
-    ['unsupported envelope', '{"issues":[]}'],
-    ['null', 'null'],
-    ['string', '"no tasks"'],
-    ['number', '0'],
-    ['boolean', 'false'],
-    ['null row', '[null]'],
-    ['primitive row', '["task"]'],
-    ['nested array row', '[[]]'],
-    ['missing row id', '[{}]'],
-    ['blank row id', '[{"id":"  "}]'],
-    ['non-string row id', '[{"id":1}]'],
-    ['mixed valid and invalid rows', '[{"id":"zz-valid"},{}]'],
+  for (const [shape, value] of [
+    ['missing', undefined],
+    ['empty object', {}],
+    ['unsupported envelope', { issues: [] }],
+    ['null', null],
+    ['string', 'no tasks'],
+    ['number', 0],
+    ['boolean', false],
+    ['null row', [null]],
+    ['primitive row', ['task']],
+    ['nested array row', [[]]],
+    ['missing row id', [{}]],
+    ['blank row id', [{ id: '  ' }]],
+    ['non-string row id', [{ id: 1 }]],
+    ['mixed valid and invalid rows', [{ id: 'zz-valid' }, {}]],
   ]) {
     test(`required ${key} ${shape} is an unknown project, never a successful empty list`, () => {
       const entry = summarizeTaskProject(PROJECT, {
         ...FULL_RESULTS,
-        // Successful optional reads must not turn an invalid required read
+        // Complete optional lists must not turn an invalid required list
         // into a reassuring empty inbox or an apparently ready project.
-        human: ok('null'), gates: ok('[]'), epics: ok('[]'), deferred: ok('[]'),
-        [key]: ok(stdout),
+        human: [], gates: [], epics: [], deferred: [],
+        [key]: value,
       });
       assert.equal(entry.ok, false);
-      assert.equal(entry.error,
-        `bd ${key} returned invalid issue list JSON (expected an array of issues with non-empty ids)`);
-      assert.deepEqual(entry.ready, []);
-      assert.deepEqual(entry.waiting, []);
-      assert.equal(entry.waitingUrgent, undefined);
-    });
-  }
-
-  for (const [failure, result, error] of [
-    ['missing result', undefined, new RegExp(`bd ${key} exited \\?`)],
-    ['nonzero exit with valid array', { code: 1, stdout: '[]', stderr: 'read unavailable' }, new RegExp(`bd ${key} exited 1`)],
-    ['malformed JSON', ok('[{'), new RegExp(`bd ${key} returned unparseable JSON`)],
-  ]) {
-    test(`required ${key} ${failure} remains unknown despite complete optional reads`, () => {
-      const entry = summarizeTaskProject(PROJECT, {
-        ...FULL_RESULTS, human: ok('null'), gates: ok('null'), [key]: result,
-      });
-      assert.equal(entry.ok, false);
-      assert.match(entry.error, error);
+      assert.equal(entry.error, `Ntasks gave no valid ${key} list (expected tasks with non-empty ids)`);
       assert.deepEqual(entry.ready, []);
       assert.deepEqual(entry.waiting, []);
       assert.equal(entry.waitingUrgent, undefined);
@@ -1964,7 +1880,7 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
 
   test(`required ${key} recovers from an invalid response to its full task counts`, () => {
     const previous = summarizeTaskProject(PROJECT, FULL_RESULTS);
-    const failed = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, [key]: ok('{}') });
+    const failed = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, [key]: {} });
     const recovered = summarizeTaskProject(PROJECT, FULL_RESULTS);
     assert.equal(previous.ok, true);
     assert.equal(failed.ok, false);
@@ -2150,7 +2066,7 @@ test('an unreadable project is reported in the filed line, not hidden', async ()
 // The shape both lanes agree on, and the Tower reads. Every assertion here is
 // a contract with something outside this file.
 
-/** One review bead as `bd list --json` hands it back. */
+/** One review task as a row. */
 const review = (overrides = {}) => ({
   id: 'nw-4q2',
   title: panelReviewTitle('northwind.example', '2026-08-02'),
@@ -2186,8 +2102,8 @@ test('a review bead is recognized by its metadata', () => {
   assert.equal(panelReviewPanelDate(review()), '2026-08-02');
 });
 
-test('a review whose metadata bd did not hand back is still read from its title', () => {
-  // bd omits the field entirely for a bead carrying none, and reading a review
+test('a review without metadata is still read from its title', () => {
+  // A row carrying no metadata has no field at all, and reading a review
   // an older filer wrote beats filing a duplicate beside it.
   assert.equal(panelReviewPanelDate(review({ metadata: undefined })), '2026-08-02');
   assert.equal(panelReviewPanelDate(review({ metadata: {} })), '2026-08-02');
@@ -2254,7 +2170,7 @@ test('the board reports the open review, deadline and all', () => {
   });
 });
 
-test('bd’s richer statuses collapse to the only question the card asks', () => {
+test('a task’s richer statuses collapse to the only question the card asks', () => {
   // in_progress, blocked and deferred are all ways of not having triaged it.
   for (const status of ['in_progress', 'blocked', 'deferred']) {
     assert.equal(panelReviewEntry([review({ status })]).status, 'open');
@@ -2308,20 +2224,10 @@ test('a stray label-mate is skipped rather than rendered as a review', () => {
 
 // ── The poller’s side of it ─────────────────────────────────────────────────
 
-const BD_PANEL_REVIEW = JSON.stringify([review()]);
-
-test('the poller asks each spoke what it has triaged', () => {
-  const args = panelReviewListArgs('/repos/nw');
-  assert.deepEqual(args.slice(0, 2), ['-C', '/repos/nw']);
-  assert.ok(args.includes('--label') && args.includes(PANEL_REVIEW_LABEL));
-  // Closed included: it is the only thing that separates a property that
-  // finished this morning from one that has never had a panel.
-  assert.ok(args.includes('open,in_progress,blocked,deferred,closed'));
-  assert.ok(args.includes('--json'));
-});
+const PANEL_REVIEW_ROWS = [review()];
 
 test('triage state rides the snapshot alongside the work', () => {
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: ok(BD_PANEL_REVIEW) });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: PANEL_REVIEW_ROWS });
   assert.deepEqual(entry.panelReview, {
     beadId: 'nw-4q2',
     panelDate: '2026-08-02',
@@ -2332,16 +2238,16 @@ test('triage state rides the snapshot alongside the work', () => {
 });
 
 test('a spoke with no review reports none — a measurement, not a silence', () => {
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: ok('[]') });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, panelReview: [] });
   assert.equal(entry.panelReview, null);
 });
 
-test('a bd that cannot answer about reviews leaves no “nothing to triage” behind', () => {
+test('a missing review list leaves no “nothing to triage” behind', () => {
   const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal('panelReview' in entry, false);
   const failed = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    panelReview: { code: 1, stdout: '', stderr: 'unknown flag: --label' },
+    panelReview: undefined,
   });
   assert.equal('panelReview' in failed, false);
 });
@@ -2352,7 +2258,7 @@ test('a bd that cannot answer about reviews leaves no “nothing to triage” be
 // renders the result: rename a metadata key on either side and a marker quietly
 // disappears from every finding in the portfolio.
 
-/** One handoff bead as `bd list --json` hands it back, metadata parsed into an
+/** One handoff task as a row, metadata parsed into an
  * object and the key byte-exact including its comma. */
 const handoff = (overrides = {}) => ({
   id: 'md-1w2',
@@ -2398,30 +2304,10 @@ test('handoffs are written under the NoticeOS names', () => {
   assert.equal(HANDOFF_ASSET_FIELD, 'noticeos_asset');
 });
 
-test('the poller asks each spoke what has been filed from its handoffs', () => {
-  const args = handoffListArgs('/repos/md');
-  assert.deepEqual(args.slice(0, 2), ['-C', '/repos/md']);
+test('the label reads take in both handoff labels and the review label', () => {
   // Either label: tasks filed before the rename wear reindex-handoff.
-  assert.equal(args[args.indexOf('--label-any') + 1], 'noticeos-handoff,reindex-handoff');
-  assert.equal(args.includes('--label'), false);
-  // Closed included: a finding whose work shipped last month and one nobody
-  // ever filed both have no OPEN bead, and only the closed one tells them
-  // apart — which is the difference between "shipped, not proven" and
-  // "untouched".
-  assert.ok(args.includes('open,in_progress,blocked,deferred,closed'));
-  assert.ok(args.includes('--json'));
-});
-
-test('the join is its own read, not a slice of the queue heads', () => {
-  // The ready/closed lists are capped at ten and five. A bead filed a month ago
-  // is outside all of them, and a join that could only see the head of a queue
-  // would answer "never filed" for work that plainly was.
-  const args = taskPollArgs('/repos/md', '2026-07-25');
-  assert.deepEqual(args.handoffs, handoffListArgs('/repos/md'));
-  assert.ok(!args.handoffs.includes('--closed-after'));
-  // Unlimited on the way in: picking WHICH bead a refiled finding shows has to
-  // happen over all of them, not over whichever page bd returned.
-  assert.deepEqual(args.handoffs.slice(-2), ['--limit', '0']);
+  assert.deepEqual(LABEL_READS.handoffs, ['noticeos-handoff', 'reindex-handoff']);
+  assert.deepEqual(LABEL_READS.panelReview, [PANEL_REVIEW_LABEL]);
 });
 
 test('a saturated property loses its oldest shipped work, never its open work', () => {
@@ -2479,7 +2365,7 @@ test('a panel review filed before the rename is still recognized', () => {
 });
 
 test('a key keeps every byte the searcher typed', () => {
-  // `bd` splits LABEL values on commas, which is why the label carries a slug
+  // Label lists split on commas, which is why the label carries a slug
   // and the join reads metadata. A query key with a comma in it must survive
   // exactly, or it matches no row at all.
   const key = 'best "meal plan", weekly';
@@ -2515,7 +2401,7 @@ test('a page handoff joins by its absolute URL while unknown kinds stay dropped'
   ]);
 });
 
-test('bd’s richer statuses collapse to whether the work has landed', () => {
+test('a task’s richer statuses collapse to whether the work has landed', () => {
   for (const status of ['open', 'in_progress', 'blocked', 'deferred']) {
     assert.equal(handoffEntries([handoff({ status })], 'meadow.example')[0].status, 'open');
   }
@@ -2593,7 +2479,7 @@ test('a query and a finding sharing a key are two different rows', () => {
 
 test('two identical hubs produce two identical snapshots', () => {
   // Sorted, so the payload is a function of the register's state and not of the
-  // order `bd` happened to answer in.
+  // order Ntasks happened to answer in.
   const other = handoff({
     id: 'md-4kq',
     metadata: { ...handoff().metadata, [HANDOFF_KEY_FIELD]: 'gsc-decline-1' },
@@ -2607,7 +2493,7 @@ test('two identical hubs produce two identical snapshots', () => {
 test('filed work rides the snapshot alongside the queue', () => {
   const entry = summarizeTaskProject(
     { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' },
-    { ...FULL_RESULTS, handoffs: ok(JSON.stringify([handoff()])) },
+    { ...FULL_RESULTS, handoffs: [handoff()] },
   );
   assert.deepEqual(entry.handoffs, [
     { kind: 'finding', key: 'item-openers', beadId: 'md-1w2', status: 'open', closedAt: null },
@@ -2617,16 +2503,16 @@ test('filed work rides the snapshot alongside the queue', () => {
 test('a spoke with nothing filed reports an empty list — a measurement', () => {
   // This is the ONLY thing that licenses a finding card to present itself as
   // untouched work.
-  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, handoffs: ok('[]') });
+  const entry = summarizeTaskProject(PROJECT, { ...FULL_RESULTS, handoffs: [] });
   assert.deepEqual(entry.handoffs, []);
 });
 
-test('a bd that cannot answer leaves no “nothing was filed” behind', () => {
+test('a missing handoff list leaves no “nothing was filed” behind', () => {
   const entry = summarizeTaskProject(PROJECT, FULL_RESULTS);
   assert.equal('handoffs' in entry, false);
   const failed = summarizeTaskProject(PROJECT, {
     ...FULL_RESULTS,
-    handoffs: { code: 1, stdout: '', stderr: 'unknown flag: --label' },
+    handoffs: undefined,
   });
   assert.equal('handoffs' in failed, false);
 });
@@ -2752,8 +2638,8 @@ test('the title says panel only when a panel landed', () => {
   assert.equal(panelReviewTitle('northwind.example', '2026-08-02'), 'Triage the 2026-08-02 serp panel for northwind.example');
 });
 
-// Both forms dedupe, or the filer double-files against tasks whose metadata `bd`
-// did not hand back.
+// Both forms dedupe, or the filer double-files against tasks that carry no
+// metadata.
 test('the title fallback recognizes a review in either wording', () => {
   assert.equal(
     panelReviewPanelDate({ id: 'ac-1', title: 'Triage the 2026-08-03 signal collection for acorn.example' }),

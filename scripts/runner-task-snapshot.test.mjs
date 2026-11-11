@@ -5,9 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import {
-  TASK_OPTIONAL_READS,
   tasksClosedSince,
-  taskPollArgs,
   handoffEntries,
   runTaskPoll,
   summarizeTaskProject,
@@ -18,14 +16,13 @@ import {
 // a real task service or ingest.
 
 const PROJECT = { asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' };
-const ok = (value) => ({ code: 0, stdout: JSON.stringify(value), stderr: '' });
 
 test('attention retains every urgent task and unresolved human decision before board samples', () => {
   const active = Array.from({ length: 24 }, (_, index) => ({ id: `shop-${index}`, title: `Urgent ${index}`, status: index % 2 ? 'blocked' : 'in_progress', priority: 1, issue_type: 'task' }));
   const ordinary = { id: 'shop-ask', title: 'Choose a name', status: 'open', priority: 3, issue_type: 'task' };
   const gate = { id: 'shop-gate', title: 'Approve publishing', status: 'open', priority: 4, issue_type: 'gate', await_type: 'human' };
   const excluded = [{ id: 'shop-epic', issue_type: 'epic', priority: 0, status: 'open' }, { id: 'shop-parked', issue_type: 'task', priority: 0, status: 'deferred' }, { id: 'shop-closed', issue_type: 'task', priority: 0, status: 'closed' }];
-  const entry = summarizeTaskProject(PROJECT, { active: ok([...active, ordinary, ...excluded]), ready: ok([ordinary]), blocked: ok(active.filter(row => row.status === 'blocked')), closed: ok([]), human: ok([ordinary]), gates: ok([gate]) });
+  const entry = summarizeTaskProject(PROJECT, { active: [...active, ordinary, ...excluded], ready: [ordinary], blocked: active.filter(row => row.status === 'blocked'), closed: [], human: [ordinary], gates: [gate] });
   assert.equal(entry.attentionTasks.complete, true);
   assert.equal(entry.attentionTasks.items.length, 26);
   assert.equal(entry.inProgress.length, 10);
@@ -38,7 +35,7 @@ test('attention retains every urgent task and unresolved human decision before b
 
 test('an unread human register preserves known urgent rows without complete coverage', () => {
   const urgent = { id: 'shop-p1', title: 'Repair', status: 'blocked', priority: 1, issue_type: 'task' };
-  const entry = summarizeTaskProject(PROJECT, { active: ok([urgent]), ready: ok([]), blocked: ok([urgent]), closed: ok([]), human: { code: 1, stderr: 'unavailable', stdout: '' }, gates: ok([]) });
+  const entry = summarizeTaskProject(PROJECT, { active: [urgent], ready: [], blocked: [urgent], closed: [], human: undefined, gates: [] });
   assert.equal(entry.attentionTasks.complete, false);
   assert.deepEqual(entry.attentionTasks.items.map(row => row.id), [urgent.id]);
 });
@@ -46,7 +43,7 @@ test('an unread human register preserves known urgent rows without complete cove
 test('attention above the transport safety bound is unknown rather than a truncated complete list', async () => {
   const { BEADS_ATTENTION_TASKS_MAX } = await import('../packages/contract/src/task-snapshot.mjs');
   const active = Array.from({ length: BEADS_ATTENTION_TASKS_MAX + 1 }, (_, index) => ({ id: `shop-${index}`, title: 'Urgent', status: 'open', priority: 1, issue_type: 'task' }));
-  const entry = summarizeTaskProject(PROJECT, { active: ok(active), ready: ok([]), blocked: ok([]), closed: ok([]), human: ok([]), gates: ok([]) });
+  const entry = summarizeTaskProject(PROJECT, { active: active, ready: [], blocked: [], closed: [], human: [], gates: [] });
   assert.equal(Object.hasOwn(entry, 'attentionTasks'), false);
   assert.equal(entry.counts.highPriority, active.length);
 });
@@ -70,15 +67,9 @@ function ntasks(prefixes = []) {
   };
 }
 
-test('one project is read with four required and six optional reads', () => {
-  const args = taskPollArgs('/r', '2026-09-17');
-  assert.deepEqual(Object.keys(args).filter((key) => !TASK_OPTIONAL_READS.includes(key)), ['active', 'ready', 'blocked', 'closed']);
-  assert.ok(args.closed.includes('2026-09-17'));
-});
-
-test('a failed required read costs that project only, and says why', () => {
-  const entry = summarizeTaskProject(PROJECT, { active: { code: 1, stderr: 'no database', stdout: '' } });
-  assert.deepEqual([entry.ok, entry.error], [false, 'bd active exited 1: no database']);
+test('a missing required list costs that project only, and says which', () => {
+  const entry = summarizeTaskProject(PROJECT, { active: undefined });
+  assert.deepEqual([entry.ok, entry.error], [false, 'Ntasks gave no valid active list (expected tasks with non-empty ids)']);
 });
 
 test('epics are not work, and a gate is titled by the ask it holds', () => {
@@ -87,8 +78,8 @@ test('epics are not work, and a gate is titled by the ask it holds', () => {
   const gate = { id: 'shop-3', title: 'Gate: human', status: 'open', issue_type: 'gate', await_type: 'human',
     description: 'Ad-hoc gate blocking shop-1\n\nReason: Approve the price change' };
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([task, epic]), ready: ok([task, epic]), blocked: ok([]), closed: ok([]),
-    human: ok([]), gates: ok([gate]),
+    active: [task, epic], ready: [task, epic], blocked: [], closed: [],
+    human: [], gates: [gate],
   });
   assert.equal(entry.counts.ready, 1);
   assert.equal(entry.counts.open, 1);
@@ -100,13 +91,13 @@ test('snapshot approval titles use blocked context and preserve actual reasons',
     dependencies: [{ depends_on_id: 'shop-gate', type: 'blocks' }] };
   for (const title of [undefined, '', '  ', 'Gate: human', 'gate : HUMAN']) {
     const gate = { id: 'shop-gate', title, status: 'open', issue_type: 'gate', await_type: 'human', description: 'Reason:   ' };
-    const entry = summarizeTaskProject(PROJECT, { active: ok([held]), ready: ok([]), blocked: ok([held]), closed: ok([]), human: ok([]), gates: ok([gate]) });
+    const entry = summarizeTaskProject(PROJECT, { active: [held], ready: [], blocked: [held], closed: [], human: [], gates: [gate] });
     assert.equal(entry.waiting[0].title, 'Review approval for Publish the documentation');
     assert.equal(Object.hasOwn(entry.waiting[0], 'reason'), false);
     assert.equal(gate.description, 'Reason:   ');
   }
   const gate = { id: 'shop-gate', title: 'Gate: human', status: 'open', issue_type: 'gate', await_type: 'human', description: 'Reason: Approve the exact scoped action\nAfter checking its result' };
-  const entry = summarizeTaskProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok([]), human: ok([]), gates: ok([gate]) });
+  const entry = summarizeTaskProject(PROJECT, { active: [], ready: [], blocked: [], closed: [], human: [], gates: [gate] });
   assert.equal(entry.waiting[0].title, 'Approve the exact scoped action\nAfter checking its result');
   assert.equal(gate.description, 'Reason: Approve the exact scoped action\nAfter checking its result');
 });
@@ -122,11 +113,11 @@ test('work counts include blocked work once and exclude approval records in ever
   const gate = { ...task('shop-gate', 'open', 0), await_type: 'human' };
   const closedGate = { ...gate, id: 'shop-approved', status: 'closed' };
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([open, held, stored, working, gate]), ready: ok([open, gate]),
+    active: [open, held, stored, working, gate], ready: [open, gate],
     // A blocked in-progress task stays in the in-progress segment. The stored
     // blocked task is also retained when the dependency query omits it.
-    blocked: ok([held, { ...working, status: 'open' }, gate]), closed: ok([done, closedGate]), deferred: ok([parked, { ...gate, status: 'deferred' }]),
-    human: ok([]), gates: ok([gate]),
+    blocked: [held, { ...working, status: 'open' }, gate], closed: [done, closedGate], deferred: [parked, { ...gate, status: 'deferred' }],
+    human: [], gates: [gate],
   });
   assert.deepEqual(entry.counts, { open: 3, highPriority: 3, ready: 1, inProgress: 1, blocked: 2,
     closedRecent: 1, deferred: 1, waiting: 1 });
@@ -178,7 +169,7 @@ test('a newly filed task names the filer and model the task tools recorded, and 
   const unnamed = { id: 'shop-3', title: 'Push the waiting commits', status: 'deferred', issue_type: 'task', created_at: '2026-10-16T07:00:00Z',
     created_by: 'os-up-push-filer' };
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([filed]), ready: ok([filed]), blocked: ok([]), closed: ok([noModel]), deferred: ok([unnamed]),
+    active: [filed], ready: [filed], blocked: [], closed: [noModel], deferred: [unnamed],
   });
   assert.deepEqual(entry.recentlyCreated.map((row) => [row.id, row.filedBy, row.filedModel]), [
     ['shop-1', 'claude', 'Opus 5.5'], ['shop-2', 'codex', undefined], ['shop-3', undefined, undefined],
@@ -235,7 +226,7 @@ test('every close counts as work done while its row and event retain the resolut
     { id: 'shop-5', title: 'Older close', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T14:00:00Z', close_reason: 'Done',
       metadata: closer(undefined, '2026-10-16T14:00:00Z') },
   ];
-  const entry = summarizeTaskProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(closed), deferred: ok([]) });
+  const entry = summarizeTaskProject(PROJECT, { active: [], ready: [], blocked: [], closed: closed, deferred: [] });
   const rows = Object.fromEntries(entry.recentlyClosed.map(row => [row.id, [row.resolution ?? null, row.duplicateOf ?? null]]));
   assert.deepEqual(rows, { 'shop-1': [null, null], 'shop-2': ['wont-do', null], 'shop-3': ['duplicate', 'shop-1'], 'shop-4': [null, null],
     'shop-5': [null, null] }, 'a done close carries no key, so its row reads as it always did');
@@ -257,7 +248,7 @@ test('the closes reach over this calendar week and last, every close is carried,
     close('shop-3', '2026-10-16T09:00:00Z'),
     { id: 'shop-e', title: 'Epic', status: 'closed', issue_type: 'epic', closed_at: '2026-10-16T09:00:00Z' },
   ];
-  const entry = summarizeTaskProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(closed) },
+  const entry = summarizeTaskProject(PROJECT, { active: [], ready: [], blocked: [], closed: closed },
     { closedSince: tasksClosedSince(nowMs), closesSince: tasksClosesSince(nowMs) });
   // Fifteen days: last Monday in any zone, and the boundary day the client may leave out.
   assert.equal(tasksClosesSince(nowMs), '2026-10-02');
@@ -270,7 +261,7 @@ test('the closes reach over this calendar week and last, every close is carried,
 test('a summary that cannot say how far its read reached, or that read more closes than the store keeps, carries none', async () => {
   const { BEADS_CLOSES_MAX } = await import('../packages/contract/src/task-snapshot.mjs');
   const close = (id) => ({ id, title: id, status: 'closed', issue_type: 'task', closed_at: '2026-10-16T09:00:00Z' });
-  const reads = (rows) => ({ active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(rows) });
+  const reads = (rows) => ({ active: [], ready: [], blocked: [], closed: rows });
   assert.equal(Object.hasOwn(summarizeTaskProject(PROJECT, reads([close('shop-1')])), 'closes'), false);
   const many = summarizeTaskProject(PROJECT, reads(Array.from({ length: BEADS_CLOSES_MAX + 1 }, (_, index) => close(`shop-${index}`))),
     { closedSince: '2026-10-10', closesSince: '2026-10-02' });
@@ -291,7 +282,7 @@ test('a task row carries its choices and a person\'s pick, and the pick is a lin
       noticeos_choice: { option: 'a', label: 'Keep the old page', by: 'Dana', at: '2026-10-16T10:00:00Z' } } };
   const broken = { id: 'shop-7', title: 'Hand-edited', status: 'open', issue_type: 'task', metadata: { noticeos_choices: 'a or b', noticeos_choice: 'b' } };
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([asking, handed, broken]), ready: ok([asking, handed, broken]), blocked: ok([]), closed: ok([decided]), deferred: ok([]),
+    active: [asking, handed, broken], ready: [asking, handed, broken], blocked: [], closed: [decided], deferred: [],
   });
   const ready = Object.fromEntries(entry.ready.map(row => [row.id, row]));
   assert.deepEqual([ready['shop-4'].choices, 'choice' in ready['shop-4']], [PICK, false]);
@@ -317,11 +308,11 @@ test('every row carries its links as the list read reports them, with the other 
   // `bd ready` and `bd blocked` answer with rows that carry no links.
   const bare = ({ dependencies: _links, ...rest }) => rest;
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([ask, held, free, busy, row('shop-epic', { issue_type: 'epic' })]),
-    ready: ok([ask, free, busy].map(bare)),
-    blocked: ok([{ ...bare(held), blocked_by: ['shop-ask'], blocked_by_count: 1 }]),
-    closed: ok([row('shop-done', { status: 'closed', closed_at: '2026-10-16T10:00:00Z' })]),
-    human: ok([ask]), gates: ok([]),
+    active: [ask, held, free, busy, row('shop-epic', { issue_type: 'epic' })],
+    ready: [ask, free, busy].map(bare),
+    blocked: [{ ...bare(held), blocked_by: ['shop-ask'], blocked_by_count: 1 }],
+    closed: [row('shop-done', { status: 'closed', closed_at: '2026-10-16T10:00:00Z' })],
+    human: [ask], gates: [],
   });
   const ready = Object.fromEntries(entry.ready.map((issue) => [issue.id, issue]));
   assert.deepEqual(ready['shop-ask'].dependencies, [], 'a task with no links carries none, which is not "not recorded"');
@@ -344,13 +335,13 @@ test('the blocked list is capped, and the tasks a listed decision holds lead it'
     dependencies: [{ issue_id: `shop-b${index}`, depends_on_id: 'shop-elsewhere', type: 'blocks' }] }));
   const held = ['shop-h1', 'shop-h2'].map((id) => row(id, { dependencies: [{ issue_id: id, depends_on_id: 'shop-ask', type: 'waits-for' }] }));
   const entry = summarizeTaskProject(PROJECT, {
-    active: ok([ask, ...others, ...held]), ready: ok([ask]), blocked: ok([...others, ...held]), closed: ok([]),
-    human: ok([ask]), gates: ok([]),
+    active: [ask, ...others, ...held], ready: [ask], blocked: [...others, ...held], closed: [],
+    human: [ask], gates: [],
   });
   assert.equal(entry.counts.blocked, TASK_BLOCKED_LIMIT + 2, 'the count is the whole answer');
   assert.equal(entry.blocked.length, TASK_BLOCKED_LIMIT);
   assert.deepEqual(entry.blocked.slice(0, 3).map((issue) => issue.id), ['shop-h1', 'shop-h2', 'shop-b0']);
-  assert.deepEqual(summarizeTaskProject(PROJECT, { active: { code: 1, stdout: '', stderr: 'down' } }).blocked, []);
+  assert.deepEqual(summarizeTaskProject(PROJECT, { active: undefined }).blocked, []);
 });
 
 
