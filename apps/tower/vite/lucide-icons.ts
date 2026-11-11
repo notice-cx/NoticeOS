@@ -113,7 +113,9 @@ export function lucideIcons(fromDir: string): Plugin {
     // Reached only when Vite's own resolver finds no package from the importer.
     resolveId(source) {
       if (!installed || !source.startsWith(DEEP)) return null;
-      return path.join(installed.dir, source.slice(PACKAGE.length + 1));
+      const file = path.join(installed.dir, source.slice(PACKAGE.length + 1));
+      // Only a file inside the package; `..` in the specifier gets nothing.
+      return file.startsWith(installed.dir + path.sep) ? file : null;
     },
     transform: {
       filter: { id: { exclude: /[\\/]node_modules[\\/]/ }, code: PACKAGE },
