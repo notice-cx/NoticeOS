@@ -409,6 +409,14 @@ follow the
 with the task id in a `Refs:` footer. Never amend and never force-push a
 branch someone else has.
 
+CodeRabbit reviews about 10 pull request changes an hour per author, and the
+maintainers' agents all open pull requests as one author, so each new pull
+request and each push spends a review they share. Collect every fix known for
+a pull request into one commit and one push. A nit or a Docstring Coverage
+warning alone is answered on its thread or folded into the next push, never
+pushed by itself. A reply to CodeRabbit's rate-limit notices or
+acknowledgements counts against its limit too, so none is sent.
+
 ## State (dated facts; an expired entry is unknown, not true)
 
 - Toolchain: Node 24.21.0 LTS and pnpm 12.8.1, declared in `package.json` and CI.
