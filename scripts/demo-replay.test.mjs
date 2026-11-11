@@ -17,13 +17,13 @@ async function fixture(t, overrides = {}) {
   const reserve = http.createServer(); await new Promise(resolve => reserve.listen(0, '127.0.0.1', resolve));
   const port = reserve.address().port; await new Promise(resolve => reserve.close(resolve));
   const options = { currentHome: path.join(base, 'old'), nextHome: path.join(base, 'next'), control: path.join(base, 'control'), port, currentPort: 6400, nextPort: 6404, seedPort: 6410,
-    seed: 'fixture', cutoff: '2026-09-30T00:00:00.000Z', release: '1'.repeat(40), binary: path.join(base, 'bd'), durationMs: 60 * 60 * 1000 };
+    seed: 'fixture', cutoff: '2026-09-30T00:00:00.000Z', release: '1'.repeat(40), durationMs: 60 * 60 * 1000 };
   fs.mkdirSync(options.currentHome);
   const old = { completedAt: '2026-09-30T01:00:00.000Z' }; fs.writeFileSync(path.join(options.currentHome, 'demo-generation.json'), JSON.stringify(old));
   let time = Date.parse('2026-10-01T00:00:00.000Z'); const scheduled = []; const attempt = deferred();
   const readers = [], calls = [];
   const qualified = home => ({ id: home === options.currentHome ? A : B, completedAt: home === options.currentHome ? old.completedAt : '2026-10-01T00:02:00.000Z',
-    installation: { home, postgresProject: home === options.currentHome ? 'own-a' : 'own-b', postgresPort: home === options.currentHome ? 6420 : 6412, dolt: { port: home === options.currentHome ? 6421 : 6413 } },
+    installation: { home, postgresProject: home === options.currentHome ? 'own-a' : 'own-b', postgresPort: home === options.currentHome ? 6420 : 6412 },
     source: { tree: '2'.repeat(40) }, resources: { containers: [home === options.currentHome ? A : B] } });
   const context = { root: base, env: {}, out: { write() {} }, now: () => time, clientTools: () => ({ psql: '/private/tmp/qualified-client/bin/psql', major: 18 }),
     schedule: (ms, work) => { const entry = { at: time + ms, work, active: true }; scheduled.push(entry); return () => { entry.active = false; }; },
@@ -92,9 +92,9 @@ test('the fixed launcher deadline interrupts an unfinished candidate and never e
   assert.equal(f.readers[0].stopped, true);
 });
 test('CLI refuses ambiguous or overlapping ports, selectors and unbounded lifetime', () => {
-  const good = ['--current-dir', '/private/tmp/old', '--next-dir', '/private/tmp/new', '--control-dir', '/private/tmp/control', '--port', '6400', '--current-port', '6402', '--next-port', '6404', '--seed-port', '6410', '--seed', 'own', '--cutoff', '2026-09-30T00:00:00.000Z', '--release', '1'.repeat(40), '--bd-bin', '/private/tmp/bd'];
+  const good = ['--current-dir', '/private/tmp/old', '--next-dir', '/private/tmp/new', '--control-dir', '/private/tmp/control', '--port', '6400', '--current-port', '6402', '--next-port', '6404', '--seed-port', '6410', '--seed', 'own', '--cutoff', '2026-09-30T00:00:00.000Z', '--release', '1'.repeat(40)];
   assert.equal(parseDemoReplayArgs(good).durationMs, 12 * 60 * 60 * 1000);
-  for (const args of [[], [...good, '--port', '6400'], [...good, '--unknown', '1'], [...good, '--duration-ms', 'Infinity'], good.map(value => value === '6410' ? '6402' : value)]) assert.throws(() => parseDemoReplayArgs(args));
+  for (const args of [[], [...good, '--port', '6400'], [...good, '--unknown', '1'], [...good, '--bd-bin', '/private/tmp/bd'], [...good, '--duration-ms', 'Infinity'], good.map(value => value === '6410' ? '6402' : value)]) assert.throws(() => parseDemoReplayArgs(args));
 });
 
 test('missing or unsupported PostgreSQL client refuses before readers, target custody or generation', async () => {
@@ -159,7 +159,7 @@ test('startup output or receipt failure closes the acquired gateway and reader b
 
 test('retirement requires exact resource identity and post-teardown absence, not just exit zero', async () => {
   const project = 'noticeos-start-1234567890abcdef';
-  const generation = { installation: { home: '/private/tmp/own-fixture', postgresProject: project, postgresPort: 6402, dolt: { port: 6403, secretsDir: '/private/tmp/own-fixture/dolt/secrets', composeFile: '/private/tmp/public/db/dolt/host/compose.yaml' } }, resources: { containers: [A, B] } };
+  const generation = { installation: { home: '/private/tmp/own-fixture', postgresProject: project, postgresPort: 6402 }, resources: { containers: [A, B] } };
   for (const defect of [null, 'identity', 'survivor', 'inspection-error']) {
     const calls = [];
     const options = { root: '/private/tmp/public', env: { HOME: '/private/tmp/own-client' },
@@ -172,7 +172,7 @@ test('retirement requires exact resource identity and post-teardown absence, not
       } };
     if (defect) await assert.rejects(retireDemoGeneration(generation, options)); else await retireDemoGeneration(generation, options);
     if (defect === 'identity') assert.equal(calls.length, 0);
-    if (defect === null) assert.equal(calls.length, 8);
+    if (defect === null) assert.equal(calls.length, 6);
   }
 });
 

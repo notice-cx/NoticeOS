@@ -84,7 +84,7 @@ test('existing folders, private targets and inherited installation selectors ref
   for (const home of [held, link, fixtureRoot, path.join(fixtureRoot, 'installation', 'new-demo'), path.join(fixtureRoot, '.local/runtime', 'new-demo')]) {
     await assert.rejects(createDemoInstallation({ home, root: fixtureRoot, port: 6020, scenario: scenario(), env: {} }, options));
   }
-  for (const key of ['DATABASE_URL', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'NOTICEOS_HOME', 'NOTICEOS_INSTALLATION_DIR', 'NOTICEOS_DOLT_HOME']) {
+  for (const key of ['DATABASE_URL', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'NOTICEOS_HOME', 'NOTICEOS_INSTALLATION_DIR']) {
     await assert.rejects(createDemoInstallation({ home: path.join(dir, 'new'), port: 6020, scenario: scenario(), env: { [key]: 'private-target' } }, options));
   }
   assert.deepEqual(calls, []);

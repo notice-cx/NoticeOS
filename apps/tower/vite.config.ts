@@ -27,7 +27,6 @@ import recurringCostsJson from "../../config/recurring-costs.json";
 import dashboardJson from "../../config/tower.json";
 import { parseDashboardConfig } from "./shared/dashboard";
 import { logicalTaskProjects, type TaskHubConnection } from "./shared/settings";
-import { taskProjectSetupHub } from "./vite/task-project-setup";
 import { towerAllowedHosts } from "./vite/allowed-hosts";
 import { TOWER_DENY } from "./vite/served-files";
 import { checkedDefault } from "./vite/checked-default";
@@ -204,7 +203,7 @@ export default defineConfig(({ command }) => {
     // Each is `enforce: "pre"` so it answers its path before the Cloudflare
     // plugin dispatches it into the Worker, where the built answer lives.
     ...(serverProfile === "standalone" ? [configWriteLane()] : []),
-    ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null, taskService }), scheduledJobsLane({ demoViewer: demoLaunch?.installation.viewer ?? null })] : []),
+    ...(serverProfile === "standalone" ? [taskLane({ taskService }), scheduledJobsLane({ demoViewer: demoLaunch?.installation.viewer ?? null })] : []),
     // One check of the pushed reads for every open page (shared/change-topics.ts).
     ...(serverProfile === "standalone" ? [changeLane()] : []),
     // Every MCP tool for an agent on this machine; the synthetic viewer stays read-only.
@@ -321,7 +320,7 @@ export default defineConfig(({ command }) => {
     __ENTITIES__: JSON.stringify(entities),
     __BEADS__: JSON.stringify({
       spokes: command === "serve" ? beadsSpokes : logicalTaskProjects(beadsSpokes),
-      hub: serverProfile === "standalone" ? taskProjectSetupHub(command, beadsHub, { home: process.env.NOTICEOS_HOME, repoRoot: path.resolve(rootDir, "../..") }) : null,
+      hub: serverProfile === "standalone" && command === "serve" ? beadsHub : null,
     }),
     // A build substitutes `false` and the bundler drops the whole runner
     // branch, so a deployed Tower has no runner surface to guard.

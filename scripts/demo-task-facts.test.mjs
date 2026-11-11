@@ -284,9 +284,7 @@ test('the week is a close contest: four agent models, a different leader for eac
   assert.ok(week.some(issue => issue.assignee === 'codex' && cutoff - Date.parse(issue.closed_at) <= DAY));
 });
 
-test('a task is filed only after what it depends on, so no dated import loses an edge', () => {
-  // The seed imports each day's state; bd skips an edge whose target is not
-  // there yet, and the seed refuses a lost edge (scripts/demo-tasks.mjs).
+test('a task is filed only after what it depends on, so no day of the task history names a task not yet filed', () => {
   for (const cutoff of ['2026-10-12T20:20:00.000Z', '2026-10-13T02:30:00.000Z', input.cutoff]) {
     for (const seed of ['synthetic-work-v2', 'public-preview']) {
       const scenario = generateDemoScenario({ ...input, seed, cutoff });

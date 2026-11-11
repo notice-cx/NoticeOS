@@ -6,7 +6,8 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
 import { demoIntegrationAssets, generateDemoDisplay } from './demo-display.mjs';
-import { startDoltPlan } from './dolt-profile.mjs';
+import { startPostgresPlan } from './start-postgres.mjs';
+import { demoNtasksProjectId } from './demo-ntasks-seed.mjs';
 import { readDemoViewerInstallation, readDemoViewerLaunch } from './demo-viewer-installation.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -25,12 +26,9 @@ function fixture(t) {
   publicWrite('db/postgres/frozen-migrations.sha256', 'held public marker\n');
   publicWrite('workers/ingest/src/watch-windows.ts', 'export {};\n');
   const scenario = generateDemoScenario({ seed: 'viewer-custody', cutoff: '2025-10-16T12:00:00.000Z', release });
-  const profile = startDoltPlan({ root, home, port: 6200 });
-  const projects = scenario.manifest.taskProjects.map(project => {
-    const repo = path.join(home, 'tasks', project.prefix); fs.mkdirSync(repo, { recursive: true }); return { ...project, repo };
-  });
-  write('dolt/profile.json', profile); write('dolt/secrets/root', `${'a'.repeat(64)}\n`);
-  write('dolt/secrets/noticeos', `${'b'.repeat(64)}\n`); write('dolt/credentials', `[127.0.0.1:${profile.port}]\npassword=${'b'.repeat(64)}\n`);
+  // The seeder's own Postgres plan for this folder and port.
+  const postgres = startPostgresPlan({ root, home, port: 6200 });
+  const projects = scenario.manifest.taskProjects.map(project => ({ ...project, projectId: demoNtasksProjectId(scenario.manifest.workspaceId, project.prefix) }));
   write('postgres/secrets/database.url', `postgresql://noticeos_app:own-synthetic-value@127.0.0.1:6202/noticeos?sslmode=disable\n`);
   write('installation/task-host.json', { version: 1, repositories: projects });
   write('installation/beads.json', { spokes: scenario.manifest.taskProjects });
@@ -38,9 +36,9 @@ function fixture(t) {
   const evaluator = { release, tree, artifacts: { 'rules.js': artifact, 'poisson.js': artifact }, workers: {
     compiler: 'synthetic-proof', inputs: { 'workers/ingest/src/watch-windows.ts': sha('export {};\n') }, artifacts: { watch: artifact, snapshots: artifact, configuration: artifact, jobs: artifact, reports: artifact } } };
   const tasks = { version: 1, synthetic: true, release, scenarioHash: demoScenarioHash(scenario), workspaceId: scenario.manifest.workspaceId,
-    project: profile.project, projects, tasks: scenario.tasks.length, snapshots: 400, client: { version: '1.3.1', sha256: artifact } };
+    projects, tasks: scenario.tasks.length, snapshots: 400 };
   const manifest = { ...scenario.manifest, home, scenarioHash: tasks.scenarioHash, evaluator, schema: { frozenSha256: sha('held public marker\n') },
-    counts: { tasks: tasks.tasks, taskSnapshots: 400, watchStatus: 'closed', pulses: scenario.pulses.length + 1 }, taskGeneration: tasks, postgresProject: profile.project,
+    counts: { tasks: tasks.tasks, taskSnapshots: 400, watchStatus: 'closed', pulses: scenario.pulses.length + 1 }, taskGeneration: tasks, postgresProject: postgres.project,
     workflowHistory: { version: 1, synthetic: true, scenarioHash: tasks.scenarioHash, files: {
       '.local/logs/job-runs.jsonl': sha('{}\n'), '.local/logs/workflow-runs.jsonl': sha('{}\n') }, mirror: { ok: true, created: 7, duplicate: 0, stale: 0, pruned: 0 } } };
   const display = generateDemoDisplay(scenario);
@@ -58,15 +56,15 @@ function fixture(t) {
   };
   seal();
   const input = { root, home, release, tree, now: Date.parse('2025-10-18T12:00:00.000Z') };
-  return { ...input, input, write, publicWrite, seal, scenario, manifest, tasks, evaluator, profile };
+  return { ...input, input, write, publicWrite, seal, scenario, manifest, tasks, evaluator };
 }
 
 test('a completed generation gives one immutable descriptor and exact owned read targets without secret contents', t => {
   const f = fixture(t), result = readDemoViewerInstallation(f.input);
   assert.equal(result.viewer.generatedAt, completedAt); assert.notEqual(result.viewer.generatedAt, f.scenario.manifest.cutoff);
-  assert.equal(result.postgresPort, 6202); assert.equal(result.dolt.port, 6203);
+  assert.equal(result.postgresPort, 6202); assert.equal(result.postgresProject, startPostgresPlan({ root: f.root, home: f.home, port: 6200 }).project);
   assert.deepEqual(result.projects, f.tasks.projects);
-  for (const value of [result, result.viewer, result.dolt, result.projects, ...result.projects, result.assetIds,
+  for (const value of [result, result.viewer, result.projects, ...result.projects, result.assetIds,
     result.display, ...Object.values(result.display), result.display['config/tower.json'].wall.layout,
     result.display['config/counters.json'].assets, result.integrations]) assert.equal(Object.isFrozen(value), true);
   assert.deepEqual(result.integrations, demoIntegrationAssets(f.scenario));
@@ -81,14 +79,14 @@ test('partial, altered, future or cross-release completion refuses without inven
   }
   fs.rmSync(file); assert.throws(() => readDemoViewerInstallation(f.input));
 });
-test('even resealed files cannot change scenario, component completion, task paths or provider roster', t => {
-  for (const defect of ['scenario', 'count', 'watch', 'repo', 'profile', 'address', 'provider', 'evaluator', 'workflow', 'display', 'report', 'report-count', 'reports-artifact']) {
+test('even resealed files cannot change scenario, component completion, task projects or provider roster', t => {
+  for (const defect of ['scenario', 'count', 'watch', 'project', 'postgres', 'address', 'provider', 'evaluator', 'workflow', 'display', 'report', 'report-count', 'reports-artifact']) {
     const f = fixture(t);
     if (defect === 'scenario') f.manifest.identities = [];
     if (defect === 'count') f.manifest.counts.tasks++;
     if (defect === 'watch') f.manifest.counts.watchStatus = 'open';
-    if (defect === 'repo') f.tasks.projects[0].repo = f.root;
-    if (defect === 'profile') f.write('dolt/profile.json', { ...f.profile, composeFile: path.join(f.root, 'other.yaml') });
+    if (defect === 'project') f.tasks.projects[0].projectId = f.tasks.projects[1].projectId;
+    if (defect === 'postgres') f.manifest.postgresProject = 'noticeos-start-0123456789abcdef';
     if (defect === 'address') f.write('postgres/secrets/database.url', 'postgresql://noticeos_app:fixture@127.0.0.1:5432/noticeos?sslmode=disable');
     if (defect === 'provider') f.write('installation/integrations.json', { assets: { 'example.com': { provider: 'connected' } } });
     if (defect === 'evaluator') f.evaluator.workers.inputs['workers/ingest/src/watch-windows.ts'] = artifact;
@@ -100,14 +98,13 @@ test('even resealed files cannot change scenario, component completion, task pat
     f.seal(); assert.throws(() => readDemoViewerInstallation(f.input), undefined, defect);
   }
 });
-test('source marker changes, permissive custody, aliases, oversized files and symbolic task repos refuse', t => {
-  for (const defect of ['marker', 'mode', 'alias', 'size', 'repo']) {
+test('source marker changes, permissive custody, aliases and oversized files refuse', t => {
+  for (const defect of ['marker', 'mode', 'alias', 'size']) {
     const f = fixture(t);
     if (defect === 'marker') f.publicWrite('db/postgres/frozen-migrations.sha256', 'another marker');
     if (defect === 'mode') fs.chmodSync(path.join(f.home, 'demo-generation.json'), 0o644);
     if (defect === 'alias') { const target = path.join(f.home, 'demo-generation.json'); fs.renameSync(target, target + '.held'); fs.symlinkSync(target + '.held', target); }
     if (defect === 'size') f.write('demo-generation.json', ' '.repeat(2 * 1024 * 1024 + 1));
-    if (defect === 'repo') { const repo = f.tasks.projects[0].repo; fs.rmSync(repo, { recursive: true }); fs.symlinkSync(f.root, repo); }
     assert.throws(() => readDemoViewerInstallation(f.input), undefined, defect);
   }
 });
@@ -120,14 +117,14 @@ test('ordinary configuration has no custody reads; declared demo config binds ev
   const file = path.join(runtime, 'viewer.json');
   fs.writeFileSync(file, JSON.stringify({ version: 1, root: f.root, home: f.home, tree, viewer: installation.viewer,
     runtime, towerPort: 6200, doorPort: 6201 }), { mode: 0o600 });
-  const env = { NOTICEOS_DEMO_VIEWER_FILE: file, NOTICEOS_HOME: f.home, NOTICEOS_DOLT_HOME: f.home,
+  const env = { NOTICEOS_DEMO_VIEWER_FILE: file, NOTICEOS_HOME: f.home,
     NOTICEOS_INSTALLATION_DIR: path.join(f.home, 'installation'), NOTICEOS_WORKER_CONFIG_ROOT: runtime,
     OS_UP_PERSIST_STATE: path.join(runtime, 'state'), OS_UP_INGEST_DOOR_HOST: '127.0.0.1', OS_UP_INGEST_DOOR_PORT: '6201',
     CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false',
     CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES: fs.readFileSync(installation.databaseFile, 'utf8').trim() };
   const accepted = readDemoViewerLaunch(f.root, env);
   assert.equal(accepted.towerPort, 6200); assert.deepEqual(accepted.installation.viewer, installation.viewer);
-  for (const [key, value] of [['NOTICEOS_HOME', f.root], ['NOTICEOS_DOLT_HOME', f.root], ['OS_UP_INGEST_DOOR_PORT', '8791'],
+  for (const [key, value] of [['NOTICEOS_HOME', f.root], ['OS_UP_INGEST_DOOR_PORT', '8791'],
     ['OS_UP_INGEST_DOOR_HOST', '0.0.0.0'], ['OS_UP_PERSIST_STATE', f.root], ['NOTICEOS_WORKER_CONFIG_ROOT', f.root],
     ['CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES', 'another'], ['CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV', 'true'],
     ['CLOUDFLARE_API_TOKEN', 'another'], ['NODE_OPTIONS', 'another']]) {

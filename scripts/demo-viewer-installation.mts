@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
 import { demoIntegrationAssets, generateDemoDisplay } from './demo-display.mjs';
-import { readDoltProfile, readDoltCredentials, startDoltPlan, type DoltProfile } from './dolt-profile.mjs';
+import { demoNtasksProjectId } from './demo-ntasks-seed.mjs';
 import { validateDemoViewer, type DemoViewerDescriptor } from './demo-viewer-policy.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 
@@ -39,6 +39,11 @@ function privateFile(home: string, relative: string): Buffer {
   } finally { fs.closeSync(descriptor); }
 }
 function json(bytes: Buffer): Row { return record(JSON.parse(bytes.toString('utf8'))); }
+/** The Compose project the seeder's Postgres runs under: start-postgres.mjs's
+ * startPostgresPlan names it from the canonical folder. */
+function postgresProjectOf(home: string): string {
+  return `noticeos-start-${createHash('sha256').update(home).digest('hex').slice(0, 16)}`;
+}
 function artifactMap(value: unknown): boolean {
   const row = record(value);
   return Object.keys(row).length > 0 && Object.values(row).every(hash => typeof hash === 'string' && /^[a-f0-9]{64}$/u.test(hash));
@@ -59,10 +64,8 @@ export interface DemoViewerInstallation {
   readonly postgresPort: number;
   /** The application address stays in private custody, never a receipt or argv. */
   readonly databaseFile: string;
-  readonly dolt: Readonly<DoltProfile>;
-  readonly projects: readonly Readonly<{ asset: string; prefix: string; database: string; repo: string }>[];
+  readonly projects: readonly Readonly<{ asset: string; prefix: string; database: string; projectId: string }>[];
   readonly assetIds: readonly string[];
-  readonly client: Readonly<{ version: string; sha256: string }>;
   readonly display: ReturnType<typeof generateDemoDisplay>;
   readonly integrations: ReturnType<typeof demoIntegrationAssets>;
 }
@@ -77,7 +80,7 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
     || !Number.isFinite(now)) throw new Error('Name a canonical completed demo and exact release.');
   const sourceRelative = path.relative(home, root);
   if (!sourceRelative || (!sourceRelative.startsWith('..') && !path.isAbsolute(sourceRelative))) throw new Error('The viewer needs a folder separate from its source.');
-  for (const privateRoot of ['installation', '.beads', '.local']) {
+  for (const privateRoot of ['installation', '.local']) {
     const relative = path.relative(path.join(root, privateRoot), home);
     if (!relative || (!relative.startsWith('..') && !path.isAbsolute(relative))) throw new Error('The viewer refuses an installation-owned folder.');
   }
@@ -86,11 +89,6 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
   const taskBytes = privateFile(home, 'demo-tasks.json');
   const manifest = json(manifestBytes);
   const tasks = json(taskBytes);
-  const client = record(tasks.client);
-  if (Object.keys(client).sort().join() !== 'sha256,version' || typeof client.version !== 'string'
-    || !/^\d+\.\d+\.\d+$/u.test(client.version) || typeof client.sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(client.sha256)) {
-    throw new Error('The demo task executable custody is invalid.');
-  }
   if (Object.keys(generation).sort().join() !== GENERATION_KEYS.join() || generation.version !== 1 || generation.synthetic !== true
     || generation.release !== release || generation.tree !== tree || generation.manifestSha256 !== digest(manifestBytes)
     || generation.tasksSha256 !== digest(taskBytes) || manifest.release !== release || manifest.synthetic !== true
@@ -148,15 +146,11 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
     || Object.entries(files).some(([file, hash]) => digest(privateFile(home, file)) !== hash)) {
     throw new Error('The demo workflow custody is incomplete or changed.');
   }
-  const dolt = readDoltProfile(home);
-  if (!dolt || !same(dolt, startDoltPlan({ root, home, port: dolt.port - 3 }))) throw new Error('The demo task profile differs from its owned folder.');
-  for (const file of ['dolt/profile.json', 'dolt/credentials', 'dolt/secrets/root', 'dolt/secrets/noticeos']) privateFile(home, file);
-  readDoltCredentials(dolt);
-  const projects = scenario.manifest.taskProjects.map(project => Object.freeze({ ...project, repo: path.join(home, 'tasks', project.prefix) }));
+  const projects = scenario.manifest.taskProjects.map(project => Object.freeze({ ...project, projectId: demoNtasksProjectId(viewer.workspaceId, project.prefix) }));
   const host = json(privateFile(home, 'installation/task-host.json'));
   const beads = json(privateFile(home, 'installation/beads.json'));
   const integrations = json(privateFile(home, 'installation/integrations.json'));
-  if (tasks.version !== 1 || tasks.synthetic !== true || tasks.release !== release || tasks.project !== dolt.project
+  if (tasks.version !== 1 || tasks.synthetic !== true || tasks.release !== release
     || tasks.scenarioHash !== viewer.scenarioHash || tasks.workspaceId !== viewer.workspaceId
     || tasks.tasks !== scenario.tasks.length || tasks.snapshots !== counts.taskSnapshots || !same(tasks.projects, projects)
     || !same(manifest.taskGeneration, tasks) || host.version !== 1 || !same(host.repositories, projects)
@@ -164,21 +158,17 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
     || !same(integrations.assets, demoIntegrationAssets(scenario))) {
     throw new Error('The demo task or provider roster differs from its scenario.');
   }
-  for (const project of projects) {
-    if (fs.realpathSync(project.repo) !== project.repo || !fs.lstatSync(project.repo).isDirectory()) throw new Error('A demo task repository left its owned folder.');
-  }
   const databaseFile = path.join(home, 'postgres/secrets/database.url');
   const address = new URL(privateFile(home, 'postgres/secrets/database.url').toString('utf8').trim());
-  const postgresPort = dolt.port - 1;
+  const postgresPort = Number(address.port);
   if (postgresPort < 1024 || [3306, 3307, 3308, 4747, 5173, 5432, 8791].includes(postgresPort)) throw new Error('The demo refuses a reserved database port.');
-  if (address.protocol !== 'postgresql:' || address.hostname !== '127.0.0.1' || Number(address.port) !== postgresPort
+  if (address.protocol !== 'postgresql:' || address.hostname !== '127.0.0.1' || !Number.isInteger(postgresPort)
     || address.username !== 'noticeos_app' || !address.password || address.pathname !== '/noticeos' || address.hash
-    || address.search !== '?sslmode=disable' || manifest.postgresProject !== dolt.project) {
+    || address.search !== '?sslmode=disable' || manifest.postgresProject !== postgresProjectOf(home)) {
     throw new Error('The demo application address differs from its owned profile.');
   }
-  return Object.freeze({ home, viewer, tree, postgresProject: dolt.project, postgresPort, databaseFile,
-    dolt: Object.freeze(dolt), projects: Object.freeze(projects), assetIds: Object.freeze(scenario.assets.map(asset => asset.id)),
-    client: Object.freeze({ version: client.version, sha256: client.sha256 }), display: freezeDocument(display),
+  return Object.freeze({ home, viewer, tree, postgresProject: postgresProjectOf(home), postgresPort, databaseFile,
+    projects: Object.freeze(projects), assetIds: Object.freeze(scenario.assets.map(asset => asset.id)), display: freezeDocument(display),
     integrations: freezeDocument(demoIntegrationAssets(scenario)) });
 }
 
@@ -208,11 +198,11 @@ export function readDemoViewerLaunch(root: string, env: Readonly<Record<string, 
   if (!same(installation.viewer, viewer)) throw new Error('The demo launch no longer matches its generation.');
   const ports = [declaration.towerPort, declaration.doorPort];
   if (ports.some(port => typeof port !== 'number' || !Number.isInteger(port) || port < 1024 || port > 65535
-    || [3306, 3307, 3308, 4747, 5173, 5432, 8791, installation.postgresPort, installation.dolt.port].includes(port))
+    || [3306, 3307, 3308, 4747, 5173, 5432, 8791, installation.postgresPort].includes(port))
     || new Set(ports).size !== 2) throw new Error('The demo viewer needs two distinct local ports.');
   const expected: Record<string, string> = {
     NOTICEOS_HOME: installation.home, NOTICEOS_INSTALLATION_DIR: path.join(installation.home, 'installation'),
-    NOTICEOS_DOLT_HOME: installation.home, NOTICEOS_WORKER_CONFIG_ROOT: declaration.runtime,
+    NOTICEOS_WORKER_CONFIG_ROOT: declaration.runtime,
     OS_UP_PERSIST_STATE: path.join(declaration.runtime, 'state'), OS_UP_INGEST_DOOR_HOST: '127.0.0.1',
     OS_UP_INGEST_DOOR_PORT: String(declaration.doorPort), CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false',
     CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES: privateFile(installation.home, 'postgres/secrets/database.url').toString('utf8').trim(),

@@ -3,10 +3,9 @@ import { render, screen } from "./render";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { TaskSourceStatus } from "@shared/task-source";
-import { TaskHubUnavailable, TaskProjectSteps, TaskSourceRows, taskProjectInitCommand } from "@/components/TaskSourceSection";
+import { TaskHubUnavailable, TaskSourceRows } from "@/components/TaskSourceSection";
 
 const NOW = Date.parse("2026-09-12T12:00:00Z");
-const HUB = { host: "127.0.0.1", port: 3308, user: "fixture", dataDir: ".fixture-hub" };
 
 describe("the core task hub status", () => {
   it.each([
@@ -35,60 +34,5 @@ describe("the core task hub status", () => {
     expect(screen.getByText("No task projects available")).toBeVisible();
     expect(screen.getByRole("link", { name: "Manage task projects →" })).toHaveAttribute("href", "/settings/task-projects");
     expect(screen.queryByText("No tasks yet")).toBeNull();
-  });
-});
-
-describe("the additional project init command", () => {
-  it("names the database only when it differs from the prefix", () => {
-    expect(taskProjectInitCommand({ prefix: "ex", database: "ex" }, HUB)).not.toContain("--database");
-    expect(taskProjectInitCommand({ prefix: "ex", database: "ex_tasks" }, HUB)).toContain("--prefix ex --database ex_tasks");
-    expect(taskProjectInitCommand({ prefix: "ex", database: "ex" }, null)).toBeNull();
-  });
-
-  it("uses the declared host helper for passworded project setup and refuses shell syntax in identifiers", () => {
-    const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'" };
-    expect(taskProjectInitCommand({ prefix: "ex", database: "example_tasks" }, hub))
-      .toBe(`${hub.initCommand} --repo . --prefix ex --database example_tasks`);
-    expect(taskProjectInitCommand({ prefix: "ex;echo", database: "example_tasks" }, hub)).toBeNull();
-    expect(taskProjectInitCommand({ prefix: "ex", database: "$(echo)" }, hub)).toBeNull();
-  });
-});
-
-describe("the remaining project setup steps", () => {
-  const spoke = { asset: "example", prefix: "ex", database: "example_tasks", repo: "/fixture/project" };
-
-  it("shows two steps when the host helper already standardizes the spoke config", () => {
-    const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'" };
-    render(<TaskProjectSteps spoke={spoke} hub={hub} />);
-    expect(screen.getByText("example is mapped — two steps left")).toBeVisible();
-    expect(Array.from(document.querySelectorAll("[data-checklist-step]"), node => node.getAttribute("data-checklist-step")))
-      .toEqual(["1", "2"]);
-    expect(screen.getByText(taskProjectInitCommand(spoke, hub)!)).toBeVisible();
-    expect(screen.getByText("Initialize a new task database")).toBeVisible();
-    expect(screen.getByText("Link the checkout here")).toBeVisible();
-    expect(screen.queryByText("Keep it on the shared database")).toBeNull();
-    expect(screen.queryByText(/\.beads\/config\.yaml/)).toBeNull();
-    expect(screen.queryByText(/no-git-ops: true/)).toBeNull();
-  });
-
-  it.each([HUB, null])("retains the three-step manual config path without a host helper: %j", hub => {
-    render(<TaskProjectSteps spoke={spoke} hub={hub} />);
-    expect(screen.getByText("example is mapped — three steps left")).toBeVisible();
-    expect(Array.from(document.querySelectorAll("[data-checklist-step]"), node => node.getAttribute("data-checklist-step")))
-      .toEqual(["1", "2", "3"]);
-    expect(screen.getByText("Keep it on the shared database")).toBeVisible();
-    expect(screen.getByText("File · /fixture/project/.beads/config.yaml")).toBeVisible();
-    expect(screen.getByText("sync.remote: …")).toBeVisible();
-    expect(screen.getByText(/no-git-ops: true/)).toHaveTextContent("import.auto: false");
-    expect(screen.getByText("Link the checkout here")).toBeVisible();
-  });
-
-  it("adds the instruction step only when the host carries the context command", () => {
-    const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'",
-      contextCommand: "'/fixture/node' '/fixture/scripts/project-context.mjs' --repo . --write" };
-    render(<TaskProjectSteps spoke={spoke} hub={hub} />);
-    expect(screen.getByText("Prepare project instructions")).toBeVisible();
-    expect(screen.getByText(hub.contextCommand)).toBeVisible();
-    expect(document.querySelectorAll('[data-checklist-step]')).toHaveLength(3);
   });
 });

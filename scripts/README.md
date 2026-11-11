@@ -1238,18 +1238,17 @@ from the store with a generic default.
 makes one explicit new-generation attempt. Both installations must use the
 same verified public release; it never retries, adopts an interrupted
 attempt, or resets an existing database. Name an absent next folder and
-control folder, an exact release and task executable, seed/cutoff, and
-distinct loopback ports:
+control folder, an exact release, seed/cutoff, and distinct loopback ports:
 
 ```sh
 node scripts/demo-replay.mjs --current-dir /absolute/completed-demo \
   --next-dir /absolute/new-demo --control-dir /absolute/new-replay-custody \
-  --release <exact-commit> --bd-bin /absolute/qualified-bd \
+  --release <exact-commit> \
   --port 6400 --current-port 6402 --next-port 6404 --seed-port 6410 \
   --seed local-example --cutoff 2026-09-30T00:00:00.000Z
 ```
 
-Each reader reserves its next port; the seed port reserves its next three.
+Each reader reserves its next port; the seed port reserves its next two.
 The gateway binds only `127.0.0.1`. A visit lasts at most fifteen minutes;
 expired APIs return 410 and an expired page offers **Open current demo**. The
 launcher lasts at most twelve hours (`--duration-ms` may shorten it), with one

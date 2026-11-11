@@ -82,6 +82,8 @@ export function createFixtureNtasks(options: {
   rows: () => FixtureRow[];
   /** After a change, so the Tower's snapshot follows (the harness's `publishTasks`). */
   changed: () => void;
+  /** Files a new task from the fields sent, and returns its id. */
+  create: (fields: Record<string, unknown>) => string;
   project: () => { asset: string; prefix: string };
   /** The Tower's origin, whose app `app: "registered"` starts with. Another
    * address of the Tower registers an app of its own. */
@@ -265,6 +267,12 @@ export function createFixtureNtasks(options: {
     if (path === "/api/tasks" && request.method === "GET") {
       if (url.searchParams.get("project") !== PROJECT_ID) return answer(request, { error: "not_found" }, { status: 404 });
       return answer(request, board(url));
+    }
+    if (path === "/api/tasks" && request.method === "POST") {
+      const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+      if (body.projectId !== PROJECT_ID) return answer(request, { error: "not_found" }, { status: 404 });
+      if (typeof body.title !== "string" || body.title.trim() === "") return answer(request, { error: "invalid_task", detail: "title is required" }, { status: 400 });
+      return answer(request, { id: options.create(body), project: options.project().asset }, { status: 201 });
     }
     const gate = /^\/api\/gates\/([^/]+)\/resolve$/u.exec(path);
     const action = /^\/api\/tasks\/([^/]+)\/(choose|respond|dismiss|dispute)$/u.exec(path);

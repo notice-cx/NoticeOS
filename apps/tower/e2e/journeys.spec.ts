@@ -2175,11 +2175,12 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(page.getByRole("link", { name: /Review the synthetic launch copy/ })).toHaveAttribute("href", /\/tasks\/jt-review$/);
   await expect(page.getByRole("link", { name: /Approve the synthetic launch/ })).toHaveAttribute("href", /\/tasks\/jt-approve$/);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
-    tasks: { id: string; status: string; labels?: string[]; assignee?: string | null; comment_count?: number }[]; taskCommands: string[][];
+    tasks: { id: string; title: string; metadata: Record<string, unknown> | null }[];
   };
 
   // A finding's File task: prefilled from the finding's own fields, filed
-  // through the same lane in two presses on the page it is read on.
+  // into the installation's Ntasks in two presses on the page it is read on.
+  expect((await page.request.post("/__journey/ntasks")).ok()).toBe(true);
   expect((await page.request.post("/__journey/finding")).ok()).toBe(true);
   await page.goto(`/assets/${JOURNEY_ASSET}`);
   const finding = page.locator('[data-finding-row="journey-sitemap-drop"]');
@@ -2190,9 +2191,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(composer.locator('[data-composer-linked="finding"]')).toBeVisible();
   await composer.locator("[data-composer-submit]").click();
   await expect(page.locator("[data-sonner-toast]").filter({ hasText: /^Filed jt-f/ })).toBeVisible();
-  const created = (await status()).taskCommands.find((argv) => argv[2] === "create")!;
-  expect(created[3]).toBe("Sitemap URLs fell from 120 to 80");
-  expect(JSON.parse(created[created.indexOf("--metadata") + 1]!)).toMatchObject({ noticeos_kind: "finding", noticeos_key: "journey-sitemap-drop" });
+  const created = (await status()).tasks.find((row) => row.title === "Sitemap URLs fell from 120 to 80")!;
+  expect(created.id).toMatch(/^jt-f/u);
+  expect(created.metadata).toMatchObject({ noticeos_kind: "finding", noticeos_key: "journey-sitemap-drop" });
   await assertNoPageOverflow(page);
 
   expect(pageErrors).toEqual([]);

@@ -11,7 +11,7 @@ import type { TaskServiceStatus } from "@shared/tasks";
 import { configSaveReply } from "./config-save-reply";
 import * as configDeclarations from "@shared/config-registers";
 import type { AssetCard, WallPayload } from "@shared/wall";
-import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
+import type { WorkPayload } from "@shared/work";
 import type { RuleBacktest } from "@noticeos/contract";
 import type { ViewId } from "@shared/views";
 import { storageKey } from "@/lib/browser-storage";
@@ -975,13 +975,11 @@ describe("/settings", () => {
     expect(screen.getByText("No task projects configured.")).toBeTruthy();
     expect(within(taskHub()).getByText("Read-only here")).toBeTruthy();
     expect(within(taskHub()).queryByRole("button", { name: "Add" })).toBeNull();
-    expect(document.querySelector("[data-task-hub-connection]")).toBeNull();
   });
 });
 
-// The task-hub project map: a project can be mapped from the page, the rules
-// that make a map usable are refused before a request is made, and the steps
-// left over are named with the exact text to paste.
+// The task-hub project map: a project can be mapped from the page, and the
+// rules that make a map usable are refused before a request is made.
 
 function taskHub(): HTMLElement {
   return document.querySelector("#task-projects") as HTMLElement;
@@ -995,72 +993,6 @@ function addForm(): HTMLElement {
   return document.querySelector("[data-collection-add]") as HTMLElement;
 }
 
-/** The steps that outlive the write, once they have rendered. */
-async function findChecklist(asset = "northwind.example"): Promise<HTMLElement> {
-  const at = () => document.querySelector(`[data-project-checklist='${asset}']`);
-  await waitFor(() => expect(at()).not.toBeNull());
-  return at() as HTMLElement;
-}
-
-/** The task the runner files for a project whose declared database the server
- * does not hold. Its title is the join, pinned from the writing side in
- * `scripts/os-up.test.mjs`. */
-function driftTask(asset: string): WorkItem {
-  return {
-    id: `ro-${asset.length}`,
-    title: `Point ${asset}'s task database at one the hub holds`,
-    status: "open",
-    priority: 1,
-    issueType: "bug",
-    assignee: null,
-    updatedAt: "2026-09-05T09:00:00.000Z",
-    closedAt: null,
-    parent: null,
-    deferUntil: null,
-  };
-}
-
-/** A board carrying exactly the given inbox, filed against this repo's own
- * project, where the reconciliation files every one of them. */
-function workBoard(...waiting: WorkItem[]): WorkPayload {
-  return {
-    generatedAt: "2026-09-05T12:00:00.000Z",
-    capturedAt: "2026-09-05T11:59:00.000Z",
-    pollCadenceHours: 1,
-    owner: "config/beads.json",
-    projects: [
-      {
-        asset: "root-os",
-        prefix: "ro",
-        name: "System",
-        ok: true,
-        error: null,
-        counts: {
-          open: waiting.length,
-          highPriority: waiting.length,
-          ready: 0,
-          inProgress: 0,
-          blocked: 0,
-          closedRecent: 0,
-          deferred: 0,
-          waiting: waiting.length,
-        },
-        history: emptyWorkHistory(),
-        priorities: null,
-        epics: null,
-        ready: [],
-        inProgress: [],
-        recentlyClosed: [],
-        deferred: [],
-        waiting,
-      },
-    ],
-    historyDays: 0,
-  };
-}
-
-/** Fill the Add form with a whole project. `database` is left alone: it follows
- * the prefix by declaration until somebody types into it. */
 function fillProject(fields: { asset: string; prefix: string }) {
   fireEvent.change(within(addForm()).getByLabelText("Asset"), { target: { value: fields.asset } });
   fireEvent.change(within(addForm()).getByLabelText("Task prefix"), {
@@ -1252,150 +1184,13 @@ describe("/settings — the task-hub project map", () => {
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
   });
 
-  it("answers an Add with the steps the file cannot do, as text to paste", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example"));
-    stubFetch();
-    renderPage();
-
-    expect(document.querySelector("[data-project-checklist]")).toBeNull();
-
-    fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    fillProject({ asset: "northwind.example", prefix: "nw" });
-    fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
-
-    const checklist = await findChecklist();
-    // The command carries the hub's real host and port, never a typed copy.
-    expect(checklist.textContent).toContain(
-      "bd init --server --external --server-host 127.0.0.1 --server-port 3308 " +
-        "--server-user root --prefix nw --non-interactive --skip-agents --skip-hooks",
-    );
-    const yaml = within(checklist)
-      .getByText("File · the project checkout/.beads/config.yaml")
-      .closest("[data-command-block]") as HTMLElement;
-    expect(yaml.querySelector("[data-command-removed] del")).toHaveTextContent("sync.remote");
-    expect(yaml.textContent).toContain("+ no-git-ops: true");
-    expect(yaml.textContent).toContain("+ import.auto: false");
-    expect(within(checklist).getByText("File · installation/task-host.json · repositories")).toBeTruthy();
-
-    fireEvent.click(within(checklist).getByRole("button", { name: "Done" }));
-    expect(document.querySelector("[data-project-checklist]")).toBeNull();
-  });
-
-  it("names the database in the command only when it differs from the prefix", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example"));
-    stubFetch();
-    renderPage();
-
-    fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    fillProject({ asset: "northwind.example", prefix: "nw" });
-    fireEvent.change(within(addForm()).getByLabelText("Database"), { target: { value: "nwnow" } });
-    fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
-
-    const checklist = await findChecklist();
-    expect(checklist.textContent).toContain("--prefix nw --database nwnow");
-  });
-
-  it("shows an installation with no task service only the Ntasks connection, never a task database server", () => {
+  it("shows an installation with no task service the Ntasks connection", () => {
     state.service = { connected: false, origin: null, projects: null, required: true };
     try {
       stubFetch();
       renderPage();
       expect(document.querySelector("[data-ntasks-connection]")).toHaveAttribute("data-ntasks-connection", "not-connected");
-      expect(document.querySelector("[data-task-hub-connection]")).toBeNull();
     } finally { state.service = undefined; }
-  });
-
-  it("shows the connection as the fixed fact it is, never as a field", () => {
-    stubFetch();
-    renderPage();
-
-    const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
-    expect(connection.textContent).toContain("127.0.0.1:3308");
-    expect(connection.textContent).toContain(".local/beads-dolt");
-    expect(within(connection).queryByRole("textbox")).toBeNull();
-    expect(within(connection).queryByRole("button")).toBeNull();
-  });
-
-  // The runner files an operator task for each project whose declared database
-  // the server does not hold; the page probes nothing and reads that task off
-  // the board, so both states are staged by moving one item in and out of the
-  // work payload.
-  it("marks the project whose database does not exist, and names both fixes", () => {
-    state.work = workBoard(driftTask("meadow.example"));
-    stubFetch();
-    renderPage();
-
-    expect(
-      within(projectRow("meadow.example")).getByRole("img", {
-        name: "No database named md where the tasks live",
-      }),
-    ).toBeTruthy();
-    // The agreeing project carries no mark at all, never an all-clear, because
-    // the board only ever carries a bounded head of each list.
-    expect(
-      within(projectRow("root-os")).queryByRole("img", { name: /No database/u }),
-    ).toBeNull();
-
-    const note = document.querySelector("[data-database-not-found]") as HTMLElement;
-    expect(note.textContent).toContain("meadow.example is not being backed up");
-    expect(note.textContent).toContain("No database named md");
-    // The task the hourly check filed opens its page.
-    expect(within(note).getByRole("link", { name: "ro-14" })).toHaveAttribute("href", "/tasks/ro-14");
-    fireEvent.click(within(note).getByRole("button", { name: "Edit name" }));
-    expect(document.activeElement).toBe(within(projectRow("meadow.example")).getByLabelText("Database"));
-    expect(within(note).getByText("Keep md")).toBeTruthy();
-    expect(note.textContent).toContain("--prefix md --database md");
-  });
-
-  it("takes the mark off once the task is gone, and offers nothing when nothing answered", () => {
-    state.work = workBoard();
-    stubFetch();
-    const { unmount } = renderPage();
-
-    expect(document.querySelector("[data-database-not-found]")).toBeNull();
-    expect(
-      within(projectRow("meadow.example")).queryByRole("img", { name: /No database/u }),
-    ).toBeNull();
-    expect(within(taskHub()).getByText("Found")).toBeTruthy();
-    unmount();
-
-    state.work = null;
-    renderPage();
-    expect(within(taskHub()).queryByText("Found")).toBeNull();
-    expect(document.querySelector("[data-database-not-found]")).toBeNull();
-  });
-
-  // Every project read failing is the task server down: the address carries
-  // the state and the read's own error, once each.
-  it("says the task server is not answering beside its address when every project read failed", () => {
-    const refused = "bd list exited 1: dial tcp 127.0.0.1:3308: connect: connection refused";
-    const board = workBoard();
-    const failed = { ...board.projects[0]!, ok: false, error: refused };
-    state.work = { ...board, projects: [failed, { ...failed, asset: "meadow.example", prefix: "md", name: "Meadow Board" }] };
-    stubFetch();
-    renderPage();
-
-    const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
-    expect(connection).toHaveAttribute("data-task-server", "not-answering");
-    expect(connection.querySelectorAll('[data-status-for="tasks:server"]')).toHaveLength(1);
-    expect(connection.querySelector('[data-status-for="tasks:server"]')).toHaveTextContent("Not answering");
-    expect(connection.textContent!.split(refused)).toHaveLength(2);
-    expect(connection.textContent).toContain("127.0.0.1:3308");
-
-    expect(within(taskHub()).getByText("Found")).toBeTruthy();
-    expect(projectRow("meadow.example").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
-    expect(projectRow("root-os").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
-  });
-
-  it("draws no server state while any project reads", () => {
-    const board = workBoard();
-    state.work = { ...board, projects: [...board.projects, { ...board.projects[0]!, asset: "meadow.example", ok: false, error: "no repo" }] };
-    stubFetch();
-    renderPage();
-    const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
-    expect(connection).not.toHaveAttribute("data-task-server");
-    expect(connection.querySelector('[data-status-for="tasks:server"]')).toBeNull();
-    expect(document.querySelector("[data-found-unknown]")).toBeNull();
   });
 
   it("keeps deployed task projects readable without offering local setup controls", () => {

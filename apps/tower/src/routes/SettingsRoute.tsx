@@ -7,7 +7,6 @@ import {
   Globe,
   LayoutDashboard,
   Lock,
-  Pencil,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -26,15 +25,12 @@ import { shiftRevenueDate } from "@shared/revenue-projection";
 import type {
   KnobValueSetting,
   SettingsPayload,
-  TaskHubConnection,
-  TaskHubSpoke,
 } from "@shared/settings";
 import { localTimezone, localTimezoneLabel, settingsCollections } from "@shared/scheduled-jobs";
-import { driftingTaskDatabases, taskServerFailure } from "@shared/task-map";
 import { installationCommand, updateState, type InstallationFacts } from "@shared/installation";
 import type { AssetCard } from "@shared/wall";
 import type { ViewId } from "@shared/views";
-import { CollectionEditor, type DerivedColumn } from "@/components/CollectionEditor";
+import { CollectionEditor } from "@/components/CollectionEditor";
 import { CountdownEditor, CountdownWidget } from "@/components/DashboardWidgets";
 import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -48,16 +44,14 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { SavesPaused } from "@/components/SavesPaused";
 import { LiveSiteArrange } from "@/components/SiteArrange";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { SeverityDot } from "@/components/SeverityDot";
 import {
   RulePreview,
   backtestableKnobs,
   useRulePreview,
 } from "@/components/RuleTune";
 import { StateChip } from "@/components/StateChip";
-import { TaskIdLink } from "@/components/TaskIdLink";
 import { TabPanel } from "@/components/Tabs";
-import { CommandBlock, NO_HUB_CONNECTION, TaskProjectSteps, TaskSourceSection, taskProjectInitCommand } from "@/components/TaskSourceSection";
+import { TaskSourceSection } from "@/components/TaskSourceSection";
 import { TuneRate } from "@/components/TuneRate";
 import { Button } from "@/components/ui/button";
 import { pillClass, pillControlClass, pillPickerStateClass } from "@/components/ui/pill";
@@ -70,7 +64,6 @@ import { useSettings } from "@/hooks/useSettings";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
 import { useView } from "@/hooks/useView";
-import { useWork } from "@/hooks/useWork";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { backupStatus, lastGoodCopy } from "@/lib/backups";
 import { cn } from "@/lib/utils";
@@ -1303,9 +1296,7 @@ function ProjectSite({ id, name }: { id: string; name: string | undefined }) {
 function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const { taskHub } = settings;
   const { data: matrix } = useIntegrations();
-  const { data: work } = useWork();
   const { writable } = useConfigWritable();
-  const [added, setAdded] = useState<TaskHubSpoke | null>(null);
 
   // Every asset the OS knows, minus the ones already mapped. An empty list is
   // "the matrix has not answered", and offers no picker rather than an empty one
@@ -1315,22 +1306,9 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const unclaimed = known.filter((id) => !mapped.has(id));
   const siteNames = new Map((matrix?.assets ?? []).map((asset) => [asset.id, asset.displayName]));
 
-  // What the hourly check found, read off the task it filed. `null` is
-  // "nothing answered", and the column is not offered at all in that case.
-  // When every project's read failed, the column says it does not know rather
-  // than disappearing.
-  const drifting = driftingTaskDatabases(work?.projects);
-  const marked = taskHub.spokes.filter((spoke) => drifting?.has(spoke.asset));
-  const serverDown = taskServerFailure(work?.projects);
-  const found = drifting !== null ? FOUND_COLUMN(drifting) : serverDown !== null ? FOUND_UNKNOWN : null;
-  // While tasks live in Ntasks, the task database server and its checks no
-  // longer decide anything: each row shows its Ntasks project instead. An
-  // installation has no task database server at all, only Ntasks.
+  // While tasks live in Ntasks, each row shows its Ntasks project.
   const { data: service } = useTaskService();
   const inNtasks = service?.connected === true;
-  // Hidden on an installation (`required`) whatever `connected` says, unknown
-  // included; shown while the status is unread, as on a Tower whose tasks come from elsewhere.
-  const localHub = service?.required !== true && !inNtasks;
 
   return (
     <>
@@ -1340,7 +1318,6 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
           {taskHub.hub === null ? null : <NtasksConnection />}
           <TaskSourceSection />
         </div>
-        {localHub ? <HubConnection hub={taskHub.hub} failure={serverDown} /> : null}
       </SettingsPanel>
       <SettingsPanel
         title="Projects"
@@ -1375,194 +1352,12 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
             slug="map-a-project"
             fieldOptions={known.length === 0 ? undefined : { asset: unclaimed }}
             rowGlyph={(row) => <ProjectSite id={row.key} name={siteNames.get(row.key)} />}
-            derived={inNtasks ? [ntasksProjectColumn(service)] : found === null ? undefined : [found]}
-            onAdded={(row) => setAdded(spokeOf(row))}
+            derived={inNtasks ? [ntasksProjectColumn(service)] : undefined}
             commit="auto"
           />
         )}
-        {localHub && taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
-        {localHub && taskHub.hub !== null && added ? (
-          <div className="mt-4">
-            <TaskProjectSteps
-              spoke={added}
-              hub={taskHub.hub}
-              onDismiss={() => setAdded(null)}
-            />
-          </div>
-        ) : null}
       </SettingsPanel>
     </>
-  );
-}
-
-/**
- * The one column this page works out rather than stores: does a database by
- * this name exist where the tasks live? Nothing writes it, so it is computed,
- * and the fix is the `Database` cell one column to the left. Only the wrong
- * rows are marked: `/api/work` carries a bounded head of each list, so blank
- * means "nothing here says otherwise", which is all that can be claimed.
- */
-function FOUND_COLUMN(drifting: ReadonlyMap<string, string>): DerivedColumn {
-  // A blank cell or a warn dot whose own hover names the missing database.
-  return {
-    name: "found",
-    label: "Found",
-    render: (row) =>
-      drifting.has(row.key) ? (
-        <SeverityDot
-          severity="warn"
-          size="sm"
-          title={`No database named ${String(row.values.database ?? row.key)} where the tasks live`}
-        />
-      ) : null,
-  };
-}
-
-/** The same column when no project could be read: each row says it is not
- * known, never blank, because blank claims "nothing here says otherwise" and
- * nothing was asked. */
-const FOUND_UNKNOWN: DerivedColumn = {
-  name: "found",
-  label: "Found",
-  render: () => (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-found-unknown>
-      <CircleDashed aria-hidden className="size-3.5 shrink-0" />
-      Unknown
-    </span>
-  ),
-};
-
-/**
- * What was found, and the two ways out of it: the same two fixes the filed
- * task names, offered on the field the value was typed into. The consequence
- * is the headline and the fixes are side by side; a command is copied, not
- * read. The task the check filed is named, as the link to its page.
- */
-function DatabaseNotFound({
-  spokes,
-  tasks,
-  hub,
-}: {
-  spokes: TaskHubSpoke[];
-  /** Each drifting project's open task, by asset. */
-  tasks: ReadonlyMap<string, string>;
-  hub: TaskHubConnection | null;
-}) {
-  return (
-    <div
-      className="mt-4 flex flex-col gap-4 rounded-md border border-warn/40 bg-warn/5 p-3"
-      data-database-not-found
-    >
-      {spokes.map((spoke) => (
-        <div key={spoke.asset} className="flex flex-col gap-2" data-database-not-found-project={spoke.asset}>
-          <div className="flex items-start gap-2">
-            <SeverityDot severity="warn" size="sm" title="Not found" className="mt-1.5" />
-            <div className="flex min-w-0 flex-col">
-              <h4 className="text-sm font-medium text-foreground">
-                {spoke.asset} is not being backed up
-              </h4>
-              <span className="text-xs text-muted-foreground">
-                No database named <span className="font-mono">{spoke.database}</span>
-                {tasks.get(spoke.asset) ? <> · task <TaskIdLink id={tasks.get(spoke.asset)!} /></> : null}
-              </span>
-            </div>
-          </div>
-          <div className="grid items-start gap-2 sm:grid-cols-2">
-            <FixOption title="Use a name that exists">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() => focusDatabaseCell(spoke.asset)}
-              >
-                <Pencil className="size-3.5" />
-                Edit name
-              </Button>
-            </FixOption>
-            <FixOption title={`Keep ${spoke.database}`}>
-              <CommandBlock
-                command={taskProjectInitCommand(spoke, hub, true)}
-                label={`Terminal · run in ${spoke.repo}`}
-                fallback={NO_HUB_CONNECTION}
-              />
-            </FixOption>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** One of two ways out: a short title and the one control that does it. */
-function FixOption({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5 rounded-md border border-border bg-background/60 p-2.5">
-      <span className="text-xs font-medium text-foreground">{title}</span>
-      {children}
-    </div>
-  );
-}
-
-/** Put the cursor in a project's Database cell — the "rename it here" fix. The
- * cell is `CollectionEditor`'s own input, addressed by the row's key. */
-function focusDatabaseCell(asset: string) {
-  const input = document.querySelector<HTMLInputElement>(
-    `[data-collection-row="${asset}"] input[aria-label="Database"]`,
-  );
-  if (!input) return;
-  // Optional-called: not every DOM (jsdom) implements it, and focus alone is
-  // still the fix.
-  input.scrollIntoView?.({ block: "center" });
-  input.focus();
-  input.select();
-}
-
-/** The added row as the four strings the checklist needs. Whatever the form
- * produced, a required string field cannot be anything else by the time a write
- * has landed. */
-function spokeOf(row: Record<string, JsonValue>): TaskHubSpoke {
-  const text = (value: JsonValue | undefined) => (typeof value === "string" ? value : "");
-  return {
-    asset: text(row.asset),
-    prefix: text(row.prefix),
-    database: text(row.database),
-    repo: text(row.repo),
-  };
-}
-
-/** The connection, as the fixed fact it is: a label, a lock and the value.
- * Absent in a build that has no filesystem. When every project's last read
- * failed, the address carries *Not answering* and the read's own error as a
- * chip, because an address alone looks the same up or down. */
-function HubConnection({ hub, failure }: { hub: TaskHubConnection | null; failure: { errors: string[] } | null }) {
-  if (hub === null) return null;
-  return (
-    <div
-      className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-border pt-3"
-      data-task-hub-connection
-      data-task-server={failure === null ? undefined : "not-answering"}
-    >
-      <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-        <Lock aria-hidden className="size-3 text-muted-foreground" />
-        Task database server
-      </span>
-      <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1">
-        {failure !== null ? <StateChip tone="critical" label="Not answering" subject="tasks:server" /> : null}
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {hub.host}:{hub.port} · {hub.user} · {hub.dataDir}
-        </span>
-      </span>
-      {failure?.errors.map((error) => (
-        <StateChip
-          key={error}
-          tone="na"
-          label={error}
-          subject="tasks:server-error"
-          className="w-full whitespace-normal break-words rounded-md font-mono text-[11px] font-normal"
-        />
-      ))}
-    </div>
   );
 }
 

@@ -12,10 +12,8 @@ import { TaskStatusMark } from "@/components/TaskStatusMark";
 import { AgentMark } from "@/components/AgentMark";
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
-import { ConnectNtasks, TaskHubUnavailable, TaskProjectSteps, TaskSourceRows } from "@/components/TaskSourceSection";
+import { ConnectNtasks, TaskHubUnavailable, TaskSourceRows } from "@/components/TaskSourceSection";
 
-/** The gallery's task server: a documentation address, never a real one. */
-const KITCHEN_TASK_HUB = { host: "127.0.0.1", port: 3399, user: "root", dataDir: ".beads-hub" };
 import { ConnectPanel } from "@/components/ConnectPanel";
 import { WhatLands } from "@/components/WhatLands";
 import { ConnectionActions } from "@/components/ConnectionActions";
@@ -3076,7 +3074,6 @@ export function KitchenSinkRoute() {
               ))}
               <TaskHubUnavailable />
               <ConnectNtasks />
-              <TaskProjectSteps spoke={{ asset: "example.com", prefix: "ex", database: "ex" }} hub={KITCHEN_TASK_HUB} />
             </div>
           </Section>
 

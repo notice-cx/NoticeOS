@@ -7,7 +7,7 @@ import { handleTasksRequest } from "../vite/task-lane";
 import { TaskServiceAppRefused, TaskServiceUnavailable, type TaskService, type TaskServiceCall } from "../../../scripts/task-service.mjs";
 
 // The Tower's task routes while tasks live in Ntasks (vite/task-service-lane.ts).
-// Ntasks is a scripted TaskService here; `bd` must never run.
+// Ntasks is a scripted TaskService here.
 
 const PROJECT = { projectId: "8b3adafa-0d35-8bd9-b981-7a238b7cf410", logicalKey: "example.com", displayName: "Example", prefix: "ex" };
 const BOARD = { project: "example.com", prefix: "ex", repo: "", readAt: "2026-11-06T10:00:00.000Z", closedSince: "2026-10-30",
@@ -52,19 +52,17 @@ function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unkno
 function request(method: string, url: string, body?: unknown, headers: Record<string, string> = {}) {
   return { method, url, headers: { "content-type": "application/json", ...headers }, body: body === undefined ? "" : JSON.stringify(body) };
 }
-function lane(service: TaskService, ran: string[][] = []) {
+function lane(service: TaskService) {
   return (req: ReturnType<typeof request>) => handleTasksRequest(req, {
     taskService: service, taskCacheDir: cacheDir,
     readProjects: async () => [{ asset: "example.com", prefix: "ex", repo: "", database: "ex", cwd: cacheDir }],
-    run: argv => { ran.push(argv); return { code: 0, stdout: "[]", stderr: "" }; },
     now: () => new Date("2026-11-06T12:00:00.000Z"),
   });
 }
 
 it("reads a site's board from its Ntasks project and keeps the copy", async () => {
-  const ran: string[][] = [];
   const { service, calls } = ntasks(() => ({ status: 200, body: { ...BOARD, project: "example.com-in-ntasks" } }));
-  const reply = await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  const reply = await lane(service)(request("GET", "/api/tasks?project=example.com"));
   expect(reply.status).toBe(200);
   expect(reply.body).toMatchObject({ project: "example.com", readAt: BOARD.readAt, tasks: BOARD.tasks });
   expect(reply.body.cached).toBeUndefined();
@@ -72,7 +70,6 @@ it("reads a site's board from its Ntasks project and keeps the copy", async () =
   const narrowed = await lane(service)(request("GET", "/api/tasks?project=example.com&status=closed&closedDays=15"));
   expect(narrowed.status).toBe(200);
   expect(calls[1]).toEqual({ method: "GET", path: `/api/tasks?project=${PROJECT.projectId}&status=closed&closedDays=15` });
-  expect(ran).toEqual([]);
 });
 
 it("shows the kept copy, with the time Ntasks read it, while Ntasks cannot be reached", async () => {
@@ -173,24 +170,20 @@ it.each([
   ["GET", "/api/tasks?project=example.com", undefined],
   ["GET", "/api/tasks/projects", undefined],
   ["POST", "/api/tasks/ex-1/comments", { text: "Note" }],
-])("answers %s %s as not connected while no task service is connected, and runs no bd", async (method, url, body) => {
-  const ran: string[][] = [];
+])("answers %s %s as not connected while no task service is connected", async (method, url, body) => {
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false });
-  const reply = await lane(service, ran)(request(method, url, body));
+  const reply = await lane(service)(request(method, url, body));
   expect(reply).toMatchObject({ status: 409, body: { error: "task_service_not_connected" } });
   expect(calls).toEqual([]);
-  expect(ran).toEqual([]);
 });
 
-it("refuses reads and changes while the ingest has never said where the tasks live, and runs no bd", async () => {
-  const ran: string[][] = [];
+it("refuses reads and changes while the ingest has never said where the tasks live", async () => {
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
-  const change = await lane(service, ran)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
+  const change = await lane(service)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
   expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
-  const read = await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  const read = await lane(service)(request("GET", "/api/tasks?project=example.com"));
   expect(read).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
   expect(calls).toEqual([]);
-  expect(ran).toEqual([]);
 });
 
 it("does not pass off a read Ntasks answered with something else as a board", async () => {

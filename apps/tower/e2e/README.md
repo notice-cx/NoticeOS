@@ -133,16 +133,16 @@ functions; only their persistence is replaced by disposable document storage.
 The real task-lane handler reads saved project membership through the real
 project reader, pointed at an in-process stand-in for the ingest door (a
 non-routable origin and a synthetic bearer, serving the fixture's own
-`config/beads.json`), resolves it against the fixture's injected host inventory,
-and writes its task-client settings inside the server's temporary installation.
-The runner removes that installation after the server exits, including failed
-startup. An injected, in-memory `bd` executor accepts only those resolved task
-client directories. It never starts `bd`, git or a
-database client, and needs no secrets file: the suite runs the same from a fresh
+`config/beads.json`), and resolves it against the fixture's injected host
+inventory. The runner removes the server's temporary installation after the
+server exits, including failed startup. The fixture starts no git or database
+client and needs no secrets file: the suite runs the same from a fresh
 checkout, in CI and on the operator's machine.
 
-A fixture Ntasks (`ntasks-fixture.ts`), connected by `POST /__journey/ntasks`,
-holds the same task rows as the fixture's task client. The real task lane
+Until `POST /__journey/ntasks` connects a fixture Ntasks (`ntasks-fixture.ts`),
+the installation has no task service, and every task route but the
+capabilities and the service status returns `task_service_not_connected`. The
+fixture Ntasks holds the fixture's task rows and files a new task into them. The real task lane
 reaches it in process with a synthetic service credential. `ntasks-route.mjs`
 sends the browser's requests for its `.test` address to the fixture server,
 which passes them to the fixture Ntasks, and the server's CSP lists that
@@ -250,13 +250,6 @@ Fixture-only HTTP controls are available on **that isolated port**:
   operator with three options in its metadata (`JOURNEY_CHOICES` in
   `fixtures.ts`), the second recommended, and file the task snapshot.
 - `POST /__journey/reset`: discard the in-memory fixture and return to empty.
-
-The fixture's `bd` answers the task lane's reads and its operator writes:
-`gate resolve`, `human respond`, `human dismiss`, `create`, `close`, and the
-`comments add` and `update` an answer or a pick on a task that is not a
-decision runs to hand the task back to ready work (`update --metadata` merges
-the keys it is given, as `bd` does, which records a pick); `taskCommands` in
-the status journal records each argv.
 
 These controls are not imported into or registered by the production server.
 Stopping the fixture process discards its data. `node --test

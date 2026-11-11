@@ -2,7 +2,7 @@
 // Dedicated synthetic reader. This module never imports fresh setup or jobs.
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { openStore } from '../packages/postgres/src/store.mjs';
@@ -12,7 +12,6 @@ import { configDocumentKey } from './config-documents.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { readDemoViewerInstallation } from './demo-viewer-installation.mjs';
 import { verifyDemoRelease } from './demo-release.mjs';
-import { doltEnvironment } from './dolt-profile.mjs';
 import { WORKER_CONFIGS, relocatedWorkerConfig } from './worker-config-folder.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { redactLogText } from './os-log.mjs';
@@ -20,14 +19,14 @@ import { PRODUCT_ENV } from './product-env.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESERVED_PORTS = [3306, 3307, 3308, 4747, 5173, 5432, 8791];
-const TARGET_ENV = [PRODUCT_ENV.home.name, PRODUCT_ENV.installationDir.name, 'NOTICEOS_DOLT_HOME', PRODUCT_ENV.workerConfigRoot.name,
+const TARGET_ENV = [PRODUCT_ENV.home.name, PRODUCT_ENV.installationDir.name, PRODUCT_ENV.workerConfigRoot.name,
   'NOTICEOS_DEMO_VIEWER_FILE', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'DATABASE_URL',
   PRODUCT_ENV.installationDir.legacy, PRODUCT_ENV.workerConfigRoot.legacy];
 
 const INSPECT = '{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"ports":{{json .NetworkSettings.Ports}},"state":{{json .State}}}';
 const refuse = () => { throw new Error('The demo resources differ from their declared local profile.'); };
 
-/** Positively identify only the declared project's two existing services.
+/** Positively identify only the declared project's one existing service.
  * Resource inspection precedes application SQL and never creates or repairs. */
 export async function verifyDemoResources(installation, { root, env, run = runCommand }) {
   const execute = async args => {
@@ -36,25 +35,19 @@ export async function verifyDemoResources(installation, { root, env, run = runCo
     return result.stdout;
   };
   const project = installation.postgresProject;
-  const definitions = new Map();
-  for (const [service, compose] of [['postgres', path.join(root, 'db/postgres/host/compose.yaml')], ['dolt', installation.dolt.composeFile]]) {
-    const definition = JSON.parse(await execute(['compose', '-p', project, '-f', compose, '--env-file', '/dev/null', 'config', '--format', 'json']));
-    if (definition.name !== project || Object.keys(definition.services ?? {}).join() !== service) refuse();
-    definitions.set(service, definition);
-  }
+  const service = 'postgres';
+  const definition = JSON.parse(await execute(['compose', '-p', project, '-f', path.join(root, 'db/postgres/host/compose.yaml'), '--env-file', '/dev/null', 'config', '--format', 'json']));
+  if (definition.name !== project || Object.keys(definition.services ?? {}).join() !== service) refuse();
   const ids = (await execute(['container', 'ls', '--all', '--no-trunc', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.ID}}'])).trim().split(/\s+/u);
-  if (ids.length !== 2 || new Set(ids).size !== 2 || ids.some(id => !/^[a-f0-9]{64}$/u.test(id))) refuse();
-  const seen = new Set();
+  if (ids.length !== 1 || ids.some(id => !/^[a-f0-9]{64}$/u.test(id))) refuse();
   for (const id of ids) {
     const container = JSON.parse(await execute(['container', 'inspect', id, '--format', INSPECT]));
-    const service = container.labels?.['com.docker.compose.service'];
-    const definition = definitions.get(service), expected = definition?.services?.[service];
-    if (!expected || seen.has(service) || container.id !== id || container.image !== expected.image
+    const expected = definition.services[service];
+    if (!expected || container.labels?.['com.docker.compose.service'] !== service || container.id !== id || container.image !== expected.image
       || container.labels['com.docker.compose.project'] !== project || container.labels['com.docker.compose.oneoff'] !== 'False'
       || container.state?.Running !== true || container.state?.Health?.Status !== 'healthy') refuse();
-    seen.add(service);
-    const port = service === 'postgres' ? installation.postgresPort : installation.dolt.port;
-    const target = service === 'postgres' ? '5432/tcp' : '3306/tcp';
+    const port = installation.postgresPort;
+    const target = '5432/tcp';
     const ports = container.ports;
     if (!ports || typeof ports !== 'object' || Array.isArray(ports)) refuse();
     // Docker includes the image's unbound EXPOSE ports as null entries.
@@ -70,9 +63,9 @@ export async function verifyDemoResources(installation, { root, env, run = runCo
     if (definition.volumes?.[volumeKey]?.name !== volumeName) refuse();
     const volumes = container.mounts?.filter(mount => mount.Type === 'volume');
     if (volumes?.length !== 1 || volumes[0].Name !== volumeName || volumes[0].RW !== true
-      || volumes[0].Destination !== (service === 'postgres' ? '/var/lib/postgresql' : '/var/lib/dolt')) refuse();
+      || volumes[0].Destination !== '/var/lib/postgresql') refuse();
     const expectedBindings = (expected.volumes ?? []).filter(mount => mount.type === 'bind').map(mount => ({ source: mount.source, target: mount.target }));
-    const secretsDir = service === 'postgres' ? path.join(installation.home, 'postgres/secrets') : installation.dolt.secretsDir;
+    const secretsDir = path.join(installation.home, 'postgres/secrets');
     for (const secret of expected.secrets ?? []) {
       const source = definition.secrets?.[secret.source]?.file;
       if (typeof source !== 'string' || path.dirname(source) !== secretsDir || fs.realpathSync(source) !== source) refuse();
@@ -85,7 +78,7 @@ export async function verifyDemoResources(installation, { root, env, run = runCo
     const volume = JSON.parse(await execute(['volume', 'inspect', volumeName, '--format', '{{json .}}']));
     if (volume.Name !== volumeName || volume.Labels?.['com.docker.compose.project'] !== project || volume.Labels?.['com.docker.compose.volume'] !== volumeKey) refuse();
   }
-  return Object.freeze({ project, services: Object.freeze([...seen].sort()), containers: Object.freeze(ids) });
+  return Object.freeze({ project, services: Object.freeze([service]), containers: Object.freeze(ids) });
 }
 
 /** The application role proves the same workspace and synthetic-only roster.
@@ -107,7 +100,7 @@ export async function verifyDemoStore(installation, { open = openStore } = {}) {
         || documents.length !== 2 + displayKeys.length) throw new Error('The demo store no longer matches its synthetic-only generation.');
       const beads = JSON.parse(documents.find(row => row.document_key === beadsKey)?.body ?? 'null');
       const integrations = JSON.parse(documents.find(row => row.document_key === integrationsKey)?.body ?? 'null');
-      if (!isDeepStrictEqual(beads?.spokes, installation.projects.map(({ repo, ...project }) => project))
+      if (!isDeepStrictEqual(beads?.spokes, installation.projects.map(({ projectId, ...project }) => project))
         || JSON.stringify(Object.keys(integrations?.assets ?? {}).sort()) !== JSON.stringify([...installation.assetIds].sort())
         || !isDeepStrictEqual(integrations?.assets, installation.integrations)) {
         throw new Error('The demo stored task or provider roster changed.');
@@ -124,28 +117,27 @@ export function parseDemoViewerArgs(argv) {
   const values = {};
   for (let index = 0; index < argv.length; index++) {
     const name = argv[index];
-    if (!['--dir', '--port', '--release', '--bd-bin', '--duration-ms'].includes(name) || Object.hasOwn(values, name)
-      || !argv[index + 1] || argv[index + 1].startsWith('--')) throw new Error('Name the demo folder, release, local port and task executable.');
+    if (!['--dir', '--port', '--release', '--duration-ms'].includes(name) || Object.hasOwn(values, name)
+      || !argv[index + 1] || argv[index + 1].startsWith('--')) throw new Error('Name the demo folder, release and local port.');
     values[name] = argv[++index];
   }
-  const home = values['--dir'], port = Number(values['--port']), release = values['--release'], binary = values['--bd-bin'];
+  const home = values['--dir'], port = Number(values['--port']), release = values['--release'];
   const durationMs = Number(values['--duration-ms'] ?? 12 * 60 * 60 * 1000);
-  if (!home || !path.isAbsolute(home) || !binary || !path.isAbsolute(binary) || !/^[a-f0-9]{40}$/u.test(release ?? '')
+  if (!home || !path.isAbsolute(home) || !/^[a-f0-9]{40}$/u.test(release ?? '')
     || !Number.isInteger(port) || port < 1024 || port > 65534 || RESERVED_PORTS.some(reserved => reserved === port || reserved === port + 1)
     || !Number.isInteger(durationMs) || durationMs < 1000 || durationMs > 12 * 60 * 60 * 1000) {
     throw new Error('Name an exact release, owned local paths and unused local ports.');
   }
-  return { home, port, doorPort: port + 1, release, binary, durationMs };
+  return { home, port, doorPort: port + 1, release, durationMs };
 }
 
 /** No caller credentials, cloud switches, Node injection or database selectors
- * survive into the viewer process. The task CLI gets only its owned profile. */
+ * survive into the viewer process. */
 export function demoViewerEnvironment(installation, { runtime, port, node = process.execPath }) {
-  const env = doltEnvironment(installation.dolt, { PATH: `${path.join(runtime, 'bin')}:/usr/bin:/bin`, TMPDIR: path.join(runtime, 'tmp') });
-  delete env.DOCKER_CONFIG;
-  return { ...env, HOME: path.join(runtime, 'client-home'), XDG_CONFIG_HOME: path.join(runtime, 'client-home/.config'),
+  return { PATH: `${path.join(runtime, 'bin')}:/usr/bin:/bin`, TMPDIR: path.join(runtime, 'tmp'),
+    HOME: path.join(runtime, 'client-home'), XDG_CONFIG_HOME: path.join(runtime, 'client-home/.config'),
     NOTICEOS_HOME: installation.home, NOTICEOS_INSTALLATION_DIR: path.join(installation.home, 'installation'),
-    NOTICEOS_DOLT_HOME: installation.home, NOTICEOS_WORKER_CONFIG_ROOT: runtime,
+    NOTICEOS_WORKER_CONFIG_ROOT: runtime,
     NOTICEOS_DEMO_VIEWER_FILE: path.join(runtime, 'viewer.json'), NOTICEOS_VITE_CACHE_DIR: path.join(runtime, 'vite-cache'), OS_UP_PERSIST_STATE: path.join(runtime, 'state'),
     OS_UP_INGEST_DOOR_HOST: '127.0.0.1', OS_UP_INGEST_DOOR_PORT: String(port + 1),
     CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false',
@@ -182,7 +174,7 @@ function bootstrap(installation) {
 
 /** Only local configs and ephemeral viewer state are prepared. No scheduled
  * trigger, remote binding, task target creation or configuration apply occurs. */
-export function prepareDemoViewerRuntime(installation, { root, port, binary, node = process.execPath }) {
+export function prepareDemoViewerRuntime(installation, { root, port, node = process.execPath }) {
   const viewers = path.join(installation.home, 'viewers'); ownedDirectory(viewers);
   const runtime = fs.mkdtempSync(path.join(viewers, 'viewer-'));
   const secrets = bootstrap(installation);
@@ -203,22 +195,11 @@ export function prepareDemoViewerRuntime(installation, { root, port, binary, nod
     fs.writeFileSync(path.join(path.dirname(target), '.dev.vars'), `OPERATOR_TOKEN=${secrets.OPERATOR_TOKEN}\nCREDENTIALS_KEY=${secrets.CREDENTIALS_KEY}\n`, { flag: 'wx', mode: 0o600 });
   }
   for (const directory of ['bin', 'tmp', 'client-home', 'client-home/.config', 'state', 'vite-cache']) ownedDirectory(path.join(runtime, directory));
-  fs.symlinkSync(binary, path.join(runtime, 'bin/bd')); fs.symlinkSync(node, path.join(runtime, 'bin/node'));
+  fs.symlinkSync(node, path.join(runtime, 'bin/node'));
   const env = demoViewerEnvironment(installation, { runtime, port, node });
   fs.writeFileSync(env.NOTICEOS_DEMO_VIEWER_FILE, JSON.stringify({ version: 1, root, home: installation.home, tree: installation.tree,
     viewer: installation.viewer, runtime, towerPort: port, doorPort: port + 1 }), { flag: 'wx', mode: 0o600 });
   return { runtime, env, secrets };
-}
-
-export async function verifyDemoClient(installation, binary, { env, run = runCommand }) {
-  const stat = fs.lstatSync(binary);
-  if (!stat.isFile() || stat.isSymbolicLink() || fs.realpathSync(binary) !== binary || stat.size > 256 * 1024 * 1024
-    || !(stat.mode & 0o111) || createHash('sha256').update(fs.readFileSync(binary)).digest('hex') !== installation.client.sha256) {
-    throw new Error('The task executable differs from the completed demo.');
-  }
-  const checked = await run(binary, ['--version'], { cwd: path.dirname(binary), env, timeoutMs: 5000 });
-  if (checked.code !== 0 || checked.timedOut || checked.error
-    || !checked.stdout.includes(`bd version ${installation.client.version} `)) throw new Error('The demo task executable version could not be verified.');
 }
 
 export function demoInspectionEnvironment(env) {
@@ -287,7 +268,7 @@ export function serveDemoViewer({ root, prepared, durationMs, port, out = proces
 
 export async function main(argv = process.argv.slice(2), { root = ROOT, env = process.env, out = process.stdout, err = process.stderr,
   verifySource = verifyDemoRelease, readInstallation = readDemoViewerInstallation, verifyResources = verifyDemoResources,
-  verifyStore = verifyDemoStore, verifyClient = verifyDemoClient, prepareRuntime = prepareDemoViewerRuntime, serve = serveDemoViewer } = {}) {
+  verifyStore = verifyDemoStore, prepareRuntime = prepareDemoViewerRuntime, serve = serveDemoViewer } = {}) {
   let phase = 'arguments';
   try {
     const options = parseDemoViewerArgs(argv);
@@ -295,18 +276,14 @@ export async function main(argv = process.argv.slice(2), { root = ROOT, env = pr
     phase = 'source release'; const source = await verifySource(root, options.release);
     phase = 'completed generation';
     const installation = readInstallation({ root, home: options.home, ...source });
-    if ([options.port, options.doorPort].some(port => port === installation.postgresPort || port === installation.dolt.port)) throw new Error('The viewer ports overlap its database services.');
+    if ([options.port, options.doorPort].includes(installation.postgresPort)) throw new Error('The viewer ports overlap its database service.');
     const inspection = { ...demoInspectionEnvironment(env), NOTICEOS_POSTGRES_SECRETS: path.join(installation.home, 'postgres/secrets'),
-      NOTICEOS_POSTGRES_PORT: String(installation.postgresPort), NOTICEOS_DOLT_SECRETS: installation.dolt.secretsDir,
-      NOTICEOS_DOLT_PORT: String(installation.dolt.port) };
+      NOTICEOS_POSTGRES_PORT: String(installation.postgresPort) };
     phase = 'local resources'; await verifyResources(installation, { root, env: inspection });
-    phase = 'task executable';
-    await verifyClient(installation, options.binary, { env: { PATH: '/usr/bin:/bin', HOME: path.join(installation.home, 'dolt/client-home'),
-      XDG_CONFIG_HOME: path.join(installation.home, 'dolt/client-home/.config'), BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1', DO_NOT_TRACK: '1' } });
     phase = 'synthetic store'; await verifyStore(installation);
     phase = 'source recheck'; const after = await verifySource(root, options.release);
     if (after.tree !== source.tree) throw new Error('The demo source changed during verification.');
-    phase = 'runtime files'; const prepared = prepareRuntime(installation, { root, port: options.port, binary: options.binary });
+    phase = 'runtime files'; const prepared = prepareRuntime(installation, { root, port: options.port });
     phase = 'viewer process';
     return await serve({ root, prepared, ...options, out });
   } catch {
