@@ -173,6 +173,9 @@ it('answers only the code Ntasks refused a registration with, and saves nothing'
   expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields: { ...fields, NTASKS_APP_CLIENT_ID: 'tower-by-hand' } })).toMatchObject({ ok: true });
   expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
     async () => Response.json({ error: 'invalid_client_metadata' }, { status: 400 }))).json()).toEqual({ clientId: 'tower-by-hand', registered: false, held: false });
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
+    async () => new Response('<h1>Not found</h1>', { status: 404, headers: { 'content-type': 'text/html' } }))).json())
+    .toEqual({ clientId: 'tower-by-hand', registered: false, held: false });
   expect(await (await handleTaskServiceApp(appDoor({ redirectUri: HOME_SIGNED_IN }), inProfile('standalone'),
     async () => Response.json({ error: 'invalid_redirect_uri' }, { status: 400 }))).json()).toEqual({ refused: { status: 400, error: 'invalid_redirect_uri' } });
   for (const body of [{ redirectUri: 'https://tower.example.com/elsewhere' }, { redirectUri: 'javascript:alert(1)' },

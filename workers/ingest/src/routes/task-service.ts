@@ -123,6 +123,10 @@ export async function handleTaskServiceApp(request: Request, env: IngestEnv, fet
     return json({ clientId, registered: true, held } satisfies TaskServiceAppAnswer);
   } catch (error) {
     if (!(error instanceof TaskServiceError)) throw error;
+    // An Ntasks with no registration route at all can answer a page, not JSON.
+    if (saved !== null && error.failure.kind === 'invalid-response' && error.failure.status === 404) {
+      return json({ clientId: saved, registered: false, held: false } satisfies TaskServiceAppAnswer);
+    }
     return json({ answered: false, reason: error.failure.kind, ...(error.failure.status === undefined ? {} : { status: error.failure.status }) } satisfies TaskServiceAppAnswer);
   }
 }
