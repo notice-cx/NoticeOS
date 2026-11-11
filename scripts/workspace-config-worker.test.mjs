@@ -115,7 +115,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       await admin.query('INSERT INTO noticeos.connection_status_daily_counts(workspace_id,day,observed_at,sites_failing,sites_overdue,reports_missing,sites_working) VALUES($1,current_date,now(),$2,0,0,0)', [id, version]);
       for (const file of Object.values(TOWER_CONFIG_FILES)) {
         const name = path.basename(file, '.json');
-        const body = name === 'beads' ? { hub: { host: 'private.example.test' }, spokes: [] } : fixture(name);
+        const body = name === 'beads' ? { local: true, spokes: [] } : fixture(name);
         if (name === 'constants') { body.os_time_zone = 'UTC'; body.operator_rate_usd_per_min = version * 101; body.monthly_caps.data_usd = version * 101; }
         if (name === 'integrations') body.assets['example.test'] = {
           'bing-webmaster': { status: 'live', siteUrl: `https://${slug}.example.test/` },
@@ -637,7 +637,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
           for (const foreign of ['tenant-a', 'tenant-b', 'demo'].filter(value => value !== marker)) assert.equal(payload.includes(`${foreign} private asset`), false);
           assert.equal(payload.includes('private.example.test'), false);
           if (pathname === '/api/wall') assert.equal(payload.includes(`${marker} private asset`), true);
-          if (pathname === '/api/settings') assert.equal(JSON.parse(payload).taskHub.hub, null);
+          if (pathname === '/api/settings') assert.equal(JSON.parse(payload).taskHub.local, false);
         }
         const readProof = { url: origin + '/api/settings', init: { headers: headers(workspace) } };
         const read = await rpc('getConfigDocuments', [Object.values(TOWER_CONFIG_FILES)], readProof);

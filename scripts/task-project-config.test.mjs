@@ -48,7 +48,6 @@ test('stored membership wins over exported map while repository paths come only 
   await fs.writeFile(path.join(repoRoot, 'config/task-host.json'), JSON.stringify(host));
   const config = options({ spokes: [current], hub: { host: 'untrusted.example' } }, { repoRoot, readHost: undefined });
   const projects = await readTaskProjects(config);
-  // Without a declared task client no task folder is prepared (no-checkout-task-projects.test.mjs has one).
   assert.deepEqual(projects, [{ ...current, repo: '../linked-checkout' }]);
   assert.deepEqual(parseBeadsProjects(await readTaskProjectConfig(config)), projects);
   assert.equal(JSON.stringify(projects).includes('untrusted'), false);

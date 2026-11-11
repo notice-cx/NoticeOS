@@ -76,7 +76,7 @@ function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
         { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
         { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
       ],
-      hub: { host: "127.0.0.1", port: 3308, user: "root", dataDir: ".local/beads-dolt" },
+      local: true,
     },
     ...overrides,
   };
@@ -203,21 +203,12 @@ describe("buildSettingsPayload", () => {
       { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
       { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
     ]);
-    // Read-only, and only so the onboarding command an operator copies after
-    // an Add carries the real host and port rather than a typed copy.
-    expect(taskHub.hub).toEqual({
-      host: "127.0.0.1",
-      port: 3308,
-      user: "root",
-      dataDir: ".local/beads-dolt",
-    });
+    expect(taskHub.local).toBe(true);
   });
 
-  it("says the connection is absent rather than inventing one, on a build without it", () => {
-    // `vite build` compiles the hub out with the runner lane, and that is also
-    // the build where nothing here is editable.
+  it("marks the map read-only on a build that does not say it is served from its own machine", () => {
     const { taskHub } = buildSettingsPayload(deps({ beads: { spokes: [] } }));
-    expect(taskHub.hub).toBeNull();
+    expect(taskHub.local).toBe(false);
   });
 
   it("returns a fully-formed payload when every list is empty", () => {

@@ -14,7 +14,7 @@ import { checkTarget, installationPlan, openInstallationDatabase, readFrozenMark
 import { applyMigrations, bootstrapWorkspace, frozenMigrationProblems, readMigrations } from './postgres-migrate.mjs';
 
 const OWNER_URL_VARIABLE = 'NOTICEOS_FIRST_START_OWNER_URL';
-export const MANAGED_START_PORTS = Object.freeze([5173, Number(new URL(MANAGED_DOOR).port), 3308, POSTGRES_PORT]);
+export const MANAGED_START_PORTS = Object.freeze([5173, Number(new URL(MANAGED_DOOR).port), POSTGRES_PORT]);
 const refusal = (line) => ({ ok: false, line });
 const RESERVATION = '.noticeos-first-start';
 

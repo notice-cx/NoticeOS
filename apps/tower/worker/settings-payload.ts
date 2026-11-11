@@ -103,8 +103,8 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
     taskHub: {
       owner: BEADS_OWNER,
       spokes: deps.beads.spokes,
-      // Absent in a build with no filesystem, where the map is read-only.
-      hub: deps.beads.hub ?? null,
+      // False in a deployed build, where the map is read-only.
+      local: deps.beads.local === true,
     },
   };
 }

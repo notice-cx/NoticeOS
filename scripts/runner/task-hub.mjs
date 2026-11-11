@@ -3,9 +3,8 @@
 
 import { beadsDatabaseName } from '../task-project-config.mjs';
 
-/** The runner's resolved project roster. Installation client directories are
- * carried intact; relative repo paths remain supported for injected fixtures.
- * Database names also serve the independent physical inventory checks. */
+/** The runner's resolved project roster; relative repo paths remain
+ * supported for injected fixtures. */
 export function parseBeadsProjects(raw) {
   let cfg;
   try {
@@ -20,18 +19,16 @@ export function parseBeadsProjects(raw) {
     const asset = spoke?.asset;
     const prefix = spoke?.prefix;
     const repo = spoke?.repo ?? '';
-    const cwd = spoke?.cwd;
     const database = spoke?.database;
     if (typeof asset !== 'string' || asset.trim() === '') continue;
     if (typeof prefix !== 'string' || prefix.trim() === '') continue;
-    if (typeof repo !== 'string' || (repo.trim() === '' && !(typeof cwd === 'string' && cwd.trim()) && !spoke.unavailableReason)) continue;
+    if (typeof repo !== 'string' || (repo.trim() === '' && !spoke.unavailableReason)) continue;
     if (seen.has(asset)) continue;
     seen.add(asset);
     projects.push({
       asset: asset.trim(),
       prefix: prefix.trim(),
       repo: repo.trim(),
-      ...(typeof cwd === 'string' && cwd.trim() ? { cwd: cwd.trim() } : {}),
       ...(typeof spoke.unavailableReason === 'string' ? { unavailableReason: spoke.unavailableReason } : {}),
       // "the backup would use this" and "this is a usable name" are one
       // question with one answer, and it is spelled out in exactly one place.

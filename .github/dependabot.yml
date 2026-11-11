@@ -46,7 +46,6 @@ updates:
   # The Docker updater reads both Dockerfiles and Compose image references.
   - package-ecosystem: "docker"
     directories:
-      - "/db/dolt/host"
       - "/db/postgres/host"
       - "/deploy/codebase-report"
       - "/deploy/compose"

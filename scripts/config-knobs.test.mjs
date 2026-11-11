@@ -142,18 +142,6 @@ test('matchKnob is an exact pointer match — never a parent, never a child', ()
   assert.equal(knobsForFile('config/beads.json').length, 0);
 });
 
-// `config/beads.json` `/hub` stays undeclared ON PURPOSE: host/port/dataDir is
-// how `bd` reaches the Dolt server on this machine, not a portfolio setting,
-// and nothing a browser should be able to move. If it is ever declared, that
-// is a decision somebody makes here first.
-test('the task hub connection is not a knob', () => {
-  assert.equal(matchKnob('config/beads.json', '/hub/port'), null);
-  assert.throws(
-    () => validateSchemaAndSafety(setChangeset('config/beads.json', '/hub/port', 3307, 3308)),
-    /not a row of config\/beads\.json|is not editable/,
-  );
-});
-
 // ---------------------------------------------------------------------------
 // The three checks, per knob, through the real pipeline.
 // ---------------------------------------------------------------------------

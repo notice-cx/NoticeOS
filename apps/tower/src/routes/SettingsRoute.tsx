@@ -1312,7 +1312,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
       <SettingsPanel title="Connection">
         {/* At the panel's row size, as every other row on the page. */}
         <div className="flex flex-col gap-2 text-sm">
-          {taskHub.hub === null ? null : <NtasksConnection />}
+          {!taskHub.local ? null : <NtasksConnection />}
           <TaskSourceSection />
         </div>
       </SettingsPanel>
@@ -1322,12 +1322,12 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
         // panel says so as a chip, and the rows are a plain list rather than an
         // editor that would refuse every save.
         aside={
-          taskHub.hub === null ? (
+          !taskHub.local ? (
             <StateChip tone="na" label="Read-only here" glyph={<Lock className="size-3" />} subject="tasks:projects" />
           ) : writable ? undefined : <PanelLock data-collection-locked />
         }
       >
-        {taskHub.hub === null ? (
+        {!taskHub.local ? (
           <div data-task-projects-read-only>
             {taskHub.spokes.length === 0 ? <p className="text-sm text-muted-foreground">No task projects configured.</p> : taskHub.spokes.map((spoke) => {
               const name = siteNames.get(spoke.asset);

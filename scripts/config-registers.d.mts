@@ -276,9 +276,6 @@ export declare function registerStamps(register: ConfigRegister): readonly Regis
  * anything below it — and carries the same `RegisterField` a register column
  * does, so `fieldRefusal` judges it with the identical sentence. Widening
  * `SETTABLE_FILES` instead would license rewriting every roster note.
- *
- * Deliberately not declared: `config/beads.json` `/hub` (host, port,
- * dataDir) — how `bd` reaches the Dolt server, wiring rather than a setting.
  */
 export declare const CONFIG_KNOBS: Record<ConfigKnobKey, ConfigKnob>;
 /**

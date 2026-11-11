@@ -596,12 +596,9 @@ distinguishes a set, the run, the handoff and restore verification.
   copies, SQLite metadata through `sqlite3`'s online-backup API (opened
   read-write because a WAL database cannot be read without its `-shm` index;
   never `?immutable=1`, which exits 0 on a snapshot missing committed data).
-- **Task hub:** every valid database in `installation/task-host.json` goes to
-  `<date>/beads/` with `CALL DOLT_BACKUP('sync-url', 'file://…')` against the
-  running server, never a file copy of a live server, so it needs the hub up.
-  With a Compose `dolt/profile.json`, snapshots go under
-  `beads/databases/<database>/` with permissions and recovery credentials in
-  `beads/metadata/` and a checksummed `beads/backup.json`.
+- **Tasks:** while Ntasks is connected, the export the runner takes from it
+  for this run goes to `<date>/ntasks/backup.json`; with no task service
+  connected the set records that it has no tasks.
 - **RESTORE.md:** every dated dir carries a generated `RESTORE.md`: what the
   snapshot is, how each store's half went, how to restore each one.
 - **Asset databases:** approved `assetBackups` entries run each checkout's
@@ -630,11 +627,8 @@ restore `<date>/r2/` as a complete tree without stale SQLite sidecars; and
 reconcile rows, ledger totals and archive references before enabling the app.
 Each store's snapshot is consistent on its own, not as one transaction.
 Replacing live stores requires explicit operator approval and a stopped
-runner. **Compose task-hub restore** follows
-[`db/dolt/host/README.md`](../db/dolt/host/README.md) into a new, empty
-project; the helper refuses to overwrite an existing service or volume. A
-legacy native hub is restored by putting the backed-up database directory back
-under its data dir with the native service stopped under operator approval.
+runner. The set's `RESTORE.md` names the Ntasks command that loads
+`ntasks/backup.json` into a new store copy.
 
 ## Merging is not deploying (`os:update`)
 

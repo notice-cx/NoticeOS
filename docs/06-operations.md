@@ -450,7 +450,6 @@ system, for no benefit to anyone using the product:
 |---|---|---|
 | the product's old slug, as an id | the id of NoticeOS's own asset row (a historical row) | an id that every stored row, report and token is keyed on. The row is always shown as System and identified by `is_os`, never by this id; the `ReindexOS` its `display_name` still stores is legacy data that no screen displays |
 | `reindex-os-raw-signals` | the R2 bucket an older store was made under, named in that installation's own `resource-names.json`, never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only |
-| an older checkout's path | the maintainer's checkout | the task database server keeps its Dolt data inside it |
 | the `ro-` task prefix | the maintainers' task project in Ntasks | every task id carries it |
 | the private repository's remote | the maintainers' repository | agents never rename or move a repository or a remote |
 | the old name in `docs/reports` and `docs/artifacts` | dated records | they keep their original wording |

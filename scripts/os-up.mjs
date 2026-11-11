@@ -41,7 +41,7 @@ import {
 } from './runner/config.mjs';
 import { runnerDatabase } from './runner/database.mjs';
 import { towerDependenciesReady, towerLaunch } from './runner/tower-launch.mjs';
-import { bdBin, gitBin, probeTcp } from './runner/host-tools.mjs';
+import { gitBin, probeTcp } from './runner/host-tools.mjs';
 import { armJobRunShipping, finishJobRuns, jobRunsUrl, reportJobRuns, runJobLane } from './runner/job-record.mjs';
 import {
   EXIT_ALREADY_RUNNING,
@@ -312,9 +312,7 @@ export async function runBackup({ service = runnerTaskService(), container = req
       : await host({
       repoRoot: HOME_ROOT,
       retentionDays: CONFIG.backupRetentionDays,
-      bdBinary: bdBin(),
       ...(taskHub ? { taskHub, ...tasks } : {}),
-      ...(env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: env.NOTICEOS_DOLT_HOME } : {}),
     });
     // The worker sees only that no export came; the reason is the runner's.
     if (exported?.error && typeof result?.detail === 'string') result = { ...result, detail: `${result.detail} Ntasks export: ${exported.error}` };

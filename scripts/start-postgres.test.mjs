@@ -115,7 +115,7 @@ test('unfrozen or changed baseline refuses before files, Docker or database call
 });
 
 test('derived Postgres port rejects every managed port, invalid range and occupied port before Docker', async t => {
-  for (const port of [5171, 8789, 3306, 65534]) {
+  for (const port of [5171, 8789, 5430, 65534]) {
     const { plan, calls, effects } = fixture(t, { port });
     assert.equal((await prepareFreshPostgres(plan, effects)).ok, false);
     assert.deepEqual(calls, []);

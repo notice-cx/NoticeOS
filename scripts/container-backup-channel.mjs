@@ -63,8 +63,8 @@ export async function containerBackupStatus(file, { fs: io = fs, now = Date.now 
 }
 
 /** A request names its id and, while the installation's tasks live in Ntasks,
- * `tasks: 'ntasks'`: the set then keeps the request's own tasksExportFile in
- * place of the Dolt task hub. Nothing else: the worker chooses every
+ * `tasks: 'ntasks'`: the set then keeps the request's own tasksExportFile.
+ * Nothing else: the worker chooses every
  * executable and resource itself. */
 export function validateBackupRequest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||

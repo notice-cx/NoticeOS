@@ -5,14 +5,13 @@ import { resolveTowerConfig, towerConfigResolver, type TowerConfigFallbacks, typ
 import { handleConfigRequest } from "../worker/config-route";
 
 const privateRow = { asset: "example.test", prefix: "ex", database: "ex", repo: "/private/checkout", extraHostField: "/private/other" };
-const hub = { host: "127.0.0.1", port: 3308, user: "root", dataDir: "/private/hub" };
 const logicalRow = { asset: "example.test", prefix: "ex", database: "ex" };
 function fallback(local = false): TowerConfigFallbacks {
   return {
     monthlyCaps: { dataUsd: 25 }, flagDefaults: {}, operatorRateUsdPerMin: 2, osTimeZone: "Etc/UTC",
     pullConfig: [], integrations: { catalog: [], assets: {} }, counters: { assets: {} }, dashboard: {}, serpPanel: { assets: {} },
     signalPanels: { assets: {} }, valueEvents: { assets: {} }, ga4EventParams: { assets: {} }, domainOrders: [], recurringCosts: [], entities: [],
-    beads: { spokes: [privateRow], hub: local ? hub : null },
+    beads: { spokes: [privateRow], local },
   };
 }
 function reader(body: unknown): ConfigDocumentReader {
@@ -70,16 +69,16 @@ describe("task configuration ownership", () => {
   });
   it("strips host fields from stored, missing, malformed and unavailable deployed answers", async () => {
     const down: ConfigDocumentReader = { ...reader(null), getConfigDocuments: async () => { throw new Error("offline"); } };
-    for (const ingest of [reader({ spokes: [privateRow], hub }), reader({ spokes: null }), null, down]) {
+    for (const ingest of [reader({ spokes: [privateRow], local: true }), reader({ spokes: null }), null, down]) {
       const config = await resolveTowerConfig(ingest, fallback());
-      expect(config.beads).toEqual({ spokes: [logicalRow], hub: null });
+      expect(config.beads).toEqual({ spokes: [logicalRow], local: false });
       expect(JSON.stringify(config.beads)).not.toContain("/private/");
     }
   });
-  it("preserves local raw rows for guarded removal and Undo, without trusting a stored hub", async () => {
-    const config = await resolveTowerConfig(reader({ spokes: [privateRow], hub: { host: "remote" } }), fallback(true));
+  it("preserves local raw rows for guarded removal and Undo, without trusting a stored local flag", async () => {
+    const config = await resolveTowerConfig(reader({ spokes: [privateRow], local: false }), fallback(true));
     expect(config.beads.spokes).toEqual([privateRow]);
-    expect(config.beads.hub).toEqual(hub);
+    expect(config.beads.local).toBe(true);
   });
   it("keeps an acknowledged empty task roster empty", async () => {
     const config = await resolveTowerConfig(reader({ spokes: [] }), fallback());

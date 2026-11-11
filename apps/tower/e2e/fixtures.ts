@@ -37,20 +37,13 @@ export const INITIAL_DOCUMENTS: Record<string, unknown> = {
   "config/entities.json": { entities: [] },
   // The bare harness can model unread setup; /__journey/core-tasks models the
   // provisioned core project, without adding any managed user sites.
-  "config/beads.json": { hub: null, spokes: [] },
+  "config/beads.json": { spokes: [] },
 };
 
 /** The fixture's task project: what connecting the task source saves.
  * The harness's fixed host inventory independently matches this descriptor. */
 export const JOURNEY_TASK_PROJECT = { asset: JOURNEY_ASSET, prefix: "jt", database: "journey_fixture", repo: "." };
 export const JOURNEY_CORE_PROJECT = { asset: "os-journey-core", prefix: "no", database: "noticeos_tasks", repo: "." };
-
-/** Where the fixture's `bd` commands say the task server is: a synthetic
- * loopback address nothing listens on and nothing here connects to. It is the
- * compiled hub connection a local Tower carries (`__BEADS__.hub`), which is
- * what lets the connect panel save a task project; the saved document keeps
- * `hub: null`, as every stored one does. */
-export const JOURNEY_TASK_HUB = { host: "127.0.0.1", port: 3399, user: "journey", dataDir: ".journey-task-hub" };
 
 /** An archived site whose id is not its domain, as an imported site's can
  * be: `/__journey/archived-site` stores it, so adding its domain again meets
@@ -86,7 +79,7 @@ export const INJECTED: Record<string, unknown> = {
   __OS_TIME_ZONE__: JOURNEY_TIME_ZONE, __NO_NIGHTLY_REPORT__: null, __SCHEDULES__: null, __SERP_PANEL__: { assets: {} }, __SIGNAL_PANELS__: { assets: {} },
   __VALUE_EVENTS__: { assets: {} }, __GA4_EVENT_PARAMS__: { assets: {} },
   __DOMAIN_COSTS__: [], __RECURRING_COSTS__: [], __ENTITIES__: [],
-  __BEADS__: { hub: JOURNEY_TASK_HUB, spokes: [] }, __RUNNER_LANE__: false,
+  __BEADS__: { local: true, spokes: [] }, __RUNNER_LANE__: false,
 };
 
 /** One saved finding for the fixture asset: the analysis snapshot the asset

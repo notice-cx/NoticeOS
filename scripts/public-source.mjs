@@ -15,7 +15,7 @@ const ROOT_FILES = new Set(['.gitignore', '.githooks/pre-commit', '.github/actio
   'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',
   'tsconfig.config-contract.json', 'tsconfig.config-contract.node.json']);
 const TREES = ['apps/tower/', 'workers/ingest/', 'packages/contract/', 'packages/postgres/',
-  'packages/mediavine/', 'scripts/', 'config/', 'db/postgres/', 'db/dolt/', 'db/fixtures/', 'deploy/', 'dev/cloud/'];
+  'packages/mediavine/', 'scripts/', 'config/', 'db/postgres/', 'db/fixtures/', 'deploy/', 'dev/cloud/'];
 const PRIVATE_SEGMENTS = /(?:^|\/)(?:\.[^/]+|installation|node_modules|secrets?|backups?|artifacts|test-results|playwright-report|dist|coverage)(?:\/|$)/iu;
 const PRIVATE_FILE = /(?:^|\/)(?:[^/]*\.(?:pem|key|sqlite(?:3)?|db|dump|tar|gz|zip)|credentials(?:\.(?:json|ya?ml|ini|txt))?)$/iu;
 // Public download referenced by the shipped brand page. Review its contents
@@ -26,7 +26,7 @@ const PUBLIC_DOT_TREES = ['docs/.vitepress/'];
 const SETTINGS = 'scripts/public-source.settings.json';
 const REQUIRED = [...ROOT_FILES, SETTINGS, 'scripts/script-tests-setup.mjs',
   'apps/tower/package.json', 'workers/ingest/package.json', 'db/postgres/tables.json',
-  'db/dolt/host/compose.yaml', 'deploy/compose/Dockerfile'];
+  'deploy/compose/Dockerfile'];
 
 function validPath(file) {
   return typeof file === 'string' && !/[\\\x00-\x1f\x7f]/u.test(file)
