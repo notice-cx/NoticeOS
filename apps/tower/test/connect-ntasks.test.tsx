@@ -109,13 +109,17 @@ describe("the Ntasks version", () => {
 });
 
 describe("the Ntasks UI inside the Tower", () => {
-  it("asks a signed-out person to sign in, and starts the Tower's sign-in to that Ntasks", async () => {
+  it("asks a signed-out person to sign in before any task request, and starts the Tower's sign-in to that Ntasks", async () => {
     state.service = CONNECTED;
     const fetch = ntasks();
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
     renderAt("/tasks");
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    const signIn = await screen.findByRole("button", { name: "Sign in to Ntasks" });
+    // The Ntasks UI is not mounted, so nothing but the public version read reaches Ntasks.
+    expect(document.querySelector("[data-ntasks]")).toBeNull();
+    expect(fetch.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual(["/api/version"]);
+    fireEvent.click(signIn);
     await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
     const authorize = new URL(String(assign.mock.calls[0]![0]));
     expect(`${authorize.origin}${authorize.pathname}`).toBe(`${ORIGIN}/api/auth/oauth2/authorize`);
@@ -136,11 +140,13 @@ describe("the Ntasks UI inside the Tower", () => {
 
   it("with no Tower client ID saved, registers the Tower in Ntasks on the press, then signs in with the new one", async () => {
     state.service = UNREGISTERED;
-    ntasks();
+    const fetch = ntasks();
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
     renderAt("/tasks");
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    const signIn = await screen.findByRole("button", { name: "Sign in to Ntasks" });
+    expect(fetch.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual(["/api/version"]);
+    fireEvent.click(signIn);
     await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
     expect(api.registerNtasksApp).toHaveBeenCalledOnce();
     expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe("tower-registered");
@@ -154,7 +160,7 @@ describe("the Ntasks UI inside the Tower", () => {
     const detail = "Ntasks refused to register the Tower (invalid_client_metadata). Nothing was saved.";
     api.registerNtasksApp.mockRejectedValueOnce(new ApiError(detail, 502, "ntasks_registration_refused"));
     renderAt("/tasks");
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in to Ntasks" }));
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
     expect(assign).not.toHaveBeenCalled();
   });

@@ -4,12 +4,12 @@ import "@notice-cx/ntasks-ui/styles.css";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSection";
-import { useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
+import { needsSignIn, useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { needsNtasks, useTaskService } from "@/hooks/useTaskService";
 import { useAppliedTheme } from "@/hooks/useTheme";
 import { useDemoReadonly } from "@/lib/browser-context";
 import { documentTitle } from "@/lib/document-title";
-import { useBeginNtasksSignIn } from "@/routes/tasks/ntasks-sign-in";
+import { SignInToNtasks, useBeginNtasksSignIn } from "@/routes/tasks/ntasks-sign-in";
 
 /** Where the Tower mounts the Ntasks UI; every task address is under it. */
 const BASE_PATH = "/tasks";
@@ -69,6 +69,11 @@ function Notice({ children }: { children: ReactNode }) {
  * sidebar stays behind its Sidebar button, so the Tower's sidebar is the one
  * beside the page. Counts elsewhere in the Tower are read on the server with
  * the installation's credential and are not drawn here.
+ *
+ * Until this browser signs in, the page is the Tower's Sign in to Ntasks and
+ * the app is not mounted: it would call Ntasks with no token, and an Ntasks
+ * that has not registered the Tower answers that without CORS headers, so
+ * the browser reports only "Failed to fetch".
  */
 export function TasksRoute() {
   const status = useTaskService();
@@ -93,6 +98,7 @@ export function TasksRoute() {
   const problem = versionProblem(version.data);
   if (problem) return <Notice><p className="m-0 text-sm" role="alert" data-ntasks-version>{problem}</p></Notice>;
   if (version.isPending) return null;
+  if (needsSignIn(signIn)) return <Notice><SignInToNtasks size="default" className="self-start" /></Notice>;
   return <NtasksApp apiOrigin={origin} tokenSource={tokenSource} basePath={BASE_PATH} theme={theme} onTitle={onTitle} sidebar="sheet" />;
 }
 

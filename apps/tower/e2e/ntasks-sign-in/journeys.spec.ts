@@ -2,6 +2,7 @@ import type { Page, Response } from "@playwright/test";
 import { test, expect } from "../journey-test";
 import { CHOICE_TASK, JOURNEY_CHOICES, PR_SMOKE } from "../fixtures";
 import { JOURNEY_NTASKS_CLIENT_ID, JOURNEY_NTASKS_PERSON, type FixtureAppState, type NtasksDecision } from "../ntasks-fixture";
+import { JOURNEY_NTASKS_ORIGIN } from "../ntasks-origin.mjs";
 import { installFixtureNtasks } from "../ntasks-route.mjs";
 
 // The Tower's /tasks is the Ntasks UI, from the published @notice-cx/ntasks-ui
@@ -23,10 +24,10 @@ async function prepare(page: Page, baseURL: string | undefined, { app = "registe
   await installFixtureNtasks(page.context(), baseURL!);
 }
 
-/** Sign in from the Ntasks UI's own Sign in, through Ntasks's approval page, back to where it started. */
+/** Sign in from the Tower's Sign in to Ntasks on a signed-out /tasks page, through Ntasks's approval page, back to where it started. */
 async function signIn(page: Page) {
   const started = new URL(page.url());
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in to Ntasks" }).click();
   // Ntasks's own page names the app and who it acts as.
   await expect(page.getByRole("heading", { name: "Allow Journey Tower" })).toBeVisible();
   await page.getByRole("link", { name: "Allow" }).click();
@@ -42,8 +43,13 @@ async function carriesNtasksUi(response: Response): Promise<boolean> {
 
 test("a person signs in to Ntasks once from /tasks, sees its board from the Ntasks, and a reload keeps the sign-in", { tag: PR_SMOKE }, async ({ page, baseURL }, testInfo) => {
   await prepare(page, baseURL);
+  const asked: string[] = [];
+  page.on("request", (request) => { if (request.url().startsWith(JOURNEY_NTASKS_ORIGIN)) asked.push(new URL(request.url()).pathname); });
   await page.goto("/tasks");
-  await expect(page.getByText("Sign in to see your tasks")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in to Ntasks" })).toBeVisible();
+  // Signed out, the Ntasks UI is not mounted: no task request goes out, only the public version read.
+  await expect(page.locator("[data-ntasks]")).toHaveCount(0);
+  expect(asked.filter((pathname) => pathname !== "/api/version")).toEqual([]);
   await signIn(page);
   const app = page.locator("[data-ntasks]");
   await expect(app.getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
@@ -53,7 +59,7 @@ test("a person signs in to Ntasks once from /tasks, sees its board from the Ntas
 
   await page.reload();
   await expect(app.getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
-  await expect(page.getByText("Sign in to see your tasks")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign in to Ntasks" })).toHaveCount(0);
 });
 
 test("a pick made on a task's page in the Tower is recorded by Ntasks under the signed-in person's name and the Tower's client id", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
@@ -109,7 +115,8 @@ test("the Ntasks UI's code loads with /tasks and never with Home", { tag: PR_SMO
   expect(onHome.some(Boolean)).toBe(false);
 
   await page.goto("/tasks");
-  await expect(page.locator("[data-ntasks]")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in to Ntasks" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
   const onTasks = await Promise.all(answers.map(carriesNtasksUi));
   expect(onTasks.some(Boolean)).toBe(true);
 });
