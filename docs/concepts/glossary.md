@@ -118,6 +118,9 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 **No clear change**
 : An outcome check verdict: neither threshold was met, or none was set. The numbers are shown.
 
+**Ntasks**
+: The task hub that holds every project's tasks, outside the installation. The Tower's **Tasks** pages are its web app, and agents use its MCP endpoint. See [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks).
+
 **Opportunity**
 : An alert kind for good news that may deserve action.
 
@@ -161,7 +164,7 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : Hiding an alert from the open list until a date within 90 days. The same alert comes back on that date.
 
 **Stack**
-: The containers an installation runs as, under Docker Compose: the app (the Tower, the data receiver and the scheduler), Postgres for the store, Dolt for tasks, and an optional backup worker. See [Run with Docker](/start/run-with-docker).
+: The containers an installation runs as, under Docker Compose: the app (the Tower, the data receiver and the scheduler), Postgres for the store, and an optional backup worker. Tasks live in Ntasks, outside the stack. See [Run with Docker](/start/run-with-docker).
 
 **Still counting**
 : A day a data source has not finished reporting. Drawn hollow on charts and never tested for alerts.
@@ -177,9 +180,6 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 
 **Task**
 : A piece of work on the shared board, for an asset or for the System, with status, owner, priority, blockers and the evidence that closed it. Closing a task records a decision, never a business result.
-
-**Task database**
-: The one database that holds every project's tasks, run by Dolt inside the stack. Its task model comes from Beads, and `bd` is its command-line tool.
 
 **Threshold**
 : The percent change, in a stated direction, that an outcome check must reach to confirm an improvement or a decline.

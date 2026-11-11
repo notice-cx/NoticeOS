@@ -7,9 +7,9 @@ description: "Give a coding agent on this machine your tasks, asset reports and 
 
 This page shows how to connect an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, reads asset reports, and queries each asset's search, traffic and product data. It needs no task tool and no credential of its own.
 
-MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your assets are doing, the way you would in the Tower. Only you can approve work.
+MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can read how your assets are doing, the way you would in the Tower.
 
-While the installation's tasks live in Ntasks, this server lists no task tools: connect the agent to Ntasks's own MCP endpoint for tasks, as [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#agents) shows, and to this server for asset reports and panels.
+This server lists no task tools: tasks live in Ntasks, so connect the agent to Ntasks's own MCP endpoint for tasks, as [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#agents) shows, and to this server for asset reports and panels. Only you can approve work.
 
 ## Before you begin
 
@@ -17,7 +17,7 @@ You need:
 
 - A running installation. `pnpm os:status`, or `~/noticeos/noticeos status` without a checkout, shows the app healthy.
 - The agent on the same machine.
-- At least one linked task project. See [Connect a task project](/guides/connect-a-task-project).
+- For tasks, Ntasks connected in **Settings** > **Task projects**. See [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks).
 
 ## Add the server to the agent
 
@@ -131,15 +131,13 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 ## Verify
 
 - In the agent, `list_workspaces` returns one workspace, **This installation**, and a `guideVersion` equal to the `version` from `get_task_guide`.
-- `list_projects` lists your linked task projects.
-- `list_tasks` with `ready: true` lists the tasks with no open blockers; on **Tasks**, **Agents, next up** shows the ones an agent can take next as **Ready**.
-- `list_tasks` with `assignee: "me"` and no `project` lists the tasks the agent has claimed, in every project.
+- `get_task_guide` names Ntasks's MCP endpoint, or shows that no task service is connected.
 - `list_panels` lists each asset on the panel refresh roster with a version built in the last day.
 
 ## If it didn't work
 
 - **The app is not running**: start it with `pnpm os:start` or `~/noticeos/noticeos start`.
-- **No projects**: link a checkout; see [Connect a task project](/guides/connect-a-task-project#where-the-checkout-link-goes).
+- **The guide shows that no task service is connected**: connect Ntasks; see [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks).
 - **The agent lists only the asset report tools**: the Tower is running a version older than the one that serves every tool. Update it, or restart a development stack with `pnpm os:restart`.
 - **The agent lists no tools**: send one message yourself. `curl -s http://127.0.0.1:5173/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'` returns `{"jsonrpc":"2.0","id":1,"result":{}}`; any other response contains the error.
 

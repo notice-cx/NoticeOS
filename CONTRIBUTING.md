@@ -173,7 +173,7 @@ type(scope): describe the change
 - Keep one coherent change per commit. Add a body when the reason, tradeoff or
   validation needs explanation; do not repeat the subject.
 - Put issue references in the footer (`Fixes: #123`). Maintainer work tracked
-  in Beads uses `Refs: <task-id>`; public contributors do not need a task ID.
+  in Ntasks uses `Refs: <task-id>`; public contributors do not need a task ID.
 - Mark a breaking change with `!` before the colon and a `BREAKING CHANGE:`
   footer explaining its impact and upgrade steps. This does not replace the
   repository's migration and compatibility requirements.
@@ -195,8 +195,8 @@ checks you ran. Link the CI run and its generated artifacts when available;
 state any skipped qualification. Keep installation files, private archives,
 backups, credentials and actual task records out of patches and test output.
 
-NoticeOS tracks its work in Beads and Dolt. You do not need access to the
-maintainers' private task database to contribute. Use the public repository's
+NoticeOS tracks its work in Ntasks. You do not need access to the
+maintainers' Ntasks to contribute. Use the public repository's
 issue and pull request mechanisms when they are available. Report
 vulnerabilities privately through the [security policy](SECURITY.md).
 

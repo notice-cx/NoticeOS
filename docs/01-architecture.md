@@ -95,35 +95,29 @@ cite, and what it costs, is listed in [doc 11](11-integrations.md).
 - **Outbound: PRs via the NoticeOS GitHub App**, plus **flag/canary controls
   and revert automation** — the Act stage must be able to revert a change as
   cheaply as it ships one ([doc 05](05-execution-and-accountability.md)).
-- **Beads defines the work model; Dolt stores the central task database.** They
-  are required NoticeOS infrastructure for all work it coordinates: its own
+- **Ntasks holds the tasks.** [Ntasks](https://github.com/notice-cx/Ntasks)
+  is required NoticeOS infrastructure for all work it coordinates: its own
   operations, managed assets/projects, and work originating in external tools.
   People and agents use the same model for task status, ownership,
   dependencies, approval gates and completion evidence. Future Jira or Linear
-  integrations map work into this model; they do not replace the internal task
-  database. The task database must stay available while the NoticeOS
-  application restarts; its hosting and current setup are described in
-  [doc 06](06-operations.md) and the
-  [task database configuration](../config/beads.README.md).
-  Operators manage tasks through the NoticeOS UI. A supported NoticeOS API
-  will expose the same work model and actions to tools. The application
-  runtime runs Beads and `bd`; Dolt stores the data in its own,
-  separately restarted service. Hosted users need neither a CLI installation
-  nor direct database access. Direct CLI access is a contributor and
-  agent-harness adapter, not the operator-facing product contract. Planned
-  skills and hooks will connect the operator's chosen agent tools to the same
-  task database, so agents can file, claim and hand off work across tools and
-  sessions for any managed asset. Each task keeps its identity, current state,
-  dependencies and evidence. The task database is the record of open work;
-  Markdown holds designs and supporting evidence. Installable agent packages
-  are not yet implemented.
-  The task database is **separate from** the ledger. A task records a
-  commitment; a report records an observation. Nothing from the task database
-  enters the report envelope (`PulseEnvelope`) or the signal contract
+  integrations map work into this model; they do not replace it. Ntasks runs
+  as a Cloudflare Worker outside the installation, so tasks stay available
+  while the NoticeOS application restarts or its machine is off; the connection
+  is described in [doc 06](06-operations.md#tasks) and
+  [Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md).
+  Operators manage tasks on the Tower's **Tasks** pages, which are the Ntasks
+  web app. Agents connect to Ntasks's own MCP endpoint, so they can file,
+  claim and hand off work across tools and sessions for any managed asset.
+  Nobody needs a task CLI or direct database access. Each task keeps its
+  identity, current state, dependencies and evidence. Ntasks is the record of
+  open work; Markdown holds designs and supporting evidence. Installable agent
+  packages are not yet implemented.
+  Ntasks is **separate from** the ledger. A task records a commitment; a
+  report records an observation. Nothing from Ntasks enters the report
+  envelope (`PulseEnvelope`) or the signal contract
   ([doc 02](02-signal-contract.md)), and task completion is never evidence of a
-  business outcome. The attribution layer must never read from the task
-  database: counting planned or finished work as results would measure effort,
-  not outcomes.
+  business outcome. The attribution layer must never read tasks: counting
+  planned or finished work as results would measure effort, not outcomes.
 
 ## Access & security model
 

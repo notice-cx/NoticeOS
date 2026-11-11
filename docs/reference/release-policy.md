@@ -8,7 +8,7 @@ support or upgrade guarantee.
 ## What can be installed today
 
 The [source installation](../../README.md#run-from-source) starts a new, empty
-standalone installation with Postgres and a Dolt task database. Existing
+standalone installation with Postgres; its tasks live in an Ntasks it connects to. Existing
 installations require their own configuration and maintenance procedures.
 Standalone access relies on a trusted network or access layer; it is not a
 public login-protected hosted product.
