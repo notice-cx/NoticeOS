@@ -105,7 +105,8 @@ export function NextUp({ next, operator, assets, workAssets, hidden, nowMs }: Ne
 
   return (
     <section aria-label="Next up" className="@container flex h-full min-h-0 min-w-0 flex-col" data-wall-next="">
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-y-wall-region @xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {/* The agents' 20rem keeps each held task's site · agent · hours on one line at the editor floor. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-y-wall-region @xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
         <div className="flex min-w-0 flex-col gap-wall-region @xl:pe-wall-region-x" data-next-decisions="">
           <div className="flex min-w-0 flex-col">
             <h2 className={eyebrow}>Needs you</h2>
