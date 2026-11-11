@@ -95,7 +95,7 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
         || typeof workers.compiler !== 'string' || !artifactMap(workers.inputs) || !artifactMap(workers.artifacts)) {
         throw new Error('The demo evaluator provenance is incomplete.');
     }
-    if (Object.keys(record(evaluator.artifacts)).sort().join() !== 'poisson.js,rules.js'
+    if (Object.keys(record(evaluator.artifacts)).sort().join() !== 'codebase-measures.js,poisson.js,rules.js'
         || Object.keys(record(workers.artifacts)).sort().join() !== 'configuration,jobs,reports,snapshots,watch') {
         throw new Error('The demo evaluator artifacts are incomplete.');
     }

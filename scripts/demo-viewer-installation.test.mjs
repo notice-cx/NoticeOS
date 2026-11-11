@@ -33,7 +33,7 @@ function fixture(t) {
   write('installation/task-host.json', { version: 1, repositories: projects });
   write('installation/beads.json', { spokes: scenario.manifest.taskProjects });
   write('installation/integrations.json', { assets: demoIntegrationAssets(scenario) });
-  const evaluator = { release, tree, artifacts: { 'rules.js': artifact, 'poisson.js': artifact }, workers: {
+  const evaluator = { release, tree, artifacts: { 'rules.js': artifact, 'poisson.js': artifact, 'codebase-measures.js': artifact }, workers: {
     compiler: 'synthetic-proof', inputs: { 'workers/ingest/src/watch-windows.ts': sha('export {};\n') }, artifacts: { watch: artifact, snapshots: artifact, configuration: artifact, jobs: artifact, reports: artifact } } };
   const tasks = { version: 1, synthetic: true, release, scenarioHash: demoScenarioHash(scenario), workspaceId: scenario.manifest.workspaceId,
     projects, tasks: scenario.tasks.length, snapshots: 400 };
