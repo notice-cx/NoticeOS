@@ -6,7 +6,7 @@ import type { ConnectionKind } from "./connection-status";
 import { TASK_PROJECTS_PATH } from "./tasks";
 import { WORK_POLL_CADENCE_HOURS } from "./work";
 
-/** The Dolt-backed task hub. An id, never a label: what a person reads is
+/** The task snapshots the runner files from Ntasks. An id, never a label: what a person reads is
  * `TASK_SOURCES[id].name`. */
 export const BEADS = "beads" as const;
 

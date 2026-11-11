@@ -26,7 +26,7 @@ import ga4CustomDimensionsJson from "../../config/ga4-custom-dimensions.json";
 import recurringCostsJson from "../../config/recurring-costs.json";
 import dashboardJson from "../../config/tower.json";
 import { parseDashboardConfig } from "./shared/dashboard";
-import { logicalTaskProjects, type TaskHubConnection } from "./shared/settings";
+import { logicalTaskProjects } from "./shared/settings";
 import { towerAllowedHosts } from "./vite/allowed-hosts";
 import { TOWER_DENY } from "./vite/served-files";
 import { checkedDefault } from "./vite/checked-default";
@@ -131,10 +131,9 @@ const recurringCosts = (recurringCostsJson as { costs?: unknown[] }).costs ?? []
 
 const entities = (entitiesJson as { entities?: unknown[] }).entities ?? [];
 
-// The hub connection crosses only while `vite` is serving: a deployed bundle
-// must not carry this machine's internal topology at all.
+// A project's local fields cross only while `vite` is serving: a deployed
+// bundle carries the logical project map alone.
 const beadsSpokes = (beadsJson as { spokes?: unknown[] }).spokes ?? [];
-const beadsHub = (beadsJson as { hub?: TaskHubConnection }).hub ?? null;
 
 // This cap covers metered data collection; briefing inference is separate.
 const monthlyCaps = {
@@ -320,7 +319,7 @@ export default defineConfig(({ command }) => {
     __ENTITIES__: JSON.stringify(entities),
     __BEADS__: JSON.stringify({
       spokes: command === "serve" ? beadsSpokes : logicalTaskProjects(beadsSpokes),
-      hub: serverProfile === "standalone" && command === "serve" ? beadsHub : null,
+      local: serverProfile === "standalone" && command === "serve",
     }),
     // A build substitutes `false` and the bundler drops the whole runner
     // branch, so a deployed Tower has no runner surface to guard.

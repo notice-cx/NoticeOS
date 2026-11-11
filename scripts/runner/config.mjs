@@ -74,9 +74,6 @@ export const CONFIG = {
   ingestPort: 8791,
   towerLanHost: '0.0.0.0',
   towerPort: 5173,
-  // The legacy local task hub's address, which the runner never contacts.
-  beadsHubHost: '127.0.0.1',
-  beadsHubPort: 3308,
   // How often the runner records whether a task service is connected.
   beadsHubCheckCron: '*/15 * * * *',
   // How often the task boards are photographed into the central store for the

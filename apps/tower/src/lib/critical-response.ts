@@ -73,8 +73,7 @@ export function decodeSettings(value: unknown): SettingsPayload {
       rows: list(row => fields(row, { slug: string, name: string }, { form: string, jurisdiction: string, assets: strings })) }),
     taskHub: item => fields(item, { owner: owner => owner === TOWER_CONFIG_FILES.beads,
       spokes: list(row => fields(row, { asset: string, prefix: string, database: string }, { repo: string })),
-      hub: nullable(hub => fields(hub, { host: string, port: port => integer(port) && port > 0 && port <= 65535,
-        user: string, dataDir: string }, { initCommand: string })),
+      local: boolean,
     }),
   })) invalidResponse('Settings');
   return value as unknown as SettingsPayload;

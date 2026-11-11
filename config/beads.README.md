@@ -12,8 +12,8 @@ complete path.
 `installation/beads.json` this installation's export. Settings, the **Tasks**
 pages, the runner's task snapshot and its review filers read the saved
 document; the runner does not fall back to an export when the store is absent.
-The file keeps a `hub` object and a `database` on each row from when tasks
-lived in a Dolt server; Ntasks uses neither.
+Each row keeps a `database` from when tasks lived in a Dolt server; Ntasks
+does not use it.
 
 Tasks are **operator/agent coordination state, not signals.** Nothing here
 enters the pulse envelope ([doc 02](../docs/02-signal-contract.md)); Ntasks is

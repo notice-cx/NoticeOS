@@ -41,8 +41,8 @@ test-results/
 # macOS
 .DS_Store
 
-# Beads / Dolt files (added by bd init)
-# Maintainer hub connections are local to each public-source checkout.
+# Beads and Dolt files a checkout may still hold from before tasks moved to
+# Ntasks, credential key included: kept out of Git.
 /.beads/
 .dolt/
 *.db

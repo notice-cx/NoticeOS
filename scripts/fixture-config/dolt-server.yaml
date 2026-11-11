@@ -1,5 +1,0 @@
-# Synthetic task-hub server configuration. Tests never inspect an installed service.
-listener:
-  host: 127.0.0.1
-  port: 3308
-data_dir: /srv/fixture/.local/beads-dolt

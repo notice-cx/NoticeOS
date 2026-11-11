@@ -259,8 +259,8 @@ export async function resolveTowerConfig(
     : undefined;
   const selectedSpokes = Array.isArray(storedSpokes) ? storedSpokes : fallbacks.beads.spokes;
   const beads = {
-    spokes: fallbacks.beads.hub == null ? logicalTaskProjects(selectedSpokes) : selectedSpokes,
-    hub: fallbacks.beads.hub ?? null,
+    spokes: fallbacks.beads.local === true ? selectedSpokes : logicalTaskProjects(selectedSpokes),
+    local: fallbacks.beads.local === true,
   } as BeadsConfig;
 
   return {

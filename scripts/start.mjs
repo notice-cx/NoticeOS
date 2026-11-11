@@ -61,8 +61,7 @@ export const DEFAULT_PORT = 4747;
 export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open]';
 /**
  * The NoticeOS stack's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
- * its ingest door (CONFIG.ingestPort), task hub (CONFIG.beadsHubPort) and the
- * shipped Postgres host port (postgres-secrets.mjs DEFAULT_PORT).
+ * its ingest door (CONFIG.ingestPort) and the shipped Postgres host port (postgres-secrets.mjs DEFAULT_PORT).
  * Refused even when free — a started Tower holding one would stop the stack
  * from coming back. scripts/start.test.mjs pins them to CONFIG.
  */
@@ -72,8 +71,6 @@ export const FOLDER_MARK = '.made-by-pnpm-start';
 /** Wrangler's older name for the database address, which it still reads when
  * the current one is unset: never inherited by a started Tower. */
 const LEGACY_CONNECTION_VARIABLE = 'WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES';
-/** A task CLI's selectors and credentials the shell may carry: never inherited by a started Tower. */
-const TASK_VARIABLES = /^(?:BD_|BEADS_|DOLT_|MYSQL_)/u;
 
 // ─── The plan ────────────────────────────────────────────────────────────────
 
@@ -138,7 +135,7 @@ export function startPlan({ root = REPO_ROOT, dir, port = DEFAULT_PORT } = {}) {
  * (`database`, from `towerDatabase`): one the shell carries is dropped.
  */
 export function towerEnv(plan, env = process.env, database = {}) {
-  const own = Object.fromEntries(Object.entries(env).filter(([key]) => !TASK_VARIABLES.test(key)));
+  const own = { ...env };
   for (const name of WRANGLER_SECRET_SWITCHES) delete own[name];
   for (const variable of Object.values(PRODUCT_ENV)) delete own[variable.legacy];
   for (const name of [LOCAL_CONNECTION_VARIABLE, LEGACY_CONNECTION_VARIABLE]) delete own[name];

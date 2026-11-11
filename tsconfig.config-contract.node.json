@@ -53,8 +53,6 @@
     "scripts/demo-task-history.mts",
     "scripts/demo-workflows.mts",
     "scripts/demo-store.mts",
-    "scripts/dolt-profile.mts",
-    "scripts/task-client.mts",
     "scripts/resource-names.mts",
     "scripts/source-version.mts",
     "scripts/workflow-history.mts",

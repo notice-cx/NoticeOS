@@ -548,19 +548,18 @@ value — a window read after a GSC revision sees the revised number.
 
 ## Beads snapshots (the task hub photograph)
 
-`POST /api/beads-snapshot` is how the beads task hub becomes readable by a
-Worker. The hub is one Dolt SQL server on the operator's machine
-(`config/beads.README.md`); the Tower is a Worker with no MySQL client. So the
-local runner's poller (`scripts/os-up.mjs`) shells `bd` once a minute per spoke
-and files what it saw here, and the Tower's read-only `/work` board renders the
-newest row.
+`POST /api/beads-snapshot` is how the installation's task projects become
+readable by a Worker. The tasks live in Ntasks (`config/beads.README.md`); the
+local runner (`scripts/os-up.mjs`) reads each project's boards from Ntasks once
+a minute and files what it saw here, and the Tower's read-only `/work` board
+renders the newest row.
 
 **Tasks are coordination state, not signals.** Nothing on this lane enters the
 pulse envelope or the signal contract, and the table carries no `assets`
 foreign key — see below.
 
 Body: `{capturedAt?, projects: [...]}`. `capturedAt` defaults to now and may be
-backdated (a tick that queued behind a slow `bd` still reports when it looked);
+backdated (a tick that queued behind a slow read still reports when it looked);
 a **future** `capturedAt` is rejected, because it would sit at the top of the
 board forever and make a dead poller look fresh. Each project is
 `{asset, prefix, ok, error?, counts: {open, ready, inProgress, blocked,
@@ -589,8 +588,8 @@ reads only the newest row, and the Wall feed replays the photographs back to
 6 PM the day before for tasks closed and filed. So the row a newer one replaces
 keeps only each project's counts and those two lists, and the write deletes
 everything older than **2 days** and reports how many rows it dropped. It is a
-cache of a state that already lives somewhere durable — the hub, which has its
-own nightly Dolt backup. The row just written is never pruned by its own
+cache of a state that already lives somewhere durable — Ntasks, which the
+nightly backup exports. The row just written is never pruned by its own
 insert, however backdated: a write is not reported as successful and then
 silently undone.
 

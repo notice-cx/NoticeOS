@@ -68,9 +68,8 @@ test('a fresh clone seeds every document from the product defaults, and none nam
   assert.deepEqual(docs['config/domain-costs.json'].domains, []);
   assert.deepEqual(docs['config/recurring-costs.json'].costs, []);
   assert.deepEqual(docs['config/entities.json'].entities, []);
-  // No task projects; the local hub connection is the product's.
-  assert.deepEqual(docs['config/beads.json'].spokes, []);
-  assert.equal(docs['config/beads.json'].hub.host, '127.0.0.1');
+  // No task projects.
+  assert.deepEqual(docs['config/beads.json'], { spokes: [] });
   // Nothing declared about a site's reports, no countdown and no default view.
   assert.equal('no_nightly_report' in docs['config/constants.json'], false);
   assert.equal('countdown' in docs['config/tower.json'], false);

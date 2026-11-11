@@ -65,7 +65,7 @@ test('actual production Vite composition omits host lanes and pins both final Wo
             : { path: path.join(checkout, 'workers/ingest/test/fixture-config', path.basename(file)) };
           return undefined;
         });
-        builder.onLoad({ filter: /.*/, namespace: 'profile-fixture' }, args => ({ contents: JSON.stringify(args.path === 'beads.json' ? { hub: null, spokes: [] } : { catalog: [], assets: {} }), loader: 'json' }));
+        builder.onLoad({ filter: /.*/, namespace: 'profile-fixture' }, args => ({ contents: JSON.stringify(args.path === 'beads.json' ? { spokes: [] } : { catalog: [], assets: {} }), loader: 'json' }));
         builder.onResolve({ filter: /^[^./]/ }, async args => {
           if (args.pluginData === 'resolved') return undefined;
           const resolved = await builder.resolve(args.path, { resolveDir: args.resolveDir, kind: args.kind, pluginData: 'resolved' });

@@ -205,7 +205,7 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
         { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
         { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
       ],
-      hub: { host: "127.0.0.1", port: 3308, user: "root", dataDir: ".local/beads-dolt" },
+      local: true,
     },
     ...overrides,
   };
@@ -558,7 +558,7 @@ describe("/settings", () => {
     stubFetch();
     try {
       taskSourceMock.connected = null;
-      state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], hub: null } });
+      state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], local: false } });
       const fresh = renderPage("general");
       expect(tabHrefs()).toEqual(["/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
       fresh.unmount();
@@ -965,7 +965,7 @@ describe("/settings", () => {
         schedules: null,
         pullAssets: [],
       },
-      taskHub: { owner: "config/beads.json", spokes: [], hub: null },
+      taskHub: { owner: "config/beads.json", spokes: [], local: false },
     });
     stubFetch();
     renderPage("data-collection");
@@ -1046,7 +1046,7 @@ describe("/settings — the task-hub project map", () => {
 
   it("names each project's asset in the read-only list too, the id beside its database", () => {
     state.integrations = matrix(11.4, "2026-09", [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
-    state.settings = payload({ taskHub: { owner: "config/beads.json", hub: null,
+    state.settings = payload({ taskHub: { owner: "config/beads.json", local: false,
       spokes: [{ asset: "meadow.example", prefix: "md", database: "md", repo: "" }, { asset: "unlisted.example", prefix: "un", database: "un", repo: "" }] } });
     stubFetch();
     renderPage();
@@ -1194,7 +1194,7 @@ describe("/settings — the task-hub project map", () => {
   });
 
   it("keeps deployed task projects readable without offering local setup controls", () => {
-    state.settings!.taskHub.hub = null;
+    state.settings!.taskHub.local = false;
     stubFetch();
     renderPage();
     const section = taskHub();
@@ -1204,7 +1204,6 @@ describe("/settings — the task-hub project map", () => {
     expect(within(section).queryByRole("button", { name: /Remove/ })).toBeNull();
     expect(within(section).queryByRole("textbox")).toBeNull();
     expect(section.textContent).not.toContain("../meadow.example");
-    expect(section.textContent).not.toContain(".local/beads-dolt");
   });
 
   it("a build that cannot write shows the map without controls, and says why", async () => {

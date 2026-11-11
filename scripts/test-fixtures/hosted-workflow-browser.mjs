@@ -11,7 +11,7 @@ import { startOfflineProxy, installOfflineGuard } from '../../apps/tower/e2e/off
 const fixture = name => JSON.parse(readFileSync(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config', name), 'utf8'));
 const synthetic = () => Object.fromEntries(Object.values(TOWER_CONFIG_FILES).map(file => {
   const name = path.basename(file);
-  const body = name === 'beads.json' ? { hub: null, spokes: [] } : fixture(name);
+  const body = name === 'beads.json' ? { spokes: [] } : fixture(name);
   if (name === 'constants.json') { body.os_time_zone = 'UTC'; body.schedules = { freshness: { enabled: true, cron: '* * * * *' } }; }
   return [name, body];
 }));

@@ -106,9 +106,9 @@ export interface EntitiesSettings {
   rows: EntityRow[];
 }
 
-/** One project of the shared task hub (`config/beads.json`): the asset, its
- * task id prefix (`ex` in `ex-1w2`), its Dolt database and the repo the work
- * happens in. */
+/** One saved task project (`config/beads.json`): the asset and its task id
+ * prefix (`ex` in `ex-1w2`), which names its Ntasks project, and the database
+ * name each row keeps from before tasks moved to Ntasks. */
 export interface TaskHubSpoke {
   asset: string;
   prefix: string;
@@ -127,37 +127,19 @@ export function logicalTaskProjects(rows: unknown[]): TaskHubSpoke[] {
   });
 }
 
-/**
- * How `bd` reaches the hub — read-only everywhere, and present only in a
- * build that has a filesystem. The port lives in three files that must agree
- * (`config/beads.json`, the installation's `dolt-server.yaml` and `CONFIG` in
- * `scripts/runner/config.mjs`), and a test pins them. `null` in a deployed
- * build: the value is compiled out with the runner lane (`vite.config.ts`).
- */
-export interface TaskHubConnection {
-  host: string;
-  port: number;
-  /** The MySQL user `bd` connects as — no password; the listener is loopback. */
-  user: string;
-  /** Repo-relative directory holding every database on the hub. */
-  dataDir: string;
-  /** Host-only helper prefix; absent from deployed builds and legacy hubs. */
-  initCommand?: string;
-  /** Offline repository preparation; no database or provider access. */
-  contextCommand?: string;
-}
-
 export interface TaskHubSettings {
   owner: string;
   spokes: TaskHubSpoke[];
-  hub: TaskHubConnection | null;
+  /** True while `vite` serves this Tower on its own machine, where the
+   * project map is edited; false in a deployed build, where it is read-only. */
+  local: boolean;
 }
 
-/** `config/beads.json` as the Tower reads it: the project map, plus the hub
- * connection on a build that has one (see `TaskHubConnection`). */
+/** `config/beads.json` as the Tower reads it: the project map, and whether
+ * this Tower is served from its own machine (`vite.config.ts`). */
 export interface BeadsConfig {
   spokes: TaskHubSpoke[];
-  hub?: TaskHubConnection | null;
+  local?: boolean;
 }
 
 /** GET /api/settings — every portfolio-wide knob, in the order the page renders

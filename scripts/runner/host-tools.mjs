@@ -1,22 +1,12 @@
-// runner/host-tools.mjs — how the local runner finds this host's tools (`bd`,
-// `git`, `lsof`) under a service's minimal PATH, and the TCP probe it asks "does
+// runner/host-tools.mjs — how the local runner finds this host's tools (`git`,
+// `lsof`) under a service's minimal PATH, and the TCP probe it asks "does
 // anything answer here?" with. Running them is scripts/run-command.mjs's job.
 
 import { existsSync } from 'node:fs';
 import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
 
-// A service gets a minimal PATH, not the login shell's, so bd is not reliably
-// resolvable by name. Look where its installer puts it before falling back to a
-// bare name (which works from a login shell).
-const BD_CANDIDATES = [
-  path.join(os.homedir(), '.local', 'bin', 'bd'),
-  '/opt/homebrew/bin/bd',
-  '/usr/local/bin/bd',
-];
-
-// The runner also reads its own code revision. Homebrew's git
+// A service gets a minimal PATH, not the login shell's, so a tool is not
+// reliably resolvable by name. The runner reads its own code revision. Homebrew's git
 // first: /usr/bin/git is the Command Line Tools shim, which on a machine with no
 // CLT selected answers by opening a GUI installer prompt rather than by failing.
 const GIT_CANDIDATES = ['/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git'];
@@ -32,10 +22,6 @@ export function resolveBin(override, candidates, exists, fallback) {
     if (exists(candidate)) return candidate;
   }
   return fallback;
-}
-
-export function bdBin() {
-  return resolveBin(process.env.BEADS_BD_BIN, BD_CANDIDATES, existsSync, 'bd');
 }
 
 export function gitBin() {

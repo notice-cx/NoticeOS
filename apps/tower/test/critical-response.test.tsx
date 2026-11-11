@@ -63,7 +63,7 @@ describe('settings response', () => {
     ['collection key', (value: ReturnType<typeof settings>) => { Object.assign(value.collection, { knobs: [{ key: 'unknown', value: 0 }] }); }],
     ['schedule bool', (value: ReturnType<typeof settings>) => { Object.assign(value.collection, { schedules: { pull: { enabled: 0, cron: '* * * * *' } } }); }],
     ['entity list', (value: ReturnType<typeof settings>) => { Object.assign(value.entities, { rows: [{ slug: 'company', name: 'Company', assets: 'site.example' }] }); }],
-    ['hub port', (value: ReturnType<typeof settings>) => { Object.assign(value.taskHub, { hub: { host: 'localhost', port: 0, user: 'fixture', dataDir: './hub' } }); }],
+    ['local flag', (value: ReturnType<typeof settings>) => { Object.assign(value.taskHub, { local: 'yes' }); }],
     ['date', (value: ReturnType<typeof settings>) => { value.generatedAt = '2026-02-30T12:00:00Z'; }],
   ] as const)('refuses malformed %s without repairing the payload', (_name, mutate) => {
     const value = settings(); mutate(value);

@@ -47,9 +47,8 @@ declare const __BEADS__: BeadsConfig;
  * The compiled config, gathered once so `config-source.ts` never touches a
  * `define` and a test can hand it a whole configuration without a bundler.
  *
- * `__BEADS__` already carries `hub: null` in a build (vite.config.ts strips this
- * machine's internal topology out of a deployed bundle), and the resolver keeps
- * that answer rather than taking a hub out of a stored document.
+ * `__BEADS__` already carries `local: false` in a build (vite.config.ts), and
+ * the resolver keeps that answer rather than taking one out of a stored document.
  */
 export function compiledConfig(): TowerConfigFallbacks {
   return {

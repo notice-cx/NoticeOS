@@ -2,25 +2,25 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { test } from 'node:test';
 
-import { bdBin, gitBin, lsofBin, probeTcp, resolveBin } from './runner/host-tools.mjs';
+import { gitBin, lsofBin, probeTcp, resolveBin } from './runner/host-tools.mjs';
 
-// scripts/runner/host-tools.mjs: finding bd, git and lsof
+// scripts/runner/host-tools.mjs: finding git and lsof
 // under a service's minimal PATH, and the TCP probe.
 
 test('an override outranks every candidate; a blank one does not count', () => {
   const everywhere = () => true;
-  assert.equal(resolveBin('/custom/bd', ['/opt/homebrew/bin/bd'], everywhere, 'bd'), '/custom/bd');
-  assert.equal(resolveBin('   ', ['/opt/homebrew/bin/bd'], everywhere, 'bd'), '/opt/homebrew/bin/bd');
+  assert.equal(resolveBin('/custom/git', ['/opt/homebrew/bin/git'], everywhere, 'git'), '/custom/git');
+  assert.equal(resolveBin('   ', ['/opt/homebrew/bin/git'], everywhere, 'git'), '/opt/homebrew/bin/git');
 });
 
 test('the first candidate on disk wins, and the bare name is the last resort', () => {
   const only = (want) => (candidate) => candidate === want;
-  assert.equal(resolveBin(undefined, ['/a/bd', '/b/bd'], only('/b/bd'), 'bd'), '/b/bd');
-  assert.equal(resolveBin(undefined, ['/a/bd'], () => false, 'bd'), 'bd');
+  assert.equal(resolveBin(undefined, ['/a/git', '/b/git'], only('/b/git'), 'git'), '/b/git');
+  assert.equal(resolveBin(undefined, ['/a/git'], () => false, 'git'), 'git');
 });
 
 test('each tool reads its override when asked, not when the module loaded', () => {
-  const names = { BEADS_BD_BIN: bdBin, OS_UP_GIT_BIN: gitBin, OS_UP_LSOF_BIN: lsofBin };
+  const names = { OS_UP_GIT_BIN: gitBin, OS_UP_LSOF_BIN: lsofBin };
   for (const [variable, find] of Object.entries(names)) {
     const saved = process.env[variable];
     process.env[variable] = `/pinned/${variable}`;

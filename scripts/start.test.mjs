@@ -97,11 +97,6 @@ test('the Tower is told where this installation is, and the shell cannot pick ot
     OS_UP_PERSIST_STATE: '/Users/operator/reindex-os/.wrangler/state',
     CLOUDFLARE_ENV: 'production',
     CLOUDFLARE_INCLUDE_PROCESS_ENV: 'true',
-    BEADS_CREDENTIALS_FILE: '/synthetic/other-hub',
-    BEADS_DOLT_PASSWORD: 'synthetic-password',
-    BD_DOLT_SERVER_SOCKET: '/synthetic/other.sock',
-    DOLT_ROOT_PATH: '/synthetic/other-data',
-    MYSQL_PWD: 'synthetic-password',
   });
   assert.equal(env.PATH, '/bin');
   assert.equal(env.NOTICEOS_HOME, plan.home);
@@ -115,7 +110,6 @@ test('the Tower is told where this installation is, and the shell cannot pick ot
   assert.ok(inside(env.MINIFLARE_REGISTRY_PATH, plan.home));
   assert.equal('CLOUDFLARE_ENV' in env, false);
   assert.equal('CLOUDFLARE_INCLUDE_PROCESS_ENV' in env, false);
-  assert.equal(Object.keys(env).some(name => /^(?:BD_|BEADS_|DOLT_|MYSQL_)/u.test(name)), false);
 });
 
 test('the Tower gets the folder’s database address and no other the shell carries', () => {
@@ -154,7 +148,7 @@ test('a lane reaches the door and the bearer of the installation its dev server 
 });
 
 test('the NoticeOS stack’s ports are the runner’s own port map', () => {
-  assert.deepEqual([...MANAGED_PORTS].sort(), [CONFIG.towerPort, CONFIG.ingestPort, CONFIG.beadsHubPort, POSTGRES_PORT].sort());
+  assert.deepEqual([...MANAGED_PORTS].sort(), [CONFIG.towerPort, CONFIG.ingestPort, POSTGRES_PORT].sort());
 });
 
 test('a run refuses, in one line, a missing folder, a stack port, the checkout, or a folder it did not make', async (t) => {
@@ -168,7 +162,7 @@ test('a run refuses, in one line, a missing folder, a stack port, the checkout, 
 
   const root = tempDir(t, 'start-root-');
   const refusal = (options, fsView) => planRefusal(startPlan({ root, dir: path.join(root, 'runtime'), ...options }), fsView);
-  for (const port of [5173, 8790, 8791, 3307, 3308, 5431, 5432]) {
+  for (const port of [5173, 8790, 8791, 5431, 5432]) {
     assert.match(refusal({ port }), /belongs to the NoticeOS stack/);
   }
   assert.match(refusal({ port: 80 }), /1024 to 65534/);
@@ -187,7 +181,7 @@ test('a run refuses, in one line, a missing folder, a stack port, the checkout, 
   mkdirSync(empty);
   assert.equal(refusal({ dir: empty }), null);
   assert.equal(refusal({ dir: path.join(root, 'not-yet') }), null);
-  for (const line of [refusal({ port: 5173 }), refusal({ dir: '.' }), refusal({ dir: unmarked, port: 3308 })]) {
+  for (const line of [refusal({ port: 5173 }), refusal({ dir: '.' }), refusal({ dir: unmarked, port: 5432 })]) {
     assert.equal(line.split('\n').length, 1);
   }
 });
@@ -489,7 +483,6 @@ test('two developer commands seed a real Tower on its own new database, then sto
       await work(secrets.DATABASE_URL);
       assert.match(developmentRefusal(plan), /prior development runtime/);
       assert.equal(existsSync(path.join(home, 'postgres')), false);
-      assert.equal(existsSync(path.join(home, 'dolt')), false);
     } finally {
       if (child.exitCode === null && child.signalCode === null) {
         rememberTree();

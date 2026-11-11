@@ -44,7 +44,7 @@ async function checkout(t, { defaults = {}, installed = {} } = {}) {
 // The real files' shapes, example-named.
 const PULL = [{ asset: 'shop.example', url: 'https://shop.example/api/internal/metrics', enabled: true, format: 'prometheus', metrics: { signups: { counter: 'profiles' } } }];
 const HOST = { repositories: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop.example', database: 'shop' }] };
-const BEADS = { hub: { host: '127.0.0.1', port: 3308, user: 'root', dataDir: '.local/beads-dolt' }, spokes: [{ asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' }] };
+const BEADS = { spokes: [{ asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' }] };
 
 test('the folder is installation/ in the checkout unless the variable moves it', () => {
   const root = '/srv/noticeos';

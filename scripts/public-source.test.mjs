@@ -69,7 +69,7 @@ function fixture(t) {
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',
     'tsconfig.config-contract.json', 'tsconfig.config-contract.node.json',
     'scripts/script-tests-setup.mjs', 'apps/tower/package.json', 'workers/ingest/package.json',
-    'db/postgres/tables.json', 'db/dolt/host/compose.yaml', 'deploy/compose/Dockerfile',
+    'db/postgres/tables.json', 'deploy/compose/Dockerfile',
     'docs/README.md', 'docs/images/overview.svg', 'dev/cloud/README.md', 'dev/cloud/install.sh',
     'dev/cloud/codex/setup.sh', 'workers/ingest/src/credentials.ts',
     'workers/ingest/test/credentials.test.ts', 'apps/tower/public/brand/notice-design-system.zip']) write(file);

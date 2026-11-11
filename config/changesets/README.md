@@ -353,7 +353,7 @@ An empty or absent candidate set means *nobody answered* and refuses nothing.
 
 Two things a declaration deliberately does **not** do. It does not create what a
 row points at: adding a `task-hub-spokes` row maps a project, it does not create
-that project's Dolt database, which stays an operator step. And it does not
+that project in Ntasks, which stays an operator step. And it does not
 check uniqueness in the pipeline — the Tower refuses a duplicate key beside the
 field, before sending, because a duplicate `recurring-costs` id would re-book a
 month and the operator should hear that where they typed it.
@@ -395,10 +395,6 @@ anything below a knob. That is the whole reason for declaring a pointer rather
 than widening `SETTABLE_FILES` for the file: putting `config/counters.json` on
 that list would license rewriting every counter card in it, and no surface asks
 for that.
-
-**Not declared, on purpose:** `config/beads.json` `/hub` — host, port and
-`dataDir` are how `bd` reaches the Dolt server on this machine, wiring rather
-than a portfolio setting, and nothing a browser should be able to move.
 
 **Adding a knob** is a line in `config-registers.mjs` plus a row in the table
 above; `scripts/config-knobs.test.mjs` then drives every declared knob through

@@ -587,8 +587,7 @@ export const CONFIG_REGISTERS = {
         // a database merge two backlogs into one board.
         unique: ['prefix', 'database'],
         label: 'Task projects',
-        // Adding a row does not create the Dolt database it names; that is an
-        // operator step, and the surface says so.
+        // Adding a row does not create its Ntasks project; that is a step in Ntasks.
         describe: 'one task project per asset',
         owner: 'config/beads.README.md',
         surface: '/settings',
@@ -890,9 +889,6 @@ export function registerStamps(register) {
  * anything below it — and carries the same `RegisterField` a register column
  * does, so `fieldRefusal` judges it with the identical sentence. Widening
  * `SETTABLE_FILES` instead would license rewriting every roster note.
- *
- * Deliberately not declared: `config/beads.json` `/hub` (host, port,
- * dataDir) — how `bd` reaches the Dolt server, wiring rather than a setting.
  */
 export const CONFIG_KNOBS = {
     // A performance bound, not a correctness one: history outside the window

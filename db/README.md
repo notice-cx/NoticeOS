@@ -17,5 +17,5 @@ compatibility without applying changes. The approved automatic setup exception
 is limited to `pnpm os:setup` creating a provably new, empty installation.
 
 Settings and encrypted provider credentials live in Postgres. Raw provider
-archives remain in R2; task coordination remains in the Beads/Dolt hub. See
+archives remain in R2; tasks live in Ntasks. See
 [operations](../docs/06-operations.md) for backup and restore.

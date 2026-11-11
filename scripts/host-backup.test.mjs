@@ -31,12 +31,10 @@ async function fixture(t, prefix = 'host-backup-') {
   const destination = path.join(backupRoot, DAY);
   const syncParent = path.join(repoRoot, 'sync');
   const offsite = path.join(syncParent, 'backups');
-  const hostFile = path.join(repoRoot, 'config/task-host.json');
   const write = async (file, contents = 'fixture') => {
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, contents);
   };
-  const host = (repositories) => write(hostFile, JSON.stringify({ repositories }));
   const profile = { project: 'noticeos-test-backup', composeFile: path.join(postgres, 'compose.yaml'), secretsDir: path.join(postgres, 'secrets'), port: 5401 };
   await write(profileFile, JSON.stringify(profile));
   await write(profile.composeFile, 'synthetic compose');
@@ -44,14 +42,13 @@ async function fixture(t, prefix = 'host-backup-') {
   await write(path.join(r2, 'metadata.sqlite'), 'R2 metadata');
   await write(path.join(r2, 'metadata.sqlite-shm'), 'must not copy sidecars');
   await write(path.join(r2, 'blobs/archive'), 'raw archive');
-  await host([{ database: 'ro', repo: '/missing/checkout' }, { database: 'md' }]);
   await fs.mkdir(syncParent);
   const calls = [];
   const control = { fail: () => false, spawnError: false, timeout: false };
   function fakeSpawn(binary, args, options) {
     const child = new EventEmitter();
     child.kill = () => { queueMicrotask(() => child.emit('close', null, 'SIGKILL')); return true; };
-    let source, output, database;
+    let source, output;
     if (binary === 'docker') {
       if (args[0] === 'context') {
         child.stdout = new EventEmitter();
@@ -70,15 +67,8 @@ async function fixture(t, prefix = 'host-backup-') {
       assert.equal(args.length, 5);
       source = fileURLToPath(args[1]);
       output = JSON.parse(args[4].slice('.backup '.length));
-    } else {
-      assert.equal(binary, '/controlled/bd');
-      assert.deepEqual(args.slice(0, 4), ['-C', repoRoot, '--quiet', 'sql']);
-      const match = /^USE (\w+); CALL DOLT_BACKUP\('sync-url', 'file:\/\/(.*)'\)$/.exec(args[4]);
-      assert.ok(match, 'uses the consistent live-server backup command');
-      [, database, output] = match;
-      output = output.replaceAll("''", "'").replaceAll('\\\\', '\\');
-    }
-    const call = { binary, args, source, output, database, options };
+    } else assert.fail(`unexpected command ${binary}`);
+    const call = { binary, args, source, output, options };
     calls.push(call);
     queueMicrotask(async () => {
       try {
@@ -86,18 +76,17 @@ async function fixture(t, prefix = 'host-backup-') {
         if (control.timeout) return;
         if (control.omitOutput) { child.emit('close', 0, null); return; }
         if (binary === 'docker') writeSync(options.stdio[1], Buffer.from('PGDMP synthetic dump'));
-        else if (database) await write(path.join(output, 'snapshot'), database);
         else await fs.copyFile(source, output);
         child.emit('close', control.fail(call) ? 1 : 0, null);
       } catch (error) { child.emit('error', error); }
     });
     return child;
   }
-  const settings = { repoRoot, retentionDays: 30, offsiteBackupDir: offsite, bdBinary: '/controlled/bd' };
+  const settings = { repoRoot, retentionDays: 30, offsiteBackupDir: offsite };
   const adapters = { cloudflareD1: { inventory: async () => null }, spawn: fakeSpawn, now: () => NOW, env: { PATH: '/controlled' }, claimNamespace: 'a'.repeat(64) };
   return {
-    repoRoot, postgres, profileFile, profile, r2, backupRoot, destination, offsite, syncParent, hostFile,
-    write, host, calls, control, settings, adapters, fakeSpawn,
+    repoRoot, postgres, profileFile, profile, r2, backupRoot, destination, offsite, syncParent,
+    write, calls, control, settings, adapters, fakeSpawn,
     run: (overrides = {}) => runBackup(settings, { ...adapters, ...overrides }),
   };
 }
@@ -493,7 +482,7 @@ for (const scenario of ['failed', 'empty', 'missing', 'changed-task', 'compressi
     assert.equal(result.ok, false);
     assert.equal(result.stages.assets.status, 'failed');
     assert.equal(result.stages.retention.status, 'blocked');
-    assert.equal(result.stages.taskHub.status, 'completed');
+    assert.equal(result.stages.postgres.status, 'completed');
     assert.equal(invoked, scenario === 'changed-task' ? 0 : 1);
     assert.deepEqual(await fs.readdir(asset.exports), ['manual.sql']);
     for (const base of [f.backupRoot, f.offsite]) {
@@ -743,16 +732,14 @@ async function recordedRun(f, adapters) {
 
 test('a complete operation copies all physical stores, instructions and handoff, and records success', async (t) => {
   const f = await fixture(t);
-  // Physical inventory still covers a database absent from saved membership.
-  await f.write(path.join(f.repoRoot, 'config/beads.json'), JSON.stringify({ spokes: [] }));
   const { result, record } = await recordedRun(f);
   assert.equal(result.ok, true);
   assert.equal(record.outcome, 'ran');
   assert.deepEqual(result.backupSet, { path: f.destination, complete: true });
   assert.equal(result.stages.postgres.copied, 1);
   assert.equal(result.stages.r2.copied, 2);
-  assert.equal(result.stages.taskHub.copied, 2);
-  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'md']);
+  // With no task service connected the set records that it has no tasks.
+  assert.equal(result.stages.taskHub.status, 'not_configured');
   assert.equal(await fs.readFile(path.join(f.destination, 'r2/blobs/archive'), 'utf8'), 'raw archive');
   assert.equal((await fs.stat(path.join(f.destination, 'postgres/noticeos.dump'))).mode & 0o777, 0o600);
   await absent(path.join(f.destination, 'central.sqlite'));
@@ -762,162 +749,13 @@ test('a complete operation copies all physical stores, instructions and handoff,
   assert.match(readme, /Postgres: completed; 1\/1 copied/);
   assert.match(readme, /pruned after 30 days/);
   assert.match(readme, /Never restore over a RUNNING system/);
-  assert.match(readme, /dolt backup restore/);
+  assert.match(readme, /No tasks: no task service was connected/);
   assert.match(readme, /does not establish restore verification/);
   assert.match(readme, /does not establish completed remote synchronization/);
   assert.equal(await fs.readFile(path.join(f.offsite, DAY, 'RESTORE.md'), 'utf8'), readme);
   assert.equal((await fs.stat(path.join(f.offsite, DAY, 'postgres/noticeos.dump'))).mode & 0o777, 0o600);
   assert.deepEqual(await fs.readdir(f.backupRoot), [DAY]);
   assert.deepEqual(await fs.readdir(f.offsite), [DAY]);
-});
-
-async function composeHubFixture(f, { failure, doltHome = f.repoRoot } = {}) {
-  const home = path.join(doltHome, 'dolt');
-  const profile = {
-    project: 'noticeos-start-0123456789abcdef',
-    composeFile: path.join(home, 'compose.yaml'),
-    secretsDir: path.join(home, 'secrets'),
-    credentialsFile: path.join(home, 'credentials'), port: 19450,
-  };
-  await f.write(path.join(home, 'profile.json'), JSON.stringify(profile));
-  const password = 'a'.repeat(64);
-  for (const [file, contents] of [
-    [path.join(profile.secretsDir, 'root'), `${'b'.repeat(64)}\n`],
-    [path.join(profile.secretsDir, 'noticeos'), `${password}\n`],
-    [profile.credentialsFile, `[127.0.0.1:${profile.port}]\npassword=${password}\n`],
-  ]) {
-    await f.write(file, contents);
-    await fs.chmod(file, 0o600);
-  }
-  const calls = [];
-  let stage;
-  const runDolt = async (binary, args, options) => {
-    assert.equal(binary, 'docker');
-    calls.push({ args, options });
-    if (args[0] === 'context') return { code: 0, stdout: 'unix:///synthetic/docker.sock', stderr: '' };
-    assert.deepEqual(args.slice(0, 7), ['compose', '-p', profile.project, '-f', profile.composeFile, '--env-file', '/dev/null']);
-    assert.equal(options.env.DOCKER_HOST, 'unix:///synthetic/docker.sock');
-    assert.equal(options.env.BEADS_CREDENTIALS_FILE, profile.credentialsFile);
-    assert.equal(options.env.BEADS_DOLT_PASSWORD, undefined);
-    assert.equal(options.env.MYSQL_PWD, undefined);
-    const command = args.slice(7);
-    if (command[0] === 'exec' && command.includes('/etc/noticeos/capture.sh')) {
-      stage = command[5];
-      assert.match(stage, /^\/tmp\/noticeos-backup-[a-f0-9]{32}$/u);
-      assert.deepEqual(command.slice(6), ['ro', 'md']);
-      if (failure === 'capture') return { code: 1, stdout: '', stderr: password };
-    } else if (command[0] === 'cp') {
-      assert.equal(command[1], `dolt:${stage}/.`);
-      const output = command[2];
-      for (const database of ['ro', 'md']) {
-        await f.write(path.join(output, 'databases', database, 'manifest'), `snapshot ${database}`);
-        await f.write(path.join(output, 'status', `${database}.json`), JSON.stringify({ rows: [{ status: failure === 'status' ? 1 : 0 }] }));
-        for (const name of ['config.json', 'repo_state.json']) {
-          await f.write(path.join(output, 'metadata', 'databases', database, `${name}.absent`), '');
-        }
-      }
-      if (failure !== 'metadata') await f.write(path.join(output, 'metadata', 'privileges.db'), 'synthetic permissions');
-      for (const name of ['branch_control.db', 'server-config.json', 'global-config.json']) {
-        await f.write(path.join(output, 'metadata', `${name}.absent`), '');
-      }
-      if (failure === 'copy') return { code: 1, stdout: '', stderr: password };
-    } else {
-      assert.deepEqual(command, ['exec', '--no-TTY', 'dolt', 'rm', '-rf', '--', stage]);
-    }
-    return { code: 0, stdout: '', stderr: '' };
-  };
-  return { profile, calls, runDolt, password };
-}
-
-test('an explicit independent Dolt home owns capture; absence cannot select the legacy hub', async t => {
-  const f = await fixture(t);
-  const doltHome = path.join(f.repoRoot, 'independent-task-home');
-  const hub = await composeHubFixture(f, { doltHome });
-  const result = await runBackup({ ...f.settings, doltHome }, { ...f.adapters, runDolt: hub.runDolt });
-  assert.equal(result.ok, true, result.detail);
-  assert.equal(result.stages.taskHub.copied, 2);
-  assert.equal(f.calls.some(call => call.database), false);
-  await fs.rm(path.join(doltHome, 'dolt/profile.json'));
-  f.calls.length = 0;
-  const failed = await runBackup({ ...f.settings, doltHome }, f.adapters);
-  assert.equal(failed.ok, false);
-  assert.match(failed.detail, /legacy capture was refused/u);
-  assert.equal(f.calls.some(call => call.database), false);
-  assert.equal(failed.stages.publication.status, 'blocked');
-  assert.equal(JSON.parse(await fs.readFile(path.join(f.destination, 'backup.json'), 'utf8')).complete, true);
-});
-
-test('Compose task backups publish online snapshots and private recovery metadata in both complete sets', async (t) => {
-  const f = await fixture(t);
-  const hub = await composeHubFixture(f);
-  const result = await f.run({ runDolt: hub.runDolt, env: {
-    ...f.adapters.env, BEADS_DOLT_PASSWORD: 'inherited-secret', MYSQL_PWD: 'wrong-server-secret',
-  } });
-  assert.equal(result.ok, true, result.detail);
-  assert.equal(result.stages.taskHub.expected, 2);
-  assert.equal(result.stages.taskHub.copied, 2);
-  assert.equal(f.calls.some(call => call.database), false, 'no host bd fallback');
-  for (const base of [f.destination, path.join(f.offsite, DAY)]) {
-    const root = path.join(base, 'beads');
-    const manifest = JSON.parse(await fs.readFile(path.join(root, 'backup.json'), 'utf8'));
-    assert.equal(manifest.complete, true);
-    assert.deepEqual(manifest.databases, ['ro', 'md']);
-    const relative = 'metadata/secrets/noticeos';
-    assert.equal(manifest.files[relative].sha256, createHash('sha256').update(`${hub.password}\n`).digest('hex'));
-    assert.equal((await fs.stat(path.join(root, relative))).mode & 0o777, 0o600);
-    assert.equal((await fs.stat(path.join(root, 'metadata/beads-credentials'))).mode & 0o777, 0o600);
-    assert.equal(await fs.readFile(path.join(root, 'databases/md/manifest'), 'utf8'), 'snapshot md');
-    const instructions = await fs.readFile(path.join(base, 'RESTORE.md'), 'utf8');
-    assert.match(instructions, /db\/dolt\/host\/README.md/);
-    assert.match(instructions, /not one transaction across all projects/);
-    assert.doesNotMatch(instructions, /dolt backup restore file/);
-  }
-  assert.equal(JSON.stringify(result).includes(hub.password), false);
-});
-
-for (const failure of ['capture', 'copy', 'status', 'metadata']) {
-  test(`Compose task ${failure} failure blocks publication and preserves earlier complete backups`, async (t) => {
-    const f = await fixture(t);
-    const hub = await composeHubFixture(f, { failure });
-    await previousSets(f, ['2026-08-01']);
-    const result = await f.run({ runDolt: hub.runDolt });
-    assert.equal(result.ok, false);
-    assert.equal(result.stages.taskHub.status, 'failed');
-    assert.equal(result.stages.taskHub.copied, 0);
-    assert.equal(result.stages.publication.status, 'blocked');
-    assert.equal(result.stages.retention.status, 'blocked');
-    assert.equal(JSON.stringify(result).includes(hub.password), false);
-    assert.equal(f.calls.some(call => call.database), false);
-    for (const base of [f.backupRoot, f.offsite]) {
-      await absent(path.join(base, DAY));
-      assert.deepEqual(await fs.readdir(base), ['2026-08-01']);
-    }
-    assert.ok(hub.calls.at(-1).args.includes(stageArgument(hub.calls)), 'only the invocation staging directory is cleaned');
-  });
-}
-
-function stageArgument(calls) {
-  return calls.find(call => call.args.includes('/etc/noticeos/capture.sh')).args.at(-3);
-}
-
-test('a malformed Compose profile fails closed without falling back to the host hub', async (t) => {
-  const f = await fixture(t);
-  await f.write(path.join(f.repoRoot, 'dolt/profile.json'), '{broken');
-  const result = await f.run({ runDolt: () => assert.fail('malformed profile cannot select Docker') });
-  assert.equal(result.stages.taskHub.status, 'failed');
-  assert.equal(result.stages.publication.status, 'blocked');
-  assert.equal(f.calls.some(call => call.database), false);
-});
-
-test('a declared Compose task hub with no inventory fails even in linked-installation mode', async (t) => {
-  const f = await fixture(t);
-  await composeHubFixture(f);
-  await f.host([]);
-  const result = await runBackup({ ...f.settings, taskHub: 'linked' }, {
-    ...f.adapters, runDolt: () => assert.fail('no invented database inventory'),
-  });
-  assert.equal(result.stages.taskHub.status, 'failed');
-  assert.equal(result.stages.publication.status, 'blocked');
 });
 
 async function ntasksExport(f, tables = { projects: [{ id: 'p1' }], tasks: [{ id: 'ex-1' }, { id: 'ex-2' }], write_receipts: [] }) {
@@ -927,18 +765,13 @@ async function ntasksExport(f, tables = { projects: [{ id: 'p1' }], tasks: [{ id
   return file;
 }
 
-for (const hub of ['declared Compose hub', 'checkout hub']) {
-  test(`while tasks live in Ntasks a ${hub} is left out and the set keeps Ntasks's export with its rows`, async (t) => {
+{
+  test('while tasks live in Ntasks the set keeps Ntasks\'s export with its rows', async (t) => {
     const f = await fixture(t);
-    if (hub === 'declared Compose hub') await composeHubFixture(f);
     const tasksExport = await ntasksExport(f);
-    const result = await runBackup({ ...f.settings, taskHub: 'ntasks', tasksExport }, {
-      ...f.adapters, runDolt: () => assert.fail('no Dolt command while tasks live in Ntasks'),
-    });
+    const result = await runBackup({ ...f.settings, taskHub: 'ntasks', tasksExport }, f.adapters);
     assert.equal(result.ok, true, result.detail);
     assert.equal(result.backupSet.complete, true);
-    assert.equal(f.calls.some((call) => call.binary === '/controlled/bd'), false);
-    await absent(path.join(f.destination, 'beads'));
     const kept = path.join(f.destination, 'ntasks', 'backup.json');
     assert.equal(await fs.readFile(kept, 'utf8'), await fs.readFile(tasksExport, 'utf8'));
     assert.equal((await fs.stat(kept)).mode & 0o777, 0o600);
@@ -950,7 +783,6 @@ for (const hub of ['declared Compose hub', 'checkout hub']) {
     assert.match(restore, /Task hub: completed; 1\/1 copied; rows: projects 1, tasks 2, write_receipts 0/u);
     assert.match(restore, /`ntasks\/backup\.json`: every row of the Ntasks task store/u);
     assert.match(restore, /Task hub: in an Ntasks checkout .*\n.*restore --from <this-dir>\/ntasks\/backup\.json/u);
-    assert.doesNotMatch(restore, /dolt backup restore|db\/dolt\/host/u);
   });
 }
 
@@ -970,16 +802,16 @@ test('while tasks live in Ntasks a backup with no export, or a damaged one, is i
   }
 });
 
-for (const store of ['postgres', 'r2', 'taskHub']) {
+for (const store of ['postgres', 'r2']) {
   test(`${store} inventory unavailable records failure and still copies other stores`, async (t) => {
     const f = await fixture(t);
-    await fs.rm(store === 'taskHub' ? f.hostFile : f[store], { recursive: true });
+    await fs.rm(f[store], { recursive: true });
     const { result, record } = await recordedRun(f);
     assert.equal(result.ok, false);
     assert.equal(record.outcome, 'failed');
     assert.equal(result.stages[store].status, 'failed');
     assert.equal(result.stages[store].expected, store === 'postgres' ? 1 : null);
-    for (const other of ['postgres', 'r2', 'taskHub'].filter((key) => key !== store)) {
+    for (const other of ['postgres', 'r2'].filter((key) => key !== store)) {
       assert.equal(result.stages[other].status, 'completed');
     }
     assert.deepEqual(result.backupSet, { path: null, complete: false });
@@ -988,15 +820,13 @@ for (const store of ['postgres', 'r2', 'taskHub']) {
   });
 }
 
-test('failed Postgres and hub copies block publication while later databases still copy', async (t) => {
+test('a failed Postgres copy blocks publication', async (t) => {
   const f = await fixture(t);
-  f.control.fail = ({ binary, database }) => binary === 'docker' || database === 'ro';
+  f.control.fail = ({ binary }) => binary === 'docker';
   const { result, record } = await recordedRun(f);
   assert.equal(record.outcome, 'failed');
   assert.equal(result.stages.postgres.copied, 0);
   assert.equal(result.stages.postgres.expected, 1);
-  assert.equal(result.stages.taskHub.copied, 1);
-  assert.equal(result.stages.taskHub.expected, 2);
   assert.deepEqual(result.backupSet, { path: null, complete: false });
   await absent(f.destination);
   assert.deepEqual(await fs.readdir(f.backupRoot), []);
@@ -1011,7 +841,7 @@ test('a partial R2 blob copy is counted, removed and reported through the job re
   assert.equal(result.stages.r2.copied, 1);
   assert.equal(result.stages.r2.expected, 2);
   assert.equal(result.stages.r2.status, 'failed');
-  assert.equal(result.stages.taskHub.status, 'completed');
+  assert.equal(result.stages.taskHub.status, 'not_configured');
   assert.equal(record.outcome, 'failed');
   assert.match(record.detail, /R2: failed/);
   await absent(path.join(f.destination, 'r2/blobs/archive'));
@@ -1027,64 +857,16 @@ test('R2 metadata failure is a failed run even when every blob copies', async (t
   await absent(f.destination);
 });
 
-test('missing Postgres/hub inventories fail; a readable empty R2 store is a valid empty store', async (t) => {
+test('a missing Postgres inventory fails; a readable empty R2 store is a valid empty store', async (t) => {
   const f = await fixture(t);
   await fs.rm(f.profileFile);
   await fs.rm(f.r2, { recursive: true });
   await fs.mkdir(f.r2);
-  await f.host([]);
   const result = await f.run();
   assert.equal(result.ok, false);
   assert.equal(result.stages.postgres.status, 'failed');
-  assert.equal(result.stages.taskHub.status, 'failed');
   assert.equal(result.stages.r2.status, 'completed');
   assert.equal(result.stages.r2.expected, 0);
-});
-
-test('a linked task hub backs up only the task databases its host links, each through its own checkout', async (t) => {
-  // Linking none is not configured, not a failed set.
-  const f = await fixture(t);
-  for (const inventory of ['empty', 'absent']) {
-    if (inventory === 'empty') await f.host([]);
-    else await fs.rm(f.hostFile);
-    const none = await runBackup({ ...f.settings, taskHub: 'linked' }, f.adapters);
-    assert.equal(none.ok, true, inventory);
-    assert.equal(none.stages.taskHub.status, 'not_configured', inventory);
-    assert.deepEqual(none.backupSet, { path: f.destination, complete: true });
-  }
-  assert.equal(f.calls.some((call) => call.database), false);
-
-  await f.host([{ database: 'shop', repo: '../shop.example' }, { database: 'shop', repo: '../other.example' }]);
-  const checkouts = [];
-  const linked = await runBackup({ ...f.settings, taskHub: 'linked' }, { ...f.adapters, spawn: (binary, args, options) => {
-    if (binary === '/controlled/bd') {
-      checkouts.push(args[1]);
-      return f.fakeSpawn(binary, ['-C', f.repoRoot, ...args.slice(2)], options);
-    }
-    return f.fakeSpawn(binary, args, options);
-  } });
-  assert.equal(linked.ok, true);
-  assert.equal(linked.stages.taskHub.status, 'completed');
-  assert.deepEqual(checkouts, [path.resolve(f.repoRoot, '../shop.example')], 'one copy per database, through its first linked checkout');
-});
-
-test('malformed task inventory fails only that store', async (t) => {
-  const f = await fixture(t);
-  await f.write(f.hostFile, '{broken');
-  const result = await f.run();
-  assert.equal(result.stages.taskHub.status, 'failed');
-  assert.equal(result.stages.postgres.status, 'completed');
-  assert.equal(result.stages.r2.status, 'completed');
-});
-
-test('invalid task names fail the inventory while valid deduplicated names are still copied', async (t) => {
-  const f = await fixture(t);
-  await f.host([{ database: ' ro ' }, { database: 'ro' }, { database: 'bad;name' }, { database: 'md' }]);
-  const result = await f.run();
-  assert.equal(result.stages.taskHub.status, 'failed');
-  assert.equal(result.stages.taskHub.expected, 3);
-  assert.equal(result.stages.taskHub.copied, 2);
-  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'md']);
 });
 
 test('an unconfigured offsite handoff is explicit and optional', async (t) => {
@@ -1188,7 +970,6 @@ test('a failed same-day rerun retains both completed sets and cannot prune the l
   await f.write(path.join(f.destination, 'previous'), 'last completed set');
   await f.write(path.join(f.backupRoot, '2026-08-01', 'last-good'));
   await fs.rm(f.r2, { recursive: true });
-  await f.host([{ database: 'md' }]);
   const result = await f.run();
   assert.equal(result.ok, false);
   assert.deepEqual(result.backupSet, { path: null, complete: false });
@@ -1197,7 +978,6 @@ test('a failed same-day rerun retains both completed sets and cannot prune the l
   for (const base of [f.destination, path.join(f.offsite, DAY)]) {
     assert.deepEqual(await fs.readFile(path.join(base, 'RESTORE.md')), before);
     await fs.access(path.join(base, 'r2/blobs/archive'));
-    await fs.access(path.join(base, 'beads/ro/snapshot'));
   }
   await fs.access(path.join(f.backupRoot, '2026-08-01', 'last-good'));
 });
@@ -1206,11 +986,9 @@ test('a complete same-day rerun replaces the whole set without stale files', asy
   const f = await fixture(t);
   assert.equal((await f.run()).ok, true);
   await f.write(path.join(f.destination, 'stale'));
-  await f.host([{ database: 'md' }]);
   assert.equal((await f.run()).ok, true);
   for (const base of [f.destination, path.join(f.offsite, DAY)]) {
     await absent(path.join(base, 'stale'));
-    await absent(path.join(base, 'beads/ro'));
     await fs.access(path.join(base, 'postgres/noticeos.dump'));
   }
 });
@@ -1357,7 +1135,6 @@ test('an instruction write failure is recorded and cannot publish an unexplained
     return fs.writeFile(file, ...args);
   } } });
   assert.equal(record.outcome, 'failed');
-  assert.equal(result.stages.taskHub.copied, 2);
   assert.equal(result.stages.instructions.status, 'failed');
   assert.equal(result.stages.publication.status, 'blocked');
   await absent(f.destination);
@@ -1372,7 +1149,7 @@ test('failed partial-file cleanup blocks publication but does not stop other sto
   } } });
   assert.equal(result.ok, false);
   assert.equal(result.stages.postgres.failureCount, 2);
-  assert.equal(result.stages.taskHub.status, 'completed');
+  assert.equal(result.stages.r2.status, 'completed');
   assert.equal(result.stages.publication.status, 'blocked');
   await absent(f.destination);
 });
@@ -1407,10 +1184,9 @@ for (const failure of ['spawnError', 'timeout']) {
     f.control[failure] = true;
     const result = await f.run({ commandTimeoutMs: 5 });
     assert.equal(result.ok, false);
-    assert.equal(f.calls.length, 5);
+    assert.equal(f.calls.length, 3);
     assert.equal(result.stages.postgres.status, 'failed');
     assert.equal(result.stages.r2.status, 'failed');
-    assert.equal(result.stages.taskHub.status, 'failed');
   });
 }
 
@@ -1426,7 +1202,6 @@ test('a command exit of zero without a copied artifact cannot claim success', as
   const result = await f.run();
   assert.equal(result.ok, false);
   assert.equal(result.stages.postgres.copied, 0);
-  assert.equal(result.stages.taskHub.copied, 0);
   assert.equal(result.stages.r2.copied, 1); // The ordinary blob copy still completes.
 });
 
