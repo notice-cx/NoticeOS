@@ -385,11 +385,11 @@ export async function runMediavine(env: IngestEnv, options: MediavineOptions = {
   let ran = 0; let failed = 0; let waiting = 0;
   for (const [asset] of targets) {
     const result = await syncMediavine(env, { asset }, { ...options, automatic: true });
-    if (result.outcome === 'ran') ran++;
-    // Mediavine not having published a day yet is no failure of this job.
-    else if (!result.ok && result.unfinished) waiting++;
-    else if (result.outcome === 'failed') failed++;
-    console.log(JSON.stringify({ event: 'mediavine_sync', asset, outcome: result.outcome, ...(result.ok ? {} : { message: result.message }) }));
+    const outcome = !result.ok && result.unfinished ? 'waiting' : result.outcome;
+    if (outcome === 'ran') ran++;
+    else if (outcome === 'waiting') waiting++;
+    else if (outcome === 'failed') failed++;
+    console.log(JSON.stringify({ event: 'mediavine_sync', asset, outcome, ...(result.ok ? {} : { message: result.message }) }));
   }
   if (failed) return { outcome: 'failed', detail: `${failed} Mediavine syncs failed; ${ran} completed.` };
   if (ran) return { outcome: 'ran', detail: `${ran} Mediavine syncs completed.` };
