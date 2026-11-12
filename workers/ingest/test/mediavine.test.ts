@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dates, MEDIAVINE_REPORTING_CLOCK, type Period } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { discoverMediavineSites, withMediavineLease } from '../src/mediavine-connection.js';
@@ -89,6 +89,7 @@ beforeEach(async () => {
   await emptyTables(['config_changes']);
   await emptyTables(['config_documents']);
 });
+afterEach(() => vi.restoreAllMocks());
 describe('Mediavine encrypted connection and controls', () => {
   it('saves the forecast calendar without making provider requests or clearing sync limits', async () => {
     const fetchImpl = await connect();
@@ -393,7 +394,9 @@ describe('a day Mediavine has not published yet', () => {
     await runMediavine(env, { fetchImpl, nowMs: NOW + 20 * 60_000 });
     expect(reports(fetchImpl)).toBe(1);
     // An hour on Mediavine still shows $0: asked again, nothing stored, and the scheduled job has not failed.
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + HOUR })).outcome).toBe('skipped');
+    expect(JSON.parse(String(log.mock.lastCall?.[0]))).toMatchObject({ event: 'mediavine_sync', asset: ASSET, outcome: 'waiting' });
     expect(reports(fetchImpl)).toBe(2);
     expect(await storedDays()).toHaveLength(7);
     published = true;
@@ -439,7 +442,9 @@ describe('a day Mediavine has not published yet', () => {
 describe('request budget and scheduling', () => {
   it('stops automatic requests after permission denial without trying to reauthenticate', async () => {
     await connect(); const fetchImpl = transport({ status: 403 });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('failed');
+    expect(JSON.parse(String(log.mock.lastCall?.[0]))).toMatchObject({ event: 'mediavine_sync', asset: ASSET, outcome: 'failed' });
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 })).outcome).toBe('skipped');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
