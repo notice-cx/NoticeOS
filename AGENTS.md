@@ -428,9 +428,9 @@ the first push:
   before and after, why, and the commands run with what they showed, including
   what was not run.
 - **Linked Issues check and Out of Scope Changes check.** These run only when
-  the pull request links a GitHub issue; the change then does what the issue
-  asks and nothing else. Maintainer work names its task in a `Refs:` footer
-  and links no issue.
+  the pull request links a GitHub issue; the change then meets the
+  requirements in the issue and does nothing else. Maintainer work names its
+  task in a `Refs:` footer and links no issue.
 
 Its review compares each new sentence in the docs with the code and with the
 page that defines the term. Use that page's wording, and state the case that
