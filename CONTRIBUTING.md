@@ -184,6 +184,11 @@ feat(wall): add configurable metrics
 docs: clarify the first-run setup
 ```
 
+A pull request's description fills the three sections of
+[its template](.github/pull_request_template.md): what changes, as the behavior
+before and after; why; and how it was checked, with the commands run, what they
+showed and what was not run.
+
 Give the PR title the same format so it can serve as the final commit title
 when squash merging. Apply this standard to new commits; do not amend existing
 commits or rewrite published history to make them conform.

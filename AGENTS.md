@@ -417,6 +417,30 @@ warning alone is answered on its thread or folded into the next push, never
 pushed by itself. A reply to CodeRabbit's rate-limit notices or
 acknowledgements counts against its limit too, so none is sent.
 
+CodeRabbit also runs four pre-merge checks on every pull request and lists
+their results in its summary comment. Write the pull request so each passes on
+the first push:
+
+- **Title check.** The title is one short sentence that names the change, in
+  the [title standard](CONTRIBUTING.md#commit-messages-and-pull-request-titles).
+- **Description check.** The description has every section of
+  [the template](.github/pull_request_template.md), each filled: the behavior
+  before and after, why, and the commands run with what they showed, including
+  what was not run.
+- **Linked Issues check and Out of Scope Changes check.** These run only when
+  the pull request links a GitHub issue; the change then does what the issue
+  asks and nothing else. Maintainer work names its task in a `Refs:` footer
+  and links no issue.
+
+Its review compares each new sentence in the docs with the code and with the
+page that defines the term. Use that page's wording, and state the case that
+looks like an exception.
+
+A pull request's title, description, comments and commit messages name no
+issue or pull request of another repository, by number or by link: GitHub adds
+a public "mentioned this" line to it. A link in a file of this repository adds
+none.
+
 ## State (dated facts; an expired entry is unknown, not true)
 
 - Toolchain: Node 24.21.0 LTS and pnpm 12.8.1, declared in `package.json` and CI.
