@@ -231,9 +231,14 @@ export class MediavineClient {
     }
   }
   async sites(): Promise<Site[]> {
-    const sites: Site[] = []; let after: string | null = null;
+    const sites: Site[] = [];
+    let after: string | null = null;
+    const selection = '{ edges { node { id title domain } } pageInfo { hasNextPage endCursor } }';
     for (let page = 0; page < 20; page++) {
-      const data = await this.authenticated('query NoticeOSSites($after: String) { sitesForUser(first: 99, after: $after) { edges { node { id title domain } } pageInfo { hasNextPage endCursor } } }', { after });
+      // Match the publisher dashboard's first page by omitting the cursor argument.
+      const data = after === null
+        ? await this.authenticated(`query NoticeOSSites { sitesForUser(first: 99) ${selection} }`, {})
+        : await this.authenticated(`query NoticeOSSites($after: String) { sitesForUser(first: 99, after: $after) ${selection} }`, { after });
       const connection = object(data.sitesForUser);
       if (!Array.isArray(connection.edges)) throw invalid();
       sites.push(...connection.edges.map(edge => site(object(edge).node)));

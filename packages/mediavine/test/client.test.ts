@@ -83,6 +83,29 @@ describe('provider session and request budget', () => {
     expect(run.fetchImpl).toHaveBeenCalledTimes(3);
   });
 });
+describe('publisher site discovery', () => {
+  it('lists newly available sites on a cursorless first page and follows the next cursor', async () => {
+    const newSite = { id: 'site-two', domain: 'new.example', title: 'New publisher' };
+    const nextSite = { id: 'site-three', domain: 'another.example', title: 'Another publisher' };
+    const page = (sites: typeof SITE[], endCursor: string | null) => json({
+      sitesForUser: {
+        edges: sites.map(node => ({ node })),
+        pageInfo: { hasNextPage: endCursor !== null, endCursor },
+      },
+    });
+    const run = client([]);
+    run.fetchImpl.mockImplementation(async (_input, init) => {
+      const { query, variables } = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+      if (/sitesForUser\(first: 99\)/u.test(query) && !('after' in variables)) return page([SITE, newSite], 'next');
+      if (variables.after === 'next') return page([nextSite], null);
+      return page([SITE], null);
+    });
+
+    await expect(run.client.sites()).resolves.toEqual([SITE, newSite, nextSite]);
+    expect(run.fetchImpl).toHaveBeenCalledTimes(2);
+    expect(run.saveSession).not.toHaveBeenCalled();
+  });
+});
 describe('report truth', () => {
   it('keeps unknown dates and null revenue distinct from zero', () => {
     expect(normalizeReport(report(null), period, NOW).complete).toBe(false);
