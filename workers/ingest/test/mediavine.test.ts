@@ -19,19 +19,25 @@ const ASSET = 'meadow.example';
 const SITE = { id: 'synthetic-site', title: 'Test publisher', domain: 'example.test' };
 const SECRET = 'synthetic-private-password';
 const reportPeriod = (value: string) => `${value.slice(6)}-${value.slice(0, 2)}-${value.slice(3, 5)}`;
-function transport(options: { revenue?: number | null; revenueOn?: (date: string) => number | null; status?: number; retryAfter?: string } = {}) {
+function transport(options: { sites?: readonly typeof SITE[]; revenue?: number | null; revenueOn?: (date: string) => number | null; status?: number; retryAfter?: string } = {}) {
+  const sites = options.sites ?? [SITE];
   return vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, string | null> };
     if (body.query.includes('unidashSignIn')) return Response.json({ data: { unidashSignIn: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresIn: 3600, twoFactorRequired: false } } });
     if (body.query.includes('unidashRefreshToken')) return Response.json({ data: { unidashRefreshToken: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh', expiresIn: 3600 } } });
-    if (body.query.includes('sitesForUser')) return Response.json({ data: { sitesForUser: { edges: [{ node: SITE }], pageInfo: { hasNextPage: false, endCursor: null } } } });
+    if (body.query.includes('sitesForUser')) {
+      const edges = sites.map(node => ({ node }));
+      return Response.json({ data: { sitesForUser: { edges, pageInfo: { hasNextPage: false, endCursor: null } } } });
+    }
     if (options.status) return new Response('', { status: options.status, headers: options.retryAfter ? { 'retry-after': options.retryAfter } : undefined });
+    const reportSite = sites.find(site => site.id === body.variables.siteId);
+    if (!reportSite) return new Response('', { status: 403 });
     const period: Period = { start: reportPeriod(body.variables.startDate!), end: reportPeriod(body.variables.endDate!) };
     const days = dates(period);
     const value = options.revenue === undefined ? 1.25 : options.revenue;
     const on = options.revenueOn ?? (() => value);
     const earnings = days.map(date => ({ date: date.replaceAll('-', '/'), revenue: on(date) }));
-    return Response.json({ data: { internalSite: SITE, metricsSummary: { summary: { earnings: earnings.reduce((sum, day) => sum + (day.revenue ?? 0), 0) + 0.02 } }, earningsReport: { earnings } } });
+    return Response.json({ data: { internalSite: reportSite, metricsSummary: { summary: { earnings: earnings.reduce((sum, day) => sum + (day.revenue ?? 0), 0) + 0.02 } }, earningsReport: { earnings } } });
   });
 }
 async function connect() {
@@ -500,10 +506,12 @@ describe('Mediavine in the connect panel', () => {
     expect((await resolveCredential(env, 'mediavine')).source).toBe('none');
   });
 
-  it('keeps an accepted login with its session and asset list, so the panel lists the assets without signing in again', async () => {
-    const fetchImpl = transport();
+  it('keeps every site on an accepted login so the panel can match each one without signing in again', async () => {
+    const sites = [SITE, { id: 'second-site', title: 'Second publisher', domain: 'second.example' },
+      { id: 'third-site', title: 'Third publisher', domain: 'third.example' }];
+    const fetchImpl = transport({ sites });
     const answer = await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl, nowMs: NOW });
-    expect(answer).toMatchObject({ ok: true, verdict: 'accepted', facts: { sites: 1 } });
+    expect(answer).toMatchObject({ ok: true, verdict: 'accepted', facts: { sites: 3 } });
     expect(JSON.stringify(answer)).not.toContain(SECRET);
     expect(fetchImpl).toHaveBeenCalledTimes(2); // sign in, list sites
     const stored = await resolveCredential(env, 'mediavine');
@@ -511,9 +519,9 @@ describe('Mediavine in the connect panel', () => {
     expect(stored.fields.MEDIAVINE_SESSION).toContain('synthetic-refresh');
     const listed = await discoverSites(env, 'mediavine', { fetchImpl, nowMs: NOW + 1000 });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect(listed).toMatchObject({ ok: true, kind: 'account', sites: [
-      { lane: 'ad-network', ref: SITE.id, label: SITE.domain, host: SITE.domain, mapping: { mediavineSiteId: SITE.id }, ready: true },
-    ] });
+    expect(listed).toMatchObject({ ok: true, kind: 'account', sites: sites.map(({ id, domain }) => ({
+      lane: 'ad-network', ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,
+    })) });
   });
 
   it('lists the assets without stamping a verdict or an observation, and says a refused login is refused', async () => {
@@ -529,13 +537,18 @@ describe('Mediavine in the connect panel', () => {
   });
 
   it("syncs an asset once its id is saved — Start's one write — and stops at its Not using", async () => {
-    await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl: transport(), nowMs: NOW });
-    await mapSite();
-    const fetchImpl = transport();
+    const newSite = { id: 'new-journey-site', domain: SITE_ASSET, title: 'New Journey publisher' };
+    const fetchImpl = transport({ sites: [SITE, newSite], revenueOn: date => date === '2026-09-08' ? 0.02 : 0 });
+    await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl, nowMs: NOW });
+    await mapSite(SITE_ASSET, { mediavineSiteId: newSite.id });
     const run = await runCollectNow(env, { provider: 'mediavine', assets: [SITE_ASSET] }, { fetchImpl, nowMs: NOW });
     expect(run).toMatchObject({ ok: true, job: 'mediavine', sites: [{ asset: SITE_ASSET, outcome: 'collected', code: null }] });
     expect(await count('revenue_observations')).toBe(8);
-    await mapSite(SITE_ASSET, { status: 'skipped', note: 'Not using: Replaced by another tool' });
+    expect(await mediavineStatus(env, SITE_ASSET)).toMatchObject({ siteId: newSite.id, reportedThrough: '2026-09-08' });
+    const latest = await env.STORE.read(tx => tx.query(
+      'SELECT asset_id, account_ref, amount_minor::int AS amount FROM noticeos.revenue_observations WHERE revenue_date = $1', ['2026-09-08']));
+    expect(latest).toEqual([{ asset_id: SITE_ASSET, account_ref: newSite.id, amount: 2 }]);
+    await mapSite(SITE_ASSET, { mediavineSiteId: newSite.id, status: 'skipped', note: 'Not using: Replaced by another tool' });
     const declined = await runCollectNow(env, { provider: 'mediavine', assets: [SITE_ASSET] }, { fetchImpl, nowMs: NOW + 3_600_000 });
     expect(declined).toMatchObject({ ok: false, error: 'no-sites' });
     expect(mediavineSyncOn({ mediavineSiteId: SITE.id, status: 'needs-setup' })).toBe(true);
