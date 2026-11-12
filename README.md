@@ -6,15 +6,11 @@
 
 ## Your startup. In clear view.
 
-**A self-hosted app for your websites and software products.**<br>
-See traffic, revenue, costs, alerts and work in one place, on your laptop, phone or TV.
+**NoticeOS shows what your products earn, what broke and what to do next.**<br>
+A self-hosted app for your websites and software products, on your laptop, phone or TV.
 
 [![CI](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
-[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
 
 **[Documentation](https://docs.notice.cx/)** · **[Install](#install-with-docker)** · **[Try the demo](docs/start/try-the-demo.md)** · **[Contribute](CONTRIBUTING.md)**
 
@@ -27,7 +23,6 @@ See traffic, revenue, costs, alerts and work in one place, on your laptop, phone
 - **Keep work moving.** Track owners, blockers, approvals and completion evidence across projects.
 - **Check what changed.** Review the follow-up evidence for a change. Completing work is not proof of a better outcome.
 
-The **Tower** is the web app. **Wall** is its TV view. **Portfolio** lists your **Assets**: websites, web apps (SaaS), and mobile apps. Each asset defaults to Website; choose its type when adding it or in Settings → Identity.
 Missing data is shown as unknown, never as zero.
 
 ## How it works
@@ -40,7 +35,14 @@ raises an alert when a day is unlikely to be normal, and keeps every row it
 stores. [How NoticeOS works](https://docs.notice.cx/concepts/how-noticeos-thinks)
 describes the loop that uses those readings.
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
+
 ## The Tower and the Wall
+
+The **Tower** is the web app. **Wall** is its TV view. **Portfolio** lists your **Assets**: websites, web apps (SaaS), and mobile apps. Each asset defaults to Website; choose its type when adding it or in Settings → Identity.
 
 Every screenshot here is the [demo](docs/start/try-the-demo.md): the real app
 with five invented assets and a simulator that keeps adding activity.
