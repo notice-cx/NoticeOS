@@ -1057,11 +1057,12 @@ test.describe(() => {
         const projected = section.querySelector(".wall-revenue-projection")!.getBoundingClientRect();
         const plot = section.querySelector(".wall-metric-chart")!.getBoundingClientRect();
         const icons = section.querySelector(".wall-revenue-sites")!.getBoundingClientRect();
+        const movement = section.querySelector("[data-metric-movement]")!.getBoundingClientRect();
         const main = section.querySelector("[data-revenue-figure]")!.getBoundingClientRect();
         const yesterday = section.querySelector('[data-metric-fact="Yesterday"]')!.getBoundingClientRect();
         const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")), bottom: bar.getBoundingClientRect().bottom }));
         return { height: section.getBoundingClientRect().height / scale, overlap: facts.right - chart.left, stacked: facts.bottom <= chart.top, chartWidth: chart.width, factsWidth: facts.width,
-          yesterdayGap: yesterday.top - main.bottom, iconBottom: icons.bottom,
+          yesterdayGap: yesterday.top - main.bottom, iconBottom: icons.bottom, movementTop: movement.top,
           projectedOffset: Math.hypot(projected.x + projected.width / 2 - plot.x - plot.width / 2, projected.y + projected.height / 2 - plot.y - plot.height / 2),
           actual: readings("current"), forecast: readings("forecast"), reference: Boolean(section.querySelector("[data-metric-previous-total]")), actualLine: Boolean(section.querySelector("[data-chart-line='solid']")) };
       });
@@ -1074,7 +1075,10 @@ test.describe(() => {
         expect(found.overlap / found.factsWidth).toBeGreaterThan(.6);
         expect(found.chartWidth / (found.chartWidth + found.factsWidth - found.overlap)).toBeGreaterThan(.8);
         expect(found.actual[0]!.bottom - found.iconBottom).toBeGreaterThan(32);
-      } else expect(found.stacked).toBe(true);
+      } else {
+        expect(found.stacked).toBe(true);
+        expect(found.movementTop - found.iconBottom).toBeGreaterThanOrEqual(4);
+      }
       expect(found.actual.length).toBeGreaterThan(0);
       expect(found.forecast.length).toBeGreaterThan(0);
       for (const bar of [...found.actual, ...found.forecast]) {

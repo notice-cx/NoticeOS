@@ -234,12 +234,13 @@
   }
 }
 @container (max-width: 22rem) {
-  .wall-revenue-metric .wall-metric-split { grid-template-columns: minmax(0, 1fr); gap: var(--metric-gap); }
+  .wall-revenue-metric .wall-metric-split { grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); gap: var(--metric-gap); }
   .wall-revenue-metric .wall-metric-summary { gap: var(--metric-fact-gap); }
   .wall-revenue-metric .wall-cumulative-facts { flex-direction: row; flex-wrap: wrap; gap: var(--metric-gap) var(--metric-padding); }
   .wall-revenue-metric .wall-metric-plot:has(.wall-metric-chart) { margin-inline-start: 0; }
   .wall-revenue-metric .wall-cumulative-movement { align-items: flex-start; text-align: left; }
   .wall-revenue-metric .wall-metric-chart { min-height: var(--metric-cumulative-chart-height); }
+  .wall-revenue-sites { padding-block-end: var(--metric-fact-gap); }
 }
 @container (max-width: 11rem) {
   .wall-metric-breakdown { --metric-primary-value-size: 1.5rem; --metric-detail-value-size: 1rem; }
