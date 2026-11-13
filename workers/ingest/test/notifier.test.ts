@@ -146,6 +146,19 @@ describe('first daily Mediavine revenue notifications', () => {
     expect(await runNotifier(env, { nowMs: collected + HOUR, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
     expect(discord.posts).toHaveLength(1);
   });
+
+  it('delivers all new dates from one Mediavine report in one Discord message', async () => {
+    await connectDiscord();
+    await enable();
+    await revenue('meadow.example', '2026-09-07', [11, 6]);
+
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 2 });
+    expect(discord.posts).toHaveLength(1);
+    expect(discord.posts[0]?.embeds?.map(embed => embed.description.split(' · ').slice(0, 2))).toEqual(
+      expect.arrayContaining([['2026-09-07', '**$11.00**'], ['2026-09-08', '**$6.00**']]),
+    );
+  });
 });
 
 describe('what the OS interrupts the operator about', () => {

@@ -131,7 +131,7 @@ test('the runner checks its database before it writes a heartbeat or starts a ch
   // No other runner operation may acquire a database connection from it.
   assert.deepEqual([...supervise.matchAll(/database\.env/gu)].length, 2);
   assert.match(supervise, /towerChild\(\{ exposeTowerToLan, database: database\.env \}\)/u);
-  assert.match(supervise, /startNotificationEvents\(\{\s+connectionString: database\.env\.DATABASE_URL,/u);
+  assert.match(supervise, /startNotificationEvents\(\{\s+connectionString: database\.env\[LOCAL_CONNECTION_VARIABLE\],/u);
   assert.equal(EXIT_NO_DATABASE, 5, 'distinct from 2, 3 (already running) and 4 (unlinked code folder)');
 });
 
