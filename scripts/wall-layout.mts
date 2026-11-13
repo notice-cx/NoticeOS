@@ -103,7 +103,7 @@ export interface WallWidgetSettings {
   pulseMetrics?: Record<string, string[]>;
 }
 
-export type WallMetricSource = 'momentum' | 'today' | 'four-weeks' | 'asset-work' | 'product-counts' | 'product-count' | 'decisions' | 'in-progress' | 'blocked' | 'done' | 'revenue';
+export type WallMetricSource = 'momentum' | 'today' | 'four-weeks' | 'asset-work' | 'product-counts' | 'product-count' | 'decisions' | 'task-status' | 'in-progress' | 'blocked' | 'done' | 'revenue';
 export type WallMetricDisplay = 'number' | 'momentum' | 'compare' | 'multi' | 'cumulative';
 export type WallMetricSize = 'narrow' | 'standard' | 'wide';
 export interface WallMetricTile {
@@ -139,6 +139,7 @@ const METRIC_SPECS: Record<WallMetricSource, WallMetricSpec> = {
   'product-counts': metricSpec('product-counts', 'Product counts', ['multi']),
   'product-count': metricSpec('product-count', 'Product count', ['number']),
   decisions: metricSpec('decisions', 'Your decisions', ['number']),
+  'task-status': metricSpec('task-status', 'Task status', ['multi']),
   'in-progress': metricSpec('in-progress', 'In progress', ['number']),
   blocked: metricSpec('blocked', 'Blocked', ['number']),
   done: metricSpec('done', 'Done this week', ['cumulative', 'number'], true, true),
@@ -147,14 +148,15 @@ const METRIC_SPECS: Record<WallMetricSource, WallMetricSpec> = {
 export function wallMetricSpec(source: WallMetricSource): WallMetricSpec { return METRIC_SPECS[source]; }
 export function wallMetricSources(type: WallWidgetType): WallMetricSource[] {
   if (type === 'sites') return ['momentum', 'today', 'four-weeks', 'asset-work', 'product-count', 'product-counts'];
-  if (type === 'work') return ['decisions', 'in-progress', 'blocked', 'done'];
+  if (type === 'work') return ['decisions', 'task-status', 'done', 'in-progress', 'blocked'];
   if (type === 'revenue') return ['revenue'];
   return [];
 }
-/** Missing templates keep existing layouts unchanged until the first tile edit. */
+/** A saved template wins over the widget's default metrics. */
 export function wallMetricTiles(widget: WallWidget): WallMetricTile[] {
   if (widget.settings?.metrics !== undefined) return widget.settings.metrics.map((tile) => ({ ...tile }));
-  return wallMetricSources(widget.type).filter((source) => source !== 'product-count').map((source) => {
+  const sources = widget.type === 'work' ? ['decisions', 'task-status', 'done'] as const : wallMetricSources(widget.type).filter((source) => source !== 'product-count');
+  return sources.map((source) => {
     const spec = wallMetricSpec(source);
     return { id: source, source, display: spec.defaultDisplay, size: spec.defaultSize };
   });
@@ -409,7 +411,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   work: {
     type: 'work',
     label: 'Work',
-    shows: ['Your decisions', 'In progress', 'Done this week', 'Blocked'],
+    shows: ['Your decisions', 'Task status', 'Done this week'],
     defaultWidth: 1,
     minWidthRem: 0,
     maxWidthRem: null,

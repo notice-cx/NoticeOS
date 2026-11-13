@@ -1483,7 +1483,6 @@ describe("Home and Wall phase scoping", () => {
     expect(container.querySelector("[data-work-flow-legend]")).toBeNull();
     // The work chart is the Wall's one task surface, in its own region.
     expect(container.querySelectorAll("[data-wall-work]")).toHaveLength(1);
-    expect(container.querySelectorAll("[data-wall-work] .wall-metric")).toHaveLength(4);
     expect(container.textContent).not.toMatch(/View refreshed|Refreshed .* ago/);
     expect(container.querySelector("[data-strip-held]")).toBeNull();
     expect(screen.queryByText("Local time")).toBeNull();
@@ -1554,8 +1553,9 @@ describe("Home and Wall phase scoping", () => {
     const work = wall.container.querySelector("[data-wall-work]")!;
     expect(work).not.toBeNull();
     const assetWork = wall.container.querySelector('[data-site-work="meadow.example"]')!;
-    expect(assetWork.querySelector("[data-site-work-open]")).toHaveTextContent("14");
-    expect(assetWork.querySelector("[data-site-work-blocked]")).toHaveTextContent("1");
+    expect(assetWork.querySelector('[data-task-status="open"]')).toHaveTextContent("12");
+    expect(assetWork.querySelector('[data-task-status="in-progress"]')).toHaveTextContent("2");
+    expect(assetWork.querySelector('[data-task-status="blocked"]')).toHaveTextContent("1");
     // Counts only: no task's own words, and nothing to press through to them.
     expect(wall.container.textContent).not.toContain("Active bet");
     expect(wall.container.textContent).not.toContain("Homepage answer-card experiment");

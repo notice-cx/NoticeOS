@@ -110,11 +110,11 @@ describe("the work chart", () => {
     expect(container.querySelector("[data-work-flow]")).toBeNull();
   });
 
-  it("reads the three totals as not read when only the inbox was counted", () => {
+  it("keeps queue counts and throughput unknown when only the inbox was counted", () => {
     const operator = { waiting: 1, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 1, capturedAt: at(0) };
     const { container } = render(<WallWork assets={[asset("a.example", null)]} operator={operator} nowMs={NOW} />);
-    expect(container.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(3);
-    expect(container).toHaveTextContent("History unavailable");
+    expect(container.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(4);
+    expect(container).toHaveTextContent("Comparison unavailable");
     expect(container.querySelector('[role="table"]')).toBeNull();
     expect(container.querySelector("a, button")).toBeNull();
   });
@@ -123,6 +123,6 @@ describe("the work chart", () => {
     const operator = { waiting: 2, urgent: 0, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: at(0) };
     const { container } = render(<WallWork assets={[asset("a.example", WORK), asset("b.example", WORK)]} operator={operator} nowMs={NOW} />);
     expect(container.querySelector("[data-work-row]")).toBeNull();
-    expect(container.querySelector('[aria-label="Your decisions"]')).toHaveTextContent("Your decisions2");
+    expect(container.querySelector('[aria-label="Your decisions"] .wall-metric-value')).toHaveTextContent("2");
   });
 });

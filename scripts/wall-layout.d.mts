@@ -32,7 +32,7 @@ export interface WallWidgetSettings {
     /** Selected pulse totals per asset. Absent uses its configured totals; [] hides them. */
     pulseMetrics?: Record<string, string[]>;
 }
-export type WallMetricSource = 'momentum' | 'today' | 'four-weeks' | 'asset-work' | 'product-counts' | 'product-count' | 'decisions' | 'in-progress' | 'blocked' | 'done' | 'revenue';
+export type WallMetricSource = 'momentum' | 'today' | 'four-weeks' | 'asset-work' | 'product-counts' | 'product-count' | 'decisions' | 'task-status' | 'in-progress' | 'blocked' | 'done' | 'revenue';
 export type WallMetricDisplay = 'number' | 'momentum' | 'compare' | 'multi' | 'cumulative';
 export type WallMetricSize = 'narrow' | 'standard' | 'wide';
 export interface WallMetricTile {
@@ -59,7 +59,7 @@ export interface WallMetricSpec {
 }
 export declare function wallMetricSpec(source: WallMetricSource): WallMetricSpec;
 export declare function wallMetricSources(type: WallWidgetType): WallMetricSource[];
-/** Missing templates keep existing layouts unchanged until the first tile edit. */
+/** A saved template wins over the widget's default metrics. */
 export declare function wallMetricTiles(widget: WallWidget): WallMetricTile[];
 export type WallSettingKey = keyof WallWidgetSettings;
 export interface WallWidgetSpec {

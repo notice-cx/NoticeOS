@@ -2,8 +2,9 @@
 .wall-work-context { font-size: .875rem; line-height: 1.25; color: var(--muted-foreground); }
 .wall-work-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .75rem; align-items: stretch; }
 @container wall-work (width >= 54rem) {
-  .wall-work-band { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.8fr); }
+  .wall-work-band:not([data-metrics-configured]) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 2fr); }
 }
+.wall-work [data-wall-decisions] .wall-metric-value { color: var(--warn); }
 @container wall (width >= 80rem) {
   .wall-work .wall-metric {
     --metric-height: 8.25rem;

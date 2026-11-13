@@ -44,43 +44,45 @@ const operator = { waiting: 4, urgent: 0, measuredProjects: 2, urgentMeasuredPro
 describe("the Wall's metric work tile", () => {
   it("marks totals as lower bounds when another selected asset has no task counts", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", null)]} operator={operator} nowMs={NOW} />);
-    for (const title of ["In progress", "Blocked", "Done this week"]) {
-      const tile = within(container).getByRole("region", { name: title });
-      expect(tile).toHaveTextContent("At least");
-      expect(tile.querySelector("[data-metric-movement]")).toBeNull();
-      expect(tile.querySelector("svg[role=img]")).toBeNull();
-    }
+    const status = within(container).getByRole("region", { name: "Task status" });
+    expect(status.querySelector('[data-task-status="open"]')).toHaveTextContent("≥4");
+    expect(status.querySelector('[data-task-status="in-progress"]')).toHaveTextContent("≥2");
+    expect(status.querySelector('[data-task-status="blocked"]')).toHaveTextContent("≥1");
+    const done = within(container).getByRole("region", { name: "Done this week" });
+    expect(done).toHaveTextContent("At least");
+    expect(done.querySelector("[data-metric-movement], svg[role=img]")).toBeNull();
   });
 
   it("does not turn a partial observed zero into an empty aggregate queue", () => {
     const w = weeks();
     w.done.now = 0;
-    const summary = { ...work(w), inProgress: 0, blocked: 0 };
+    const summary = { ...work(w), open: 0, inProgress: 0, blocked: 0 };
     const { container } = render(<WallWork assets={[asset("a.example", summary), asset("b.example", null)]} operator={operator} nowMs={NOW} />);
-    for (const title of ["In progress", "Blocked", "Done this week"]) {
-      const tile = within(container).getByRole("region", { name: title });
-      expect(tile.querySelector(".wall-metric-value")).toHaveTextContent("—");
-      expect(tile).not.toHaveTextContent("At least");
-    }
+    const status = within(container).getByRole("region", { name: "Task status" });
+    expect(status.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(3);
+    expect(status.querySelector(".wall-task-status-track")).toBeNull();
+    const done = within(container).getByRole("region", { name: "Done this week" });
+    expect(done.querySelector(".wall-metric-value")).toHaveTextContent("—");
+    expect(done).not.toHaveTextContent("At least");
   });
 
-  it("places the slim heading above four full-width metric tracks", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
-    const band = container.querySelector(".wall-work-band")!;
-    expect(band.children).toHaveLength(4);
-    expect(band.querySelector("h2")).toBeNull();
-    const header = container.querySelector(".wall-work-heading")!;
-    expect(header.querySelector("[data-work-days-in]")).not.toBeNull();
-    expect(header.nextElementSibling).toBe(band);
-    expect(band.lastElementChild).toHaveAttribute("aria-label", "Done this week");
-    expect(band.querySelectorAll(".wall-metric-title svg")).toHaveLength(4);
+  it("sums only selected assets for task status and keeps decisions workspace-wide", () => {
+    const assets = [asset("a.example", work(weeks())), asset("b.example", work(weeks()))];
+    const { container } = render(<WallWork assets={assets.slice(0, 1)} operator={operator} nowMs={NOW} />);
+    const status = within(container).getByRole("region", { name: "Task status" });
+    expect(status).toHaveTextContent("Selected assets");
+    expect(status.querySelector('[data-task-status="open"]')).toHaveTextContent("4");
+    const decisions = within(container).getByRole("region", { name: "Your decisions" });
+    expect(decisions).toHaveTextContent("All projects");
+    expect(decisions.querySelector(".wall-metric-value")).toHaveTextContent("4");
   });
 
   it("uses fresh snapshot counts while withholding a history whose endpoint differs", () => {
     const w = weeks();
     w.blocked.history = [{ t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 1 }];
     const summary = { ...work(w), blocked: 4 };
-    const { container } = render(<WallWork assets={[asset("a.example", summary)]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork assets={[asset("a.example", summary)]} operator={operator} nowMs={NOW}
+      widget={{ id: "work", type: "work", width: 1, settings: { metrics: [{ id: "blocked", source: "blocked", display: "number", size: "standard" }] } }} />);
     const blocked = within(container).getByRole("region", { name: "Blocked" });
     expect(blocked.querySelector(".wall-metric-value")).toHaveTextContent("4");
     expect(blocked.querySelector(".wall-metric-movement")).toHaveTextContent("4vs a week ago");
@@ -91,9 +93,10 @@ describe("the Wall's metric work tile", () => {
     const summary = { ...work(weeks()), capturedAt: at(48) };
     const { container } = render(<WallWork assets={[asset("a.example", summary)]} operator={null} nowMs={NOW} />);
     expect(container).toHaveTextContent("Snapshot stale");
-    const blocked = within(container).getByRole("region", { name: "Blocked" });
-    expect(blocked.querySelector(".wall-metric-movement")).toBeNull();
-    expect(blocked.querySelector("svg[role=img]")).toBeNull();
+    const done = within(container).getByRole("region", { name: "Done this week" });
+    expect(done.querySelector(".wall-metric-movement, svg[role=img]")).toBeNull();
+    const status = within(container).getByRole("region", { name: "Task status" });
+    expect(status.querySelector('[data-task-status="blocked"]')).toHaveTextContent("1");
   });
 
   it("uses daily closes under a cumulative line and last week's total without project bars", () => {
@@ -128,7 +131,11 @@ describe("the Wall's metric work tile", () => {
   });
 
   it("uses each state's improvement direction and keeps in progress neutral", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW}
+      widget={{ id: "work", type: "work", width: 1, settings: { metrics: [
+        { id: "in-progress", source: "in-progress", display: "number", size: "standard" },
+        { id: "blocked", source: "blocked", display: "number", size: "standard" },
+      ] } }} />);
     expect(within(container).getByRole("region", { name: "In progress" }).querySelector(".wall-metric-movement")).toHaveClass("text-spark");
     expect(within(container).getByRole("region", { name: "Blocked" }).querySelector(".wall-metric-movement")).toHaveClass("text-trend-negative");
   });

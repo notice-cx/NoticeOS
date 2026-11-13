@@ -17,8 +17,9 @@ import { visiblePulseCounters, type WallPulseMetrics } from "@/lib/wall-counters
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ChartArea, ChartDot, ChartLine } from "@/components/surface/ChartMarks";
 import { LiveUsers } from "@/components/wall/LiveUsers";
-import { MultiMetric, NumberMetric, SparklineCompareMetric } from "@/components/wall/MetricWidgets";
+import { MetricTile, MultiMetric, NumberMetric, SparklineCompareMetric } from "@/components/wall/MetricWidgets";
 import { WallMetricBinding, useWallMetricBinding } from "./WallMetricEditing";
+import { WorkStatus } from "./WorkStatus";
 import { readingRuns, type ChartPoint } from "@/lib/chart-path";
 import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -93,18 +94,21 @@ function ProductCounts({ asset, choices, nowMs }: { asset: AssetCard; choices: W
 }
 
 function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
+  const { binding } = useWallMetricBinding();
   const work = asset.work;
   const closed = work?.weeks?.done.now ?? null;
   const stale = work ? isAmber(nowMs, work.capturedAt, WORK_POLL_CADENCE_HOURS) : false;
-  const count = (value: number | null) => value === null ? <span aria-label="Unavailable">—</span> : formatInt(value);
-  return <div data-site-work={asset.id}><MultiMetric title="Work" icon={ListTodo} context="this week" className={stale ? "wall-work-stale" : undefined}
-    primary={{ label: "Closed", value: <span data-site-work-closed>{count(closed)}</span>, tone: "positive" }}
-    metrics={[
-      { label: "Open", value: <span data-site-work-open>{count(work ? work.open + work.inProgress : null)}</span> },
-      { label: "Blocked", value: <span data-site-work-blocked aria-label="Blocked tasks, included in open">{count(work?.blocked ?? null)}</span>, tone: work && work.blocked > 0 ? "warn" : undefined },
-    ]}
-    note={work && (stale || ageMs(nowMs, work.capturedAt) === null) ? <AgeBadge iso={work.capturedAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={nowMs} /> : !work ? "Tasks unavailable" : undefined}
-  /></div>;
+  const freshness = work && (stale || ageMs(nowMs, work.capturedAt) === null)
+    ? <AgeBadge iso={work.capturedAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={nowMs} />
+    : undefined;
+  return <div data-site-work={asset.id}>
+    {binding?.configured && binding.tile.display === "number"
+      ? <NumberMetric title="Work" icon={ListTodo} context={freshness} value={closed === null ? null : formatInt(closed)} note="Done this week" />
+      : <MetricTile title="Work" icon={ListTodo} context={freshness}>
+          {work ? <WorkStatus counts={work} /> : <p className="wall-metric-note">Tasks unavailable</p>}
+          <div className="wall-asset-work-week"><strong data-site-work-closed>{closed === null ? <span aria-label="Unavailable">—</span> : formatInt(closed)}</strong> Done this week</div>
+        </MetricTile>}
+  </div>;
 }
 
 function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number }) {
