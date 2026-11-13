@@ -10,7 +10,7 @@ import { credentialSummary, deleteCredential, putCredential, recordCredentialOut
 import { javascriptInstant, type Transaction } from '@noticeos/postgres';
 import { MEDIAVINE_LEASE, mediavineClient, mediavineMessage, withMediavineLease, type MediavineOptions } from './mediavine-connection.js';
 import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
-import { enqueueMediavineNotifications } from './mediavine-notifications.js';
+import { enqueueRevenueNotifications } from './revenue-notifications.js';
 
 interface Lane { mediavineSiteId?: string; mediavineEnabled?: boolean; status?: string; revenueHolidayCalendar?: MediavineSettings['holidayCalendar'] }
 interface Register { assets?: Record<string, Record<string, Lane>> }
@@ -252,7 +252,7 @@ async function writeReport(tx: Transaction, asset: string, report: Report, batch
                              AND revenue_date = $5::date AND item_ref IS NULL AND amount_minor = $6::bigint)`,
       [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, day.date, day.amountMinor, runId, report.fetchedAt]);
   }
-  await enqueueMediavineNotifications(tx, asset, runId, report, batchId);
+  await enqueueRevenueNotifications(tx, { asset, source: MEDIAVINE_REVENUE_SOURCE, accountRef: report.site.id, runId, ...report.period, batchId });
   return runId;
 }
 

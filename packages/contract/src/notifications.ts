@@ -21,7 +21,8 @@ export type NotifiedCondition =
   | 'source-failing'
   | 'daily-mediavine-revenue';
 
-export const DAILY_MEDIAVINE_REVENUE = 'daily-mediavine-revenue';
+/** Stored event identity is stable across upgrades so queued and sent rows remain usable. */
+export const DAILY_REVENUE = 'daily-mediavine-revenue';
 
 export interface NotificationRule {
   id: NotifiedCondition;

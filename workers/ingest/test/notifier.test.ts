@@ -18,7 +18,9 @@ import { SYSTEM_NAME } from '@noticeos/contract';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { composeMessage, runNotifier } from '../src/notifier.js';
 import { persistReport } from '../src/mediavine.js';
+import { enqueueRevenueNotifications } from '../src/revenue-notifications.js';
 import { normalizeReport } from '@noticeos/mediavine';
+import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { putCredential } from '../src/credentials.js';
 import { runScheduledCron } from '../src/dispatch.js';
 import { applyConfigOps, forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
@@ -89,7 +91,7 @@ beforeEach(async () => {
   await forgetCredentials();
 });
 
-describe('first daily Mediavine revenue notifications', () => {
+describe('first daily revenue notifications', () => {
   const collected = Date.parse('2026-09-09T15:00:00Z');
   const revenue = (asset: string, start: string, amounts: number[]) => {
     const end = new Date(Date.parse(start) + (amounts.length - 1) * 86_400_000).toISOString().slice(0, 10);
@@ -135,8 +137,8 @@ describe('first daily Mediavine revenue notifications', () => {
     const discord = discordFetch();
     expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 2 });
     expect(discord.posts[0]?.embeds).toEqual(expect.arrayContaining([
-      { title: 'Meadow Board', description: `2026-09-08 · **$6.00** · 📈 +50% vs last week · Collected <t:${collected / 1000}:f>\nMonth to date **$56.00** · Projected at current pace **$210.00**` },
-      expect.objectContaining({ description: expect.stringContaining('**$4.00** · 📉 -50% vs last week') }),
+      { title: 'Meadow Board', description: `2026-09-08 · **$6.00** · ↑ +50% vs last week · Collected <t:${collected / 1000}:f>\nMonth to date **$56.00** · Projected at current pace **$210.00**` },
+      expect.objectContaining({ description: expect.stringContaining('**$4.00** · ↓ -50% vs last week') }),
       expect.objectContaining({ description: expect.stringContaining('Month to date **$12.00** · Projected at current pace **Pending**') }),
     ]));
     expect(await notified()).toEqual(expect.arrayContaining([
@@ -145,6 +147,31 @@ describe('first daily Mediavine revenue notifications', () => {
     ]));
     expect(await runNotifier(env, { nowMs: collected + HOUR, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
     expect(discord.posts).toHaveLength(1);
+  });
+
+  it('uses the source passed by the collector and keeps comparisons in the same currency', async () => {
+    await connectDiscord();
+    await enable();
+    const at = new Date(collected).toISOString();
+    await env.STORE.write(async tx => {
+      await tx.execute(`INSERT INTO noticeos.revenue_observations
+        (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor, currency, run_ref, recorded_at)
+        VALUES ($1::uuid, 'meadow.example', $2, 'account', '2026-09-01', 100, 'EUR', 'older', $3),
+          ($1::uuid, 'meadow.example', $2, 'account', '2026-09-08', 550, 'USD', 'latest', $3),
+          ($1::uuid, 'northwind.example', $2, 'account', '2026-09-08', 650, 'EUR', 'latest', $3)`,
+      [tx.workspaceId, STRIPE_REVENUE_SOURCE, at]);
+      for (const asset of ['meadow.example', 'northwind.example']) {
+        await enqueueRevenueNotifications(tx, {
+          asset, source: STRIPE_REVENUE_SOURCE, accountRef: 'account', runId: 'latest', start: '2026-09-08', end: '2026-09-08', batchId: null,
+        });
+      }
+    });
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect(discord.posts[0]?.embeds).toMatchObject([{
+      title: 'Meadow Board',
+      description: expect.stringMatching(/\*\*\$5\.50\*\* · ⚪ No figure last week.*\nMonth to date \*\*\$5\.50\*\*/u),
+    }]);
   });
 
   it('delivers all new dates from one Mediavine report in one Discord message', async () => {

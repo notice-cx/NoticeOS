@@ -153,7 +153,7 @@ export interface SettingsPreferences {
 
 export interface SettingsPayload {
   generatedAt: string;
-  discordMediavineRevenue: boolean;
+  discordRevenue: boolean;
   portfolioReview: { owner: string; assetIds: string[] | null; assets: { id: string; displayName: string }[] };
   /** The operator's clock (`config/constants.json`). */
   clock: ClockSettings;

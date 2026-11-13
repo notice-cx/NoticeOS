@@ -2,13 +2,13 @@
 // rechecks current conditions, sends once, then marks the events as sent.
 // A provider acceptance followed by a process crash can still be delivered twice.
 import {
-  DAILY_MEDIAVINE_REVENUE, NOTIFICATION_CHANNEL, NOTIFIED_CONDITIONS, NOTIFY_BATCH_CAP, NOTIFY_WINDOW_HOURS,
+  DAILY_REVENUE, NOTIFICATION_CHANNEL, NOTIFIED_CONDITIONS, NOTIFY_BATCH_CAP, NOTIFY_WINDOW_HOURS,
   type NotifiedCondition, type ProbeResult, assetDisplayName, connectionState, integrationProviderCards, probeLine,
 } from '@noticeos/contract';
 import { listCredentialSummaries, recordCredentialOutcome, resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { javascriptInstant } from '@noticeos/postgres';
-import { MEDIAVINE_NOTIFICATIONS_ENABLED, projectMediavineMonth, type MediavineRevenueNotification } from './mediavine-notifications.js';
+import { REVENUE_NOTIFICATIONS_ENABLED, projectRevenueMonth, type RevenueNotification } from './revenue-notifications.js';
 import { DISCORD_WEBHOOK_FIELD, discordWebhookAnswer, postDiscordWebhook, type DiscordMessage } from './discord-webhook.js';
 
 const NOTIFICATION_PROVIDER = 'discord';
@@ -16,7 +16,7 @@ const POST_TIMEOUT_MS = 10_000;
 
 type Candidate = { eventId: string; attempts: number; sourceRef: string } & (
   | { type: 'open-error' | 'source-failing'; line: string }
-  | { type: typeof DAILY_MEDIAVINE_REVENUE; revenue: MediavineRevenueNotification }
+  | { type: typeof DAILY_REVENUE; revenue: RevenueNotification }
 );
 export interface NotifierResult {
   monitoringAvailable?: boolean;
@@ -36,10 +36,10 @@ const ELIGIBLE = `(q.notification_type = 'open-error' AND EXISTS (
   SELECT 1 FROM noticeos.integration_connections c WHERE c.connection_id = q.connection_id
     AND c.provider = q.source_ref AND c.provider <> 'discord' AND c.last_error IS NOT NULL
     AND (c.last_ok_at IS NULL OR c.last_ok_at < q.occurred_at)
-)) OR (q.notification_type = '${DAILY_MEDIAVINE_REVENUE}' AND ${MEDIAVINE_NOTIFICATIONS_ENABLED})`;
+)) OR (q.notification_type = '${DAILY_REVENUE}' AND ${REVENUE_NOTIFICATIONS_ENABLED})`;
 
 const DISCORD_EVENTS = `channel = '${NOTIFICATION_CHANNEL}'
-  AND notification_type IN ('open-error', 'source-failing', '${DAILY_MEDIAVINE_REVENUE}')`;
+  AND notification_type IN ('open-error', 'source-failing', '${DAILY_REVENUE}')`;
 
 async function claim(env: IngestEnv, now: string, lease: string): Promise<Candidate[]> {
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
@@ -82,7 +82,7 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
       FROM claimed q
       LEFT JOIN noticeos.current_flags f ON q.notification_type = 'open-error' AND f.flag_number::text = q.source_ref
       LEFT JOIN noticeos.assets a ON a.workspace_id = q.workspace_id
-        AND a.asset_id = CASE WHEN q.notification_type = '${DAILY_MEDIAVINE_REVENUE}' THEN q.source_ref ELSE f.asset_id END
+        AND a.asset_id = CASE WHEN q.notification_type = '${DAILY_REVENUE}' THEN q.source_ref ELSE f.asset_id END
       LEFT JOIN noticeos.integration_connections c ON q.notification_type = 'source-failing' AND c.connection_id = q.connection_id`,
       [now, lease, NOTIFY_BATCH_CAP]);
     return rows.map((row): Candidate => {
@@ -92,13 +92,13 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
       if (row.type === 'source-failing') return { ...row, type: row.type,
         line: `${row.sourceRef} stopped working — ${row.error ?? 'no reason recorded'}` };
       if (row.revenueMinor === null || row.monthMinor === null || row.monthReportedDays === null) {
-        throw new Error('Mediavine notification is missing its revenue figures.');
+        throw new Error('Daily revenue notification is missing its figures.');
       }
       const monthMinor = BigInt(row.monthMinor);
       return { ...row, type: row.type, revenue: {
         asset: asset ?? row.sourceRef, date: row.occurrence, collectedAt: row.collectedAt,
         amountMinor: row.revenueMinor, previousMinor: row.previousRevenueMinor, monthMinor,
-        projectedMinor: projectMediavineMonth(row.occurrence, monthMinor, row.monthReportedDays),
+        projectedMinor: projectRevenueMonth(row.occurrence, monthMinor, row.monthReportedDays),
       } };
     });
   });
@@ -223,11 +223,11 @@ export function composeMessage(fresh: readonly { line: string }[], carried: read
 }
 
 function discordMessage(candidates: readonly Candidate[]): DiscordMessage {
-  const alerts = candidates.filter(candidate => candidate.type !== DAILY_MEDIAVINE_REVENUE);
-  const revenue = candidates.filter(candidate => candidate.type === DAILY_MEDIAVINE_REVENUE);
+  const alerts = candidates.filter(candidate => candidate.type !== DAILY_REVENUE);
+  const revenue = candidates.filter(candidate => candidate.type === DAILY_REVENUE);
   if (revenue.length === 0) return { content: composeMessage(alerts) };
   return {
-    content: alerts.length > 0 ? composeMessage(alerts) : '**NoticeOS · Mediavine revenue**',
+    content: alerts.length > 0 ? composeMessage(alerts) : '**NoticeOS · Revenue**',
     embeds: revenue.map(candidate => discordRevenue(candidate.revenue)),
   };
 }
@@ -242,12 +242,12 @@ function usd(minor: bigint): string {
 
 function weekOverWeek(amount: bigint, previous: bigint | null): string {
   if (previous === null) return '⚪ No figure last week';
-  const direction = amount > previous ? '📈' : amount < previous ? '📉' : '➖';
+  const direction = amount > previous ? '↑' : amount < previous ? '↓' : '→';
   if (previous === 0n) return `${direction} $0 last week`;
   return `${direction} ${percent.format(Number(amount - previous) / Math.abs(Number(previous)))} vs last week`;
 }
 
-function discordRevenue(revenue: MediavineRevenueNotification): NonNullable<DiscordMessage['embeds']>[number] {
+function discordRevenue(revenue: RevenueNotification): NonNullable<DiscordMessage['embeds']>[number] {
   const { asset, date, collectedAt, amountMinor, previousMinor, monthMinor, projectedMinor } = revenue;
   const collected = Math.floor(Date.parse(javascriptInstant(collectedAt)) / 1000);
   const projection = projectedMinor === null ? 'Pending' : usd(projectedMinor);
