@@ -283,7 +283,7 @@ async function post(
   let status: number | null;
   let retryAfterMs = 0;
   try {
-    const response = await postDiscordWebhook(webhook, message, POST_TIMEOUT_MS, fetchImpl);
+    const response = await postDiscordWebhook(webhook, { ...message, allowed_mentions: { parse: [] } }, POST_TIMEOUT_MS, fetchImpl);
     const retrySeconds = Number(response?.headers.get('retry-after'));
     if (Number.isFinite(retrySeconds) && retrySeconds > 0) retryAfterMs = Math.min(3_600_000, retrySeconds * 1000);
     await response?.body?.cancel();

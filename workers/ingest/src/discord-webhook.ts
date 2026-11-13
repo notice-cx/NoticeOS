@@ -5,6 +5,7 @@ export const DISCORD_WEBHOOK_FIELD = 'DISCORD_WEBHOOK_URL';
 export interface DiscordMessage {
   content: string;
   embeds?: { title: string; description: string }[];
+  allowed_mentions?: { parse: [] };
 }
 
 export function discordWebhookUrl(value: string | undefined): URL | null {
@@ -23,7 +24,7 @@ export async function postDiscordWebhook(
   return fetchImpl(url.href, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...message, allowed_mentions: { parse: [] } }),
+    body: JSON.stringify(message),
     redirect: 'manual',
     signal: AbortSignal.timeout(timeoutMs),
   });
