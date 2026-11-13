@@ -1089,6 +1089,8 @@ test.describe(() => {
       expect(found.forecast.every(bar => !found.actual.some(actual => actual.date === bar.date))).toBe(true);
       await expect(revenue.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Filled: observed.*Outlined: forecast/);
       await expect(revenue.locator('[data-revenue-site="reported"] .wall-revenue-reported-badge').first()).toBeVisible();
+      const projection = revenue.locator(".wall-revenue-projection");
+      await expect(projection.locator(".wall-metric-note")).toHaveCSS("color", await projection.locator("[data-revenue-pace]").evaluate(el => getComputedStyle(el).color));
       expect(found.chartWidth).toBeGreaterThan(80);
       expect(found.factsWidth).toBeGreaterThan(80);
       await assertNoPageOverflow(page);

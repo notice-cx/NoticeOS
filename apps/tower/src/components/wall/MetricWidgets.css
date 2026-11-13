@@ -196,6 +196,7 @@
   font-weight: 500;
   line-height: var(--metric-value-line);
 }
+.wall-revenue-projection .wall-metric-note { color: inherit; font-weight: 500; }
 .wall-revenue-metric .wall-cumulative-movement { align-items: flex-end; text-align: right; }
 .wall-revenue-metric .wall-cumulative-movement .wall-metric-change { font-size: min(var(--metric-change-size), 6cqi); }
 .wall-revenue-metric .wall-metric-chart svg { min-height: var(--metric-cumulative-chart-height); }
