@@ -42,7 +42,7 @@ export async function withMediavineLease<T>(env: IngestEnv, work: (assertLease: 
   };
   try { return await work(assertLease); }
   catch (error) {
-    if (error instanceof MediavineError && (error.kind === 'auth' || error.kind === 'permission')) {
+    if (error instanceof MediavineError && (error.kind === 'auth' || (error.kind === 'permission' && error.permissionScope === 'account'))) {
       await env.STORE.write((tx) => tx.execute(
         'UPDATE noticeos.integration_leases SET auth_blocked = true, last_error = $1 WHERE lease_key = $2 AND owner = $3',
         [error.message, MEDIAVINE_LEASE, owner]));

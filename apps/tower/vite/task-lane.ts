@@ -52,7 +52,7 @@ export interface Spoke {
   cwd?: string;
 }
 
-/** Saved membership, joined to this host's explicit repository links per request. */
+/** Saved membership, mapped to Ntasks by prefix per request. */
 export async function readSpokes(repoRoot: string, options: TaskProjectReadOptions = {}): Promise<Spoke[]> {
   return readTaskProjects({ ...options, repoRoot });
 }

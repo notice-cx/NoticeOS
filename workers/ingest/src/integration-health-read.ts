@@ -223,6 +223,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   const archive = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, plan: { report: string; date?: string; cadenceDays: number; staleAfterHours?: number }[], paused: boolean) => {
     // Latest outcome of each exact report/date, plus its last successful attempt.
     // No age cut-off can make an unresolved failed date disappear.
+    const scope = await healthScope(connection, capability, asset, target);
     const dated = plan.filter(item => item.date);
     const bounded = depthBoundedReports(lane);
     const history = (await env.STORE.read(tx => tx.query<Omit<DumpRow, 'cut_short'> & { cut_short: boolean }>(`SELECT *, (COUNT(*) OVER ())::int AS scope_count, (COUNT(*) FILTER (WHERE status = 'error' OR cut_short) OVER ())::int AS failure_count FROM (
@@ -242,7 +243,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     // the full history.
     if ((history[0]?.scope_count ?? 0) > history.length) {
       const def = definition(connection.provider, capability);
-      payload.items.push({ id: await healthId([connection.provider, capability, asset, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: `256 of ${history[0]!.scope_count} report dates · ${history[0]!.failure_count} unresolved failures`, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
+      payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: null, overflow: { target: scope.target, shown: history.length, total: history[0]!.scope_count, atLeast: false, unresolvedFailures: history[0]!.failure_count }, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
     }
     const families = new Map(plan.map(item => [item.report, item]));
     const wanted = new Map<string, { report: string; date: string; cadenceDays: number; staleAfterHours?: number; row?: DumpRow }>();
@@ -261,7 +262,6 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       if ((row.status === 'error' || row.cut_short === 1) && planItem) wanted.set(familyKey(row.report, row.report_date), { ...planItem, date: row.report_date, row });
     }
     if (observerAvailable) {
-      const scope = await healthScope(connection, capability, asset, target);
       // Select current obligations and unresolved failures before applying the
       // bound. Resolved historical dates never consume current health coverage.
       const states = await env.STORE.read(tx => healthStates(tx,
@@ -269,7 +269,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           AND (s.outcome = 'failure' OR t.family = ANY($5::text[])) AND ${assetIs(asset, 6)}`,
         [scope.provider, scope.connection, capability, scope.target, [...wanted.keys()], ...assetParam(asset)], 257));
       if (states.length > 256) {
-        payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'monitor-overflow']), provider: connection.provider, capability, label: definition(connection.provider, capability).label, asset, report: null, reportDate: null, detail: '256 of 257+ current reports and failures', state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Review report history for the full backlog.', coverage: 'monitored' });
+        payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'monitor-overflow']), provider: connection.provider, capability, label: definition(connection.provider, capability).label, asset, report: null, reportDate: null, detail: null, overflow: { target: scope.target, shown: 256, total: states.length, atLeast: true }, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Review report history for the full backlog.', coverage: 'monitored' });
       }
       // Runs of a depth-bounded family recorded before its depth counted as
       // complete stored an incomplete-report failure against a successful

@@ -2,8 +2,7 @@
 
 `installation/host-backup.json` is this host's own backup setting;
 `config/host-backup.json` is the product's default, read only when the
-installation has none. Like the task repository links
-([`task-host.README.md`](task-host.README.md)), it is read by Node services
+installation has none. It is read by Node services
 only — the nightly backup in
 [`scripts/host-backup.mjs`](../scripts/host-backup.mjs) — never seeded into
 `config_documents`, exported from the store, or compiled into the deployed

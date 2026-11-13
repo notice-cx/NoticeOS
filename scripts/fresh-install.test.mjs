@@ -3,7 +3,7 @@
 // The public repository carries config/ — the product's generic defaults —
 // and no installation folder. This runs the real `pnpm config:seed` read path
 // over the real defaults with an empty installation folder and proves what a
-// stranger's store starts with: no sites, no task projects, no host links, no
+// stranger's store starts with: no sites, no task projects, no
 // costs, and UTC. The neutral-code gate keeps the defaults that way
 // (scripts/neutral-code-gate.mjs); this proves the seed a clone would send.
 
@@ -17,7 +17,6 @@ import { fileURLToPath } from 'node:url';
 import { INSTALLATION_DIR_ENV } from './installation.mjs';
 import { CONFIG_DOCUMENT_FILES } from './config-documents.mjs';
 import { runSeed } from './config-seed.mjs';
-import { readTaskHost } from './task-project-config.mjs';
 import { hostBackupFile, readOffsiteBackupDir } from './host-backup.mjs';
 import { installationNames, isTimeZoneName } from './neutral-code-gate.mjs';
 
@@ -83,9 +82,8 @@ test('a fresh clone\'s clock is UTC until the operator sets one', async (t) => {
   assert.ok(isTimeZoneName(constants.os_time_zone));
 });
 
-test('a fresh clone links no task checkout and owns no asset name', async (t) => {
+test('a fresh clone owns no asset name', async (t) => {
   await freshClone(t);
-  assert.deepEqual(await readTaskHost({ repoRoot: REPO_ROOT }), { repositories: [] });
   // Neither product defaults nor the frozen Postgres schema seed a site's
   // identity. The installation inventory is absent in this fixture.
   const fromDocuments = [...installationNames(REPO_ROOT).values()].filter((entry) => !entry.source.startsWith('db/'));

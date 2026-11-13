@@ -1,6 +1,8 @@
 export type FailureKind = 'auth' | 'permission' | 'rate-limit' | 'unavailable' | 'invalid' | 'incomplete' | 'busy';
+type PermissionScope = 'account' | 'site';
 export class MediavineError extends Error {
-  constructor(public readonly kind: FailureKind, message: string, public readonly retryAt: number | null = null) {
+  constructor(public readonly kind: FailureKind, message: string, public readonly retryAt: number | null = null,
+    public readonly permissionScope: PermissionScope = 'account') {
     super(message);
     this.name = 'MediavineError';
   }
@@ -28,6 +30,9 @@ export interface ClientOptions {
 const ENDPOINT = 'https://api-publishers.mediavine.com/graphql';
 const DAY_MS = 86_400_000;
 const invalid = () => new MediavineError('invalid', 'Mediavine returned an unexpected report. No revenue was changed.');
+const permissionDenied = (scope: PermissionScope) => new MediavineError('permission', scope === 'site'
+  ? 'Mediavine refused access to this site’s report. Check its permissions in Mediavine.'
+  : 'Mediavine refused access. Check your account’s asset permissions and reconnect.', null, scope);
 function object(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw invalid();
   return value as Record<string, unknown>;
@@ -132,7 +137,7 @@ export class MediavineClient {
     this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.now = options.now ?? Date.now;
   }
-  private async request(query: string, variables: Record<string, unknown>, token?: string): Promise<Record<string, unknown>> {
+  private async request(query: string, variables: Record<string, unknown>, token?: string, permissionScope: PermissionScope = 'account'): Promise<Record<string, unknown>> {
     await this.options.beforeRequest?.();
     let response: Response;
     try {
@@ -152,7 +157,7 @@ export class MediavineClient {
     }
     if (response.status === 403) {
       await response.body?.cancel();
-      throw new MediavineError('permission', 'Mediavine refused access. Check your account’s asset permissions and reconnect.');
+      throw permissionDenied(permissionScope);
     }
     if (response.status === 401) {
       await response.body?.cancel();
@@ -182,16 +187,18 @@ export class MediavineClient {
     let result: Record<string, unknown>;
     try { result = object(JSON.parse(body) as unknown); } catch { throw invalid(); }
     if (Array.isArray(result.errors) && result.errors.length > 0) {
-      if (result.errors.some(error => {
-        const record = object(error);
-        return record.extensions && object(record.extensions).code === 'FORBIDDEN';
-      })) throw new MediavineError('permission', 'Mediavine refused access. Check your account’s asset permissions and reconnect.');
       const auth = result.errors.some(error => {
         const record = object(error);
         const code = record.extensions && object(record.extensions).code;
-        return code === 'UNAUTHENTICATED' || code === 'UNAUTHORIZED' || /unauthenticated|unauthorized|invalid.*token|token.*expired/i.test(String(record.message));
+        return code === 'UNAUTHENTICATED' || code === 'UNAUTHORIZED'
+          || (code !== 'FORBIDDEN' && /unauthenticated|unauthorized|invalid.*token|token.*expired/i.test(String(record.message)));
       });
-      throw auth ? new MediavineError('auth', 'Mediavine declined the saved connection. Reconnect your account.') : invalid();
+      if (auth) throw new MediavineError('auth', 'Mediavine declined the saved connection. Reconnect your account.');
+      if (result.errors.some(error => {
+        const record = object(error);
+        return record.extensions && object(record.extensions).code === 'FORBIDDEN';
+      })) throw permissionDenied(permissionScope);
+      throw invalid();
     }
     return object(result.data);
   }
@@ -221,13 +228,14 @@ export class MediavineClient {
     const result = await this.request('mutation NoticeOSSignIn($data: UnidashSignInInput!) { unidashSignIn(data: $data) { accessToken refreshToken expiresIn twoFactorRequired } }', { data: { email: this.options.credentials.email, password: this.options.credentials.password } });
     return this.save(result.unidashSignIn);
   }
-  private async authenticated(query: string, variables: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async authenticated(query: string, variables: Record<string, unknown>, permissionScope: PermissionScope = 'account'): Promise<Record<string, unknown>> {
+    // Sign-in and refresh refusals keep account scope even for a site's report.
     const token = await this.token();
-    try { return await this.request(query, variables, token); }
+    try { return await this.request(query, variables, token, permissionScope); }
     catch (error) {
       if (!(error instanceof MediavineError) || error.kind !== 'auth') throw error;
       // One recovery per operation. A second rejection reaches the host and stops the retry schedule.
-      return this.request(query, variables, await this.token(true));
+      return this.request(query, variables, await this.token(true), permissionScope);
     }
   }
   async sites(): Promise<Site[]> {
@@ -256,7 +264,7 @@ export class MediavineClient {
       internalSite(siteId: $siteId) { id title domain }
       metricsSummary(data: { siteId: $siteId, startDate: $startDate, endDate: $endDate }) { summary { earnings } }
       earningsReport(data: { siteId: $siteId, startDate: $startDate, endDate: $endDate }) { earnings { date revenue } }
-    }`, { siteId, startDate: portalDate(period.start), endDate: portalDate(period.end) });
+    }`, { siteId, startDate: portalDate(period.start), endDate: portalDate(period.end) }, 'site');
     const report = normalizeReport(data, period, this.now());
     if (report.site.id !== siteId) throw invalid();
     return report;

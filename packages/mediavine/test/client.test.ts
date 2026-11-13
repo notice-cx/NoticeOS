@@ -24,13 +24,25 @@ describe('provider session and request budget', () => {
   it('does not refresh or sign in again after permission denial', async () => {
     for (const response of [new Response('', { status: 403 }), Response.json({ errors: [{ message: 'Unauthorized asset', extensions: { code: 'FORBIDDEN' } }] })]) {
       const run = client([response]);
-      await expect(run.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission' });
+      await expect(run.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission', permissionScope: 'site' });
       expect(run.fetchImpl).toHaveBeenCalledTimes(1);
       expect(run.saveSession).not.toHaveBeenCalled();
     }
     const refresh = client([new Response('', { status: 403 })], { ...goodSession, expiresAt: 0 });
-    await expect(refresh.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission' });
+    await expect(refresh.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission', permissionScope: 'account' });
     expect(refresh.fetchImpl).toHaveBeenCalledTimes(1);
+    const signIn = client([new Response('', { status: 403 })], null);
+    await expect(signIn.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission', permissionScope: 'account' });
+    expect(signIn.fetchImpl).toHaveBeenCalledTimes(1);
+    const listing = client([Response.json({ errors: [{ extensions: { code: 'FORBIDDEN' } }] })]);
+    await expect(listing.client.sites()).rejects.toMatchObject({ kind: 'permission', permissionScope: 'account' });
+    expect(listing.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('keeps an authentication refusal account-wide when the report also contains a site refusal', async () => {
+    const errors = [{ extensions: { code: 'FORBIDDEN' } }, { extensions: { code: 'UNAUTHENTICATED' } }];
+    const run = client([Response.json({ errors }), json({ unidashRefreshToken: { accessToken: 'new', expiresIn: 3600 } }), Response.json({ errors })]);
+    await expect(run.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'auth', permissionScope: 'account' });
+    expect(run.fetchImpl).toHaveBeenCalledTimes(3);
   });
   it('never attempts password login twice after a newly issued session is rejected', async () => {
     const run = client([json({ unidashSignIn: { accessToken: 'new', refreshToken: 'new-refresh', expiresIn: 3600 } }), new Response('', { status: 401 }), new Response('', { status: 401 })], null);

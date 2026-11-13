@@ -2,8 +2,7 @@
 // image keeps its code in one folder and the installation's state in another
 // (deploy/compose/Dockerfile): the local R2 archive (`.wrangler/`), logs,
 // heartbeat, schedules, backups and signal dumps (`.local/`), the bootstrap
-// secrets file and its generated bindings, and the host-only task inventory,
-// whose relative paths mean "beside the home folder".
+// secrets file and its generated bindings.
 //
 // Two mechanisms, both needed: `NOTICEOS_HOME` (scripts/product-env.mts)
 // names the home folder for the runner and the Tower's local lanes, and inside
@@ -15,7 +14,6 @@
 import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { TASK_HOST_FILE, readablePath } from './installation.mjs';
 import { stripJsonc } from './jsonc.mjs';
 import { PRODUCT_ENV, readProductEnv } from './product-env.mjs';
 
@@ -71,7 +69,6 @@ export function statePaths(homeRoot) {
     backupsDir: path.join(localDir, 'backups'),
     devSecrets: path.join(ingestDir, '.dev.secrets.json'),
     devVars: path.join(ingestDir, '.dev.vars'),
-    taskHost: readablePath(TASK_HOST_FILE, { root: homeRoot }),
   };
 }
 

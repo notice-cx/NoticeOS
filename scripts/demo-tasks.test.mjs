@@ -79,7 +79,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
       await assert.rejects(readStoredSchedules(async () => ({ status: 200, body: { ready: true, documents: [] } })), /Saved schedules could not be read/);
       await execute(); assert.deepEqual(calls, ['read', 'seed', 'read', 'apply']);
       assert.deepEqual(await readStoredSchedules(async () => ({ status: 200, body: { ready: true, documents: await helpers.getConfigDocuments() } })), demoSchedules());
-      assert.deepEqual(JSON.parse(readFileSync(path.join(installation, 'task-host.json'), 'utf8')).repositories, receipt.projects);
+      assert.equal(existsSync(path.join(installation, 'task-host.json')), false);
       assert.deepEqual(JSON.parse(readFileSync(path.join(installation, 'beads.json'), 'utf8')).spokes, scenario.manifest.taskProjects);
     }
   }

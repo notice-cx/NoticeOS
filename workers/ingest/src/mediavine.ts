@@ -355,7 +355,9 @@ export async function syncMediavine(env: IngestEnv, input: MediavineSync, option
             [tx.workspaceId, input.asset, siteId, clock.yesterday, failures, next === null ? null : new Date(next), message, auth]);
         });
         monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset: input.asset, target: siteId, observedAt: missedAt, attemptId: runId, evidenceSource: 'mediavine_runs', ok: false, code: error instanceof MediavineError ? error.kind : 'network', nextAttemptAt: next ? new Date(next).toISOString() : null });
-        if (auth) await recordCredentialOutcome(env, 'mediavine', { ok: false, error: message, at });
+        if (auth && error.permissionScope === 'account') {
+          await recordCredentialOutcome(env, 'mediavine', { ok: false, error: message, at });
+        }
         throw error;
       }
     }, options);

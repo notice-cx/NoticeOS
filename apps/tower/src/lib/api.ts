@@ -31,6 +31,7 @@ import type { FinancialsPayload } from "@shared/financials";
 import { ASSET_STATUS } from "@shared/changeset";
 import {
   INTEGRATION_HEALTH_LABELS,
+  integrationHealthOverflowOf,
 } from "@noticeos/contract/integration-health";
 import {
   CONNECTION_COUNT_KEYS,
@@ -145,6 +146,7 @@ async function fetchIntegrationHealthRequest(fetch: ApiTransport, signal?: Abort
       && ['asset', 'detail', 'code', 'report'].every(key => key in item && ((item as Record<string, unknown>)[key] === null || typeof (item as Record<string, unknown>)[key] === 'string'))
       // A report's day is a calendar day or nothing.
       && 'reportDate' in item && (item.reportDate === null || typeof item.reportDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.reportDate))
+      && (!('overflow' in item) || integrationHealthOverflowOf(item.overflow) !== null)
       && ['lastAttemptAt', 'lastSuccessAt', 'nextAttemptAt'].every(key => key in item && ((item as Record<string, unknown>)[key] === null || healthInstant((item as Record<string, unknown>)[key])))
       && 'coverage' in item && ['monitored', 'setup', 'gap'].includes(String(item.coverage))
       && 'failure' in item && (item.failure === null || typeof item.failure === 'string' && ['access', 'rate-limit', 'budget', 'network', 'provider', 'invalid-report', 'incomplete-report', 'configuration', 'monitoring'].includes(item.failure)))

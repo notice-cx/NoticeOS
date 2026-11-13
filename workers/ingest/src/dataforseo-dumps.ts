@@ -7,6 +7,8 @@ import { observeIntegration, tryHealthConnection, type HealthConnection } from '
 
 import {
   archiveCollectedDump,
+  LOCAL_STORE_FAILED,
+  localStoreError,
   archiveDumpFailure,
   unmeasuredDumpOutcome,
   type DumpPage,
@@ -899,7 +901,7 @@ async function collectDueReports(
   // One stamp per sweep on the credential. A family the dead uplink swallowed
   // says nothing about the login, so a sweep made only of those stamps nothing.
   const sweepWorked = outcomes.some((outcome) => outcome.status !== 'error');
-  const measured = outcomes.filter((outcome) => !outcome.egressDown);
+  const measured = outcomes.filter((outcome) => !outcome.egressDown && outcome.errorCode !== LOCAL_STORE_FAILED);
   if (credentialSource === 'store' && measured.length > 0) {
     await recordCredentialOutcome(env, 'dataforseo', {
       ok: sweepWorked,
@@ -1389,17 +1391,21 @@ async function writeDataForSeoCheckpoint(
   objects: SignalObjectScope,
 ): Promise<void> {
   if (!objects.owns(key)) throw new Error('Checkpoint owner is unavailable.');
-  await bucket.put(key, JSON.stringify(checkpoint), {
-    httpMetadata: { contentType: 'application/json' },
-    customMetadata: {
-      asset: checkpoint.asset,
-      report: checkpoint.report,
-      reportDate: checkpoint.reportDate,
-      requestHash: checkpoint.requestHash,
-      schemaVersion: String(checkpoint.schemaVersion),
-      workspaceId: objects.workspaceId,
-    },
-  });
+  try {
+    await bucket.put(key, JSON.stringify(checkpoint), {
+      httpMetadata: { contentType: 'application/json' },
+      customMetadata: {
+        asset: checkpoint.asset,
+        report: checkpoint.report,
+        reportDate: checkpoint.reportDate,
+        requestHash: checkpoint.requestHash,
+        schemaVersion: String(checkpoint.schemaVersion),
+        workspaceId: objects.workspaceId,
+      },
+    });
+  } catch (error) {
+    throw localStoreError(error, 'dataforseo', checkpoint.report);
+  }
 }
 
 async function readDataForSeoCheckpoint(

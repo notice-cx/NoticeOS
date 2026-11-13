@@ -615,7 +615,7 @@ export const CONFIG_REGISTERS = {
             },
             { name: 'repo', label: 'Repository', type: 'string', required: false, maxLength: 200,
                 readOnly: true, readOnlyReason: 'Repository access is linked on the machine running the local service.',
-                describe: 'legacy checkout metadata; local repository access is configured on the host' },
+                describe: 'legacy checkout metadata; not used for execution' },
         ],
     },
     // The product's data-source catalog, not a setting. A row only works if the

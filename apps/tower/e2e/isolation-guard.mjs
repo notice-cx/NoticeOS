@@ -51,7 +51,7 @@ export function isSecretFile(target) {
 }
 
 /** True for a file inside the checkout's `config/` directory. Another
- * directory named `config` — the fixture repo's own `config/task-host.json` —
+ * directory named `config` — the fixture repo's own `config/beads.json` —
  * is not the operator's and stays readable. */
 export function isOwnerConfigFile(target, configDir = OWNER_CONFIG_DIR) {
   const text = pathText(target);

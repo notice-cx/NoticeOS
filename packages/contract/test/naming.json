@@ -20,6 +20,8 @@
     { "actor": "agent:Worker (US)", "kind": "agent", "name": "Worker (US)" },
     { "actor": "service:GitHub", "kind": "service", "name": "GitHub" },
     { "actor": "person:agent:Example Owner", "kind": "person", "name": "agent:Example Owner" },
+    { "actor": "person:Claude", "kind": "person", "name": "Claude" },
+    { "actor": "person:Lead", "kind": "person", "name": "Lead" },
     { "actor": "visitor:anyone", "kind": "visitor", "name": "anyone" },
     { "actor": "Example Owner", "kind": "person", "name": "Example Owner" },
     { "actor": "Claudette Example", "kind": "person", "name": "Claudette Example" },

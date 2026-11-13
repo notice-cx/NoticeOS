@@ -250,21 +250,14 @@ other field saves to the store in any deployment; the fields lock only where the
 cannot accept a write (unseeded, or without the config tables), and the page shows
 that once (`SavesPaused`).
 
-**Saving a row is not always all the setup a project needs, and the Task
-projects tab lists the rest.** Mapping a project in
-`config/beads.json` does not create the database its tasks are stored in or connect the
-repo to the task database, so after an Add the section shows the remaining operator steps
-from [`config/beads.README.md`](../config/beads.README.md) as four steps:
-**Initialize a new task database** (the `bd init` command filled in with the
-project just added), **Keep it on the shared database**, **Prepare project
-instructions**, and **Link the checkout here** (the entry that links the
-checkout in the installation's `task-host.json`) — each as text to copy,
-labelled with where it goes. The runner re-reads the map **every minute**,
-so a new project appears on the Tasks board without restarting the app, and
-is shown as unreadable until those steps are done. The **task database connection** is shown
-read-only, as a lock and its value, and it is sent to the browser only while
-`vite` is serving; it is compiled out of a deployed bundle with the rest of the
-runner code (`__RUNNER_LANE__` in `vite.config.ts`).
+**Task projects map each asset to Ntasks by prefix.** The **Task projects**
+tab connects Ntasks and lists which Ntasks project holds each saved asset's
+tasks. A saved row in `config/beads.json` maps to the Ntasks project with the
+same prefix. A project absent from the connection needs a service credential
+that reaches it; the task map requires no local checkout link. The runner
+rereads the map every minute, so a new project appears without restarting the
+app. Connection setup is in
+[Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md).
 
 `GET /api/settings` is a **pure builder over the resolved config** — each
 stored document, or the compiled copy where none is stored

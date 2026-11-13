@@ -110,7 +110,7 @@ test('generation may read exactly the canonical product documents and never inst
   const generation = path.join(REPO_ROOT, 'scripts/config-contract-generation.test.mjs');
   assert.deepEqual(SEED_VALIDATION_TESTS['scripts/config-contract-generation.test.mjs'].files, CONFIG_DOCUMENT_FILES);
   for (const file of CONFIG_DOCUMENT_FILES) assert.equal(mayReadOwnerConfig(generation, file), true, file);
-  for (const file of ['installation/constants.json', 'installation/beads.json', 'installation/task-host.json', 'config/beads.README.md', 'config/unregistered.json']) {
+  for (const file of ['installation/constants.json', 'installation/beads.json', 'installation/host-backup.json', 'config/beads.README.md', 'config/unregistered.json']) {
     assert.equal(mayReadOwnerConfig(generation, file), false, file);
   }
 });
@@ -119,7 +119,7 @@ test('only the checkout\'s own config directory counts as owner config', () => {
   assert.equal(ownerConfigFile(OWNER_CONSTANTS), 'config/constants.json');
   assert.equal(ownerConfigFile(pathToFileURL(OWNER_PULL)), 'config/pull.json');
   assert.equal(ownerConfigFile(pathToFileURL(OWNER_PULL).href), 'config/pull.json');
-  assert.equal(ownerConfigFile(path.join(REPO_ROOT, 'apps/tower/e2e/fixture-repo/installation/task-host.json')), null);
+  assert.equal(ownerConfigFile(path.join(REPO_ROOT, 'apps/tower/e2e/fixture-repo/installation/beads.json')), null);
   assert.equal(ownerConfigFile(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config/constants.json')), null);
   assert.equal(ownerConfigFile(path.join(os.tmpdir(), 'config', 'constants.json')), null);
   assert.equal(ownerConfigFile(OWNER_CONFIG_DIR), null);

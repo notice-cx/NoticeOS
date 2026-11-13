@@ -76,6 +76,8 @@ export interface SiteStatus {
   /** The latest failed attempt behind a Failing site, for its reason. */
   failure: IntegrationHealthItem | null;
   works: WorkStatus[];
+  /** Archive dates omitted from bounded monitoring, separate from report families. */
+  overflow?: { count: number; atLeast: boolean };
 }
 
 export interface ConnectionStatus {
@@ -211,14 +213,25 @@ function workStatus(key: string, items: IntegrationHealthItem[]): WorkStatus {
 /** One site's status from its own items (one provider, or one data source). */
 export function siteStatus(key: string, items: IntegrationHealthItem[]): SiteStatus | null {
   const byWork = new Map<string, IntegrationHealthItem[]>();
+  const overflowByTarget = new Map<string, { count: number; atLeast: boolean }>();
   for (const item of items) {
+    if (item.overflow) {
+      const next = { count: item.overflow.total - item.overflow.shown, atLeast: item.overflow.atLeast };
+      const targetKey = JSON.stringify([item.capability, item.overflow.target ?? ""]);
+      const previous = overflowByTarget.get(targetKey);
+      // Archive and observer bounds can overlap without covering the same dates.
+      overflowByTarget.set(targetKey, { count: Math.max(previous?.count ?? 0, next.count), atLeast: (previous?.atLeast ?? false) || next.atLeast });
+      continue;
+    }
     const workKey = `${item.capability}|${reportOf(item).report}`;
     byWork.set(workKey, [...(byWork.get(workKey) ?? []), item]);
   }
+  const overflows = [...overflowByTarget.values()];
+  const overflow = overflows.length ? { count: overflows.reduce((sum, item) => sum + item.count, 0), atLeast: overflows.some(item => item.atLeast) } : undefined;
   const works = [...byWork.entries()].map(([workKey, list]) => workStatus(workKey, list));
   const has = (kind: WorkKind) => works.some((work) => work.kind === kind);
   const kind: SiteKind | null = has("failing") ? "failing" : has("reconnecting") ? has("overdue") ? "overdue" : "reconnecting" : has("working") ? "working" : has("overdue") ? "overdue"
-    : has("collecting") ? "collecting" : has("unknown") ? "unknown" : has("not-using") ? "not-using" : null;
+    : has("collecting") ? "collecting" : has("unknown") || overflow ? "unknown" : has("not-using") ? "not-using" : null;
   if (kind === null) return null;
   // The reason a failing site leads with: its direct pull before any one report
   // family, then the newest attempt.
@@ -228,6 +241,7 @@ export function siteStatus(key: string, items: IntegrationHealthItem[]): SiteSta
     .filter((value): value is string => value !== null).sort();
   return {
     key, asset: items.find((item) => item.asset)?.asset ?? null, kind,
+    ...(overflow ? { overflow } : {}),
     missing: works.reduce((sum, work) => sum + work.missing.length, 0),
     incomplete: works.reduce((sum, work) => sum + work.incomplete.length, 0),
     overdue: kind === "working" ? works.filter((work) => work.kind === "overdue").length : 0,

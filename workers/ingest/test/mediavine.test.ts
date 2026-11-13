@@ -7,8 +7,8 @@ import { disconnectMediavine, mediavineStatus, putMediavineCredential, runMediav
 import { connectCredential } from '../src/credential-connect.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { runCollectNow } from '../src/dispatch.js';
-import { mediavineSyncOn } from '@noticeos/contract';
-import { resolveCredential, saveMediavineSession, rotateCredentialKeys } from '../src/credentials.js';
+import { connectionState, mediavineSyncOn } from '@noticeos/contract';
+import { credentialSummary, resolveCredential, saveMediavineSession, rotateCredentialKeys } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
 import { applyConfigOps, forgetConfigCache, getConfigDocument } from '../src/config-store.js';
 import { bookEntry, call, credentialVerdict, reset, emptyTables, storedCount, storedCredential, storedHealthStates } from './helpers.js';
@@ -453,6 +453,73 @@ describe('request budget and scheduling', () => {
     expect(JSON.parse(String(log.mock.lastCall?.[0]))).toMatchObject({ event: 'mediavine_sync', asset: ASSET, outcome: 'failed' });
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 })).outcome).toBe('skipped');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(await retryState()).toMatchObject({ auth_blocked: true });
+    const [account] = await env.STORE.read(tx => tx.query('SELECT auth_blocked FROM noticeos.integration_leases WHERE lease_key = $1', ['mediavine']));
+    expect(account).toMatchObject({ auth_blocked: false });
+  });
+  it('keeps a refused site paused while another site stores revenue with the same connected account', async () => {
+    const otherAsset = 'northwind.example';
+    const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
+    const source = transport({ sites: [SITE, otherSite] });
+    await putMediavineCredential(env, { provider: 'mediavine', fields: { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET } });
+    expect((await discoverMediavineSites(env, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    for (const [asset, siteId] of [[ASSET, SITE.id], [otherAsset, otherSite.id]] as const) {
+      expect((await saveMediavineSettings(env, { asset, siteId, enabled: true })).ok).toBe(true);
+    }
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as { query: string; variables: { siteId?: string } };
+      return body.query.includes('earningsReport') && body.variables.siteId === SITE.id
+        ? Response.json({ errors: [{ extensions: { code: 'FORBIDDEN' } }] })
+        : source(url, init);
+    });
+    const refused = await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW });
+    expect(refused.ok).toBe(false);
+    expect(await retryState()).toMatchObject({ auth_blocked: true, last_error: expect.any(String) });
+    expect((await mediavineStatus(env, ASSET)).error).toEqual(refused.ok ? null : refused.message);
+    const [account] = await env.STORE.read(tx => tx.query('SELECT auth_blocked, last_error FROM noticeos.integration_leases WHERE lease_key = $1', ['mediavine']));
+    expect(account).toEqual({ auth_blocked: false, last_error: null });
+    const connection = await credentialSummary(env, 'mediavine');
+    expect(connection).not.toBeNull();
+    expect(connectionState(connection!)).toBe('connected');
+    expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl, nowMs: NOW })).ok).toBe(true);
+    const other = await mediavineStatus(env, otherAsset);
+    expect(other.daily).toHaveLength(8);
+    expect(other.daily.every(day => day.amountMinor === 125)).toBe(true);
+    expect(other.error).toBeNull();
+    expect(await count('revenue_observations')).toBe(8);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+  it.each(['sign-in', 'site listing'])('blocks the account after a permission refusal of %s', async operation => {
+    await connect();
+    if (operation === 'sign-in') await saveMediavineSession(env, null);
+    const source = transport();
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+      const query = String(init?.body);
+      const refused = operation === 'sign-in' ? query.includes('unidashSignIn') : query.includes('sitesForUser');
+      return refused ? new Response('', { status: 403 }) : source(url, init);
+    });
+    const result = operation === 'sign-in'
+      ? await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW })
+      : await discoverMediavineSites(env, { fetchImpl, nowMs: NOW + 3_600_000 });
+    expect(result.ok).toBe(false);
+    const [account] = await env.STORE.read(tx => tx.query('SELECT auth_blocked FROM noticeos.integration_leases WHERE lease_key = $1', ['mediavine']));
+    expect(account).toMatchObject({ auth_blocked: true });
+    const calls = fetchImpl.mock.calls.length;
+    expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW + 7_200_000 })).ok).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(calls);
+  });
+  it.each([401, 'UNAUTHENTICATED'])('blocks the account after a report authentication refusal %s', async refusal => {
+    await connect();
+    const source = transport();
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => String(init?.body).includes('earningsReport')
+      ? typeof refusal === 'number' ? new Response('', { status: refusal }) : Response.json({ errors: [{ extensions: { code: refusal } }] })
+      : source(url, init));
+    expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW })).ok).toBe(false);
+    const [account] = await env.STORE.read(tx => tx.query('SELECT auth_blocked FROM noticeos.integration_leases WHERE lease_key = $1', ['mediavine']));
+    expect(account).toMatchObject({ auth_blocked: true });
+    const calls = fetchImpl.mock.calls.length;
+    expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW + 86_400_000 })).ok).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(calls);
   });
   it('makes no provider call before 6:10 Pacific', async () => {
     await connect(); const fetchImpl = transport();

@@ -171,6 +171,7 @@ jobs:
           JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
+        continue-on-error: true
         with:
           name: smoke-journey-browser-evidence-${{ matrix.shard }}
           path: |
@@ -220,6 +221,7 @@ jobs:
           JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
+        continue-on-error: true
         with:
           name: user-journey-browser-evidence-${{ matrix.shard }}
           path: |
@@ -268,6 +270,7 @@ jobs:
         if: matrix.part != 'journeys'
       - uses: actions/upload-artifact@v7
         if: always()
+        continue-on-error: true
         with:
           name: ux-flow-walker-report-${{ matrix.part }}
           path: |

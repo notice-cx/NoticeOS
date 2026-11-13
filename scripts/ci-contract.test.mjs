@@ -200,14 +200,23 @@ test('job extraction cannot borrow a missing gate from a sibling job', () => {
 test('CI runs the isolated user journeys and the flow walker and keeps their evidence', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
   for (const [name, step, evidence] of [
+    ['smoke', 'test:journeys', ['playwright-report', 'test-results']],
     ['browser', 'test:journeys', ['playwright-report', 'test-results']],
     // The walker's measurements, and the screenshot a flow that could not finish names.
     ['flow-gate', 'test:ux-flows', ['ux-flows-results']],
   ]) {
     const job = jobBlock(workflow, name);
-    assert.doesNotMatch(job, /continue-on-error:\s*true/u);
-    assert.match(job, /uses: actions\/upload-artifact@/u);
-    assert.match(job, /if: always\(\)/u);
+    const steps = job.split(/\n(?= {6}- )/u);
+    const uploads = steps.filter((block) => /uses: actions\/upload-artifact@/u.test(block));
+    assert.equal(uploads.length, 1, `${name} keeps its evidence upload`);
+    for (const block of steps) {
+      if (uploads.includes(block)) {
+        assert.match(block, /if: always\(\)/u);
+        assert.match(block, /continue-on-error:\s*true/u, `${name} keeps upload outages separate from test results`);
+      } else {
+        assert.doesNotMatch(block, /continue-on-error:\s*true/u, `${name} still fails when a gate fails`);
+      }
+    }
     for (const folder of evidence) assert.match(job, new RegExp(`apps/tower/e2e/${folder}/`, 'u'), `${name} keeps ${folder}`);
     // The journeys' workers and the flow gate's lanes on the runner: unset, a
     // small runner would run them all on one.
