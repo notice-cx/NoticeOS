@@ -200,6 +200,34 @@ describe("the Wall's issue list", () => {
     expect(siteMark(issues, "meadow.example")).toBeNull();
   });
 
+  it("lists a failed comparison separately even when another asset's live traffic fails", () => {
+    const credential: CredentialSummary = {
+      provider: "google", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
+      keyVersion: 1, createdAt: ago(HOUR), updatedAt: ago(HOUR), lastUsedAt: ago(HOUR), lastOkAt: ago(HOUR), lastError: null,
+    };
+    const reading = (asset: string, capability: string, failure: IntegrationHealthItem["failure"] = null): IntegrationHealthItem => ({
+      id: `${capability}:${asset}`, provider: "google", capability, label: capability, asset,
+      detail: null, report: null, reportDate: null, state: failure ? "failing" : "healthy", lastAttemptAt: ago(MINUTE),
+      lastSuccessAt: ago(HOUR), nextAttemptAt: null, failure,
+      code: null, action: "Review.", coverage: "monitored",
+    });
+    const connections: ConnectionReads = {
+      credentials: new Map([["google", credential]]),
+      items: [
+        reading("northwind.example", "ga4-realtime"),
+        reading("northwind.example", "ga4-comparison", "incomplete-report"),
+        reading("acorn.example", "ga4-realtime", "access"),
+        reading("acorn.example", "ga4-comparison", "access"),
+      ],
+    };
+    const issues = wallIssues({ assets: SITES, attention: [], connections, nowMs: NOW });
+    expect(issues.map(({ line, assets }) => ({ line, assets }))).toEqual([
+      { line: "Activity comparison failing", assets: ["northwind.example", "acorn.example"] },
+      { line: "GA4 collection failing", assets: ["acorn.example"] },
+    ]);
+    expect(siteMark(issues, "northwind.example")).toEqual({ severity: "error", label: "Activity comparison failing", more: 0 });
+  });
+
   it("gives an asset one mark for its worst, newest problem and counts the rest", () => {
     const issues = wallIssues({
       assets: SITES,

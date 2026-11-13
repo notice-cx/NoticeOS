@@ -82,7 +82,7 @@ export interface Ga4RealtimeOptions {
 export async function runGa4Realtime(
   env: IngestEnv,
   options: Ga4RealtimeOptions = {},
-): Promise<Ga4RealtimePayload> {
+): Promise<Ga4RealtimePayload & { unrecordedFailure: boolean }> {
   const clock = options.clock ?? (options.nowMs === undefined ? Date.now : () => options.nowMs!);
   const nowMs = clock();
   const observedAt = new Date(nowMs).toISOString();
@@ -95,6 +95,7 @@ export async function runGa4Realtime(
   const { resolved, osTimeZone, targets } = await realtimeTargets(env, options.rawConfig);
   const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
   let monitoringAvailable = health !== null;
+  let unrecordedFailure = false;
   const assets: Ga4RealtimeAsset[] = [];
   const zoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
@@ -112,9 +113,10 @@ export async function runGa4Realtime(
         error,
         'Google authentication failed.',
       );
-      for (const target of accountTargets) for (const capability of ['ga4-realtime']) {
-        const result = await observeIntegrationAttempt(env, health, { capability, asset: target.asset, target: target.propertyRef, observedAt, ok: false, code: normalized.code });
+      for (const target of accountTargets) {
+        const result = await observeIntegrationAttempt(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef, observedAt, ok: false, code: normalized.code });
         assets.push({ ...errorResult(target.asset, observedAt, normalized), ...(result.reconnecting ? { reconnecting: true as const } : {}) });
+        if (!result.recorded) unrecordedFailure = true;
         monitoringAvailable = result.recorded && monitoringAvailable;
       }
       continue;
@@ -171,14 +173,17 @@ export async function runGa4Realtime(
           error,
           'GA4 realtime request failed.',
         );
+        let recorded = false;
         let reconnecting = false;
         if (normalized.code !== 'ga4_read_in_progress') {
           const result = await observeIntegrationAttempt(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef,
             observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(clock()).toISOString(), ok: false, code: normalized.code,
             ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}) });
-          monitoringAvailable = result.recorded && monitoringAvailable;
+          recorded = result.recorded;
+          monitoringAvailable = recorded && monitoringAvailable;
           reconnecting = result.reconnecting;
         }
+        if (!recorded) unrecordedFailure = true;
         assets.push({ ...errorResult(target.asset, error instanceof Ga4ReadError ? error.observedAt : observedAt, normalized), ...(reconnecting ? { reconnecting: true as const } : {}) });
       } finally {
         try {
@@ -201,6 +206,7 @@ export async function runGa4Realtime(
   return {
     generatedAt: new Date().toISOString(),
     assets,
+    unrecordedFailure,
     ...(!monitoringAvailable ? { monitoringAvailable: false } : {}),
   };
 }
