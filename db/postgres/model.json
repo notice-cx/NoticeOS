@@ -372,14 +372,20 @@
       "rule": "Append-only."
     },
     "notifications": {
-      "revision": {
-        "insert": true,
-        "update": [],
-        "delete": false
-      },
-      "rule": "Append-only; the unique key is the dedupe."
+      "view": true,
+      "revision": { "insert": true, "update": [], "delete": false },
+      "rule": "Previous app versions read and record successful deliveries through this view."
     },
     "notification_outbox": {
+      "view": true,
+      "revision": {
+        "insert": true,
+        "update": ["state", "attempts", "next_attempt_at", "lease_id", "lease_until", "finished_at"],
+        "delete": false
+      },
+      "rule": "Previous app versions enqueue and update delivery state through this view."
+    },
+    "notification_events": {
       "revision": {
         "insert": true,
         "update": [
@@ -392,7 +398,7 @@
         ],
         "delete": false
       },
-      "rule": "Delivery intent commits with its source condition; immutable events retain delivery, cancellation, lease and retry state."
+      "rule": "The type, source and payload stay fixed. A delivery updates the same row from pending to sent or cancelled."
     },
     "job_runs": {
       "revision": {

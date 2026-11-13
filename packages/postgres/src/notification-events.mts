@@ -3,7 +3,7 @@ import { openWorkspaceStore, type WorkspaceStore } from './store.mjs';
 
 /** LISTEN requires a direct connection, never a transaction-pooled transport.
  * The signal contains no workspace or alert data. Every subsequent read uses
- * the scoped application store; wake-ups are hints, the outbox is durable. */
+ * the scoped application store; wake-ups are hints, pending events are durable. */
 export interface NotificationEventListener {
   close(): Promise<void>;
 }
@@ -55,7 +55,7 @@ function notificationEvents(options: NotificationEventOptions, store: WorkspaceS
     try {
       const [row] = await store.read(tx => tx.query<{ due: string | null }>(
         `SELECT min(greatest(next_attempt_at, coalesce(lease_until, next_attempt_at))) AS due
-           FROM noticeos.notification_outbox WHERE state = 'pending'`));
+           FROM noticeos.notification_events WHERE channel = 'discord' AND state = 'pending'`));
       if (stopped) return;
       const due = row?.due ? Date.parse(row.due) - Date.now() : Infinity;
       // The minute check bounds missed wake-up/reconnect recovery. Failed or
@@ -120,7 +120,7 @@ function notificationEvents(options: NotificationEventOptions, store: WorkspaceS
     if (stopped || running || timer || checking) return;
     checking = true;
     void store.read(tx => tx.query<{ due: boolean }>(`SELECT EXISTS (
-      SELECT 1 FROM noticeos.notification_outbox WHERE state = 'pending'
+      SELECT 1 FROM noticeos.notification_events WHERE channel = 'discord' AND state = 'pending'
         AND next_attempt_at <= clock_timestamp()
         AND (lease_until IS NULL OR lease_until <= clock_timestamp())) AS due`))
       .then(rows => { if (rows[0]?.due) kick('recovery'); })

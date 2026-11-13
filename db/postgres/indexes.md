@@ -68,7 +68,8 @@ query chooses that index or that its write cost has been measured.
 | `integration_health_events_target` | Attempt history for a capability target; target foreign key. |
 | `integration_health_events_recorded` | Workspace event feed ordered by recording time (`apps/tower/worker/wall-feed.ts`). |
 | `config_changes_document` | Saved-document revision history (`workers/ingest/src/config-store.ts`). |
-| `notification_outbox_due` | Pending workspace delivery deadlines, bounded claims and retry scheduling (`workers/ingest/src/notifier.ts`, `packages/postgres/src/notification-events.mts`); terminal history is excluded. |
+| `notification_events_due` | Pending delivery deadlines per workspace and channel, for bounded claims and retry scheduling (`workers/ingest/src/notifier.ts`, `packages/postgres/src/notification-events.mts`). |
+| `notification_events_sent_source` | Successful deliveries by workspace and source, for the Tower's alert delivery times and connection failure recovery. |
 | `notifications_subject` | Delivery history for alert subjects (`workers/ingest/src/notifier.ts`, `apps/tower/worker/flag-scope.ts`). |
 | `job_runs_started` | Recent workspace workflow history (`workers/ingest/src/job-runs.ts`). |
 | `egress_checks_observed` | Latest workspace connectivity checks (`workers/ingest/src/db.ts`). |

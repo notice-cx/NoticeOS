@@ -1,4 +1,5 @@
 import { DISCORD_MEDIAVINE_REVENUE_KEY } from '@noticeos/contract/configuration';
+import { DAILY_MEDIAVINE_REVENUE } from '@noticeos/contract';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import type { Transaction } from '@noticeos/postgres';
 import type { Report } from '@noticeos/mediavine';
@@ -10,11 +11,12 @@ export const MEDIAVINE_NOTIFICATIONS_ENABLED = `EXISTS (
 
 /** Snapshot the first amount and its comparison after every day of the run has been written. */
 export async function enqueueMediavineNotifications(tx: Transaction, asset: string, runId: string, report: Report): Promise<void> {
-  await tx.execute(`INSERT INTO noticeos.notification_outbox
-      (workspace_id, subject, subject_ref, occurrence, occurred_at, next_attempt_at,
-       revenue_minor, previous_revenue_minor, month_revenue_minor, month_reported_days)
-    SELECT r.workspace_id, 'mediavine-revenue', r.asset_id, to_char(r.revenue_date, 'YYYY-MM-DD'),
-      r.recorded_at, r.recorded_at, r.amount_minor, comparison.previous_amount, comparison.month_amount, comparison.month_days
+  await tx.execute(`INSERT INTO noticeos.notification_events
+      (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, next_attempt_at, payload)
+    SELECT r.workspace_id, $8, 'asset', r.asset_id, to_char(r.revenue_date, 'YYYY-MM-DD'),
+      r.recorded_at, r.recorded_at, jsonb_build_object(
+        'amount_minor', r.amount_minor, 'previous_minor', comparison.previous_amount,
+        'month_minor', comparison.month_amount, 'month_reported_days', comparison.month_days)
     FROM noticeos.revenue_observations r
     CROSS JOIN LATERAL (
       SELECT SUM(daily.amount_minor) FILTER (WHERE daily.revenue_date = r.revenue_date - 7) AS previous_amount,
@@ -36,7 +38,7 @@ export async function enqueueMediavineNotifications(tx: Transaction, asset: stri
       )
     ORDER BY r.revenue_date
     ON CONFLICT DO NOTHING`,
-    [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, report.period.start, report.period.end, runId]);
+    [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, report.period.start, report.period.end, runId, DAILY_MEDIAVINE_REVENUE]);
 }
 
 export interface MediavineRevenueNotification {

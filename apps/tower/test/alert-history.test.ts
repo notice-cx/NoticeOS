@@ -13,7 +13,7 @@ import {
   handleAlertHistoryRequest,
 } from "../worker/alert-history";
 import { openFlagsSql, settledFlagsSql, snoozedFlagsSql } from "../worker/flag-scope";
-import { readAlerts, storeAlert, storeReading } from "./alert-rows";
+import { readAlerts, storeAlert, storeAlertNotice, storeReading } from "./alert-rows";
 import { storeChanges } from "./change-rows";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { addSites } from "./sites";
@@ -97,6 +97,23 @@ const query = (over: Partial<Parameters<typeof buildAlertHistoryPayload>[1]> = {
 
 describe("the settled-alert read", () => {
   beforeEach(prepareStore);
+
+  it("shows the first successful delivery time and omits a cancelled delivery", async () => {
+    const sent = await insertFlag(test, { asset: "meadow.example", firedAt: at(5), resolvedAt: at(2) });
+    const cancelled = await insertFlag(test, { asset: "northwind.example", firedAt: at(5), resolvedAt: at(2) });
+    await storeAlertNotice(test.call, sent, { sentAt: at(4) });
+    await storeAlertNotice(test.call, sent, { sentAt: at(3), channel: "slack" });
+    await test.call.write(tx => tx.execute(`INSERT INTO noticeos.notification_events
+      (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, state, finished_at)
+      VALUES ($1, 'open-error', 'alert', $2, '', $3::timestamptz, 'cancelled', $3::timestamptz)`,
+    [tx.workspaceId, String(cancelled), at(2)]));
+
+    const history = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
+    expect(Object.fromEntries(history.rows.map(({ flag }) => [flag.id, flag.notifiedAt]))).toEqual({
+      [sent]: at(4),
+      [cancelled]: null,
+    });
+  });
 
   it("excludes archived rows before counting and paging, then restores their history", async () => {
     await insertFlag(test, { asset: "meadow.example", firedAt: at(2), resolvedAt: at(1) });

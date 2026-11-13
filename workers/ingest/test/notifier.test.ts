@@ -78,7 +78,8 @@ async function insertFlag(over: {
 
 async function notified(): Promise<{ subject: string; ref: string; condition: string }[]> {
   return pgRows<{ subject: string; ref: string; condition: string }>(
-    `SELECT subject, subject_ref AS ref, condition FROM noticeos.notifications ORDER BY notification_id`,
+    `SELECT source_kind AS subject, source_ref AS ref, notification_type AS condition
+      FROM noticeos.notification_events WHERE state = 'sent' ORDER BY finished_at, source_ref`,
   );
 }
 
@@ -139,8 +140,8 @@ describe('first daily Mediavine revenue notifications', () => {
       expect.objectContaining({ description: expect.stringContaining('Month to date **$12.00** · Projected at current pace **Pending**') }),
     ]));
     expect(await notified()).toEqual(expect.arrayContaining([
-      { subject: 'mediavine-revenue', ref: 'meadow.example', condition: 'daily-mediavine-revenue' },
-      { subject: 'mediavine-revenue', ref: 'northwind.example', condition: 'daily-mediavine-revenue' },
+      { subject: 'asset', ref: 'meadow.example', condition: 'daily-mediavine-revenue' },
+      { subject: 'asset', ref: 'northwind.example', condition: 'daily-mediavine-revenue' },
     ]));
     expect(await runNotifier(env, { nowMs: collected + HOUR, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
     expect(discord.posts).toHaveLength(1);
@@ -267,7 +268,7 @@ describe('what the OS interrupts the operator about', () => {
     // The credential is not the secret, and neither is the message.
     expect(discord.posts[0]!.content).not.toContain('a-key-that-will-be-rejected');
     expect(await notified()).toEqual([
-      { subject: 'data-source', ref: 'bing-webmaster', condition: 'source-failing' },
+      { subject: 'integration', ref: 'bing-webmaster', condition: 'source-failing' },
     ]);
 
     // Still broken next hour is the SAME failure, not a second one.
@@ -349,13 +350,7 @@ describe('what the OS interrupts the operator about', () => {
   });
 
   it('caps one message and says how many more there were', () => {
-    const many = Array.from({ length: 14 }, (_, i) => ({
-      condition: 'open-error' as const,
-      subject: 'alert' as const,
-      subjectRef: String(i),
-      occurrence: '',
-      line: `asset${i} — pulse: no report`,
-    }));
+    const many = Array.from({ length: 14 }, (_, i) => ({ line: `asset${i} — pulse: no report` }));
     const message = composeMessage(many, many.slice(0, 10));
     expect(message.split('\n')[0]!.match(/\d+/g)).toEqual(['14']);
     expect(message.split('\n').at(-1)!.match(/\d+/g)).toEqual(['4']);
@@ -380,8 +375,8 @@ it('keeps successful delivery and dedupe when health recording fails', async () 
 
 async function queued() {
   return pgRows<{ state: string; attempts: number; due: string; lease: string | null; subject: string; ref: string }>(
-    `SELECT state, attempts, next_attempt_at AS due, lease_id::text AS lease, subject, subject_ref AS ref
-       FROM noticeos.notification_outbox ORDER BY subject_ref, occurred_at`,
+    `SELECT state, attempts, next_attempt_at AS due, lease_id::text AS lease, source_kind AS subject, source_ref AS ref
+       FROM noticeos.notification_events ORDER BY source_ref, occurred_at`,
   );
 }
 
@@ -456,7 +451,7 @@ describe('durable event delivery', () => {
     const run = runNotifier({ ...env, STORE: gate.store }, { nowMs: NOW, fetchImpl: discord.fetchImpl });
     try {
       await gate.started;
-      await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_outbox
+      await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_events
         SET lease_id = $1::uuid, lease_until = $2::timestamptz`, [crypto.randomUUID(), new Date(NOW + 300_000).toISOString()]));
     } finally { gate.release(); }
     expect(await run).toMatchObject({ sent: 0 });
@@ -468,7 +463,7 @@ describe('durable event delivery', () => {
     await connectDiscord();
     await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-key' } });
     await setConnection('bing-webmaster', { last_used_at: new Date(NOW - HOUR).toISOString(), last_error: 'Synthetic failure' });
-    await asOwner('TRUNCATE noticeos.notification_outbox');
+    await asOwner('TRUNCATE noticeos.notification_events');
     const discord = discordFetch();
     const results = await Promise.all([
       runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl, recover: true }),
@@ -480,7 +475,7 @@ describe('durable event delivery', () => {
     expect(await notified()).toHaveLength(1);
   });
 
-  it('preserves a source receipt written by the previous release while the new trigger was installed', async () => {
+  it('preserves a connection failure delivered by the previous app during upgrade', async () => {
     await connectDiscord();
     await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-key' } });
     await asOwner("UPDATE noticeos.integration_connections SET created_at = '2026-09-05T10:00:00Z' WHERE provider = 'bing-webmaster'");
@@ -489,8 +484,10 @@ describe('durable event delivery', () => {
     expect(await queued()).toHaveLength(1);
     await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.notifications
       (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
-      VALUES ($1::uuid, 'discord', 'data-source', 'bing-webmaster', $2, 'source-failing', $3::timestamptz)`,
-    [tx.workspaceId, failedAt, new Date(NOW - 30_000).toISOString()]));
+      SELECT workspace_id, channel, 'data-source', source_ref, occurrence, notification_type, $1::timestamptz
+      FROM noticeos.notification_events WHERE notification_type = 'source-failing'
+      ON CONFLICT DO NOTHING`,
+    [new Date(NOW - 30_000).toISOString()]));
     const discord = discordFetch();
     expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
     expect(discord.posts).toHaveLength(0);
@@ -537,7 +534,7 @@ describe('durable event delivery', () => {
   it('reclaims a crashed consumer’s lease only after it expires', async () => {
     await connectDiscord();
     await insertFlag({});
-    await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_outbox
+    await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_events
       SET lease_id = $1::uuid, lease_until = $2::timestamptz, attempts = 1`,
     [crypto.randomUUID(), new Date(NOW + 120_000).toISOString()]));
     const discord = discordFetch();
@@ -637,11 +634,11 @@ describe('durable event delivery', () => {
     await connectDiscord();
     await insertFlag({});
     const old = await insertFlag({ metric: 'previously-notified' });
+    await asOwner('TRUNCATE noticeos.notification_events');
     await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.notifications
       (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
       VALUES ($1::uuid, 'discord', 'alert', $2, '', 'open-error', $3::timestamptz)`,
     [tx.workspaceId, String(old), new Date(NOW - 1000).toISOString()]));
-    await asOwner('TRUNCATE noticeos.notification_outbox');
     const discord = discordFetch();
     expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
     expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 1 });

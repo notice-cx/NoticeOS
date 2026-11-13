@@ -166,13 +166,16 @@ export async function storeReading(
 export async function storeAlertNotice(
   store: WorkspaceStore,
   alert: number,
-  notice: { sentAt: string; channel?: string; condition?: string },
+  notice: { sentAt: string; channel?: string },
 ): Promise<void> {
   await store.write((tx) =>
     tx.execute(
-      `INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
-       VALUES ($1, $2, 'alert', $3, '', $4, $5::timestamptz)`,
-      [tx.workspaceId, notice.channel ?? "discord", String(alert), notice.condition ?? "new-error-alert", notice.sentAt],
+      `INSERT INTO noticeos.notification_events
+         (workspace_id, channel, notification_type, source_kind, source_ref, occurrence, occurred_at, state, finished_at)
+       VALUES ($1, $2, 'open-error', 'alert', $3, '', $4::timestamptz, 'sent', $4::timestamptz)
+       ON CONFLICT (workspace_id, channel, notification_type, source_kind, source_ref, occurrence)
+       DO UPDATE SET state = 'sent', finished_at = EXCLUDED.finished_at`,
+      [tx.workspaceId, notice.channel ?? "discord", String(alert), notice.sentAt],
     ),
   );
 }
