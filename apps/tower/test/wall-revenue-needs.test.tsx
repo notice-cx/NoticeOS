@@ -50,7 +50,8 @@ describe("the revenue widget", () => {
     const data = wallFixturePayload();
     const asset = data.assets.find((asset) => asset.revenueProjection?.status === "ready")!;
     const projection = asset.revenueProjection!;
-    const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, forecast: { ...data.portfolio.forecast, revenue: projection.earnedMinor! / 100 } }} assets={[{
+    const earned = projection.earnedMinor! / 100;
+    const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, forecast: { currency: "USD", revenue: earned, cost: 0, net: earned } }} assets={[{
       ...asset,
       revenueProjection: { ...projection, previousMonthMinor: projection.projectedMinor! * previousFactor },
     }]} nowMs={NOW} />);
