@@ -16,8 +16,8 @@
 // A task line opens its task page; no other line is a control, and nothing on
 // a TV is pressed. Colour is tokens only, and the
 // glyph carries the kind, so colour is never alone. A line about an
-// asset draws its icon with an event-kind badge; the header carries a known
-// agent's small mark and model. Assetless events keep their agent or kind icon.
+// asset draws its icon with an event-kind badge. Task headers carry their ID,
+// and the actor's mark sits beside the action text.
 
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -232,7 +232,9 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
           {visible.map((item, index) => {
             const tone = TONE[item.tone];
             const Glyph = GLYPH[item.kind];
-            const who = item.who ? taskActorLabel(item.who) : null;
+            const actor = item.who ? taskActorLabel(item.who) : null;
+            const github = actor?.toLowerCase() === "github";
+            const who = github ? "GitHub" : actor;
             const model = modelName(item.model);
             const maker = who ? agentMaker(who, [model]) : null;
             const atMs = Date.parse(item.at);
@@ -266,16 +268,6 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       <PropertyFavicon domain={item.asset} icons={icons?.get(item.asset)} scheme="dark" displayName={item.site ?? item.asset} className="wall-feed-glyph" />
                       <span data-feed-badge className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}><Glyph className="size-2.5" aria-hidden /></span>
                     </span>
-                  ) : maker && who ? (
-                    <span className="wall-feed-glyph relative" data-feed-agent={maker}>
-                      <AgentMark name={who} models={[model]} size="feed" className="wall-feed-agent-mark" />
-                      <span
-                        data-feed-badge
-                        className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
-                      >
-                        <Glyph className="size-2.5" aria-hidden />
-                      </span>
-                    </span>
                   ) : (
                     <span className={cn("wall-feed-glyph relative grid place-items-center rounded-lg", tone.tile, tone.ink)}>
                       <Glyph className="size-4" aria-hidden />
@@ -284,12 +276,8 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="wall-feed-label truncate font-semibold" data-feed-label>
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
-                      {maker && who ? (
-                        <span className="text-muted-foreground" data-feed-model>
-                          {" · "}<span data-feed-agent={maker}><AgentMark name={who} models={[model]} size="small" className="wall-feed-header-agent" /></span>{" "}{model ?? who}
-                        </span>
-                      ) : model ? (
-                        <span className="text-muted-foreground" data-feed-model>{" · "}{model}</span>
+                      {item.task ? (
+                        <span className="text-muted-foreground" data-feed-task>{" · "}{item.task}</span>
                       ) : !item.asset && item.site ? (
                         <span className="text-muted-foreground">{" · "}{item.site}</span>
                       ) : null}
@@ -300,7 +288,11 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                     >
                       {who ? (
                         <>
-                          <span className="font-semibold" data-feed-who>{who}</span>
+                          <span className="wall-feed-actor font-semibold" data-feed-who title={model ?? undefined}>
+                            {github ? <img className="wall-feed-github" src="/agents/github.svg" width={16} height={16} alt="" />
+                              : maker ? <span data-feed-agent={maker}><AgentMark name={who} models={[model]} size="small" className="wall-feed-inline-agent" /></span> : null}
+                            {who}
+                          </span>
                           {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")} data-feed-verb>{VERB[item.kind]}</span>{" "}
                           {item.choice ? (
                             <>

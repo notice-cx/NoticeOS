@@ -54,7 +54,7 @@ describe("the feed column", () => {
     render(<MemoryRouter><WallFeed feed={payload([item("long", 1, { text: title, task: "sample-1", who: "codex", model: "GPT-6.1 Sol", evidence: "abcdef1234567" })])} nowMs={NOW} /></MemoryRouter>);
     const link = screen.getByRole("link");
     expect(link).toHaveTextContent(title);
-    expect(link).toHaveTextContent("GPT-6.1 Sol");
+    expect(link.querySelector("[data-feed-who]")).toHaveAttribute("title", "GPT-6.1 Sol");
     expect(link).toHaveTextContent("abcdef1");
     expect(link).toHaveAttribute("href", "/tasks/sample-1");
     expect(link.querySelector("[data-feed-text]")).toHaveClass("line-clamp-3");
@@ -183,6 +183,8 @@ describe("a task line", () => {
     const [task, other] = screen.getAllByRole("listitem");
     expect(within(task!).getByRole("link")).toHaveAttribute("href", "/tasks/mn-7");
     expect(within(task!).getByRole("link")).toHaveTextContent("Codex claimed Line a");
+    expect(task!.querySelector("[data-feed-label]")).toHaveTextContent("Claimed · mn-7");
+    expect(task!.querySelector("[data-feed-who] img")).toHaveAttribute("src", "/agents/openai.png");
     expect(within(other!).queryByRole("link")).toBeNull();
   });
 });
@@ -196,7 +198,7 @@ describe("an agent's line", () => {
     ])} nowMs={NOW} />);
     const [closed, claimed] = screen.getAllByRole("listitem");
     expect(closed!.querySelector("[data-feed-who]")).toHaveTextContent(/^Claude Code$/);
-    expect(closed!.querySelector("[data-feed-label] [data-feed-model]")).toHaveTextContent(/^· Claude Opus 5\.5$/);
+    expect(closed!.querySelector("[data-feed-who]")).toHaveAttribute("title", "Claude Opus 5.5");
     expect(closed).toHaveTextContent("Claude Code closed Fix the export button");
     const evidence = closed!.querySelector("[data-feed-evidence]") as HTMLElement;
     expect([...evidence.children].map((chip) => chip.textContent)).toEqual(["3f2a91c", "lightbrief.example/briefs"]);
@@ -216,7 +218,7 @@ describe("an agent's line", () => {
     expect(named!.querySelector("[data-feed-verb]")).toHaveTextContent("filed");
     expect(named!.querySelector("[data-feed-agent]")).toHaveAttribute("data-feed-agent", "anthropic");
     expect(named!.querySelector("[data-feed-badge]")).toHaveClass("bg-muted-foreground");
-    expect(named!.querySelector("[data-feed-label] [data-feed-model]")).toHaveTextContent("Opus 5.5");
+    expect(named!.querySelector("[data-feed-who]")).toHaveAttribute("title", "Claude Opus 5.5");
     expect(named!.querySelector("[data-feed-evidence]")).toBeNull();
     expect(unnamed!.querySelector("[data-feed-text]")).toHaveTextContent(/^Listings show delivery prices$/);
     expect(unnamed!.querySelector("[data-feed-who]")).toBeNull();
@@ -269,17 +271,18 @@ describe("a line's marks", () => {
     const [system, agent] = screen.getAllByRole("listitem");
     expect(system!.querySelector("[data-feed-label]")).toHaveTextContent("Deployed · System");
     expect(system!.querySelector("svg.lucide-arrow-up")).not.toBeNull();
-    expect(agent!.querySelector(".wall-feed-glyph[data-feed-agent]")).toHaveAttribute("data-feed-agent", "openai");
-    expect(agent!.querySelector("[data-feed-label] [data-feed-model]")).toHaveTextContent("GPT-6.1 Sol");
+    expect(agent!.querySelector("[data-feed-who] [data-feed-agent]")).toHaveAttribute("data-feed-agent", "openai");
+    expect(agent!.querySelector("[data-feed-who]")).toHaveAttribute("title", "GPT-6.1 Sol");
     expect(agent!.querySelector("[data-feed-evidence]")).toBeNull();
   });
-  it("places known agent marks in the header and keeps event badges on each asset icon", () => {
+  it("places known actor marks before the name and keeps event badges on each asset icon", () => {
     render(<WallFeed feed={payload([
       item("a", 5, { who: "claude", model: "Opus 5.5" }),
       item("b", 9, { kind: "task-claimed", label: "Claimed", tone: "neutral", who: "codex", model: null }),
       item("c", 12, { kind: "task-claimed", label: "Claimed", tone: "neutral", who: "dana", model: null }),
-    ])} nowMs={NOW} />);
-    const [closed, claimed, person] = screen.getAllByRole("listitem");
+      item("d", 13, { who: "service:github", task: "mn-8" }),
+    ])} nowMs={NOW} />, { wrapper: MemoryRouter });
+    const [closed, claimed, person, github] = screen.getAllByRole("listitem");
     expect(closed!.querySelector("[data-feed-agent]")).toHaveAttribute("data-feed-agent", "anthropic");
     expect(closed!.querySelector("[data-feed-agent] img")).toHaveAttribute("src", "/agents/claude.svg");
     expect(closed!.querySelector("[data-feed-badge]")).toHaveClass("bg-healthy");
@@ -288,6 +291,9 @@ describe("a line's marks", () => {
     expect(person!.querySelector("[data-feed-agent]")).toBeNull();
     expect(person!.querySelector("[data-feed-badge]")).not.toBeNull();
     expect(person).toHaveTextContent("dana claimed Line c");
+    expect(github!.querySelector("[data-feed-who] img")).toHaveAttribute("src", "/agents/github.svg");
+    expect(github!.querySelector("[data-feed-text]")).toHaveTextContent("GitHub closed Line d");
+    expect(github!.querySelector("[data-feed-label]")).toHaveTextContent("Task done · mn-8");
   });
 
   it("uses the asset favicon as primary identity with an accessible name, and none on a portfolio-wide line", () => {

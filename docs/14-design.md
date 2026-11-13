@@ -601,9 +601,9 @@ Work, revenue and attention fit their content; Portfolio and Live feed take
 the remaining height in their columns. On wide screens, Live feed extends to
 the Wall's bottom and shows only whole entries. Asset-related entries use
 the asset's favicon as the primary icon, with an event-kind badge. The entry
-header shows the event label, the agent's small icon and model when present,
-and a clock time. The body allows three lines; commit and link evidence
-remains below it without a separate model row. This is the "Portfolio overview" preset,
+header shows the event label, task ID when present and a clock time. The
+body allows three lines and puts the actor’s icon beside the action. Commit
+and link evidence remains below it. This is the "Portfolio overview" preset,
 `DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
 Visitors by channel and Next up remain available in the widget library.
 
