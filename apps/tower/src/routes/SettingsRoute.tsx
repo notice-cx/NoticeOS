@@ -158,7 +158,7 @@ export function SettingsRoute() {
     ) : tab === 'alert-rules' ? (
       <AlertRulesSection settings={data} />
     ) : tab === 'notifications' ? (
-      <NotificationsPanel dailyRevenue={data.discordMediavineRevenue} />
+      <NotificationsPanel dailyRevenue={data.discordRevenue} />
     ) : tab === 'data-collection' ? (
       <CollectionSection settings={data} />
     ) : tab === 'tv-dashboard' ? (

@@ -103,7 +103,7 @@ const READ_ONLY_REASON =
 function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
   return {
     generatedAt: "2026-09-04T12:00:00.000Z",
-    discordMediavineRevenue: false,
+    discordRevenue: false,
     portfolioReview: { owner: "config/constants.json", assetIds: null, assets: [] },
     clock: {
       owner: "config/constants.json",
@@ -494,7 +494,7 @@ describe("/settings", () => {
     const calls = stubFetch();
     renderPage("/settings/notifications");
     const panel = screen.getByRole("tabpanel");
-    const toggle = within(panel).getByRole("group", { name: "Daily Mediavine revenue" });
+    const toggle = within(panel).getByRole("group", { name: "Daily revenue" });
     const on = within(toggle).getByRole("button", { name: "On" });
     const off = within(toggle).getByRole("button", { name: "Off" });
     const writes = () => calls.filter(call => call.method === "PUT");

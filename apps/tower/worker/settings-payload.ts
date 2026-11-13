@@ -33,7 +33,7 @@ export const TASK_PROJECTS_OWNER = "config/beads.json";
 
 export interface SettingsDeps {
   now: Date;
-  discordMediavineRevenue?: boolean;
+  discordRevenue?: boolean;
   portfolioReviewAssetIds?: string[] | null;
   assets?: {id: string; displayName: string; isOs?: boolean | number}[];
   /** config/constants.json `os_time_zone` — the operator's clock. */
@@ -75,7 +75,7 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
 
   return {
     generatedAt: deps.now.toISOString(),
-    discordMediavineRevenue: deps.discordMediavineRevenue === true,
+    discordRevenue: deps.discordRevenue === true,
     portfolioReview: { owner: OWNER.constants, assetIds: deps.portfolioReviewAssetIds ?? null,
       assets: (deps.assets ?? []).map(asset => ({ id: asset.id, displayName: assetDisplayName(asset.isOs, asset.displayName) })) },
     clock: {
