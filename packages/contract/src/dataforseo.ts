@@ -35,11 +35,10 @@ export const DATAFORSEO_MONTHLY_CADENCE_DAYS = 28;
 export const DATAFORSEO_OVERDUE_GRACE_HOURS = 24;
 
 /**
- * Families that stop at a depth the collector chose, over a result set that
- * always continues past it (the panel reads the top 20 of each search). Their
- * truncation flag is a fact about the rows, never an incomplete report.
+ * Families that deliberately collect a ranked subset. The truncation flag
+ * records the subset's depth. A short or malformed answer is an error run.
  */
-export const DATAFORSEO_DEPTH_BOUNDED_REPORTS: readonly string[] = Object.freeze([DATAFORSEO_PANEL_REPORT]);
+export const DATAFORSEO_DEPTH_BOUNDED_REPORTS: readonly string[] = Object.freeze([DATAFORSEO_PANEL_REPORT, 'ranked-keywords']);
 
 export type DataForSeoReport =
   | (typeof DATAFORSEO_BASE_REPORTS)[number]

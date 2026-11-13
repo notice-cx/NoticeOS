@@ -1,4 +1,4 @@
-import { DATAFORSEO_DEPTH_BOUNDED_REPORTS, INTEGRATION_MONITORS, REALTIME_ATTEMPT_EVIDENCE, REALTIME_NETWORK_CONFIRMATION, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
+import { DATAFORSEO_DEPTH_BOUNDED_REPORTS, INTEGRATION_MONITORS, POSTHOG_DEPTH_BOUNDED_REPORTS, REALTIME_ATTEMPT_EVIDENCE, REALTIME_NETWORK_CONFIRMATION, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import { sha256Hex } from './shared.js';
 
@@ -25,7 +25,9 @@ export function healthFailure(code: unknown): { failure: IntegrationFailureKind;
 /** The reports of `integration` whose truncation is their own depth, not an
  * incomplete report (`DATAFORSEO_DEPTH_BOUNDED_REPORTS`). */
 export function depthBoundedReports(integration: string): readonly string[] {
-  return integration === 'dataforseo' ? DATAFORSEO_DEPTH_BOUNDED_REPORTS : [];
+  if (integration === 'dataforseo') return DATAFORSEO_DEPTH_BOUNDED_REPORTS;
+  if (integration === 'posthog') return POSTHOG_DEPTH_BOUNDED_REPORTS;
+  return [];
 }
 
 /**

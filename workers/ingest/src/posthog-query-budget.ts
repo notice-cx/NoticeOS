@@ -8,6 +8,15 @@ export interface PosthogQueryCooldown {
 }
 
 const HOUR_MS = 3_600_000;
+export const POSTHOG_BUDGET_STOP_OWNER = 'posthog-query-budget-stop';
+
+/** Persist the stop from an answered query, without inventing archive runs. */
+export async function recordPosthogBudgetStop(store: WorkspaceStore, requestedAt: string): Promise<void> {
+  await store.write(tx => tx.execute(
+    `INSERT INTO noticeos.integration_leases (workspace_id, lease_key, owner, expires_at)
+     VALUES ($1::uuid, $2, $3, $4::timestamptz) ON CONFLICT (workspace_id, lease_key) DO NOTHING`,
+    [tx.workspaceId, `${POSTHOG_BUDGET_STOP_OWNER}:${requestedAt}`, POSTHOG_BUDGET_STOP_OWNER, requestedAt]));
+}
 
 /** PostHog meters query reads per project, independently of which key is used. */
 export function posthogBudgetKey(settings: Pick<PosthogAssetSettings, 'host' | 'projectId'>): string {
