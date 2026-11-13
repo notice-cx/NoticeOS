@@ -42,10 +42,12 @@ describe("the asset rows", () => {
     if (blocked === null) asset.work = null;
     else asset.work!.blocked = blocked;
     const site = row(draw([asset]), asset.id);
-    const value = site.querySelector('[data-site-work-blocked]')!;
-    expect(value).toHaveTextContent(blocked === null ? "—" : String(blocked));
-    if (blocked !== null && blocked > 0) expect(value.closest("dd")).toHaveClass("text-warn");
-    else expect(value.closest("dd")).not.toHaveClass("text-warn");
+    const value = site.querySelector('[data-task-status="blocked"]');
+    if (blocked === null) expect(value).toBeNull();
+    else {
+      expect(value).toHaveTextContent(String(blocked));
+      expect(value?.hasAttribute("data-has-blocked")).toBe(blocked > 0);
+    }
   });
   it("colors a known positive four-week percentage green across a timezone move without changing the evidence", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
@@ -314,7 +316,7 @@ describe("task-only asset identity", () => {
     delete asset.counters;
     const site = row(draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } }), asset.id);
     expect(site.querySelector("[data-site-name]")?.textContent).toBe(asset.displayName);
-    expect(site.querySelector("[data-site-work-open]")).toHaveTextContent(String(asset.work!.open + asset.work!.inProgress));
+    expect(site.querySelector('[data-task-status="open"]')).toHaveTextContent(String(asset.work!.open));
   });
 });
 
@@ -432,13 +434,17 @@ describe("fixed portfolio metrics", () => {
     expect(site.lastElementChild?.textContent).toContain('Work');
   });
 
-  it("uses calendar-week closes and includes in-progress work once in Open", () => {
+  it("uses calendar-week closes and counts open, in-progress and blocked work consistently", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.work = { ...asset.work!, open: 10, inProgress: 3, blocked: 4, closedRecent: 99, weeks: { ...asset.work!.weeks!, done: { ...asset.work!.weeks!.done, now: 7 } } };
     const site = row(draw([asset]), asset.id);
     expect(site.querySelector('[data-site-work-closed]')?.textContent).toBe('7');
-    expect(site.querySelector('[data-site-work-open]')?.textContent).toBe('13');
-    expect(site.querySelector('[data-site-work-blocked]')?.textContent).toBe('4');
+    expect(site.querySelector('[data-task-status="open"]')?.textContent).toBe('10');
+    expect(site.querySelector('[data-task-status="in-progress"]')?.textContent).toBe('3');
+    expect(site.querySelector('[data-task-status="blocked"]')?.textContent).toBe('4');
+    expect(site.querySelector('.wall-task-status-track')).toHaveAccessibleName('10 open, including 4 blocked. 3 in progress.');
+    const parts = [...site.querySelectorAll<HTMLElement>('[data-task-status-part]')];
+    expect(parts.map(part => [part.dataset.taskStatusPart, part.style.flexGrow])).toEqual([['open', '6'], ['blocked', '4'], ['in-progress', '3']]);
   });
 
   it("keeps zero distinct from missing work and missing weekly history", () => {
@@ -446,11 +452,11 @@ describe("fixed portfolio metrics", () => {
     asset.work = { ...asset.work!, open: 0, inProgress: 0, blocked: 0, weeks: undefined };
     let site = row(draw([asset]), asset.id);
     expect(site.querySelector('[data-site-work-closed] [aria-label="Unavailable"]')).not.toBeNull();
-    expect(site.querySelector('[data-site-work-open]')?.textContent).toBe('0');
-    expect(site.querySelector('[data-site-work-blocked]')?.textContent).toBe('0');
+    expect(site.querySelector('[data-task-status="open"]')?.textContent).toBe('0');
+    expect(site.querySelector('[data-task-status="blocked"]')?.textContent).toBe('0');
     asset.work = null;
     site = row(draw([asset]), asset.id);
-    expect(site.querySelectorAll('[data-site-work] [aria-label="Unavailable"]')).toHaveLength(3);
+    expect(site.querySelector('[data-site-work] .wall-task-status-track')).toBeNull();
     expect(site.textContent).toContain('Tasks unavailable');
   });
 

@@ -1,7 +1,7 @@
 import { test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { wallFixturePayload, wallFixtureRealtime } from "../wall-fixture";
-import { DESKTOP_ONLY } from "../fixtures";
+import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
 import { DEFAULT_WALL_LAYOUT, type WallLayout } from "../../shared/wall-layout";
 
 test.beforeEach(async ({ request }) => {
@@ -9,20 +9,21 @@ test.beforeEach(async ({ request }) => {
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
 
-test("Portfolio Work counts keep clear spacing at narrow, standard and wide widths", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+test.use({ deviceScaleFactor: 2 });
+
+test("Portfolio Work fits large counts and shows how blocked tasks fit inside Open", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page }, testInfo) => {
   const layout: WallLayout = { version: 1, rows: [{ id: "sites", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1, settings: { metrics: [
     { id: "work", source: "asset-work", display: "multi", size: "standard" },
   ] } }] }] };
   await wallScene(page, "one", { layout });
   const payload = structuredClone(wallFixturePayload("one"));
   await page.route("**/api/wall", route => route.fulfill({ json: { ...payload, dashboard: { ...payload.dashboard, wall: { layout, history: [] } } } }));
-  for (const [closed, open, blocked] of [[103, 163, 7], [1103, 1163, 117]] as const) {
-    const work = payload.assets[0]!.work!;
-    work.open = open;
-    work.inProgress = 0;
-    work.blocked = blocked;
-    work.weeks!.done.now = closed;
-    for (const size of ["narrow", "standard", "wide"] as const) {
+  const work = payload.assets[0]!.work!;
+  work.open = 1163;
+  work.inProgress = 230;
+  work.blocked = 117;
+  work.weeks!.done.now = 1103;
+  for (const size of ["narrow", "standard", "wide"] as const) {
     const widget = layout.rows[0]!.widgets[0]!;
     if (widget.type !== "sites") throw new Error("Expected fixture Portfolio widget");
     widget.settings!.metrics![0]!.size = size;
@@ -37,39 +38,33 @@ test("Portfolio Work counts keep clear spacing at narrow, standard and wide widt
       metrics.style.width = width;
       row.style.width = "fit-content";
     }, size);
-    const tiles = page.locator("[data-site-work] .wall-metric");
-    await expect(tiles).toHaveCount(1);
-    const geometry = await tiles.evaluateAll(elements => elements.map(element => {
-      const box = (node: Pick<Element, "getBoundingClientRect">) => { const rect = node.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height }; };
-      const closed = element.querySelector("[data-site-work-closed]")!;
-      const open = element.querySelector("[data-site-work-open]")!;
-      const blocked = element.querySelector("[data-site-work-blocked]")!;
-      const ink = (node: Element) => { const range = document.createRange(); range.selectNodeContents(node); return box(range); };
-      return { size: element.getAttribute("data-metric-size"), tile: box(element), support: box(element.querySelector(".wall-metric-facts")!), closed: box(closed), open: box(open), blocked: box(blocked), openLabel: box(open.closest("dd")!.parentElement!.querySelector("dt")!), blockedLabel: box(blocked.closest("dd")!.parentElement!.querySelector("dt")!), facts: [...element.querySelectorAll("dt, dd")].map(ink), closedColor: getComputedStyle(closed).color, openColor: getComputedStyle(open).color, blockedColor: getComputedStyle(blocked).color, warning: blocked.closest("dd")!.classList.contains("text-warn") };
-    }));
-    for (const found of geometry) {
-      expect(found.tile.height).toBeCloseTo(132, 0);
-      expect(found.tile.width).toBeCloseTo(found.size === "narrow" ? 156 : found.size === "standard" ? 240 : 432, 0);
-      expect(found.support.left - found.closed.right).toBeGreaterThanOrEqual(16);
-      expect(Math.abs(found.support.right - found.open.right)).toBeLessThanOrEqual(1);
-      expect(Math.abs(found.support.right - found.blocked.right)).toBeLessThanOrEqual(1);
-      expect(found.tile.right - found.support.right).toBeCloseTo(11, 0);
-      expect(found.blocked.top - found.open.bottom).toBeGreaterThanOrEqual(10);
-      expect(found.openLabel.bottom).toBeGreaterThan(found.open.bottom);
-      expect(found.blockedLabel.bottom).toBeGreaterThan(found.blocked.bottom);
-      for (const fact of found.facts) {
-        expect(fact.left).toBeGreaterThanOrEqual(found.tile.left);
-        expect(fact.right).toBeLessThanOrEqual(found.tile.right);
-        expect(fact.top).toBeGreaterThanOrEqual(found.tile.top);
-        expect(fact.bottom).toBeLessThanOrEqual(found.tile.bottom);
-      }
-      expect(found.warning).toBe(true);
-      expect(found.blockedColor).not.toBe(found.closedColor);
-      expect(found.blockedColor).not.toBe(found.openColor);
+    const tile = page.getByRole("region", { name: "Work", exact: true });
+    await expect(tile.locator('[data-task-status="open"]')).toHaveText("1,163");
+    await expect(tile.locator('[data-task-status="in-progress"]')).toHaveText("230");
+    await expect(tile.locator('[data-task-status="blocked"]')).toHaveText("117");
+    await expect(tile.locator("[data-site-work-closed]")).toHaveText("1,103");
+    const bar = tile.getByRole("img");
+    await expect(bar).toHaveAccessibleName("1,163 open, including 117 blocked. 230 in progress.");
+    const geometry = await tile.evaluate(element => {
+      const frame = element.getBoundingClientRect();
+      const contents = [...element.querySelectorAll("dt, dd, .wall-asset-work-week, .wall-task-status-track")];
+      const fits = contents.every(node => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const bounds = range.getBoundingClientRect();
+        return bounds.left >= frame.left && bounds.right <= frame.right && bounds.top >= frame.top && bounds.bottom <= frame.bottom;
+      });
+      return { height: frame.height, width: frame.width, fits };
+    });
+    expect(geometry.height).toBeCloseTo(132, 0);
+    expect(geometry.width).toBeCloseTo(size === "narrow" ? 156 : size === "standard" ? 240 : 432, 0);
+    expect(geometry.fits).toBe(true);
+    const segments = await bar.locator("[data-task-status-part]").evaluateAll(parts => parts.map(part => part.getBoundingClientRect().width));
+    const total = segments.reduce((sum, width) => sum + width, 0);
+    for (const [index, count] of [1046, 117, 230].entries()) {
+      expect(Math.abs(segments[index]! - total * count / 1393)).toBeLessThan(1);
     }
-    await testInfo.attach(`work-spacing-${closed}-${size}`, { body: JSON.stringify(geometry, null, 2), contentType: "application/json" });
-    await tiles.first().screenshot({ path: testInfo.outputPath(`work-spacing-${closed}-${size}.png`) });
-    }
+    await tile.screenshot({ path: testInfo.outputPath(`wall-work-${size}.png`) });
   }
   layout.rows = structuredClone(DEFAULT_WALL_LAYOUT.rows);
   payload.assets = structuredClone(wallFixturePayload("four").assets);

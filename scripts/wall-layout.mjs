@@ -90,6 +90,7 @@ const METRIC_SPECS = {
     'product-counts': metricSpec('product-counts', 'Product counts', ['multi']),
     'product-count': metricSpec('product-count', 'Product count', ['number']),
     decisions: metricSpec('decisions', 'Your decisions', ['number']),
+    'task-status': metricSpec('task-status', 'Task status', ['multi']),
     'in-progress': metricSpec('in-progress', 'In progress', ['number']),
     blocked: metricSpec('blocked', 'Blocked', ['number']),
     done: metricSpec('done', 'Done this week', ['cumulative', 'number'], true, true),
@@ -100,16 +101,17 @@ export function wallMetricSources(type) {
     if (type === 'sites')
         return ['momentum', 'today', 'four-weeks', 'asset-work', 'product-count', 'product-counts'];
     if (type === 'work')
-        return ['decisions', 'in-progress', 'blocked', 'done'];
+        return ['decisions', 'task-status', 'done', 'in-progress', 'blocked'];
     if (type === 'revenue')
         return ['revenue'];
     return [];
 }
-/** Missing templates keep existing layouts unchanged until the first tile edit. */
+/** A saved template wins over the widget's default metrics. */
 export function wallMetricTiles(widget) {
     if (widget.settings?.metrics !== undefined)
         return widget.settings.metrics.map((tile) => ({ ...tile }));
-    return wallMetricSources(widget.type).filter((source) => source !== 'product-count').map((source) => {
+    const sources = widget.type === 'work' ? ['decisions', 'task-status', 'done'] : wallMetricSources(widget.type).filter((source) => source !== 'product-count');
+    return sources.map((source) => {
         const spec = wallMetricSpec(source);
         return { id: source, source, display: spec.defaultDisplay, size: spec.defaultSize };
     });
@@ -199,7 +201,7 @@ export const WALL_WIDGET_LIBRARY = {
     work: {
         type: 'work',
         label: 'Work',
-        shows: ['Your decisions', 'In progress', 'Done this week', 'Blocked'],
+        shows: ['Your decisions', 'Task status', 'Done this week'],
         defaultWidth: 1,
         minWidthRem: 0,
         maxWidthRem: null,

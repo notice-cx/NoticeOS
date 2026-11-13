@@ -1073,13 +1073,13 @@ test.describe(() => {
     }
   });
 
-  test("the Wall's work metrics share one fixed height and keep observed history distinct from missing history", desktopOnly("the TV's fixed height"), async ({ page }, testInfo) => {
+  test("the Wall's work metrics share one fixed height and keep observed history distinct from missing history", desktopOnly("the TV's fixed height", PR_SMOKE), async ({ page }, testInfo) => {
     const scene = await wallScene(page, "fire");
     await wallAt(page, [1920, 1080]);
     await expect(page.locator("#boot-splash")).toHaveCount(0);
     const work = page.locator("[data-wall-work]");
     const tiles = work.locator(".wall-metric");
-    await expect(tiles).toHaveCount(4);
+    await expect(tiles).toHaveCount(3);
     await expect(work.locator("[data-work-row], [data-work-more]")).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
     const geometry = await tiles.evaluateAll(elements => elements.map(element => {
@@ -1093,7 +1093,12 @@ test.describe(() => {
       expect(tile.top).toBeGreaterThanOrEqual(heading.y + heading.height);
     }
     expect(Math.max(...geometry.map(tile => tile.top)) - Math.min(...geometry.map(tile => tile.top))).toBeLessThanOrEqual(1);
+    const status = work.getByRole("region", { name: "Task status", exact: true });
+    const statusWidth = (await status.boundingBox())!.width;
+    const decisionsWidth = (await work.getByRole("region", { name: "Your decisions", exact: true }).boundingBox())!.width;
+    expect(statusWidth).toBeGreaterThan(decisionsWidth);
     const done = work.getByRole("region", { name: "Done this week", exact: true });
+    expect((await done.boundingBox())!.width).toBeGreaterThan(statusWidth);
     const hasHistory = wallFixturePayload(scene.variant).assets.some(asset => asset.work?.weeks?.done.history?.some(point => point.v !== null));
     if (hasHistory) {
       const bars = done.locator("[data-metric-daily-bar='current']");

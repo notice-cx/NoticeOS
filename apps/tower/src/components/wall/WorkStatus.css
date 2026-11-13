@@ -1,0 +1,17 @@
+.wall-task-status { display: grid; align-content: center; gap: .375rem; min-width: 0; flex: 1; }
+.wall-task-status-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr); column-gap: .25rem; row-gap: .125rem; margin: 0; }
+.wall-task-status-facts > div { display: grid; grid-template-rows: subgrid; grid-row: span 2; align-items: baseline; min-width: 0; }
+.wall-task-status-facts dt { grid-row: 2; color: var(--muted-foreground); font-size: max(.75rem, calc(10px / var(--wall-scale, 1))); line-height: 1.1; overflow-wrap: anywhere; }
+.wall-task-status-facts dd { grid-row: 1; margin: 0; font-size: clamp(.875rem, 9cqi, 1.5rem); line-height: 1.05; font-weight: 600; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.wall-task-status-facts dd[data-has-blocked] { color: var(--warn); }
+.wall-task-status-track { display: flex; height: .4375rem; overflow: hidden; border-radius: .25rem; background: var(--viz-track); }
+.wall-task-status-track > span { flex-basis: 0; }
+.wall-task-status-track [data-task-status-part="open"] { background: color-mix(in srgb, var(--muted-foreground) 60%, transparent); }
+.wall-task-status-track [data-task-status-part="in-progress"] { background: var(--foreground); }
+.wall-task-status-track [data-task-status-part="blocked"] { background: repeating-linear-gradient(135deg, var(--warn) 0 2px, var(--viz-track) 2px 4px); }
+.wall-asset-work-week { display: flex; align-items: baseline; gap: .375rem; color: var(--muted-foreground); font-size: var(--metric-note-size); line-height: 1.1; }
+.wall-asset-work-week strong { color: var(--milestone); font-size: 1.25rem; }
+@container (width < 9rem) {
+  .wall-task-status-facts dt, .wall-asset-work-week { font-size: max(.6875rem, calc(9px / var(--wall-scale, 1))); }
+  .wall-asset-work-week strong { font-size: 1rem; }
+}
