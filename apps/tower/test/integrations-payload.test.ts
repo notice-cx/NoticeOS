@@ -602,21 +602,19 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     });
   });
 
-  it("renders a Google lane degraded after two missed 15-minute runs", () => {
-    const r = mergeLane("live", "gsc", {
+  it("marks Search Console degraded after two missed hourly runs", () => {
+    const laneAtAge = (minutes: number) => mergeLane("live", "gsc", {
       revenueRows: [],
-      signalRuns: [
-        {
-          ...GSC_SUCCESS,
-          finishedAt: new Date(NOW_MS - 31 * 60_000).toISOString(),
-        },
-      ],
+      signalRuns: [{
+        ...GSC_SUCCESS,
+        finishedAt: new Date(NOW_MS - minutes * 60_000).toISOString(),
+      }],
       nowMs: NOW_MS,
     });
-    expect(r.effective).toBe("degraded");
-    expect(r.evidence[0]).toMatchObject({
-      polarity: "against",
-    });
+    expect(laneAtAge(119).effective).toBe("live");
+    const stale = laneAtAge(121);
+    expect(stale.effective).toBe("degraded");
+    expect(stale.evidence[0]).toMatchObject({ polarity: "against" });
   });
 
   it("renders a Google lane unconfigured when no collector run exists", () => {
