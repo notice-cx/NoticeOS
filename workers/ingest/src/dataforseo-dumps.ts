@@ -233,9 +233,14 @@ type LaneClaim =
   | { token: null; blockedBy: DataForSeoRunInFlight };
 
 /** Take the lane, or report who has it. Synchronous so two triggers in one tick see each other. */
-function claimLane(nowMs: number, scope: DataForSeoCollectScope | null, recovery: boolean): LaneClaim {
+function claimLane(
+  nowMs: number,
+  scope: DataForSeoCollectScope | null,
+  recovery: boolean,
+  preserveRecoveryLock: boolean,
+): LaneClaim {
   const held = lane;
-  if (held !== null && nowMs < held.startedAtMs + LANE_LEASE_MS) {
+  if (held !== null && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
     return { token: null, blockedBy: laneHolder(held, nowMs) };
   }
   const token = (laneTokens += 1);
@@ -287,6 +292,8 @@ export interface DataForSeoDumpsOptions {
   configSources?: ConfigSourceMap;
   /** One property instead of the portfolio — see `DataForSeoCollectScope`. */
   scope?: DataForSeoCollectScope | null;
+  /** A scheduled sweep and its automatic retry must never take over outage recovery. */
+  preserveRecoveryLock?: true;
   /** Override the run's egress gate (tests control the verdict TTL); every other
    * caller gets a real one over the same fetcher. */
   egress?: EgressGate;
@@ -687,7 +694,7 @@ async function runCollector(
   owed: EgressLaneRecord | null,
 ): Promise<DataForSeoDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
-  const claim = claimLane(nowMs, options.scope ?? null, owed !== null);
+  const claim = claimLane(nowMs, options.scope ?? null, owed !== null, options.preserveRecoveryLock === true);
   if (claim.blockedBy) {
     // Neither a start nor a complete line: "one start, no complete" keeps
     // meaning an interrupted run.

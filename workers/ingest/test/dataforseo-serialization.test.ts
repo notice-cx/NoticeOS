@@ -246,21 +246,28 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     const asset = 'northwind.example';
     const recoveredReport = 'backlinks-summary';
     const offline = new EgressGate(env, {
-      lane: 'dataforseo', at: new Date().toISOString(), fetchImpl: cutUplink(provider().fetchImpl),
+      lane: 'dataforseo', at: new Date(NOW).toISOString(), fetchImpl: cutUplink(provider().fetchImpl),
     });
     expect(await offline.isDown()).toBe(true);
     offline.recordUnmeasured(asset, recoveredReport);
     await offline.finalize();
 
     const holder = gatedProvider();
-    const recovery = runDataForSeoRecovery(env, { ...CREDENTIALS, fetchImpl: holder.fetchImpl });
+    const recovery = runDataForSeoRecovery(env, { ...CREDENTIALS, nowMs: NOW, fetchImpl: holder.fetchImpl });
     const weekly = provider();
     vi.stubGlobal('fetch', weekly.fetchImpl);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(NOW + 6 * 60_000);
     try {
       await holder.started;
       const refusal = await runScheduledCron(DATAFORSEO_DUMPS_CRON, env);
       expect(refusal.outcome).toBe('failed');
       expect(refusal.steps?.find((step) => step.id === 'search')?.state).toBe('failed');
+      expect(weekly.calls).toEqual([]);
+      expect(await pgCount(DUMP_ROWS)).toBe(0);
+
+      // The retry's ten-minute delay crosses the ordinary lease expiry.
+      clock.mockReturnValue(NOW + 16 * 60_000);
+      expect((await runScheduledCron(DATAFORSEO_DUMPS_CRON, env)).outcome).toBe('failed');
       expect(weekly.calls).toEqual([]);
       expect(await pgCount(DUMP_ROWS)).toBe(0);
 
@@ -275,7 +282,12 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       )).toBe(1);
     } finally {
       holder.open();
-      try { await recovery; } finally { vi.unstubAllGlobals(); }
+      try {
+        await recovery;
+      } finally {
+        clock.mockRestore();
+        vi.unstubAllGlobals();
+      }
     }
   });
 
