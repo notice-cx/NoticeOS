@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { MEDIAVINE_REPORTING_CLOCK } from '../../../packages/mediavine/src/index';
 import { describe, expect, it } from 'vitest';
-import { portfolioRevenueComparison, projectRevenue, revenueExpectedThrough, shiftRevenueDate, type RevenueDay, type RevenueHoliday } from '../shared/revenue-projection';
+import { projectRevenue, revenueExpectedThrough, shiftRevenueDate, type RevenueDay, type RevenueHoliday } from '../shared/revenue-projection';
 import type { SignalTrend, PortfolioBand } from '../shared/wall';
 import { monthRevenue } from '../src/lib/wall-revenue';
 import { revenueHolidays } from '../worker/revenue-holidays';
@@ -150,7 +150,11 @@ describe('monthly revenue projection', () => {
   });
   it('does not compare a projected whole month with an incomplete prior month', () => {
     const { revenue, traffic } = history();
-    expect(projectRevenue(NOW, ZONE, revenue.filter(day => day.date !== '2026-08-01'), traffic)).toMatchObject({ status: 'ready', previousMonthMinor: null, changePercent: null });
+    const incomplete = revenue.filter(day => day.date !== '2026-08-01');
+    expect(projectRevenue(NOW, ZONE, incomplete, traffic)).toMatchObject({
+      status: 'ready', previousMonthMinor: null, changePercent: null,
+      previousMonthRecordedMinor: incomplete.filter(day => day.date.startsWith('2026-08')).reduce((sum, day) => sum + day.amountMinor, 0),
+    });
   });
   it('estimates timezone boundary days and retains them in forecast calibration', () => {
     const { revenue, traffic } = history();
@@ -180,32 +184,6 @@ describe('monthly revenue projection', () => {
     // Past 10 a.m. UTC on the 30th it is already the 1st on Kiritimati.
     expect(projectRevenue(new Date('2026-09-30T20:00:00Z'), { timeZone: 'Pacific/Kiritimati', readyAfterMinute: 0 }, revenue, fresh).period).toBe('2026-10');
     expect(projectRevenue(new Date('2026-09-30T20:00:00Z'), { timeZone: 'UTC', readyAfterMinute: 0 }, revenue, fresh).period).toBe('2026-09');
-  });
-});
-describe('portfolio previous month', () => {
-  const { revenue, traffic } = history();
-  const ready = projectRevenue(NOW, ZONE, revenue, traffic);
-  const readyWithoutPrevious = projectRevenue(NOW, ZONE, revenue.filter(day => day.date !== '2026-08-01'), traffic);
-  const waiting = projectRevenue(new Date('2026-09-09T13:10:00Z'), ZONE, revenue.slice(0, -1), { ...traffic, collectedAt: '2026-09-09T12:00:00Z' });
-  const sourceless = projectRevenue(NOW, ZONE, [], traffic);
-  it('states no total or percent while one asset with revenue this month has no complete previous month', () => {
-    expect(ready).toMatchObject({ status: 'ready', previousPeriod: '2026-08' });
-    expect(ready.previousMonthMinor).toBeGreaterThan(0);
-    expect(readyWithoutPrevious.previousMonthMinor).toBeNull();
-    // One site's own month is never stated as the portfolio's.
-    expect(portfolioRevenueComparison([ready, readyWithoutPrevious])).toEqual({ previousPeriod: '2026-08', previousMonthMinor: null, changePercent: null });
-  });
-  it('states the total of every asset, and the percent only once every asset has a ready projection', () => {
-    expect(waiting).toMatchObject({ status: 'waiting-revenue', projectedMinor: null });
-    expect(waiting.previousMonthMinor).toBe(ready.previousMonthMinor);
-    expect(portfolioRevenueComparison([ready, waiting, sourceless])).toEqual({ previousPeriod: '2026-08', previousMonthMinor: ready.previousMonthMinor! * 2, changePercent: null });
-    const both = portfolioRevenueComparison([ready, ready, sourceless]);
-    expect(both.previousMonthMinor).toBe(ready.previousMonthMinor! * 2);
-    expect(both.changePercent).toBeCloseTo(ready.changePercent!, 10);
-  });
-  it('states nothing for a portfolio without a daily revenue source', () => {
-    expect(portfolioRevenueComparison([sourceless])).toEqual({ previousPeriod: null, previousMonthMinor: null, changePercent: null });
-    expect(portfolioRevenueComparison([])).toEqual({ previousPeriod: null, previousMonthMinor: null, changePercent: null });
   });
 });
 describe('maintained public-holiday calendar', () => {

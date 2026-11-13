@@ -711,7 +711,7 @@ test('the Wall states the month on pace from the store\'s projection, and draws 
   const comparison = revenue.locator('[data-metric-movement]');
   await expect(comparison).toContainText(expected.change);
   await expect(comparison).toContainText(expected.comparisonDirection);
-  await expect(comparison).toContainText(`projected vs ${expected.previousLabel} total`);
+  await expect(comparison).toContainText(`vs ${expected.previousLabel}`);
   await expect(comparison).toHaveAttribute('data-tone', expected.tone);
   // At 05:00 Pacific the 06:10 reporting cutoff has not passed. Yesterday
   // stays unknown; a retained Sep4 estimate cannot masquerade as Sep5.
@@ -1054,8 +1054,9 @@ test.describe(() => {
         const facts = section.querySelector(".wall-metric-summary")!.getBoundingClientRect();
         const chart = section.querySelector(".wall-metric-plot")!.getBoundingClientRect();
         const scale = (section as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
-        const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")) }));
+        const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")), bottom: bar.getBoundingClientRect().bottom }));
         return { height: section.getBoundingClientRect().height / scale, overlap: facts.right - chart.left, stacked: facts.bottom <= chart.top, chartWidth: chart.width, factsWidth: facts.width,
+          iconBottom: section.querySelector(".wall-revenue-sites")!.getBoundingClientRect().bottom,
           actual: readings("current"), forecast: readings("forecast"), reference: Boolean(section.querySelector("[data-metric-previous-total]")), actualLine: Boolean(section.querySelector("[data-chart-line='solid']")) };
       });
       expect(found).toMatchObject({ height: 324, reference: true, actualLine: false });
@@ -1063,6 +1064,7 @@ test.describe(() => {
         expect(found.stacked).toBe(false);
         expect(found.overlap / found.factsWidth).toBeGreaterThan(.6);
         expect(found.chartWidth / (found.chartWidth + found.factsWidth - found.overlap)).toBeGreaterThan(.8);
+        expect(Math.abs(found.actual[0]!.bottom - found.iconBottom)).toBeLessThanOrEqual(1);
       } else expect(found.stacked).toBe(true);
       expect(found.actual.length).toBeGreaterThan(0);
       expect(found.forecast.length).toBeGreaterThan(0);

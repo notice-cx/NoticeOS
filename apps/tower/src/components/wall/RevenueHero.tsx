@@ -53,14 +53,15 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     ? formatPeriodMonthLong(model.period)
     : formatPeriodMonthYear(model.period);
   const { pace } = model;
+  const priorMonth = pace ? formatPeriodMonth(pace.previousPeriod) : "";
 
   const comparisonDirection = pace?.changePercent == null ? null : pace.changePercent > 0 ? "above" : pace.changePercent < 0 ? "below" : "level with";
   const movement: MetricMovement | undefined = pace?.changePercent == null ? undefined : {
     label: `${formatPercent(Math.abs(pace.changePercent))}% ${comparisonDirection}`,
     direction: pace.changePercent > 0 ? "up" : pace.changePercent < 0 ? "down" : "flat",
     tone: pace.changePercent > 0 ? "positive" : pace.changePercent < 0 ? "negative" : "neutral",
-    basis: `projected vs ${formatPeriodMonth(pace.previousPeriod)} total`,
-    meaning: `Projected revenue ${formatPercent(Math.abs(pace.changePercent))}% ${comparisonDirection} ${formatPeriodMonth(pace.previousPeriod)} total`,
+    basis: `vs ${priorMonth}`,
+    meaning: `Projected revenue ${formatPercent(Math.abs(pace.changePercent))}% ${comparisonDirection} recorded ${priorMonth} revenue`,
   };
   const actual = pace?.points.filter(point => !point.projected) ?? [];
   const projected = pace?.points.filter(point => point.projected) ?? [];
@@ -69,7 +70,7 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
   const first = pace?.points[0], last = pace?.points.at(-1);
   const chartProps: Omit<MetricComparisonChartProps, "label" | "className"> | undefined = pace && first && last ? {
     current: actual.map(point), forecast: forecast.map(point),
-    previousTotal: pace.previousTotal === null ? undefined : { value: pace.previousTotal, label: `${formatPeriodMonth(pace.previousPeriod)} total ${formatUsd(pace.previousTotal)}` },
+    previousTotal: pace.previousTotal === null ? undefined : { value: pace.previousTotal, label: `${priorMonth} ${formatUsd(pace.previousTotal)}` },
     domain: { start: first.date, end: last.date },
     showLabels: false,
     tone: "revenue",

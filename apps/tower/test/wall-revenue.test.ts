@@ -58,24 +58,20 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.projected).toBe((49_500 + 15_900 + 3_000) / 100);
     expect(model?.pace?.daysLeft).toBe(9);
     expect(model?.pace?.sites).toBe(2);
-    // The learning site has no complete previous month, so the covered sites'
-    // own $520 is not the month's total and is not stated as one.
-    expect(model?.pace?.previousTotal).toBeNull();
-    expect(model?.pace?.changePercent).toBeNull();
+    expect(model?.pace?.previousTotal).toBe(520);
+    expect(model?.pace?.changePercent).toBeCloseTo((68_400 / 52_000 - 1) * 100, 6);
     expect(model?.pace?.points[0]).toEqual({ day: 1, date: "2026-09-01", cumulative: 20, projected: false });
-    expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 654, projected: true });
+    expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 684, projected: true });
   });
 
-  it("compares the whole portfolio's previous month, and a percent only when every asset is paced", () => {
+  it("includes recorded revenue from unpaced assets in the prior month", () => {
     const covered = [{ revenueProjection: ready(1_500, 2_000, 40_000) }, { revenueProjection: ready(500, 600, 12_000) }];
     const whole = monthRevenue(portfolio(420), covered);
     expect(whole?.pace?.previousTotal).toBe(520);
     expect(whole?.pace?.changePercent).toBeCloseTo((65_400 / 52_000 - 1) * 100, 6);
-    // A site still learning has a previous month but no projection: the
-    // total is the portfolio's, the percent would compare some sites with all.
     const partial = monthRevenue(portfolio(420), [...covered, { revenueProjection: { ...learning, previousMonthMinor: 8_000 } }]);
     expect(partial?.pace?.previousTotal).toBe(600);
-    expect(partial?.pace?.changePercent).toBeNull();
+    expect(partial?.pace?.changePercent).toBeCloseTo((65_400 / 60_000 - 1) * 100, 6);
   });
 
   it("finds the day the month passed last month's total on reported days", () => {
@@ -95,14 +91,14 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.crossing).toBeNull();
   });
 
-  it("compares with no month when any covered asset has no complete previous month", () => {
+  it("compares the full projection with whatever revenue was recorded last month", () => {
     const model = monthRevenue(portfolio(420), [
       { revenueProjection: ready(1_000, 1_000, 30_000) },
-      { revenueProjection: ready(1_000, 1_000, null) },
+      { revenueProjection: { ...ready(1_000, 1_000, null), previousMonthRecordedMinor: 10_000 } },
     ]);
-    expect(model?.pace?.previousTotal).toBeNull();
-    expect(model?.pace?.changePercent).toBeNull();
-    expect(model?.pace?.crossing).toBeNull();
+    expect(model?.pace?.previousTotal).toBe(400);
+    expect(model?.pace?.changePercent).toBe(50);
+    expect(model?.pace?.crossing).toMatchObject({ day: 20, projected: false });
   });
 
   it("states the figure and the projection's own reason when no asset is ready yet", () => {

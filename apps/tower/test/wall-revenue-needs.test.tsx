@@ -33,13 +33,13 @@ describe("the revenue widget", () => {
     // Forecast comparisons name their basis alongside the performance color.
     const change = section.querySelector("[data-metric-movement]")!;
     expect(change.textContent).toContain("16% above");
-    expect(change.textContent).toContain("projected vs Aug total");
+    expect(change.textContent).toContain("vs Aug");
     expect(change.getAttribute("data-tone")).toBe("positive");
     // Observed cumulative revenue, its forecast and the prior total share a scale.
     expect(section.querySelector('[data-metric-previous-total]')).not.toBeNull();
     expect(section.querySelector('[data-metric-cumulative-bar="current"]')).not.toBeNull();
     expect(section.querySelector('[data-metric-cumulative-bar="forecast"]')).not.toBeNull();
-    expect(section.textContent).toContain('Aug total $1,458');
+    expect(section.textContent).toContain('Aug $1,458');
   });
 
   it.each([
@@ -50,15 +50,15 @@ describe("the revenue widget", () => {
     const data = wallFixturePayload();
     const asset = data.assets.find((asset) => asset.revenueProjection?.status === "ready")!;
     const projection = asset.revenueProjection!;
-    const { container } = render(<RevenueHero portfolio={data.portfolio} assets={[{
+    const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, forecast: { ...data.portfolio.forecast, revenue: projection.earnedMinor! / 100 } }} assets={[{
       ...asset,
       revenueProjection: { ...projection, previousMonthMinor: projection.projectedMinor! * previousFactor },
     }]} nowMs={NOW} />);
     const change = container.querySelector("[data-metric-movement]")!;
     expect(change.textContent).toContain(label.replace(" Aug", ""));
-    expect(change.textContent).toContain("projected vs Aug total");
+    expect(change.textContent).toContain("vs Aug");
     expect(change).toHaveAttribute("data-tone", previousFactor > 1 ? "negative" : previousFactor < 1 ? "positive" : "neutral");
-    expect(change).toHaveAccessibleName(`Projected revenue ${label} total`);
+    expect(change).toHaveAccessibleName(`Projected revenue ${label.replace(" Aug", "")} recorded Aug revenue`);
   });
 
   it("gives no comparison verdict without a complete prior revenue month", () => {
@@ -69,6 +69,15 @@ describe("the revenue widget", () => {
     }]} nowMs={NOW} />);
     expect(container.querySelector("[data-revenue-pace]")).not.toBeNull();
     expect(container.querySelector("[data-metric-movement]")).toBeNull();
+  });
+
+  it("shows the portfolio pace when another source is still learning", () => {
+    const data = wallFixturePayload();
+    const [withHistory, newAsset] = data.assets.filter(asset => asset.revenueProjection?.status === "ready");
+    const { container } = render(<RevenueHero portfolio={data.portfolio} assets={[withHistory!, {
+      ...newAsset!, revenueProjection: { ...newAsset!.revenueProjection!, status: "insufficient-history", projectedMinor: null, previousMonthMinor: null },
+    }]} nowMs={NOW} />);
+    expect(container.querySelector("[data-metric-movement]")).toHaveAccessibleName(/recorded Aug revenue/);
   });
 
   it("reads the same for an installation with one asset", () => {
@@ -266,7 +275,7 @@ it('names partial dated previous-month coverage without calling it a portfolio t
   const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, revenueRecorded: { booked: false, forecast: false }, forecast: { currency: 'USD', revenue: 0, cost: 35, net: -35 }, booked: ZERO }} assets={assets} nowMs={NOW} />);
   expect(container.querySelector('[data-revenue-figure]')).toBeNull();
   expect(container.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $300 · 1 of 2 assets');
-  expect(container.querySelector('[data-metric-movement]')).toBeNull();
+  expect(container.querySelector('[data-metric-previous-total] line')).not.toBeNull();
 });
 
 describe("Needs attention", () => {

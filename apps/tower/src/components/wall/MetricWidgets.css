@@ -181,6 +181,23 @@
 .wall-revenue-sites { display: flex; flex-wrap: wrap; align-items: center; gap: var(--metric-gap); }
 .wall-revenue-sites [data-property-favicon] { width: var(--revenue-site-icon); height: var(--revenue-site-icon); }
 .wall-revenue-sites [data-revenue-site="waiting"] { filter: grayscale(1); opacity: .45; }
+@container (width > 22rem) {
+  .wall-revenue-metric .wall-cumulative-facts:has(.wall-revenue-sites) { flex: 1; justify-content: space-between; }
+  .wall-metric-cumulative[data-metric-expanded].wall-revenue-metric .wall-metric-chart svg {
+    /* The bars end at y=44 on the 48-unit plot. Place that line at the icon baseline. */
+    position: absolute;
+    inset: 0;
+    height: calc(100% * 48 / 44);
+    min-height: 0;
+  }
+  .wall-revenue-metric .wall-metric-chart { position: relative; }
+  .wall-revenue-metric .wall-metric-chart:has(.wall-metric-reference) { margin-top: calc(var(--metric-axis-size) * 1.25); }
+  .wall-revenue-metric .wall-metric-chart .wall-metric-reference {
+    position: absolute;
+    inset-inline-end: 0;
+    bottom: 100%;
+  }
+}
 @container (max-width: 22rem) {
   .wall-revenue-metric .wall-metric-split { grid-template-columns: minmax(0, 1fr); gap: var(--metric-gap); }
   .wall-revenue-metric .wall-metric-summary { gap: var(--metric-fact-gap); }
