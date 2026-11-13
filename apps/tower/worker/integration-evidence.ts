@@ -653,15 +653,15 @@ export function buildCells(
       const on = mediavineSyncOn({ mediavineSiteId: laneConfig[lane.id]?.mediavineSiteId, status: declared });
       const run = ev.mediavineRun;
       const fresh = run?.outcome === 'success' && (ev.nowMs ?? Date.now()) - Date.parse(run.attempted_at) < 36 * 3_600_000;
-      const effective: IntegrationState = !on ? 'skipped' : !run ? 'needs-setup' : fresh ? 'live' : 'degraded';
+      const effective: IntegrationState = !on ? 'skipped' : !run || run.outcome === 'incomplete' ? 'needs-setup' : fresh ? 'live' : 'degraded';
       const evidence: IntegrationEvidence[] = run ? [{
-        polarity: fresh ? 'supporting' : 'against', source: 'Mediavine daily revenue',
+        polarity: fresh || run.outcome === 'incomplete' ? 'supporting' : 'against', source: 'Mediavine daily revenue',
         detail: run.message ?? `Estimates stored through ${run.reported_through ?? 'an unknown date'}`,
         at: run.attempted_at, ...(run.outcome === 'success' ? { verification: { kind: 'collection-success' as const, laneId: 'ad-network' } } : {}),
       }] : [];
       return { assetId, laneId: lane.id, declared, effective, evidence,
         note: on ? 'Automatic Mediavine revenue collection is enabled.' : 'Automatic Mediavine revenue collection is paused. Saved history is retained.',
-        ref: 'Mediavine', since };
+        ref: 'Mediavine', since, mapped: true };
     }
     const { effective, evidence } = mergeLane(declared, lane.id, ev, since);
     return {

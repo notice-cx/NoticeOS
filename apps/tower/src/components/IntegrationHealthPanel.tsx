@@ -48,6 +48,7 @@ function Operation({ works, subject, site }: { works: WorkStatus[]; subject: Sta
   const failing = works.filter((work) => work.kind === 'failing' && work.report).length;
   const missing = works.flatMap((work) => work.missing);
   const incomplete = works.flatMap((work) => work.incomplete);
+  const waiting = works.find(work => work.latest?.state === 'waiting')?.latest;
   // Under its provider's heading an operation never repeats the provider's
   // name: "Bing daily reports" reads "Daily reports" there.
   const label = works[0]!.label.replace(/^(Bing|Google|Mediavine|PostHog|Clarity|Discord|Calendar)\s+(\w)/, (_, _name: string, first: string) => first.toUpperCase());
@@ -57,6 +58,9 @@ function Operation({ works, subject, site }: { works: WorkStatus[]; subject: Sta
       {label}
     </span>
     {kind !== 'working' && kind !== 'idle' && kind !== site ? <IntegrationStateChip state={kind} subject={`${subject}:${works[0]!.capability}`} /> : null}
+    {waiting ? <span className="text-xs text-muted-foreground">
+      {waiting.reportDate ? `Waiting for the ${shortDate(waiting.reportDate)} report` : 'Waiting for publication'}
+    </span> : null}
     {failing > 1 ? <span className="text-xs tabular-nums text-muted-foreground">{failing} reports</span> : null}
     {missing.length > 0 ? <span className="text-xs tabular-nums text-muted-foreground" data-missing-dates>{missing.length} missing · {dateList(missing)}</span> : null}
     {incomplete.length > 0 ? <span className="text-xs tabular-nums text-muted-foreground" data-incomplete-dates>{incomplete.length} incomplete · {dateList(incomplete)}</span> : null}
