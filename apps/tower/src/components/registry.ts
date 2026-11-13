@@ -868,6 +868,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "filing",
       "filed (toast with the id)",
       "read-only deployment (disabled, lane's reason)",
+      "no task service (disabled trigger and setup link)",
     ],
   },
   {

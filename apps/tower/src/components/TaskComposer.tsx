@@ -1147,6 +1147,11 @@ export function FileTaskButton({
         <ListPlus aria-hidden />
         {label}
       </Button>
+      {needsConnection ? (
+        <Link to={TASK_PROJECTS_PATH} className={cn("inline-flex items-center rounded-sm text-xs font-medium underline underline-offset-2", pillControlClass)}>
+          Connect Ntasks
+        </Link>
+      ) : null}
       {/* Mounted only while open: a table of forty rows must not cost forty
           settings subscriptions and forty portals. */}
       {open ? (

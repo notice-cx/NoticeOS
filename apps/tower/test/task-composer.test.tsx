@@ -507,6 +507,7 @@ describe("FileTaskButton", () => {
       <QueryClientProvider client={client}>
         <MemoryRouter>
           <FileTaskButton {...props} />
+          <Where />
         </MemoryRouter>
       </QueryClientProvider>,
     ) };
@@ -562,6 +563,10 @@ describe("FileTaskButton", () => {
     fireEvent.click(button);
     expect(onOpen).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const setup = screen.getByRole("link", { name: "Connect Ntasks" });
+    expect(setup).toHaveAttribute("href", "/settings/task-projects");
+    fireEvent.click(setup);
+    expect(screen.getByTestId("where")).toHaveTextContent("/settings/task-projects");
   });
 
   it("blocks an open composer when a delayed service response reports no connection, keeping the draft", async () => {
@@ -599,6 +604,7 @@ describe("FileTaskButton", () => {
     render1({ ...props, projects: SPOKES }, client);
     expect(lane.serviceReads).toBe(0);
     expect(screen.getByRole("button", { name: "File task" })).toBeEnabled();
+    expect(screen.queryByRole("link", { name: "Connect Ntasks" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "File task" }));
     const dialog = screen.getByRole("dialog", { name: "File a task" });
     expect(within(dialog).getByRole("button", { name: "File task" })).toBeEnabled();
