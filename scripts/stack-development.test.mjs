@@ -87,11 +87,17 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,st
   ups++;const app=model(args).services.noticeos;const row=inventory.get('noticeos');row.Id='e'.repeat(63)+String(ups);row.Image=app.image;
   row.State={Status:'running',Health:{Status:failUps.includes(ups)?'unhealthy':'healthy'}};
   row.Mounts=app.volumes.map(m=>({Type:m.type,Source:m.type==='volume'?'/synthetic/volumes/'+m.source:m.source,Destination:m.target,RW:m.read_only!==true,...(m.type==='volume'?{Name:m.source}:{})}));
-  if(drift && ups===1) inventory.get('postgres').Id='f'.repeat(64);
+  if(drift===true && ups===1) inventory.get('postgres').Id='f'.repeat(64);
+  if(drift==='backup' && ups===2) inventory.get('backup').Id='f'.repeat(64);
   if(appDrift && ups===1) row.Image='sha256:'+'f'.repeat(64);
   return {code:(failure && ups===1) || failUps.includes(ups)?1:0,stdout:'',stderr:'PRIVATE'};
  };
- return {...f,file,selector,run,calls,stale,out:{write(){}},upCount:()=>ups,breakApp:()=>{inventory.get('noticeos').State.Health.Status='unhealthy';}};
+ return {...f,file,selector,run,calls,stale,out:{write(){}},upCount:()=>ups,
+  applyBackup(source){
+   const row=inventory.get('backup');row.Id='b'.repeat(64);
+   row.Mounts.push({Type:'bind',Source:source,Destination:'/backup-offsite',RW:true});
+  },
+  breakApp:()=>{inventory.get('noticeos').State.Health.Status='unhealthy';}};
 }
 test('switch and disable touch only the app, preserving the original selector and state mounts',async()=>{
  const f=fixture();try {
@@ -104,19 +110,31 @@ test('switch and disable touch only the app, preserving the original selector an
 });
 test('returning to the prepared image keeps backup settings but refuses changed app settings', async () => {
  const f=fixture();try {
-  await developStack({root:f.root,selectorFile:f.file,...f});
-  const backup='NOTICEOS_BACKUP_OFFSITE_PARENT=/synthetic/elsewhere\n';
+  const dev=await developStack({root:f.root,selectorFile:f.file,...f});
+  const offsite='/synthetic/elsewhere';
+  const backup=`NOTICEOS_BACKUP_OFFSITE_PARENT=${offsite}\n`;
   fs.writeFileSync(f.selector.envFile,backup+'NOTICEOS_TOWER_PORT=5910\n');
   await assert.rejects(developStack({root:f.root,selectorFile:f.file,disable:true,...f}),/prepared stack declarations changed/u);
   fs.writeFileSync(f.selector.envFile,backup+'NOTICEOS_NETWORK=changed-network\n');
   await assert.rejects(developStack({root:f.root,selectorFile:f.file,disable:true,...f}),/prepared stack declarations changed/u);
   assert.equal(f.upCount(),1);
   fs.writeFileSync(f.selector.envFile,backup);
+  f.applyBackup(offsite);
   const back=await developStack({root:f.root,selectorFile:f.file,disable:true,...f});
   assert.equal(back.image,image);
+  assert.notEqual(back.after.backup.id,dev.after.backup.id);
+  assert.equal(back.after.backup.mounts.find(mount=>mount.target==='/backup-offsite').source,offsite);
   assert.deepEqual(back.after.backup,back.before.backup);
   assert.equal(fs.readFileSync(f.selector.envFile,'utf8'),backup);
   assert.equal(f.upCount(),2);
+ }finally{f.close();}
+});
+test('returning to the prepared image detects a backup worker replaced during the app switch', async () => {
+ const f=fixture({drift:'backup'});try {
+  await developStack({root:f.root,selectorFile:f.file,...f});
+  await assert.rejects(developStack({root:f.root,selectorFile:f.file,disable:true,...f}),/recovery did not complete/u);
+  assert.equal(f.upCount(),2);
+  assert.equal(fs.existsSync(path.join(f.root,'.local/stack-deploy/lock')),true);
  }finally{f.close();}
 });
 test('failed health restores the prior app; unexpected sibling or app drift retains recovery lock',async()=>{

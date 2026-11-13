@@ -171,7 +171,12 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
         : prior.appSeal !== appSeal(baseModel.value))) fail('The prepared stack declarations changed; restore refused.');
       targetImage = prior.image;
       targetBefore = prior.before;
-      assertPreserved(prior.before,before,{ image:before.noticeos.image, added:JSON.parse(regular(overrideFile)).services.noticeos.volumes });
+      // Applying backup settings can recreate that worker during development.
+      // Its identity and mounts must stay fixed throughout this app switch.
+      if (prior.appSeal !== undefined && prior.before.backup && before.backup) {
+        targetBefore = { ...prior.before, backup: before.backup };
+      }
+      assertPreserved(targetBefore,before,{ image:before.noticeos.image, added:JSON.parse(regular(overrideFile)).services.noticeos.volumes });
     } else {
       if (active && !selector.files.includes(overrideFile)) fail('This stack uses development mounts owned by another selector.');
       if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');

@@ -406,10 +406,10 @@ pnpm os:prod
 The private `stack-development/previous.json` and journal beside the selector
 record recovery. The switch shares the update lock and restores the old
 app if startup fails, provided the stores and declarations still match.
-Changes to backup settings can stay in `installation.env` when returning to
-the prepared image. The application declaration must still match. An existing
-development record that checks the entire file still requires the original
-settings for that return to the prepared image.
+Backup settings applied during development stay in effect when returning to
+the prepared image. The application declaration must match the one saved when
+development started. Development records created by earlier versions still
+require the original `installation.env`.
 `pnpm os:update` does not run on a development selector until `pnpm os:prod`
 returns it to an image. Neither mode removes the checkout or its dependencies.
 
