@@ -28,7 +28,7 @@ function retained(): Ga4RealtimePayload {
 describe('the retained realtime day on the Wall', () => {
   it('shows minute activity instead of the delayed hourly chart, with gaps and no invented baseline or total', () => {
     const { container } = render(<SiteRows assets={fixtureAssets()} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
+    expect(container.querySelector('[data-site-today-reference]')).toHaveTextContent('1,788');
     expect(container.querySelector('[data-site-today-total]')).toHaveTextContent('887');
     expect(container.querySelector('[data-site-today-total]')).toHaveAccessibleName('887 daily active users today so far');
     expect(container.querySelector('[data-site-today-total]')?.closest('.wall-metric-primary')).toHaveTextContent('reported users');
@@ -44,7 +44,7 @@ describe('the retained realtime day on the Wall', () => {
   it('uses retained realtime data in the same tile for one asset', () => {
     const asset = fixtureAssets()[0]!;
     const { container } = render(<SiteRows assets={[asset]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
+    expect(container.querySelector('[data-site-today-reference]')).toHaveTextContent('1,788');
     expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
     expect(container.querySelector('[data-realtime-today]')).not.toBeNull();
     expect(container.querySelector('[data-site-today]')?.textContent).toBe('Last week pending');
@@ -182,23 +182,27 @@ describe('hourly activity and day-so-far pace', () => {
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('.wall-site-axis')?.textContent).toContain('avg users/min');
   });
 
-  it.each(['multiple assets', 'one asset'])('labels the cumulative comparison as day so far in %s', mode => {
+  it.each(['multiple assets', 'one asset'])('labels the matched cutoff even when distinct user totals and activity move in opposite directions in %s', mode => {
     const payload = retained();
     for (const snapshot of payload.assets) {
       if (snapshot.status !== 'success' || !snapshot.realtimeDay) continue;
-      snapshot.realtimeDay.sameDayLastWeek = Array<number | null>(1440).fill(10);
+      snapshot.realtimeDay.sameDayLastWeek = Array.from({ length: 1440 }, (_, i) => i < MINUTE ? 10 : 9);
       snapshot.realtimeDay.minutes.fill(null);
-      for (let i = MINUTE - 180; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = i < MINUTE - 120 ? 6 : i < MINUTE - 60 ? 8 : 10;
+      for (let i = 0; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = 12;
     }
     const assets = fixtureAssets();
+    assets[0]!.activeUsers.series = [{ t: '2026-09-15', v: 1000 }, { t: DATE, v: 900 }];
     const { container } = render(<SiteRows assets={mode === 'one asset' ? assets.slice(0, 1) : assets} ga4Realtime={payload} nowMs={NOW} />);
     const today = container.querySelector('[data-site-today]')!;
-    expect(today.textContent).toContain('day so far');
+    const tile = today.closest('.wall-metric')!;
+    expect(tile.querySelector('[data-site-today-total]')).toHaveAccessibleName('994 estimated active users today so far');
+    expect(tile.querySelector('.wall-metric-context')).toHaveTextContent('last Tue full day 1,000');
+    expect(today).toHaveTextContent('Minute activity');
+    expect(today).toHaveTextContent('Both to 7:30 PM');
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');
-    expect(chip.getAttribute('data-tone')).toBe('wall-traffic-decline');
-    expect(chip.getAttribute('aria-label')).toContain('today so far');
-    expect(chip.getAttribute('aria-label')).toContain('180 matching minutes');
+    expect(chip.getAttribute('data-tone')).toBe('pace-on');
+    expect(chip.getAttribute('aria-label')).toContain('1170 matching minutes');
     expect(chip.getAttribute('aria-label')).toContain('Includes earlier hours');
   });
 });

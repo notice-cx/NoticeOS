@@ -2026,9 +2026,9 @@ function NavigationProgressDemo() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
+    <section id={id} className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold text-foreground">
         {title}
       </h2>
@@ -7224,7 +7224,7 @@ function SurfaceSections() {
         </div>
       </Section>
 
-      <Section title="StatusBanner — only while its state is open">
+      <Section id="status-banner-examples" title="StatusBanner — only while its state is open">
         <div className="flex w-full flex-col gap-3">
           <StatusBanner
             subject="demo:banner-setting-up"

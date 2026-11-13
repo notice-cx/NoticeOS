@@ -156,7 +156,7 @@ describe("a read in progress keeps what the Wall drew", () => {
     const blank = today(answer);
     expect(blank.querySelector("[data-today]")).toBeNull();
     const history = blank.querySelector("[data-site-today]")!.closest(".wall-metric")!;
-    expect(history.querySelector('h3')?.textContent).toBe('Todayvs last Tue —');
+    expect(history.querySelector('.wall-metric-context')).toHaveTextContent('last Tue full day —');
     expect(history.querySelector('[data-site-today-total]')?.textContent).toBe('50');
     expect(history.querySelector('[data-site-today]')?.textContent).toBe('Comparison unavailable');
     expect(history.querySelector('[data-today]')).toBeNull();

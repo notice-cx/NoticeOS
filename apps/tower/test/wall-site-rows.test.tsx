@@ -72,7 +72,7 @@ describe("the asset rows", () => {
     expect(total).toHaveTextContent("456");
     expect(total).toHaveAccessibleName("456 daily active users today so far");
     const tile = total.closest(".wall-metric")!;
-    expect(tile.querySelector(".wall-metric-context")).toHaveTextContent("vs last Tue 123");
+    expect(tile.querySelector(".wall-metric-context")).toHaveTextContent("last Tue full day 123");
     expect(tile.querySelector(".wall-metric-main")?.firstElementChild).toContainElement(total);
     expect(tile.querySelector(".wall-metric-secondary [data-site-today]")).not.toBeNull();
   });
@@ -90,7 +90,7 @@ describe("the asset rows", () => {
     expect(site.querySelector('[data-site-today-total]')).toHaveAttribute('data-estimated', 'true');
     // Pacific days contain five hours of one Auckland report and nineteen of the next.
     expect(site.querySelector('[data-site-today-total]')).toHaveTextContent('24');
-    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Tue 12");
+    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("last Tue full day 12");
     expect(site.querySelector('[data-site-today]')).not.toHaveTextContent("Comparison unavailable");
     expect(site.querySelector('[data-site-today-chart] svg')).not.toBeNull();
   });
@@ -105,8 +105,8 @@ describe("the asset rows", () => {
     // The same instant is Tuesday in Los Angeles and Wednesday in Auckland.
     const container = draw(assets, { realtime });
     const context = (asset: AssetCard) => row(container, asset.id).querySelector('[aria-label="Today"] .wall-metric-context');
-    expect(context(assets[0]!)).toHaveTextContent("vs last Tue");
-    expect(context(assets[1]!)).toHaveTextContent("vs last Wed");
+    expect(context(assets[0]!)).toHaveTextContent("last Tue full day");
+    expect(context(assets[1]!)).toHaveTextContent("last Wed full day");
   });
 
   it("draws one row per asset in seed order", () => {
