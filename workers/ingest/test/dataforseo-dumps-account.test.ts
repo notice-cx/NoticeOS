@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
-import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
+import { DATAFORSEO_CHECKPOINT_PREFIX, runDataForSeoDumps } from '../src/dataforseo-dumps.js';
 import { credentialSummary, putCredential } from '../src/credentials.js';
+import { ARCHIVE_RUNS, pgFirst } from './helpers.js';
 import {
   NOW,
   type FetchCall,
@@ -80,6 +81,31 @@ describe('DataForSEO account credit', () => {
       const result = await runDataForSeoDumps(env, { nowMs: NOW, fetchImpl, scope: ONE_FAMILY });
       expect(result.outcomes[0]).toMatchObject({ status: 'error', errorCode: 'local_store_failed', objectKey: null });
       expect(accountCalls(calls)).toHaveLength(0);
+      const summary = (await credentialSummary(env, 'dataforseo'))!;
+      expect(summary.lastError).toBeNull();
+      expect(summary.lastOkAt).toBeNull();
+    } finally { put.mockRestore(); }
+  });
+
+  it('keeps a paid-page checkpoint failure local and counts its cost without retrying the provider', async () => {
+    await storeCredential();
+    const rawPut = env.RAW_SIGNALS.put.bind(env.RAW_SIGNALS);
+    const put = vi.spyOn(env.RAW_SIGNALS, 'put').mockImplementation((key, value, options) => {
+      if (key.includes(`/${DATAFORSEO_CHECKPOINT_PREFIX}/`)) return Promise.reject(new Error('Synthetic checkpoint write failure'));
+      return rawPut(key, value, options);
+    });
+    try {
+      const { fetchImpl, calls } = providerFetch();
+      const result = await runDataForSeoDumps(env, { nowMs: NOW, fetchImpl,
+        scope: { asset: 'meadow.example', families: ['serp-panel'] } });
+      expect(result.outcomes).toEqual([expect.objectContaining({ status: 'error', errorCode: 'local_store_failed', objectKey: null })]);
+      expect(calls).toHaveLength(1);
+      expect(accountCalls(calls)).toHaveLength(0);
+      expect(result.costUsd).toBeCloseTo(0.004, 6);
+      expect(await pgFirst<{ errorCode: string; costUsd: number }>(
+        `SELECT error_code AS "errorCode", provider_cost_usd AS "costUsd" FROM ${ARCHIVE_RUNS}
+          WHERE asset = 'meadow.example' AND integration = 'dataforseo' AND report = 'serp-panel'`,
+      )).toMatchObject({ errorCode: 'local_store_failed', costUsd: 0.004 });
       const summary = (await credentialSummary(env, 'dataforseo'))!;
       expect(summary.lastError).toBeNull();
       expect(summary.lastOkAt).toBeNull();

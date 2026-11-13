@@ -209,6 +209,8 @@ export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, bingSignals: 24, dataf
 /** Coverage beyond the bounded archive list. `total` is a lower bound when
  * the monitor stopped reading before it could count every remaining date. */
 export interface IntegrationHealthOverflow {
+  /** Opaque property identity; absent from older monitoring responses. */
+  target?: string;
   shown: number;
   total: number;
   atLeast: boolean;
@@ -219,9 +221,10 @@ export function integrationHealthOverflowOf(value: unknown): IntegrationHealthOv
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const whole = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+  if (row.target !== undefined && (typeof row.target !== 'string' || !/^[a-f0-9]{64}$/.test(row.target))) return null;
   if (!whole(row.shown) || !whole(row.total) || row.total <= row.shown || typeof row.atLeast !== 'boolean'
     || row.unresolvedFailures !== undefined && (!whole(row.unresolvedFailures) || !row.atLeast && row.unresolvedFailures > row.total)) return null;
-  return { shown: row.shown, total: row.total, atLeast: row.atLeast,
+  return { ...(row.target === undefined ? {} : { target: row.target as string }), shown: row.shown, total: row.total, atLeast: row.atLeast,
     ...(row.unresolvedFailures === undefined ? {} : { unresolvedFailures: row.unresolvedFailures as number }) };
 }
 

@@ -8,6 +8,7 @@ import { observeIntegration, tryHealthConnection, type HealthConnection } from '
 import {
   archiveCollectedDump,
   LOCAL_STORE_FAILED,
+  localStoreError,
   archiveDumpFailure,
   unmeasuredDumpOutcome,
   type DumpPage,
@@ -1390,17 +1391,21 @@ async function writeDataForSeoCheckpoint(
   objects: SignalObjectScope,
 ): Promise<void> {
   if (!objects.owns(key)) throw new Error('Checkpoint owner is unavailable.');
-  await bucket.put(key, JSON.stringify(checkpoint), {
-    httpMetadata: { contentType: 'application/json' },
-    customMetadata: {
-      asset: checkpoint.asset,
-      report: checkpoint.report,
-      reportDate: checkpoint.reportDate,
-      requestHash: checkpoint.requestHash,
-      schemaVersion: String(checkpoint.schemaVersion),
-      workspaceId: objects.workspaceId,
-    },
-  });
+  try {
+    await bucket.put(key, JSON.stringify(checkpoint), {
+      httpMetadata: { contentType: 'application/json' },
+      customMetadata: {
+        asset: checkpoint.asset,
+        report: checkpoint.report,
+        reportDate: checkpoint.reportDate,
+        requestHash: checkpoint.requestHash,
+        schemaVersion: String(checkpoint.schemaVersion),
+        workspaceId: objects.workspaceId,
+      },
+    });
+  } catch (error) {
+    throw localStoreError(error, 'dataforseo', checkpoint.report);
+  }
 }
 
 async function readDataForSeoCheckpoint(

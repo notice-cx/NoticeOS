@@ -213,19 +213,20 @@ function workStatus(key: string, items: IntegrationHealthItem[]): WorkStatus {
 /** One site's status from its own items (one provider, or one data source). */
 export function siteStatus(key: string, items: IntegrationHealthItem[]): SiteStatus | null {
   const byWork = new Map<string, IntegrationHealthItem[]>();
-  const overflowByCapability = new Map<string, { count: number; atLeast: boolean }>();
+  const overflowByTarget = new Map<string, { count: number; atLeast: boolean }>();
   for (const item of items) {
     if (item.overflow) {
       const next = { count: item.overflow.total - item.overflow.shown, atLeast: item.overflow.atLeast };
-      const previous = overflowByCapability.get(item.capability);
-      // Archive and observer bounds can describe the same omitted dates.
-      if (!previous || next.count > previous.count || next.count === previous.count && !next.atLeast) overflowByCapability.set(item.capability, next);
+      const targetKey = JSON.stringify([item.capability, item.overflow.target ?? ""]);
+      const previous = overflowByTarget.get(targetKey);
+      // Archive and observer bounds can overlap without covering the same dates.
+      overflowByTarget.set(targetKey, { count: Math.max(previous?.count ?? 0, next.count), atLeast: (previous?.atLeast ?? false) || next.atLeast });
       continue;
     }
     const workKey = `${item.capability}|${reportOf(item).report}`;
     byWork.set(workKey, [...(byWork.get(workKey) ?? []), item]);
   }
-  const overflows = [...overflowByCapability.values()];
+  const overflows = [...overflowByTarget.values()];
   const overflow = overflows.length ? { count: overflows.reduce((sum, item) => sum + item.count, 0), atLeast: overflows.some(item => item.atLeast) } : undefined;
   const works = [...byWork.entries()].map(([workKey, list]) => workStatus(workKey, list));
   const has = (kind: WorkKind) => works.some((work) => work.kind === kind);

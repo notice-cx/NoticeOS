@@ -132,7 +132,7 @@ it('uses a read-only saved-health endpoint and rejects malformed responses', asy
   fetch.mockResolvedValue(new Response(JSON.stringify({available:true,items:[{}]})));
   await expect(fetchIntegrationHealth()).rejects.toThrow('invalid response');
 });
-it.each([{lastSuccessAt:'broken'}, {nextAttemptAt:'broken'}, {coverage:'invented'}, {failure:'invented'}, {failure:['access']}, {reportDate:'yesterday'}, {report:7}, {report:undefined}, {overflow:{shown:256,total:257,atLeast:'yes'}}, {overflow:{shown:256,total:255,atLeast:false}}, {overflow:{shown:256,total:257,atLeast:false,unresolvedFailures:-1}}])('rejects invalid monitoring evidence %j', async patch => {
+it.each([{lastSuccessAt:'broken'}, {nextAttemptAt:'broken'}, {coverage:'invented'}, {failure:'invented'}, {failure:['access']}, {reportDate:'yesterday'}, {report:7}, {report:undefined}, {overflow:{shown:256,total:257,atLeast:'yes'}}, {overflow:{target:'https://property.example/',shown:256,total:257,atLeast:false}}, {overflow:{shown:256,total:255,atLeast:false}}, {overflow:{shown:256,total:257,atLeast:false,unresolvedFailures:-1}}])('rejects invalid monitoring evidence %j', async patch => {
   vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify(payload([{...item(),...patch} as IntegrationHealthItem]))));
   await expect(fetchIntegrationHealth()).rejects.toThrow('invalid response');
 });

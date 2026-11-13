@@ -277,9 +277,27 @@ it('reports typed archive coverage at the 257-date boundary without inventing a 
   const result = await readIntegrationHealth(env, Date.now() + 1000);
   const overflow = result.items.filter(i => i.asset === target.asset && i.overflow);
   expect(overflow).toEqual([expect.objectContaining({ state: 'unknown', code: 'monitoring', detail: null, report: null, reportDate: null,
-    overflow: { shown: 256, total: 257, atLeast: false, unresolvedFailures: 257 } })]);
+    overflow: { target: expect.stringMatching(/^[a-f0-9]{64}$/), shown: 256, total: 257, atLeast: false, unresolvedFailures: 257 } })]);
   expect(new Set(result.items.filter(i => i.asset === target.asset && i.capability === 'ga4-archive' && !i.overflow).map(i => i.report)))
     .toEqual(new Set((await integrationArchivePlan(env.STORE, target, NOW)).map(item => item.report)));
+});
+
+it('keeps independent Bing property overflow identities opaque and distinct', async () => {
+  const refs = ['https://meadow.example/', 'https://www.meadow.example/'];
+  const day = (n: number) => new Date(Date.parse('2025-01-01T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+  await storeArchiveRuns(refs.flatMap((ref, target) => Array.from({ length: 257 }, (_, n) => ({
+    id: `bing-overflow-${target}-${n}`, asset: 'meadow.example', integration: 'bing-webmaster', report: 'rank-traffic',
+    credential_ref: 'env:BING_WEBMASTER_API_KEY', property_ref: ref, report_date: day(n), finished_at: new Date(NOW - 10_000 - n).toISOString(),
+    data_state: 'provider-snapshot' as const, status: 'error' as const, error_code: 'http_500', error_message: 'Refused',
+  }))));
+  const result = await readIntegrationHealth(env, Date.now() + 1000);
+  const overflow = result.items.filter(item => item.asset === 'meadow.example' && item.capability === 'bing-archive' && item.overflow);
+  expect(overflow).toHaveLength(2);
+  expect(new Set(overflow.map(item => item.id)).size).toBe(2);
+  expect(new Set(overflow.map(item => item.overflow!.target)).size).toBe(2);
+  for (const item of overflow) expect(item.overflow).toEqual({ target: expect.stringMatching(/^[a-f0-9]{64}$/),
+    shown: 256, total: 257, atLeast: false, unresolvedFailures: 257 });
+  expect(JSON.stringify(overflow.map(item => item.overflow))).not.toContain('meadow.example');
 });
 
 it('does not let thousands of resolved historical archive dates exhaust current health coverage', async () => {
