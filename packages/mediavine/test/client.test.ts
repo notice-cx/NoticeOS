@@ -119,6 +119,23 @@ describe('publisher site discovery', () => {
   });
 });
 describe('report truth', () => {
+  it('returns valid portfolio figures alongside a site refusal and an unpublished zero', async () => {
+    const refused = { id: 'site-two', domain: 'denied.example', title: 'Denied' };
+    const waiting = { id: 'site-three', domain: 'waiting.example', title: 'Waiting' };
+    const run = client([Response.json({
+      data: { sitesForUser: { pageInfo: { hasNextPage: false }, edges: [
+        { node: { ...refused, daily: null } },
+        { node: { ...waiting, daily: { earnings: 0 } } },
+        { node: { ...SITE, daily: { earnings: 12.34 } } },
+      ] } },
+      errors: [{ path: ['sitesForUser', 'edges', 0, 'node', 'daily'], extensions: { code: 'FORBIDDEN' } }],
+    })]);
+    const portfolio = await run.client.dailyRevenue(period.end, new Set([SITE.id, refused.id, waiting.id]));
+    expect(portfolio.reports.get(SITE.id)).toMatchObject({ daily: [{ date: period.end, revenueMinor: 1234 }], unpublishedDates: [] });
+    expect(portfolio.reports.get(waiting.id)).toMatchObject({ unpublishedDates: [period.end] });
+    expect(portfolio.reports.get(refused.id)).toMatchObject({ kind: 'permission', permissionScope: 'site' });
+    expect(run.fetchImpl).toHaveBeenCalledTimes(1);
+  });
   it('keeps unknown dates and null revenue distinct from zero', () => {
     expect(normalizeReport(report(null), period, NOW).complete).toBe(false);
     expect(normalizeReport(report(0), period, NOW).dailyMinor).toBe(0);

@@ -10,13 +10,13 @@ export const MEDIAVINE_NOTIFICATIONS_ENABLED = `EXISTS (
 )`;
 
 /** Snapshot the first amount and its comparison after every day of the run has been written. */
-export async function enqueueMediavineNotifications(tx: Transaction, asset: string, runId: string, report: Report): Promise<void> {
+export async function enqueueMediavineNotifications(tx: Transaction, asset: string, runId: string, report: Report, batchId: string | null): Promise<void> {
   await tx.execute(`INSERT INTO noticeos.notification_events
       (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, next_attempt_at, payload)
     SELECT r.workspace_id, $8, 'asset', r.asset_id, to_char(r.revenue_date, 'YYYY-MM-DD'),
       r.recorded_at, r.recorded_at, jsonb_build_object(
         'amount_minor', r.amount_minor, 'previous_minor', comparison.previous_amount,
-        'month_minor', comparison.month_amount, 'month_reported_days', comparison.month_days)
+        'month_minor', comparison.month_amount, 'month_reported_days', comparison.month_days, 'batch_id', $9::text)
     FROM noticeos.revenue_observations r
     CROSS JOIN LATERAL (
       SELECT SUM(daily.amount_minor) FILTER (WHERE daily.revenue_date = r.revenue_date - 7) AS previous_amount,
@@ -38,7 +38,7 @@ export async function enqueueMediavineNotifications(tx: Transaction, asset: stri
       )
     ORDER BY r.revenue_date
     ON CONFLICT DO NOTHING`,
-    [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, report.period.start, report.period.end, runId, DAILY_MEDIAVINE_REVENUE]);
+    [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, report.period.start, report.period.end, runId, DAILY_MEDIAVINE_REVENUE, batchId]);
 }
 
 export interface MediavineRevenueNotification {

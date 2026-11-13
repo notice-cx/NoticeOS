@@ -17,4 +17,9 @@ yet, so a $0 on its newest reporting day (yesterday on its clock) is listed in
 `unpublishedDates` until that day ends, and `publishedPart` returns the days
 before it. Portal summary totals and summed daily rows are kept separately.
 
+Scheduled collection requests yesterday's earnings for all due sites in one
+dashboard query. Initial collection, gaps spanning several dates, and manual
+refresh use site reports. NoticeOS commits the dashboard response's new figures
+together and sends their Discord cards together, up to ten per message.
+
 See [setup and operation](../../docs/11-integrations.md#mediavine-revenue).

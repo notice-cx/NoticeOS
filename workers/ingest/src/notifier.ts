@@ -44,6 +44,8 @@ const DISCORD_EVENTS = `channel = '${NOTIFICATION_CHANNEL}'
 async function claim(env: IngestEnv, now: string, lease: string): Promise<Candidate[]> {
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
   return env.STORE.write(async tx => {
+    // Two consumers must not divide the rows of one response between messages.
+    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`noticeos.discord-claim:${tx.workspaceId}`]);
     await tx.execute(`UPDATE noticeos.notification_events q SET state = 'cancelled', finished_at = $1::timestamptz,
       lease_id = NULL, lease_until = NULL WHERE q.state = 'pending'
         AND ${DISCORD_EVENTS}
@@ -55,10 +57,18 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
       monthMinor: string | null; monthReportedDays: number | null;
       asset: string | null; displayName: string | null; isOs: boolean | null;
       metric: string | null; message: string | null; ruleId: string | null; error: string | null;
-    }>(`WITH due AS (
-      SELECT event_id FROM noticeos.notification_events WHERE state = 'pending' AND ${DISCORD_EVENTS}
+    }>(`WITH ready AS NOT MATERIALIZED (
+      SELECT * FROM noticeos.notification_events WHERE state = 'pending' AND ${DISCORD_EVENTS}
         AND next_attempt_at <= $1::timestamptz AND (lease_until IS NULL OR lease_until <= $1::timestamptz)
-      ORDER BY next_attempt_at, event_id FOR UPDATE SKIP LOCKED LIMIT $3
+    ), first AS (
+      SELECT ready.payload ->> 'batch_id' AS batch_id
+      FROM ready
+      ORDER BY next_attempt_at, event_id LIMIT 1
+    ), due AS (
+      SELECT q.event_id FROM noticeos.notification_events q JOIN ready USING (workspace_id, event_id)
+      CROSS JOIN first
+      WHERE ready.payload ->> 'batch_id' IS NOT DISTINCT FROM first.batch_id
+      ORDER BY ready.next_attempt_at, ready.event_id FOR UPDATE OF q SKIP LOCKED LIMIT $3
     ), claimed AS (
       UPDATE noticeos.notification_events q SET lease_id = $2::uuid,
         lease_until = $1::timestamptz + interval '2 minutes', attempts = attempts + 1
