@@ -563,10 +563,10 @@ What the GA4 and GSC collector gathers is defined in the
 (the account map, token reuse, provisional days, append-only runs) is in
 [the ingest README](../workers/ingest/README.md#google-signals-ga4--gsc).
 
-**What it costs.** Scheduled GA4 collection makes up to 24 daily-series
-requests per property per day. It normally requests seven dates and reads 97
-dates for initial collection, gap recovery, and weekly reconciliation.
-Search Console requests 97 dates every 15 minutes. GA4 requests include the
+**What it costs.** Scheduled Search Console and GA4 collection each make
+one daily-series request per property per hour in normal operation. Each
+normally requests seven dates and reads 97 dates for initial collection,
+gap recovery, and the weekly history check. GA4 requests include the
 provider’s quota readings
 ([GA4 quota](../workers/ingest/README.md#ga4-quota--what-the-heavy-lanes-are-spending)).
 
@@ -616,10 +616,11 @@ from the panel files is [doc 20](20-signal-panels.md).
 
 **What it costs.** Every call is free; the limits are request and row counts:
 
-- **GSC:** 40 base requests a day per property (ten families × four revision
-  dates), plus the search-appearance expansion and pagination. Discover runs in
-  probe mode, so a property Google never shows in Discover costs one request a
-  day rather than four.
+- **GSC** usually makes two base requests per family per day, for the newest
+  completed date and the day-four revision. Early empty reports are revisited
+  on day three. Missing dates, failed requests, search-appearance expansion
+  and pagination can add requests. An always-empty Discover family makes one
+  scheduled request for the date four days ago.
 - **GA4:** Daily report families read the newest completed date and a final
   revision on day four. Missing or failed dates can add recovery requests.
   The rolling 28-day aggregate runs once per day. Pagination adds requests

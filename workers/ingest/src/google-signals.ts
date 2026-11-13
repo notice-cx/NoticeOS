@@ -86,9 +86,9 @@ import {
 import { arrayField, asRecord, stringField, utcDay } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 20_000;
-const GA4_REFRESH_HOUR_MS = INTEGRATION_CADENCE_HOURS.ga4Signals * 3_600_000;
-const GA4_RECENT_DAYS = 7;
-const GA4_RECONCILE_DAYS = 7;
+const GOOGLE_REFRESH_INTERVAL_MS = INTEGRATION_CADENCE_HOURS.googleSignals * 3_600_000;
+const GOOGLE_RECENT_DAYS = 7;
+const GOOGLE_RECONCILE_DAYS = 7;
 /**
  * The day boundary assumed for a GA4 property whose config entry names no
  * `time_zone`, when the caller has not resolved the saved one: the operator's
@@ -240,14 +240,14 @@ export async function runGoogleSignals(
         if (integration === 'ga4') {
           const cooling = await ga4CoreCooldown(env.STORE, target.propertyRef, clock());
           if (cooling) { deferQuota(target, cooling); continue; }
-          if (options.scheduled) {
-            const due = await scheduledGa4Window(env.STORE, target, window, nowMs, health?.changedAt ?? null);
-            if (!due) {
-              deferred.push({ asset: target.asset, reason: 'not-due' });
-              continue;
-            }
-            window = due;
+        }
+        if (options.scheduled) {
+          const due = await scheduledGoogleWindow(env.STORE, target, window, nowMs, health?.changedAt ?? null);
+          if (!due) {
+            deferred.push({ asset: target.asset, reason: 'not-due' });
+            continue;
           }
+          window = due;
         }
         scopedTargets.push({ target, window });
       }
@@ -1080,17 +1080,17 @@ async function collectGsc(
   };
 }
 
-async function scheduledGa4Window(store: WorkspaceStore, target: GooglePropertyTarget, full: SignalDateWindow,
+async function scheduledGoogleWindow(store: WorkspaceStore, target: GooglePropertyTarget, full: SignalDateWindow,
   nowMs: number, changedAt: string | null): Promise<SignalDateWindow | null> {
   const [history] = await store.read(tx => tx.query<{
-    lastAttempt: string | null; attemptProperty: string | null; sameCredential: boolean | null; property: string | null; lastDay: string | null; fullDay: string | null;
+    lastAttempt: string | null; attemptProperty: string | null; sameCredential: boolean | null; property: string | null; lastDay: string | null; provisionalFrom: string | null; fullDay: string | null;
   }>(`WITH latest_success AS (
-         SELECT property_ref, time_zone, window_end FROM noticeos.signal_runs
-         WHERE asset_id = $1 AND integration = 'ga4' AND status = 'success'
+         SELECT property_ref, time_zone, window_end, provisional_from FROM noticeos.signal_runs
+         WHERE asset_id = $1 AND integration = $7 AND status = 'success'
          ORDER BY started_at DESC, run_seq DESC LIMIT 1
        ), latest_attempt AS (
          SELECT started_at, property_ref, credential_ref FROM noticeos.signal_runs
-         WHERE asset_id = $1 AND integration = 'ga4' AND ($4::timestamptz IS NULL OR started_at >= $4::timestamptz)
+         WHERE asset_id = $1 AND integration = $7 AND ($4::timestamptz IS NULL OR started_at >= $4::timestamptz)
          ORDER BY started_at DESC, run_seq DESC LIMIT 1
        )
        SELECT (SELECT started_at FROM latest_attempt) AS "lastAttempt",
@@ -1098,19 +1098,22 @@ async function scheduledGa4Window(store: WorkspaceStore, target: GooglePropertyT
               (SELECT credential_ref = $3 FROM latest_attempt) AS "sameCredential",
               (SELECT property_ref FROM latest_success) AS property,
               (SELECT window_end::text FROM latest_success) AS "lastDay",
+              (SELECT provisional_from::text FROM latest_success) AS "provisionalFrom",
               (SELECT max(window_end)::text FROM noticeos.signal_runs
-               WHERE asset_id = $1 AND integration = 'ga4' AND property_ref = $2 AND status = 'success'
+               WHERE asset_id = $1 AND integration = $7 AND property_ref = $2 AND status = 'success'
                  AND time_zone IS NOT DISTINCT FROM (SELECT time_zone FROM latest_success)
                  AND window_end >= $5::date AND window_end - window_start >= $6::integer) AS "fullDay"`,
     [target.asset, target.propertyRef, target.credentialRef, changedAt,
-      shiftCalendarDate(full.end, -GA4_RECONCILE_DAYS + 1), LIVE_SIGNAL_WINDOW_DAYS - 1]));
+      shiftCalendarDate(full.end, -GOOGLE_RECONCILE_DAYS + 1), LIVE_SIGNAL_WINDOW_DAYS - 1, target.integration]));
   const lastAttempt = history?.lastAttempt ? Date.parse(javascriptInstant(history.lastAttempt)) : NaN;
   if (history?.attemptProperty === target.propertyRef && history.sameCredential &&
-      Math.floor(lastAttempt / GA4_REFRESH_HOUR_MS) === Math.floor(nowMs / GA4_REFRESH_HOUR_MS)) return null;
-  const recentStart = shiftCalendarDate(full.end, 1 - GA4_RECENT_DAYS);
-  // The last pull's provisional dates must still be inside the new window.
-  if (history?.property !== target.propertyRef || !history.fullDay || !history.lastDay ||
-      ga4ProvisionalFrom(history.lastDay) < recentStart) return full;
+      Math.floor(lastAttempt / GOOGLE_REFRESH_INTERVAL_MS) === Math.floor(nowMs / GOOGLE_REFRESH_INTERVAL_MS)) return null;
+  const recentStart = shiftCalendarDate(full.end, 1 - GOOGLE_RECENT_DAYS);
+  if (history?.property !== target.propertyRef || !history.fullDay || !history.lastDay) return full;
+  // Revisit provisional dates before they fall out of the short window.
+  const resumeFrom = target.integration === 'ga4'
+    ? ga4ProvisionalFrom(history.lastDay) : history.provisionalFrom ?? history.lastDay;
+  if (resumeFrom < recentStart) return full;
   return { start: recentStart, end: full.end };
 }
 

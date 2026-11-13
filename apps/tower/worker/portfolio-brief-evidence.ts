@@ -28,7 +28,7 @@ function accounting(figure: AssetCard['booked'], recorded?: boolean) {
 }
 
 function currentComparison(asset: AssetCard, end: string, now: Date): boolean {
-  if (!asset.activeUsers.timeZone || Date.parse(asset.activeUsers.collectedAt ?? '') > now.getTime() || isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.signals)) return false;
+  if (!asset.activeUsers.timeZone || Date.parse(asset.activeUsers.collectedAt ?? '') > now.getTime() || isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.googleSignals)) return false;
   const today = calendarDateIn(asset.activeUsers.timeZone)(now);
   // GA4 collection leaves today and yesterday provisional (`ga4ProvisionalFrom`).
   // An older complete window remains context rather than a current insight.
@@ -152,7 +152,7 @@ export function buildPortfolioBriefEvidence(
     const trafficEnd = [...settledTraffic(asset.activeUsers).keys()].sort().at(-1) ?? null;
     add(`${prefix}:coverage`, `${asset.displayName}: available evidence`, href, asset.activeUsers.collectedAt, {
       trafficThrough: trafficEnd,
-      trafficCollectionStale: isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.signals),
+      trafficCollectionStale: isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.googleSignals),
       trafficReportingLagDays: trafficEnd ? Math.max(0, Math.floor((now.getTime() - Date.parse(`${trafficEnd}T00:00:00Z`)) / DAY)) : null,
       revenueThrough: asset.revenueProjection?.reportedThrough ?? asset.dailyRevenue?.reportedThrough ?? null,
       reportReceivedAt: asset.pulseReceivedAt,

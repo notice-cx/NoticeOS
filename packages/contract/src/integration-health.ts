@@ -205,7 +205,7 @@ export function integrationCapabilityHealth(input: {
 }
 
 /** Existing display cadences, shared with the Wall; this adds no new threshold. */
-export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, ga4Signals: 1, bingSignals: 24, dataforseoSignals: 24 * 7, posthogSignals: 24, cruxSignals: 24 } as const;
+export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, googleSignals: 1, bingSignals: 24, dataforseoSignals: 24 * 7, posthogSignals: 24, cruxSignals: 24 } as const;
 /** Coverage beyond the bounded archive list. `total` is a lower bound when
  * the monitor stopped reading before it could count every remaining date. */
 export interface IntegrationHealthOverflow {

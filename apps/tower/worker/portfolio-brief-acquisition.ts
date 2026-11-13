@@ -18,7 +18,7 @@ function settled(trend: SignalTrend, latest: string): Map<string, number> {
     .map(point => [point.t, point.v]));
 }
 
-function paired(trends: readonly SignalTrend[], now: Date, lag: number) {
+function paired(trends: readonly SignalTrend[], now: Date, lag: number, cadenceHours: number) {
   const timeZone = trends[0]?.timeZone;
   if (!timeZone || trends.some(trend => trend.timeZone !== timeZone || !Number.isFinite(Date.parse(trend.collectedAt ?? '')) || Date.parse(trend.collectedAt!) > now.getTime())) return null;
   let today: string;
@@ -32,7 +32,7 @@ function paired(trends: readonly SignalTrend[], now: Date, lag: number) {
     const lagDays = Math.round((Date.parse(today) - Date.parse(end)) / 86_400_000);
     return { metrics, lagDays, comparison: { current: { start: dates[7]!, end }, previous: { start: dates[0]!, end: dates[6]! }, timeZone },
       observedAt: new Date(Math.min(...trends.map(trend => Date.parse(trend.collectedAt!)))).toISOString(),
-      fresh: trends.every(trend => !isAmber(now.getTime(), trend.collectedAt, CADENCE_HOURS.signals)) };
+      fresh: trends.every(trend => !isAmber(now.getTime(), trend.collectedAt, cadenceHours)) };
   }
   return null;
 }
@@ -49,7 +49,7 @@ export async function loadPortfolioBriefAcquisition(store: WorkspaceStore, { now
     for (const provider of ['google', 'bing', 'ga4'] as const) {
       const search = provider !== 'ga4';
       const series = search ? [set.webSearchClicks[provider], set.webSearchImpressions[provider]] : [set.sessions, set.pageViews];
-      const pair = paired(series, now, search ? 1 : 2);
+      const pair = paired(series, now, search ? 1 : 2, provider === 'bing' ? CADENCE_HOURS.bingSignals : CADENCE_HOURS.googleSignals);
       if (!pair) continue;
       const [first, second] = pair.metrics as [MetricComparison, MetricComparison];
       const ratio = (left: number, right: number) => right > 0 ? Math.round(left / right * 100_000) / 100_000 : null;

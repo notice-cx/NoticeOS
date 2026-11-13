@@ -73,8 +73,18 @@ describe('briefing acquisition comparisons', () => {
     set.webSearchImpressions.google = trend(100, 200);
     expect((await read()).insightEvidenceIds).toEqual(['acquisition:example.com:google']);
   });
-  it('keeps stale collections as context instead of current insight evidence', async () => {
-    set.webSearchClicks.google.collectedAt = '2026-11-01T12:00:00.000Z';
-    expect(await read()).toMatchObject({ facts: [expect.any(Object)], insightEvidenceIds: [] });
+  it('ages acquisition evidence according to each provider’s collection schedule', async () => {
+    set.webSearchClicks.bing = trend();
+    set.webSearchImpressions.bing = trend(100, 100);
+    const observed = (hoursAgo: number) => new Date(now.getTime() - hoursAgo * 3_600_000).toISOString();
+    set.webSearchClicks.google.collectedAt = observed(1);
+    set.webSearchClicks.bing.collectedAt = observed(25);
+    expect((await read()).insightEvidenceIds).toEqual(['acquisition:example.com:google', 'acquisition:example.com:bing']);
+
+    set.webSearchClicks.google.collectedAt = observed(3);
+    expect((await read()).insightEvidenceIds).toEqual(['acquisition:example.com:bing']);
+
+    set.webSearchClicks.bing.collectedAt = observed(49);
+    expect(await read()).toMatchObject({ facts: [expect.any(Object), expect.any(Object)], insightEvidenceIds: [] });
   });
 });

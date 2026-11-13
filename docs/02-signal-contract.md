@@ -222,12 +222,11 @@ GSC, GA4, DataForSEO ranking/SERP/LLM signals, backlinks and CrUX, pulled by
 NoticeOS crons with portfolio credentials, plus the revenue and cost data
 below.
 
-The ingest Worker collects Search Console every 15 minutes and GA4 daily
-metrics once per hour. GA4 collects `active_users`, `sessions`,
-`page_views` and `event_count` for the latest seven dates. It requests all
-97 dates on initial collection, after a gap that extends past the short window
-or when the last full read is a week old. Search Console requests 97 dates of
-`clicks`, `impressions`, `ctr` and `position` each time. Stored history
+The ingest Worker collects the latest seven dates of Search Console
+(`clicks`, `impressions`, `ctr` and `position`) and GA4 daily metrics
+(`active_users`, `sessions`, `page_views` and `event_count`) once an hour.
+It requests all 97 dates on initial collection, after a gap the seven-day
+window cannot cover, or when the last full read is a week old. Stored history
 supplies 90 visible asset-detail dates plus seven dates for the first
 prior-week comparison.
 The 02:30 UTC nightly run
@@ -241,10 +240,11 @@ Google
 service-account credentials are stored once and tagged with the properties
 they give access to; one Bing user-level key covers all verified assets.
 
-The separate 12:15 UTC analysis job archives four completed Search Console
-dates, the newest completed GA4 date and its day-four revision, and the
-current Bing Webmaster snapshots through operator-owned credentials.
-The GA4 job also collects missing and failed dates. It preserves bounded provider responses in the private/local
+The separate 12:15 UTC analysis job archives the newest completed date and its
+day-four revision for Search Console and GA4, and the current Bing Webmaster
+snapshots. It also recovers missing and retryable failed dates and revisits
+early empty Search Console reports on day three. It preserves bounded
+provider responses in the private/local
 `RAW_SIGNALS` R2 bucket. The families are below; their request costs and
 ceilings are in [doc 11](11-integrations.md#daily-provider-analysis-archive)
 and the job's mechanics in the
@@ -333,7 +333,7 @@ apply this table instead of treating any series as exact:
 
 | Signal | Latency / finalization | Known distortions |
 |---|---|---|
-| GSC | today is always provisional in the live aggregate; the archive requests provider-final rows for completed dates and re-pulls four dates for late arrival | never alert on incomplete windows; page/query exports are top-row datasets, can omit anonymized/low-volume data, and grouped totals do not always reconcile |
+| GSC | today is always provisional in the live aggregate; the archive requests provider-final rows and revisits each completed date on day four | never alert on incomplete windows; page/query exports are top-row datasets, can omit anonymized/low-volume data, and grouped totals do not always reconcile |
 | GA4 | today is incomplete in the daily chart; recent processed values can still be revised for 24–48h, so a day stays marked provisional until it has been collected on day D+2 (`GA4_SETTLE_DAYS`) | never alert on today's partial value; consent-mode config changes step the series (a consent flip can halve reported sessions — config, not reality); AI-Mode strips referrers (a lower bound, not the true count) |
 | Bing Webmaster | rank-and-traffic data updates daily and currently lags real time by days | stop the series at the latest reported date; never fill the provider-lag tail with zeroes |
 | SERP panels | point-in-time, per-locale/device | volatility is not a trend; algorithm-update calendar overlay required |

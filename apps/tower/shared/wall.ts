@@ -1113,8 +1113,9 @@ export const CADENCE_HOURS = {
   /** The nightly report lane, straight from the contract — the same cadence
    * the ingest freshness cron ages a report against. */
   pulse: REPORT_CADENCE_HOURS,
-  /** GA4 + GSC share the 15-minute Sense cron. */
   signals: INTEGRATION_CADENCE_HOURS.signals,
+  /** GA4 and Search Console daily series are refreshed hourly. */
+  googleSignals: INTEGRATION_CADENCE_HOURS.googleSignals,
   /** Bing publishes this traffic dataset daily. */
   bingSignals: INTEGRATION_CADENCE_HOURS.bingSignals,
   /** DataForSEO provider datasets are archived once per week. */

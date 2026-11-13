@@ -121,7 +121,7 @@ export function deriveAlertEvidence(
     observed = inputs?.lastFailedAt; evaluated = inputs?.evaluatedAt;
   } else if (["ga4-quota-pressure", "ga4-realtime-quota-pressure", "ga4-funnel-quota-pressure"].includes(flag.ruleId)) {
     source = "Provider quota";
-    cadence = inputs?.lane === "google-signals" ? CADENCE_HOURS.signals
+    cadence = inputs?.lane === "google-signals" ? CADENCE_HOURS.googleSignals
       : inputs?.lane === "signal-dumps" || inputs?.lane === "ga4-journeys" ? CADENCE_HOURS.pulse : inputs?.lane === "ga4-realtime" ? 1 / 60 : null;
     observed = inputs?.lastObservedAt; evaluated = observed;
   } else if (flag.ruleId === "ingest-freshness") {

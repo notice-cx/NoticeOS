@@ -81,6 +81,22 @@ describe('analysis-grade signal dumps', () => {
       ).toHaveLength(2 * GOOGLE_PROPERTIES.length);
     });
 
+    it('probes a mature Discover date and resumes wider collection once rows appear', async () => {
+      const day = 86_400_000;
+      const first = providerDumpFetch({ emptyDiscover: true });
+      await runSignalDumps(env, { nowMs: NOW, scheduled: true, fetchImpl: first.fetchImpl });
+
+      const probe = providerDumpFetch();
+      const result = await runSignalDumps(env, { nowMs: NOW + day, scheduled: true, fetchImpl: probe.fetchImpl });
+      expect(discoverDates(result)).toEqual(everyProperty('2026-07-26'));
+      expect(probe.calls.filter(call => call.body?.type === 'discover').map(call => call.body?.startDate))
+        .toEqual(['2026-07-26', '2026-07-26']);
+
+      const next = providerDumpFetch();
+      const expanded = await runSignalDumps(env, { nowMs: NOW + 2 * day, scheduled: true, fetchImpl: next.fetchImpl });
+      expect(discoverDates(expanded)).toEqual(everyProperty('2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30'));
+    });
+
     it('restores the full window after any non-empty run, even if later runs are empty', async () => {
       const withRows = providerDumpFetch();
       await runSignalDumps(env, {

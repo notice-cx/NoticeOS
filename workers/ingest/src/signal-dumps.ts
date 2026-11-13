@@ -62,7 +62,7 @@ import { assetJourneyDefinitions, GA4_JOURNEY_REQUEST_LIMIT, runGa4Journeys, typ
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_REVISION_DAYS = 4;
-const GA4_ARCHIVE_RECOVERY_DAYS = 7;
+const GOOGLE_ARCHIVE_RECOVERY_DAYS = 7;
 const REQUEST_TIMEOUT_MS = 30_000;
 const SEARCH_APPEARANCE_TIMEOUT_RETRIES = 4;
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
@@ -608,7 +608,7 @@ export async function runSignalDumps(
     throw new SignalError('config_invalid', 'Signal dump revisionDays must be between 1 and 14.');
   }
   const reportDates = completedDates(nowMs, revisionDays);
-  const reduceGa4Revisions = options.scheduled && options.revisionDays === undefined;
+  const scheduledRevisions = options.scheduled === true && options.revisionDays === undefined;
   const clock = options.nowMs === undefined ? Date.now : () => nowMs;
   // One gate per run, asked only about a provider call that came back with no
   // status; its beacons use the raw fetcher. Without it one failed token mint
@@ -643,14 +643,14 @@ export async function runSignalDumps(
   // this run writes any manifests, so a probe day's zero-row result cannot
   // narrow the same run's window.
   const plans = new Map<GooglePropertyTarget, Map<string, string[]>>();
-  let skippedGa4Revisions = 0;
+  let skippedRevisions = 0;
   for (const target of targets) {
     const byReport = new Map<string, string[]>();
     for (const report of reportsFor(target.integration, target.asset, ga4CustomDimensions)) {
-      const dates = await resolveReportDates(env.STORE, target, target.integration, report, reportDates);
-      const due = reduceGa4Revisions && target.integration === 'ga4' && dates.length > 1
-        ? await dueGa4Revisions(env.STORE, target, report, dates, nowMs) : dates;
-      skippedGa4Revisions += dates.filter(date => !due.includes(date)).length;
+      const dates = await resolveReportDates(env.STORE, target, report, reportDates, scheduledRevisions);
+      const due = scheduledRevisions && dates.length > 1
+        ? await dueGoogleRevisions(env.STORE, target, report, dates, nowMs) : dates;
+      skippedRevisions += dates.filter(date => !due.includes(date)).length;
       byReport.set(report, due);
     }
     plans.set(target, byReport);
@@ -820,7 +820,7 @@ export async function runSignalDumps(
     succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
     unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
     failed: outcomes.filter((outcome) => outcome.status === 'error').length,
-    skipped: skipped + skippedGa4Revisions,
+    skipped: skipped + skippedRevisions,
     deferredByQuota,
     retried,
     outcomes,
@@ -1756,27 +1756,31 @@ function reportsFor(
 
 /** Collect yesterday and the final revision. Use stored results for the
  * intervening dates, and give a missed final revision three extra days to run. */
-async function dueGa4Revisions(store: WorkspaceStore, target: GooglePropertyTarget, report: string,
+async function dueGoogleRevisions(store: WorkspaceStore, target: GooglePropertyTarget, report: string,
   dates: string[], nowMs: number): Promise<string[]> {
-  const candidates = completedDates(nowMs, GA4_ARCHIVE_RECOVERY_DAYS);
+  const candidates = completedDates(nowMs, GOOGLE_ARCHIVE_RECOVERY_DAYS);
   const [first, finalRevision] = [dates.at(-1)!, dates[0]!];
   const rows = await store.read(tx => tx.query<{
-    date: string; collectedOn: string; status: DumpStatus; code: string | null; truncated: boolean;
+    date: string; collectedOn: string; status: DumpStatus; code: string | null; truncated: boolean; hasRows: boolean;
   }>(`SELECT DISTINCT ON (report_date) report_date::text AS date,
               (requested_at AT TIME ZONE 'UTC')::date::text AS "collectedOn",
-              status, error_code AS code, provider_truncated AS truncated
+              status, error_code AS code, provider_truncated AS truncated, provider_rows > 0 AS "hasRows"
        FROM noticeos.archive_runs
-       WHERE asset_id = $1 AND integration = 'ga4' AND property_ref = $2 AND report = $3 AND report_date >= $4::date
+       WHERE asset_id = $1 AND integration = $2 AND property_ref = $3 AND report = $4 AND report_date >= $5::date
        ORDER BY report_date, requested_at DESC, run_seq DESC`,
-    [target.asset, target.propertyRef, report, candidates[0]!]));
+    [target.asset, target.integration, target.propertyRef, report, candidates[0]!]));
   if (rows.length === 0) return dates;
   const saved = new Map(rows.map(row => [row.date, row]));
   return candidates.filter(date => {
     if (date === first || date === finalRevision) return true;
     const row = saved.get(date);
-    if (date > finalRevision) return !row || row.status === 'error' || row.truncated;
+    if (date > finalRevision) {
+      if (!row || row.status === 'error' || row.truncated) return true;
+      // Search Console usually needs two to three days to finalize a date.
+      return target.integration === 'gsc' && !row.hasRows && date === dates[1];
+    }
     if (!row) return rows.some(prior => prior.date <= date);
-    if (row.status === 'error') return archiveFailureIsRetryable('ga4', row.code);
+    if (row.status === 'error') return archiveFailureIsRetryable(target.integration, row.code);
     return !row.truncated && row.collectedOn < reportDateOffset(date, DEFAULT_REVISION_DAYS);
   });
 }
@@ -1797,16 +1801,17 @@ function datesForReport(
 
 /**
  * The revision window this (asset, report) costs today: the spec's own window,
- * narrowed to a newest-date probe for an opted-in family whose every completed
+ * narrowed to a single-date probe for an opted-in family whose every completed
  * run so far has returned nothing.
  */
 async function resolveReportDates(
   store: WorkspaceStore,
-  target: DumpTarget,
-  integration: GoogleIntegrationId,
+  target: GooglePropertyTarget,
   report: string,
   reportDates: string[],
+  scheduled: boolean,
 ): Promise<string[]> {
+  const { integration } = target;
   const dates = datesForReport(integration, report, reportDates);
   if (dates.length <= 1) return dates;
   const spec = reportSpec<DumpReportSpec>(
@@ -1814,9 +1819,9 @@ async function resolveReportDates(
     report,
   );
   if (!spec.probeWhenAlwaysEmpty) return dates;
-  return (await everyCompletedRunWasEmpty(store, target.asset, integration, report))
-    ? dates.slice(-1)
-    : dates;
+  if (!await everyCompletedRunWasEmpty(store, target.asset, integration, report)) return dates;
+  // Probe Discover when Search Console has had time to finalize the date.
+  return scheduled && integration === 'gsc' ? dates.slice(0, 1) : dates.slice(-1);
 }
 
 /**
@@ -1917,10 +1922,8 @@ interface ArchiveRetryPass {
 }
 
 /**
- * The earlier GA4 / Search Console report dates an outage cost this lane. A run
- * asks for the last four completed dates, so a missed date is usually asked
- * again the next day, but the window's oldest date falls out of it and a
- * `latestOnly` or probing family never comes back to it. Owed: a date whose
+ * The earlier GA4 / Search Console report dates an outage cost this lane.
+ * A failed date can fall out of the regular revision or probe schedule. Owed: a date whose
  * latest attempt failed at the network or hit GA4 quota, or a date the
  * dead uplink swallowed and the open `os-egress-down` flag names. Only for
  * a property and family this run still collects, on the same Google property,
@@ -2157,9 +2160,9 @@ function finiteNonNegativeInteger(value: unknown): number | null {
 export async function integrationArchivePlan(store: WorkspaceStore, target: GooglePropertyTarget, nowMs: number, config: Ga4CustomDimensionConfig = GA4_CUSTOM_DIMENSIONS): Promise<{ report: string; date: string; cadenceDays: number; staleAfterHours?: number }[]> {
   const dates = completedDates(nowMs, DEFAULT_REVISION_DAYS);
   const entries = await Promise.all(reportsFor(target.integration, target.asset, config).map(async report =>
-    (await resolveReportDates(store, target, target.integration, report, dates)).map(date => ({
+    (await resolveReportDates(store, target, report, dates, true)).map(date => ({
       report, date, cadenceDays: 1,
-      ...(target.integration === 'ga4' && dates.slice(1, -1).includes(date) ? { staleAfterHours: 72 } : {}),
+      ...(dates.slice(1, -1).includes(date) ? { staleAfterHours: (DEFAULT_REVISION_DAYS - 1) * 24 } : {}),
     }))));
   return entries.flat();
 }
