@@ -202,7 +202,8 @@ test('without the typed word nothing is stopped, copied or written', async (t) =
   chmodSync(settings, 0o644);
   const exportedProjects = path.join(old, 'state', 'installation', 'beads.json');
   mkdirSync(path.dirname(exportedProjects));
-  writeFileSync(exportedProjects, '{}', { mode: 0o644 });
+  writeFileSync(exportedProjects, '{}');
+  chmodSync(exportedProjects, 0o644);
   let shown = '';
   const code = await convertLegacy(parseOptions(['--dir', box.dir, '--config', box.selectorFile]),
     { run: box.run, develop: box.develop, out: { write: (text) => { shown += text; } }, interactive: false });

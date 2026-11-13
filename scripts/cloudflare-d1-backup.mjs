@@ -27,7 +27,7 @@ const d1Cause = (status, token) => typeof token === 'string' && Object.hasOwn(D1
   : status >= 400 && status <= 599 ? `d1_http_${status}` : 'd1_invalid_response';
 function unreachable(error) {
   if (error instanceof Unavailable) throw error;
-  if (error instanceof TimedOut) refuse('the app did not answer in time', 'd1_timeout');
+  if (error instanceof TimedOut || error?.name === 'TimeoutError') refuse('the app did not answer in time', 'd1_timeout');
   const code = error?.cause?.code ?? error?.code;
   refuse(typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,39}$/u.test(code) ? `the app could not be reached: ${code}` : 'the app could not be reached', 'd1_unreachable');
 }
@@ -100,7 +100,10 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
       try { response = await request({}, undefined, signal); }
       catch (error) { unreachable(error); }
       try { row = d1Record(await jsonResponse(response, signal)); }
-      catch { refuse(`the app answered ${response.status} without a selection`, d1Cause(response.status)); }
+      catch (error) {
+        if (error instanceof TimedOut || signal.aborted) refuse('the app did not answer in time', 'd1_timeout');
+        refuse(`the app answered ${response.status} without a selection`, d1Cause(response.status));
+      }
       if (response.status === 409 && row?.error === 'not_connected' && Object.keys(row).length === 1) return null;
       if (!response.ok) refuse(`the app answered ${response.status}${errorToken(row?.error) ? ` ${errorToken(row.error)}` : ''}`, d1Cause(response.status, row?.error));
       if (row?.accountMismatch === true) refuse('the saved selection names another Cloudflare account', 'd1_account_mismatch');
@@ -117,7 +120,10 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
       try { response = await request({}, { accountId: checked.accountId, databaseId: target.databaseId }, bounds); }
       catch (error) { unreachable(error); }
       try { value = await jsonResponse(response, bounds); }
-      catch { refuse(`the export answered ${response.status} without a receipt`, d1Cause(response.status)); }
+      catch (error) {
+        if (error instanceof TimedOut || bounds.aborted) refuse('the export did not finish in time', 'd1_timeout');
+        refuse(`the export answered ${response.status} without a receipt`, d1Cause(response.status));
+      }
       if (!response.ok) refuse(`the export answered ${response.status}${errorToken(value?.error) ? ` ${errorToken(value.error)}` : ''}`, d1Cause(response.status, value?.error));
       const receipt = d1Receipt(value);
       if (receipt && receipt.state !== 'complete') refuse(`the export ended ${receipt.state}${errorToken(receipt.failure) ? ` ${errorToken(receipt.failure)}` : ''}`, d1Cause(response.status, receipt.failure));

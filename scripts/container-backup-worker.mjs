@@ -36,7 +36,7 @@ export async function serviceBackupRequest(profile, execute, { fs: io = fs } = {
   try {
     result = await execute(request);
     if (typeof result?.ok !== 'boolean' || typeof result?.detail !== 'string') throw new Error();
-  } catch { result = { ok: false, detail: 'The declared backup worker failed; the previous complete set was preserved.' }; }
+  } catch { result = { ok: false, detail: 'The declared backup worker failed; the previous complete set was preserved.', stage: 'preparation', cause: 'stage_failed' }; }
   const { ok, detail, stage, cause, backup } = result;
   await finishBackupRequest(profile, request, { ok, detail: detail.slice(0, 4000), stage, cause, backup }, { fs: io });
   // Do not address generation-relative files after publishing completion:

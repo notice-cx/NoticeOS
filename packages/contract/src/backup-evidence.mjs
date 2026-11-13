@@ -15,8 +15,10 @@ export function isBackupFailure(value) {
     if (!failure || !only(failure, ['stage', 'cause']) || !BACKUP_STAGES.includes(failure.stage)
         || typeof failure.cause !== 'string' || failure.cause.length > 48)
         return false;
-    return failure.cause === 'stage_failed' || failure.stage === 'assets' && (failure.cause === 'd1_unreachable' || /^d1_http_[45]\d{2}$/u.test(failure.cause)
-        || failure.cause.startsWith('d1_') && Object.hasOwn(D1_FAILURE_LABELS, failure.cause.slice(3)));
+    return failure.cause === 'stage_failed'
+        || failure.stage === 'preparation' && ['worker_unavailable', 'worker_busy', 'worker_timeout'].includes(failure.cause)
+        || failure.stage === 'assets' && (failure.cause === 'd1_unreachable' || /^d1_http_[45]\d{2}$/u.test(failure.cause)
+            || failure.cause.startsWith('d1_') && Object.hasOwn(D1_FAILURE_LABELS, failure.cause.slice(3)));
 }
 /** Store a bounded reason in the existing scheduled job detail field. */
 export function backupFailureDetail(failure) {

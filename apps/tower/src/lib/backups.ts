@@ -72,7 +72,7 @@ export function lastGoodCopy(status: Pick<BackupStatus, "lastGoodAt">, nowMs: nu
 
 const FAILED_PARTS: Record<BackupFailure["stage"], string> = {
   preparation: "Backup preparation", postgres: "Operational database", r2: "Stored files", taskHub: "Tasks",
-  assets: "Site databases", history: "Analytical history", recovery: "Recovery credentials",
+  assets: "Asset databases", history: "Analytical history", recovery: "Recovery credentials",
   instructions: "Restore instructions", publication: "Save to this installation", offsite: "Offsite copy",
   retention: "Backup retention", cleanup: "Backup cleanup",
 };
@@ -84,6 +84,9 @@ export function backupFailureLine(lanes: readonly ScheduledLane[], status: Backu
     || !isBackupFailure(latest.backupFailure)) return;
   const { stage, cause } = latest.backupFailure;
   if (cause === "stage_failed") return `${FAILED_PARTS[stage]} failed`;
+  if (cause === "worker_unavailable") return "Backup worker unavailable";
+  if (cause === "worker_busy") return "A previous backup is still in progress";
+  if (cause === "worker_timeout") return "Backup worker did not finish in time";
   if (cause.startsWith("d1_http_")) return `Cloudflare check returned HTTP ${cause.slice(8)}`;
   if (cause === "d1_unreachable") return "Cloudflare backup check could not reach NoticeOS";
   const token = cause.slice(3) as keyof typeof D1_FAILURE_LABELS;

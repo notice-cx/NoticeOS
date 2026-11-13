@@ -66,7 +66,8 @@ test('a request can say only that tasks live in Ntasks, and the worker receives 
   assert.deepEqual(carried, { text: '{"format":"ntasks-backup-v1"}', mode: 0o600 }, 'the export travels in the request\'s own private folder');
   assert.deepEqual(await waiting, { ok: true, detail: 'Backup complete.' });
   assert.deepEqual(await fs.readdir(f.profile.transportDir), [], 'and leaves with it');
-  assert.deepEqual(await requestContainerBackup(f.file, { tasks: 'dolt' }), { ok: false, detail: 'The backup request names an unknown task store.' });
+  assert.deepEqual(await requestContainerBackup(f.file, { tasks: 'dolt' }),
+    { ok: false, detail: 'The backup request names an unknown task store.', stage: 'preparation', cause: 'stage_failed' });
 });
 
 test('the worker preserves validated per-run evidence through the channel into execution output', async t => {
@@ -105,7 +106,10 @@ test('simultaneous requests and a lost worker never remove the in-flight claim',
   const request = await requested(f.profile);
   const second = await requestContainerBackup(f.file, { timeoutMs: 50, intervalMs: 5 });
   assert.equal(second.ok, false); assert.match(second.detail, /already in progress/u);
-  assert.match((await first).detail, /timed out/u);
+  assert.equal(second.stage, 'preparation'); assert.equal(second.cause, 'worker_busy');
+  const expired = await first;
+  assert.match(expired.detail, /timed out/u);
+  assert.equal(expired.stage, 'preparation'); assert.equal(expired.cause, 'worker_timeout');
   assert.equal((await readBackupRequest(f.profile)).id, request.id);
   assert.ok((await fs.lstat(path.join(f.profile.transportDir, 'request.lock'))).isDirectory());
   const third = await requestContainerBackup(f.file, { timeoutMs: 50, intervalMs: 5 });
@@ -134,6 +138,7 @@ test('missing, insecure or symlinked declarations cannot fall through to a host 
   const f = await fixture(t);
   const missing = await requestContainerBackup(path.join(f.root, 'absent'));
   assert.equal(missing.ok, false); assert.match(missing.detail, /not configured or unavailable/u);
+  assert.equal(missing.stage, 'preparation'); assert.equal(missing.cause, 'worker_unavailable');
   await fs.chmod(f.file, 0o644);
   await assert.rejects(readBackupClient(f.file), /unavailable/u);
   await fs.chmod(f.file, 0o600);
