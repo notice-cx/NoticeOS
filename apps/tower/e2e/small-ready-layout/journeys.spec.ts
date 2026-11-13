@@ -10,7 +10,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.clock.setFixedTime(new Date("2026-07-05T14:00:00Z"));
     const body = everyTabPayload();
-    const wall = wallFixturePayload("one");
+    const wall = structuredClone(wallFixturePayload("one"));
     wall.assets[0]!.id = body.asset.id;
     wall.assets[0]!.displayName = body.asset.displayName;
     await page.route("**/api/wall", route => route.fulfill({ json: wall }));
