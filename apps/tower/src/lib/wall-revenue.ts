@@ -138,6 +138,9 @@ export function monthRevenue(
       ? (current.find((projection) => projection.status !== "ready" && projection.reason !== null)?.reason ?? (revenue === null ? "Waiting for revenue reports." : null))
       : null;
   const readyEarnedMinor = sum(ready.map((projection) => projection.earnedMinor ?? 0));
+  const previousRevenue = portfolio.previousRevenue;
+  const previousTotal = previousRevenue?.period === previousPeriod && previousRevenue?.currency === 'USD'
+    ? previousRevenue.amount : previousMonth?.revenue ?? null;
 
   return {
     period,
@@ -147,7 +150,7 @@ export function monthRevenue(
     previousMonth,
     // What no ready projection covers — another source's booked money, or a
     // learning site's reported days — joins the pace whole.
-    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousMonth?.revenue ?? null) : null,
+    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
     waiting,
   };
 }

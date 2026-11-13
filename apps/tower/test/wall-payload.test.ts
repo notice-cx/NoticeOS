@@ -518,6 +518,7 @@ describe("buildWallPayload — populated store", () => {
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.period).toBe("2026-07");
+    expect(p.portfolio.previousRevenue).toEqual({ period: "2026-06", amount: 1809.65, currency: "USD" });
     expect(p.portfolio.netTrend).toEqual([
       { t: "2026-05", v: 866.4 },
       { t: "2026-06", v: 1809.65 }, // the seed's own 90, plus these four

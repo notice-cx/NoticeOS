@@ -96,6 +96,8 @@ export interface PortfolioBand {
    * zero. Cost-only rows do not establish reported revenue. Absent in older
    * payloads; a zero then carries no revenue evidence by itself. */
   revenueRecorded?: { booked: boolean; forecast: boolean };
+  /** Revenue on record for the preceding ledger month, across assets. */
+  previousRevenue?: { period: string; amount: number; currency: string };
   /** Net per period over reconciled current rows (chronological) — the booked
    * trend, matching the headline. Monthly points: the ledger grain is
    * 'YYYY-MM'. */

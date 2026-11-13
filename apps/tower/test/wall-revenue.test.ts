@@ -101,6 +101,14 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.crossing).toMatchObject({ day: 20, projected: false });
   });
 
+  it("uses the recorded portfolio month when it includes revenue outside daily reports", () => {
+    const model = monthRevenue({ ...portfolio(420), previousRevenue: { period: "2026-08", amount: 500, currency: "USD" } }, [
+      { revenueProjection: ready(2_000, 2_000, 30_000) },
+    ]);
+    expect(model?.pace).toMatchObject({ projected: 600, previousTotal: 500 });
+    expect(model?.pace?.changePercent).toBeCloseTo(20);
+  });
+
   it("states the figure and the projection's own reason when no asset is ready yet", () => {
     const model = monthRevenue(portfolio(120), [{ revenueProjection: learning }]);
     expect(model).toMatchObject({ revenue: 120, pace: null, waiting: "Learning from traffic and revenue · 12/21 days." });

@@ -34,7 +34,7 @@ import { flagDbRow } from "./flag-records";
 import { readPulseCoverage } from "./pulse-history";
 import { countersCadenceHours, readCounterReadings, readLatestCounterTotals, resolveWallCounters, type CountersConfig } from "./counters";
 import { SCHEDULED_JOBS, scheduleFor, type ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
-import { projectRevenue, REVENUE_HISTORY_DAYS } from '../shared/revenue-projection';
+import { projectRevenue, REVENUE_HISTORY_DAYS, shiftRevenueDate } from '../shared/revenue-projection';
 import { revenueHolidays } from './revenue-holidays';
 import { operatorRevenueClock, revenueCalendarDate, yesterdayRevenue, type SiteRevenueHistory } from '../shared/daily-revenue';
 import { emptyRevenueHistory, loadRevenueHistories } from './daily-revenue';
@@ -549,19 +549,23 @@ export async function buildWallPayload(
   // drawn as the card's background and never as a figure.
   const netTrendAllRows = (
     await store.read((tx) =>
-      tx.query<{ t: string; v: bigint; currency: string }>(
+      tx.query<{ t: string; v: bigint; revenue: bigint | null; currency: string }>(
         `SELECT to_char(period_month, 'YYYY-MM') AS t, currency,
-                COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE -amount_minor END), 0)::bigint AS v
+                COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE -amount_minor END), 0)::bigint AS v,
+                (SUM(amount_minor) FILTER (WHERE kind = 'revenue'))::bigint AS revenue
            FROM noticeos.financial_ledger
           GROUP BY period_month, currency
           ORDER BY period_month ASC`,
       ),
     )
   )
-    .map(row => ({ t: row.t, v: cents(row.v), currency: row.currency }));
+    .map(row => ({ ...row, v: cents(row.v) }));
   const netTrendAllCurrency = currencyOf(netTrendAllRows);
   const netTrendAll = netTrendAllCurrency === null ? [] : netTrendAllRows
     .map(row => ({ t: row.t, v: minorToMajorUnits(row.v, row.currency) })).slice(-12);
+  const previousPeriod = shiftRevenueDate(monthDate(period), -1).slice(0, 7);
+  const priorRevenue = netTrendAllRows.filter(row => row.t === previousPeriod && row.revenue !== null);
+  const previousRevenue = priorRevenue.length === 1 ? priorRevenue[0] : undefined;
 
   // The delta the band is allowed to state: the newest two months strictly
   // before the current period, the like-for-like pair this grain supports.
@@ -619,6 +623,7 @@ export async function buildWallPayload(
       booked: ledgerRows.some(row => row.bookingState === 'reconciled' && row.revenueRecorded),
       forecast: ledgerRows.some(row => row.bookingState === 'estimated' && row.revenueRecorded),
     },
+    ...(previousRevenue ? { previousRevenue: { period: previousPeriod, amount: minorToMajorUnits(cents(previousRevenue.revenue), previousRevenue.currency), currency: previousRevenue.currency } } : {}),
     netTrend,
     netTrendCurrency,
     netTrendAll,
