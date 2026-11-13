@@ -97,7 +97,7 @@ export function ListPanel({
           {shownGroups.map((group) => (
             <li key={group.key} className="m-0" data-list-group {...group.marks}>
               <h3 className="m-0 flex min-w-0 items-baseline gap-2 px-2 pb-0.5 pt-1">
-                <span className="min-w-0 truncate text-xs font-semibold text-foreground">{group.title}</span>
+                <span className="min-w-0 whitespace-normal wrap-anywhere text-xs font-semibold text-foreground">{group.title}</span>
                 {/* Read aloud as "/calculator 6 found"; a flex gap is not a space. */}
                 {group.count ? " " : null}
                 {group.count ? (

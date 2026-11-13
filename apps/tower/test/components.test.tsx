@@ -2236,8 +2236,10 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).toContain("md-4a2");
     // The task to close opens its page.
     expect(within(line as HTMLElement).getByRole("link", { name: "md-4a2" })).toHaveAttribute("href", "/tasks/md-4a2");
-    expect(line.querySelector("[data-panel-review]")!.textContent).toBe("4d");
-    expect(line.textContent).not.toMatch(/pending|overdue|reviewed/i);
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAhead(4));
+    expect(within(line as HTMLElement).getByRole("img")).toHaveAccessibleName(
+      expect.stringContaining(PANEL_DAY),
+    );
   });
 
   it("escalates the whole row when the deadline has passed", () => {
@@ -2246,7 +2248,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.getAttribute("data-panel-review-line")).toBe("overdue");
     expect(line.className).toContain("border-error/40");
     expect(line.textContent).toContain("Jul 2, 2026");
-    expect(line.textContent).not.toMatch(/late|overdue/i);
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAgo(3));
   });
 
   it("stops stating a deadline once the review is done", () => {
@@ -2260,6 +2262,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).not.toContain("due");
     expect(line.textContent).toContain("md-4a2");
     expect(line.className).not.toContain("border-error");
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAgo(1));
   });
 
   it("names the NEWER panel day when a finished review no longer covers it", () => {
@@ -2274,6 +2277,11 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.querySelector("[data-panel-review]")!.getAttribute("title")).toContain(
       "2026-07-08",
     );
+    expect(within(line as HTMLElement).getByRole("img")).toHaveAccessibleName(
+      expect.stringContaining("2026-07-08"),
+    );
+    expect(line.querySelector("time")).toBeNull();
+    expect(line.textContent).not.toContain("Jul 3, 2026");
   });
 
   it("says less rather than inventing a date it does not have", () => {
@@ -2286,6 +2294,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).toContain("SERP panel");
     expect(line.textContent).toContain("md-4a2");
     expect(line.textContent).not.toContain("due");
+    expect(line.querySelector("time")).toBeNull();
   });
 });
 

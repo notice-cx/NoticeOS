@@ -4,12 +4,13 @@ import { AGENT_SECTION_ORDER, agentOutcome, agentViewPresentation, type AgentSec
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RouteLoading } from "@/components/RouteLoading";
-import { TaskHubUnavailable } from "@/components/TaskSourceSection";
+import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSection";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { StackedWeeks } from "@/components/viz/StackedWeeks";
 import { useAgentWork } from "@/hooks/useAgentWork";
+import { useNeedsNtasks } from "@/hooks/useTaskService";
 import { type AgentStats } from "@noticeos/contract/agent-stats";
 import { Link } from "react-router-dom";
 import { formatInt } from "@/lib/format";
@@ -19,11 +20,14 @@ import { PANEL, WorkerRows } from "./agents/agent-panels";
 /** Model activity from a dedicated server-side statistics read. */
 export function AgentsRoute() {
   const read = useAgentWork();
+  const needsNtasks = useNeedsNtasks();
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6" data-agents-page="">
       <PageHeader title="Agents" />
       {!read.live ? (
         <div className={PANEL}><EmptyState title="Not available in the read-only snapshot" hint="Open Agents in the local NoticeOS." /></div>
+      ) : needsNtasks ? (
+        <ConnectNtasks />
       ) : read.projects === 0 && !read.pending && !read.failed ? (
         <TaskHubUnavailable />
       ) : read.work === null ? (

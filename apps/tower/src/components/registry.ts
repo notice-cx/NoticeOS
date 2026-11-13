@@ -179,7 +179,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PanelReviewBadge",
     file: "components/PanelReviewBadge.tsx",
     purpose:
-      "Whether an asset's newest weekly collection has been triaged, on AgeBadge's chassis: pending, reviewed and overdue told apart by glyph and tone, the visible text always a duration, and nothing at all when there is nothing to review. It reads 'SERP panel' or 'Signal collection' by config/serp-panel.json membership.",
+      "Shows the newest weekly collection's review state, with time remaining, time since review or time overdue in words and glyphs. Unknown deadlines have no countdown, and no review renders nothing. Its accessible name includes the collection day and 'SERP panel' or 'Signal collection' by config/serp-panel.json membership.",
     variants: [
       "reviewed",
       "pending",
@@ -193,7 +193,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PanelReviewLine",
     file: "components/PanelReviewLine.tsx",
     purpose:
-      "The asset page's statement of the obligation PanelReviewBadge marks on the Wall: which panel day is owed, when triage was due and the task to close. It composes the badge and inherits its absence exactly.",
+      "Shows which collection day is owed, its deadline and the task to close. It composes PanelReviewBadge and inherits its absence exactly. A finished review of an older collection supplies no deadline for the newer one.",
     variants: [
       "pending",
       "overdue (error-tinted row)",

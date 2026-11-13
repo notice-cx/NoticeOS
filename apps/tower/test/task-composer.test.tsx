@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "./render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SettingsPayload, TaskHubSpoke } from "@shared/settings";
-import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT, type TasksCapabilities } from "@shared/tasks";
+import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT, type TasksCapabilities, type TaskServiceStatus } from "@shared/tasks";
 import type { NewTask } from "@/lib/api";
 
 /** The composer and copied MCP fields describe the same task. */
@@ -12,6 +12,7 @@ const lane = vi.hoisted(() => ({
   calls: [] as NewTask[],
   fail: null as string | null,
   capability: { live: true, reason: null } as TasksCapabilities,
+  service: { connected: true, origin: "https://ntasks.example.com", projects: [], required: true } as TaskServiceStatus,
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -19,6 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...actual,
     fetchTasksCapabilities: async () => lane.capability,
+    fetchTaskService: async () => lane.service,
     fetchTaskProjects: async () => [],
     createTask: async (input: NewTask) => {
       lane.calls.push(input);
@@ -65,6 +67,7 @@ afterEach(() => {
   lane.calls.length = 0;
   lane.fail = null;
   lane.capability = { live: true, reason: null };
+  lane.service = { connected: true, origin: "https://ntasks.example.com", projects: [], required: true };
   toasts.success.mockClear();
   toasts.error.mockClear();
 });
@@ -495,14 +498,16 @@ describe("TaskComposer", () => {
 });
 
 describe("FileTaskButton", () => {
-  const render1 = (props: Parameters<typeof FileTaskButton>[0]) =>
-    render(
-      <QueryClientProvider client={new QueryClient()}>
+  const render1 = (props: Parameters<typeof FileTaskButton>[0]) => {
+    const client = new QueryClient();
+    return { client, ...render(
+      <QueryClientProvider client={client}>
         <MemoryRouter>
           <FileTaskButton {...props} />
         </MemoryRouter>
       </QueryClientProvider>,
-    );
+    ) };
+  };
 
   it("opens the composer, and mounts no form until it does", () => {
     render1({ prefill: null, onFile: async () => ({ id: "ro-1", project: "root-os" }), projects: SPOKES });
@@ -524,14 +529,36 @@ describe("FileTaskButton", () => {
     expect(button).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
   });
 
-  // Snapshot health never hides filing; the actual task lane governs writes.
-  it("keeps filing available through the live lane before the snapshot connection answers", () => {
+  it("keeps filing available through the live lane before the snapshot connection answers", async () => {
     taskSourceMock.connected = null;
-    const { container } = render1({ prefill: null, projects: SPOKES });
-    expect(container.querySelector("[data-file-task]")).not.toBeNull();
-    resetTaskSourceMock();
-    const again = render1({ prefill: null, projects: SPOKES });
-    expect(again.container.querySelector("[data-file-task]")).not.toBeNull();
+    const onOpen = vi.fn();
+    render1({ prefill: null, projects: SPOKES, onOpen });
+    await waitFor(() => expect(screen.getByRole("button", { name: "File task" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "File task" }));
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("blocks filing without Ntasks and identifies where to connect it", async () => {
+    lane.service = { connected: false, origin: null, projects: null, required: true };
+    const onOpen = vi.fn();
+    render1({ projects: SPOKES, onOpen });
+    const button = screen.getByRole("button", { name: "File task" });
+    await waitFor(() => expect(button).toHaveAttribute("title", expect.stringContaining("Settings → Task projects")));
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each(["capabilities", "onFile"] as const)("keeps the explicit %s override without a task service", async override => {
+    lane.service = { connected: false, origin: null, projects: null, required: true };
+    const props = override === "capabilities" ? { capabilities: { live: true, reason: null } }
+      : { onFile: async () => ({ id: "md-1", project: "meadow.example" }) };
+    const { client } = render1({ ...props, projects: SPOKES });
+    await waitFor(() => expect(client.getQueryData(["task-service"])).toEqual(lane.service));
+    expect(screen.getByRole("button", { name: "File task" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "File task" }));
+    expect(screen.getByRole("dialog", { name: "File a task" })).toBeInTheDocument();
   });
 
   it("names what it is filing, so a table of them does not read as one button", () => {

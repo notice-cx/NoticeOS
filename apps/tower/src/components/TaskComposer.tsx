@@ -44,6 +44,7 @@ import { fieldClass } from "@/components/ui/field";
 import { pillChoiceClass, pillChoiceStateClass, pillControlClass, pillPickerStateClass } from "@/components/ui/pill";
 import { WhyItRanks } from "@/components/viz/WhyItRanks";
 import { useCreateTask, useTasksLive, useTaskProjects } from "@/hooks/useTasks";
+import { useNeedsNtasks } from "@/hooks/useTaskService";
 import { taskPath } from '@/lib/task-path';
 import { operatorRateOf } from "@/hooks/useOperatorRate";
 import { useSettings } from "@/hooks/useSettings";
@@ -1111,12 +1112,14 @@ export function FileTaskButton({
   const demoReadonly = useDemoReadonly();
   const [open, setOpen] = useState(false);
   const lane = useTasksLive();
+  const needsNtasks = useNeedsNtasks();
   // An explicit answer wins (the gallery's read-only demo); otherwise a fake
   // writer stands in for the lane, so a demo is a real form even where there is
   // no lane at all; otherwise the lane itself decides.
   const capability =
     capabilities ?? (onFile ? { live: true, reason: null } : lane);
-  const enabled = !demoReadonly && taskWritesAvailable(capability);
+  const needsConnection = capabilities === undefined && !onFile && needsNtasks;
+  const enabled = !demoReadonly && !needsConnection && taskWritesAvailable(capability);
 
   return (
     <>
@@ -1127,7 +1130,7 @@ export function FileTaskButton({
         className={className}
         disabled={!enabled}
         onClick={() => onOpen ? onOpen() : setOpen(true)}
-        title={enabled ? undefined : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY}
+        title={enabled ? undefined : demoReadonly ? DEMO_READ_ONLY : needsConnection ? "Connect Ntasks in Settings → Task projects to file a task." : READ_ONLY_TASKS_HINT}
         aria-label={subject ? `${label} for ${subject}` : label}
         data-file-task
       >
