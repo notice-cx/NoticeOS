@@ -186,7 +186,8 @@
   gap: var(--metric-fact-gap);
   padding: var(--metric-gap) var(--metric-padding);
   border-radius: calc(var(--metric-radius) / 2);
-  background: color-mix(in srgb, var(--background) 90%, transparent);
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+  text-shadow: 0 1px .2em var(--background), 0 0 .3em var(--background);
   text-align: center;
   pointer-events: none;
 }

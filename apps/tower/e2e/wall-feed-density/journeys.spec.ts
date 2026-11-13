@@ -22,8 +22,10 @@ test("Live feed shows three readable task lines with asset and agent identity an
     await expect(first.getByRole("link", { name: SENTENCE })).toBeVisible();
     await expect(first.getByRole("img", { name: "Example" })).toHaveAttribute("title", "Example");
     await expect(first.locator("[data-feed-asset] [data-property-favicon]")).toHaveAttribute("data-property-favicon", "example.com");
-    await expect(first.locator("[data-feed-label] [data-feed-agent]")).toHaveAttribute("data-feed-agent", "openai");
-    await expect(first.locator("[data-feed-label] [data-feed-model]")).toContainText("GPT-6.1 Sol");
+    await expect(first.locator("[data-feed-label] [data-feed-task]")).toContainText("density-0");
+    await expect(first.locator("[data-feed-who] [data-feed-agent]")).toHaveAttribute("data-feed-agent", "openai");
+    await expect.poll(() => first.locator("[data-feed-who] img").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+    await expect(first.locator("[data-feed-who]")).toHaveAttribute("title", "GPT-6.1 Sol");
     await expect(first.locator("[data-feed-evidence]")).toHaveText("abcdef1");
     await expect(rows.nth(1).locator("[data-feed-evidence]")).toHaveCount(0);
     const dimensions = await first.evaluate(element => {
