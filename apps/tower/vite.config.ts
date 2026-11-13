@@ -240,7 +240,14 @@ export default defineConfig(({ command }) => {
           configPath: path.resolve(workerConfigRoot ?? path.resolve(rootDir, "../.."), "workers/ingest/wrangler.jsonc"),
           config: (config) => {
             applyResourceNames(config, resourceNames);
-            return workspaceWorkerConfig(config, serverProfile, command, process.env.CLOUDFLARE_ENV);
+            const workspace = workspaceWorkerConfig(config, serverProfile, command, process.env.CLOUDFLARE_ENV);
+            if (command !== "serve" || serverProfile !== "standalone" || !liveSourceRoot) return workspace;
+            const file = path.join(liveSourceRoot, ".env.ga4-deadline-trial");
+            let start: string;
+            try { start = readFileSync(file, "utf8").trim(); }
+            catch { return workspace; }
+            if (!/^\d{4}-\d{2}-\d{2}T\d{2}:00:00\.000Z$/.test(start)) return workspace;
+            return { ...workspace, vars: { ...workspace.vars, GA4_DEADLINE_TRIAL_START: start } };
           },
           devOnly: true,
         },

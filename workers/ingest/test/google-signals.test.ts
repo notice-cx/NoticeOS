@@ -134,6 +134,51 @@ function googleFetch({
 beforeEach(reset);
 
 describe('Google signal collector', () => {
+  it.each([false, true])('keeps the longer GA4 deadline only when slow reports were saved in multiple hours (%s)', async (repeated) => {
+    const hour = 3_600_000;
+    const fixture = googleFetch();
+    const timeouts = new WeakMap<AbortSignal, number>();
+    const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const deadlines: number[][] = [];
+    let time = NOW - hour;
+    let delay = 0;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => time);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const signal = originalTimeout(ms);
+      timeouts.set(signal, ms);
+      return signal;
+    });
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith(':runReport') || url.endsWith('/searchAnalytics/query')) {
+        deadlines.at(-1)!.push(timeouts.get(init!.signal!)!);
+      }
+      if (url.endsWith(':runReport')) time += delay;
+      return fixture.fetchImpl(input, init);
+    };
+    const start = new Date(NOW).toISOString();
+    const trialEnv = { ...env, GA4_DEADLINE_TRIAL_START: start };
+    const run = async (offset: number, slow: boolean, scheduled = true) => {
+      time = NOW + offset * hour;
+      delay = slow ? 25_000 : 0;
+      deadlines.push([]);
+      const result = await runGoogleSignals(trialEnv, { scheduled, fetchImpl });
+      expect(result.failed).toBe(0);
+    };
+    try {
+      await run(-1, false);
+      for (let index = 0; index < 6; index++) await run(index, index === 0 || (repeated && index === 5));
+      await run(6, false);
+      await run(7, false, false);
+      const regular = [20_000, 20_000, 20_000, 20_000];
+      const trial = [40_000, 40_000, 20_000, 20_000];
+      expect(deadlines).toEqual([regular, ...Array(6).fill(trial), repeated ? trial : regular, regular]);
+    } finally {
+      clock.mockRestore();
+      timeout.mockRestore();
+    }
+  });
+
   it('refreshes seven dates hourly and backfills both sources after a long gap', async () => {
     const fixture = googleFetch({ ga4TimeZone: 'UTC', gscIncompleteDate: null });
     const hour = 3_600_000;

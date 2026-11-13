@@ -159,12 +159,15 @@
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: var(--metric-fact-gap); }
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart svg { flex: 1; height: auto; min-height: 0; }
 .wall-metric.wall-revenue-metric {
-  --revenue-overlap: clamp(1rem, 7cqi, 5rem);
+  --revenue-overlap: 30cqi;
   --revenue-site-icon: 1.375rem;
 }
 .wall-revenue-metric .wall-metric-split { gap: 0; }
 .wall-revenue-metric .wall-metric-summary { z-index: 1; justify-content: flex-start; }
-.wall-revenue-metric .wall-cumulative-facts { gap: var(--metric-padding); }
+.wall-revenue-metric .wall-metric-summary :is([data-revenue-figure], [data-revenue-pace], [data-revenue-yesterday], dt) {
+  text-shadow: 0 0 .2em var(--metric-surface), 0 0 .35em var(--metric-surface);
+}
+.wall-revenue-metric .wall-cumulative-facts { gap: var(--metric-gap); }
 .wall-revenue-metric .wall-cumulative-facts dd { overflow-wrap: normal; }
 .wall-revenue-metric .wall-cumulative-facts [data-fact-divider] { border: 0; padding-top: 0; }
 .wall-revenue-metric .wall-metric-plot:has(.wall-metric-chart) {

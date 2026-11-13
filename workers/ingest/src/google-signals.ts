@@ -87,8 +87,44 @@ import { arrayField, asRecord, stringField, utcDay } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 20_000;
 const GOOGLE_REFRESH_INTERVAL_MS = INTEGRATION_CADENCE_HOURS.googleSignals * 3_600_000;
+const GA4_TRIAL_TIMEOUT_MS = 40_000;
+const GA4_TRIAL_HOURS = 6;
 const GOOGLE_RECENT_DAYS = 7;
 const GOOGLE_RECONCILE_DAYS = 7;
+
+declare global {
+  interface IngestEnv {
+    /** Set by the mounted local development app. */
+    GA4_DEADLINE_TRIAL_START?: string;
+  }
+}
+
+async function ga4DeadlineTrial({ GA4_DEADLINE_TRIAL_START: start, STORE: store }: IngestEnv, now: number) {
+  const firstHour = Date.parse(start ?? '');
+  if (!Number.isFinite(firstHour) || new Date(firstHour).toISOString() !== start || firstHour % GOOGLE_REFRESH_INTERVAL_MS !== 0 || now < firstHour) return null;
+  const end = firstHour + GA4_TRIAL_HOURS * GOOGLE_REFRESH_INTERVAL_MS;
+  const savedRunPrefix = `ga4-deadline-${firstHour}-`;
+  if (now < end) {
+    console.info(JSON.stringify({ event: 'ga4_deadline_trial', start, hour: 1 + Math.floor((now - firstHour) / GOOGLE_REFRESH_INTERVAL_MS), timeoutMs: GA4_TRIAL_TIMEOUT_MS }));
+    return { measuring: true, savedRunPrefix };
+  }
+  // Only successfully stored reports saved by the extra time count. Require
+  // two different hourly firings so a single slow period cannot keep 40s.
+  try {
+    const [result] = await store.read(tx => tx.query<{ saved_hours: number }>(
+      `SELECT count(DISTINCT date_trunc('hour', started_at AT TIME ZONE 'UTC'))::int AS saved_hours
+         FROM noticeos.signal_runs
+        WHERE integration = 'ga4' AND status = 'success' AND started_at >= $1::timestamptz
+          AND started_at < $2::timestamptz AND starts_with(run_id, $3)`,
+      [new Date(firstHour), new Date(end), savedRunPrefix]));
+    const savedHours = result?.saved_hours ?? 0;
+    const keep = savedHours >= 2;
+    console.info(JSON.stringify({ event: 'ga4_deadline_trial_result', start, savedHours, timeoutMs: keep ? GA4_TRIAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS }));
+    return keep ? { measuring: false, savedRunPrefix } : null;
+  } catch {
+    return null;
+  }
+}
 /**
  * The day boundary assumed for a GA4 property whose config entry names no
  * `time_zone`, when the caller has not resolved the saved one: the operator's
@@ -226,6 +262,7 @@ export async function runGoogleSignals(
 
   const outcomes: GoogleSignalOutcome[] = [];
   const deferred: GoogleSignalsResult['deferred'] = [];
+  let deadlineTrial: ReturnType<typeof ga4DeadlineTrial> | undefined;
   const deferQuota = (target: GooglePropertyTarget, nextAttemptAt: string) => {
     deferred.push({ asset: target.asset, reason: GA4_CORE_BACKOFF_CODE, nextAttemptAt });
   };
@@ -252,6 +289,9 @@ export async function runGoogleSignals(
         scopedTargets.push({ target, window });
       }
       if (scopedTargets.length === 0) continue;
+      const trial = integration === 'ga4' && options.scheduled
+        ? await (deadlineTrial ??= ga4DeadlineTrial(env, nowMs))
+        : null;
 
       let accessToken: string;
       try {
@@ -284,10 +324,10 @@ export async function runGoogleSignals(
             accessToken,
             nowMs,
             googleFetch,
-            (token) =>
-              integration === 'ga4'
-                ? collectGa4(env.STORE, target.propertyRef, window, token, googleFetch, clock)
-                : collectGsc(target.propertyRef, window, token, googleFetch),
+            (token) => integration === 'ga4'
+              ? collectGa4(env.STORE, target.propertyRef, window, token, googleFetch, clock,
+                trial ? GA4_TRIAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
+              : collectGsc(target.propertyRef, window, token, googleFetch),
             (token) => {
               // The whole account shares the token, so a refresh earned by one
               // property is spent by the rest of the loop.
@@ -301,7 +341,9 @@ export async function runGoogleSignals(
             ? await previousTimeZone(env.STORE, target.asset, integration, target.propertyRef)
             : null;
 
-          await recordSignalSuccess(env, target, window, startedAt, result, monitoring);
+          const trialRunId = trial?.measuring && 'elapsedMs' in result && typeof result.elapsedMs === 'number' && result.elapsedMs > REQUEST_TIMEOUT_MS
+            ? `${trial.savedRunPrefix}${crypto.randomUUID()}` : undefined;
+          await recordSignalSuccess(env, target, window, startedAt, result, monitoring, trialRunId);
 
           // A reporting timezone change means the property's day changed shape
           // and the provider does not reprocess what it already bucketed.
@@ -910,8 +952,10 @@ async function collectGa4(
   accessToken: string,
   fetchImpl: typeof fetch,
   clock: () => number,
-): Promise<SignalProviderResult> {
-  const { response, body } = await readGa4CoreReport(store, propertyId, fetchImpl, {
+  timeoutMs: number,
+): Promise<SignalProviderResult & { elapsedMs: number }> {
+  const { response, body, elapsedMs } = await readGa4CoreReport(store, propertyId, (input, init) =>
+    fetchImpl(input, { ...init, signal: AbortSignal.timeout(timeoutMs) }), {
     method: 'POST',
     headers: {
       authorization: `Bearer ${accessToken}`,
@@ -932,7 +976,6 @@ async function collectGa4(
       // arrives as an ordinary failure.
       returnPropertyQuota: true,
     }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   }, { lane: 'google-signals', clock, maxBytes: 1_000_000 });
   if (!response.ok) throw ga4RequestError(response.status, body);
   const record = asRecord(body);
@@ -968,6 +1011,7 @@ async function collectGa4(
     });
   }
   return {
+    elapsedMs,
     providerRows: rows.length,
     quota: parseGa4PropertyQuota(record),
     // The property's own reporting timezone, on every call: a configured zone

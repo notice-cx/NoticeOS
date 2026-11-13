@@ -24,7 +24,7 @@ export async function ga4CoreCooldown(store: WorkspaceStore, property: string, n
 }
 
 export async function readGa4CoreReport(store: WorkspaceStore, property: string, fetchImpl: typeof fetch,
-  init: RequestInit, options: { lane: string; maxBytes: number; clock: () => number }): Promise<{ response: Response; body: unknown }> {
+  init: RequestInit, options: { lane: string; maxBytes: number; clock: () => number }): Promise<{ response: Response; body: unknown; elapsedMs: number }> {
   const { lane, maxBytes, clock } = options;
   const cooling = await ga4CoreCooldown(store, property, clock());
   if (cooling) throw new Ga4CoreDeferred(cooling);
@@ -43,8 +43,9 @@ export async function readGa4CoreReport(store: WorkspaceStore, property: string,
     if (response?.status === 429) await recordCooldown(store, property, response, null, clock(), lane);
     throw error;
   }
+  const elapsedMs = clock() - startedAt;
   if (response.status === 429) await recordCooldown(store, property, response, body, clock(), lane);
-  return { response, body };
+  return { response, body, elapsedMs };
 }
 
 async function recordCooldown(store: WorkspaceStore, property: string, response: Response, body: unknown, now: number, lane: string): Promise<void> {

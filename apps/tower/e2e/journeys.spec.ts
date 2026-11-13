@@ -1061,7 +1061,8 @@ test.describe(() => {
       expect(found).toMatchObject({ height: 324, reference: true, actualLine: false });
       if (size[0] === 1920) {
         expect(found.stacked).toBe(false);
-        expect(found.overlap).toBeGreaterThan(0);
+        expect(found.overlap / found.factsWidth).toBeGreaterThan(.6);
+        expect(found.chartWidth / (found.chartWidth + found.factsWidth - found.overlap)).toBeGreaterThan(.8);
       } else expect(found.stacked).toBe(true);
       expect(found.actual.length).toBeGreaterThan(0);
       expect(found.forecast.length).toBeGreaterThan(0);

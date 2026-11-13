@@ -177,9 +177,9 @@ export async function recordSignalSuccess(
   startedAt: string,
   result: SignalProviderResult,
   monitoring?: CollectionMonitoring,
+  runId = crypto.randomUUID(),
 ): Promise<void> {
   const timeZone = result.timeZone ?? null;
-  const runId = crypto.randomUUID();
   const finishedAt = new Date().toISOString();
   await persistCollectionAttempt({
     target,
