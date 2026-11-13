@@ -134,7 +134,7 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
     <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)}>
       {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" reference={reference} /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} reference={reference} /> : null}
     </div>
-    <div className="wall-site-axis"><span>{retained ? "avg users/min" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
+    <div className="wall-site-axis"><span>{retained ? "avg users/min" : pace?.paceChange != null ? "Hourly activity" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
   </>} />;
 }
 
@@ -172,8 +172,7 @@ function PaceFigure({ pace, showCutoff }: { pace: IntradayUsersPace; showCutoff?
         meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
         className="whitespace-nowrap"
       />
-      <span className="text-wall-micro text-muted-foreground">Hourly activity</span>
-      {showCutoff && <span className="text-wall-micro text-muted-foreground">Both {paceWindowLabel(pace)}</span>}
+      {showCutoff && <span className="text-wall-micro text-muted-foreground">Hourly activity {paceWindowLabel(pace)}</span>}
     </span>
   );
 }
@@ -219,8 +218,7 @@ function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
   return activity.change !== null ? (
     <span className="inline-flex flex-col items-end" title={meaning}>
       <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} />
-      <span className="text-wall-micro text-muted-foreground">Minute activity</span>
-      {through && <span className="text-wall-micro text-muted-foreground">Both to {through}</span>}
+      <span className="text-wall-micro text-muted-foreground">Minute activity{through && ` to ${through}`}</span>
     </span>
   ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
 }

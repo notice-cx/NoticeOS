@@ -197,8 +197,7 @@ describe('hourly activity and day-so-far pace', () => {
     const tile = today.closest('.wall-metric')!;
     expect(tile.querySelector('[data-site-today-total]')).toHaveAccessibleName('994 estimated active users today so far');
     expect(tile.querySelector('.wall-metric-context')).toHaveTextContent('last Tue full day 1,000');
-    expect(today).toHaveTextContent('Minute activity');
-    expect(today).toHaveTextContent('Both to 7:30 PM');
+    expect(today).toHaveTextContent('Minute activity to 7:30 PM');
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');
     expect(chip.getAttribute('data-tone')).toBe('pace-on');

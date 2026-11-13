@@ -110,7 +110,8 @@ describe("the Wall's today cell", () => {
 
   it("once they do: the percent over the chart with its cutoff below", () => {
     const today = drawRow(SIX_HOURS, LATE_MORNING);
-    expect(today.querySelector('[data-site-today]')).toHaveTextContent("10%Hourly activity");
+    expect(today.querySelector('[data-site-today]')).toHaveTextContent("10%");
+    expect(today.querySelector(".wall-site-axis")).toHaveTextContent("Hourly activity");
     expect(today.querySelector('[data-pace-window="shown"]')?.textContent).toBe("to 6 AM");
     expect(today.querySelector('[data-site-today] [aria-label]')?.getAttribute("aria-label"))
       .toMatch(/^10% behind; completed hours today vs /u);
@@ -127,8 +128,7 @@ describe("the Wall's today cell", () => {
         settings: { metrics: [{ id: "today", source: "today", size: "standard", ...options }] },
       });
       const pace = today.querySelector("[data-site-today]");
-      expect(pace).toHaveTextContent("10%Hourly activity");
-      expect(pace).toHaveTextContent("Both to 6 AM");
+      expect(pace).toHaveTextContent("10%Hourly activity to 6 AM");
     },
   );
 
