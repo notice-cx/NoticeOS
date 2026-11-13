@@ -208,7 +208,9 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   'ga4-realtime': { steps: { traffic: async (env, cfg) => {
     if (schedulePaused(cfg.constants, 'ga4-realtime')) return { outcome: 'skipped', detail: 'Realtime traffic is paused' };
     const result = await runGa4Realtime(env);
-    if (result.assets.some(asset => asset.status === 'error' && !asset.reconnecting)) throw new Error('Realtime traffic collection failed');
+    // Recorded asset failures have their own incident evidence. Keep the
+    // failed firing when monitoring could not account for an asset.
+    if (result.unrecordedFailure) throw new Error('Realtime traffic collection failed');
     return { ...result, operation: 'ga4-realtime' as const };
   } } },
   counters: {

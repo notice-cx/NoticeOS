@@ -322,6 +322,41 @@ const unavailable = postgresUnavailable();
 const needsPostgres = describe.skipIf(unavailable !== null);
 
 needsPostgres("pending realtime evidence", () => {
+  it("shows one recorded realtime incident and keeps an independent failed firing", async () => {
+    const pg = await createTestStore();
+    try {
+      await asset(pg, "fixture.example", "Fixture");
+      await health(pg, "traffic-failure", "google", "ga4-realtime", "fixture.example", at("12:00"), "failed", "live", "traffic");
+      await pg.call.write(tx => tx.execute(
+        `INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, recorded_at)
+         VALUES ($1, $2, $3::timestamptz, $3::timestamptz, 'ran', $3::timestamptz),
+                ($1, $2, $4::timestamptz, $4::timestamptz, 'failed', $4::timestamptz)`,
+        [tx.workspaceId, "cron * * * * *", at("12:00"), at("12:10")],
+      ));
+      const { items } = await buildWallFeed(pg.call, DEPS);
+      expect(items.map(item => [item.at, item.kind, item.asset])).toEqual([
+        [at("12:10"), "job-failed", null],
+        [at("12:00"), "source-failed", "fixture.example"],
+      ]);
+    } finally { await pg.close(); }
+  });
+
+  it("folds activity-comparison failures with their asset count and keeps other failures separate", async () => {
+    const pg = await createTestStore();
+    try {
+      await asset(pg, "first.example", "First");
+      await asset(pg, "second.example", "Second");
+      await health(pg, "comparison-first", "google", "ga4-comparison", "first.example", at("12:00"), "failed", "live", "comparison-1");
+      await health(pg, "comparison-second", "google", "ga4-comparison", "second.example", at("12:01"), "failed", "live", "comparison-2");
+      await health(pg, "realtime-second", "google", "ga4-realtime", "second.example", at("12:02"), "failed", "live", "traffic");
+      const { items } = await buildWallFeed(pg.call, DEPS);
+      expect(items).toMatchObject([
+        { kind: "source-failed", text: "Realtime traffic: access denied", asset: "second.example", count: 1 },
+        { kind: "source-failed", text: "Activity comparison failed · 2 assets", asset: null, count: 2 },
+      ]);
+    } finally { await pg.close(); }
+  });
+
   it("never projects raw checks into Source failed or Source back, while retaining confirmed events", async () => {
     const pg = await createTestStore();
     try {

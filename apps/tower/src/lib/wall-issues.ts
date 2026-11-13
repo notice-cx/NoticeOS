@@ -13,6 +13,7 @@
 // The mark is named from the rule, never truncated from the alert sentence.
 
 import { owesNightlyReport } from "@noticeos/contract/reporting";
+import { INTEGRATION_MONITORS, type IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { isRetired } from "@shared/asset-setup";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
 import { sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
@@ -62,6 +63,7 @@ const SOURCE_SHORT: Readonly<Record<string, string>> = {
   dataforseo: "DataForSEO",
   uptime: "Uptime",
 };
+const GA4_COMPARISON = INTEGRATION_MONITORS.google.find(monitor => monitor.id === "ga4-comparison")!;
 
 /** The nightly report's slot. Its lateness is the "Report late" rule below;
  * its source reading would say the same thing twice. */
@@ -134,8 +136,11 @@ function siteLabel(names: readonly string[]): string {
  * last successful collection. A retained recovery closes an older failure. */
 export function sourceProblemSince(reading: SourceReading, connections: ConnectionReads, nowMs: number): string | null {
   if (reading.kind === "overdue") return reading.site?.lastSuccessAt ?? reading.observedAt;
-  const failure = reading.site?.failure;
-  if (reading.kind !== "failing" || !failure) return null;
+  return reading.kind === "failing" ? failureSince(reading.site?.failure, connections, nowMs) : null;
+}
+
+function failureSince(failure: IntegrationHealthItem | null | undefined, connections: ConnectionReads, nowMs: number): string | null {
+  if (!failure) return null;
   const events = (connections.events ?? []).filter(event => event.itemId === failure.id
     && Number.isFinite(Date.parse(event.at)) && Date.parse(event.at) <= nowMs);
   const success = Date.parse(failure.lastSuccessAt ?? "");
@@ -167,15 +172,24 @@ export function failingSources(
   nowMs: number,
 ): Map<string, FailingSource> {
   const failing = new Map<string, FailingSource>();
+  const add = (source: string, asset: AssetCard, since: string | null) => {
+    const entry = failing.get(source) ?? { assets: [], since: null };
+    entry.assets.push(asset);
+    if (since && (entry.since === null || since < entry.since)) entry.since = since;
+    failing.set(source, entry);
+  };
   for (const asset of assets) {
     for (const reading of sourceReadings(asset.id, asset.dataSources, connections, nowMs)) {
       if (reading.kind !== "failing" || reading.id === NIGHTLY_SLOT) continue;
-      const since = sourceProblemSince(reading, connections, nowMs);
-      const entry = failing.get(reading.id) ?? { assets: [], since: null };
-      entry.assets.push(asset);
-      // The group is as old as its oldest onset.
-      if (since && (entry.since === null || since < entry.since)) entry.since = since;
-      failing.set(reading.id, entry);
+      const failed = reading.site?.works.filter(work => work.kind === "failing") ?? [];
+      const comparison = failed.find(work => work.capability === GA4_COMPARISON.id);
+      if (!comparison) {
+        add(reading.id, asset, sourceProblemSince(reading, connections, nowMs));
+        continue;
+      }
+      add(comparison.capability, asset, failureSince(comparison.latest, connections, nowMs));
+      const other = failed.find(work => work.capability !== comparison.capability);
+      if (other) add(reading.id, asset, failureSince(other.latest, connections, nowMs));
     }
   }
   return failing;
@@ -264,13 +278,14 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
   }
 
   for (const [source, entry] of failingSources(assets, connections, nowMs)) {
-    const name = SOURCE_SHORT[source] ?? source;
+    const comparison = source === GA4_COMPARISON.id;
+    const name = comparison ? GA4_COMPARISON.label : SOURCE_SHORT[source] ?? source;
     issues.push({
       key: `source-${source}`,
       severity: "error",
       assets: entry.assets.map((asset) => asset.id),
       site: siteLabel(entry.assets.map((asset) => asset.displayName)),
-      line: `${name} collection failing`,
+      line: comparison ? `${name} failing` : `${name} collection failing`,
       mark: `${name} failing`,
       since: entry.since,
       conditions: ["signal-freshness"],

@@ -939,6 +939,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     const label = monitorLabel(row.provider, row.capability);
     const back = row.kind === "recovered";
     const searchArchive = !back && row.capability === "gsc-archive";
+    const comparison = !back && row.capability === "ga4-comparison" && known(row.asset) !== null;
     add({
       id,
       atMs: ms(row.at),
@@ -946,9 +947,10 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       asset: known(row.asset),
       text: back ? `${label} working again` : `${label}: ${FAILURE_WORDS[row.failureKind ?? ""] ?? "failed"}`,
       tone: back ? "healthy" : "error",
-      foldKey: back ? "source-back" : searchArchive ? "source-failed:gsc-archive" : "source-failed",
+      foldKey: back ? "source-back" : searchArchive || comparison ? `source-failed:${row.capability}` : "source-failed",
       many: back ? (n, s) => across(`${plural(n, "source")} back`, s)
         : searchArchive ? (n, s) => across(`Search Console · ${plural(n, "archive report")} failed`, s)
+          : comparison ? (_n, s) => `${label} failed · ${siteCount(s)}`
           : (n, s) => across(`${plural(n, "source")} failed`, s),
     });
   }
