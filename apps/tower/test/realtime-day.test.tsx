@@ -197,11 +197,27 @@ describe('hourly activity and day-so-far pace', () => {
     const tile = today.closest('.wall-metric')!;
     expect(tile.querySelector('[data-site-today-total]')).toHaveAccessibleName('994 estimated active users today so far');
     expect(tile.querySelector('.wall-metric-context')).toHaveTextContent('last Tue full day 1,000');
-    expect(today).toHaveTextContent(/^20%$/);
+    expect(today).toHaveTextContent(/^Activity20%$/);
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');
     expect(chip.getAttribute('data-tone')).toBe('pace-on');
     expect(chip.getAttribute('aria-label')).toContain('1170 matching minutes, to 7:30 PM');
     expect(chip.getAttribute('aria-label')).toContain('Includes earlier hours');
+  });
+
+  it('marks stale activity when the daily total cannot be estimated', () => {
+    const [asset] = fixtureAssets();
+    asset!.activeUsers.series = [{ t: DATE, v: 900 }];
+    const payload = retained();
+    const snapshot = payload.assets.find(reading => reading.asset === asset!.id);
+    if (snapshot?.status !== 'success' || !snapshot.realtimeDay) throw new Error('expected retained day');
+    snapshot.realtimeDay.sameDayLastWeek = Array<number>(1440).fill(4);
+    snapshot.realtimeDay.minutes.fill(null);
+    snapshot.realtimeDay.minutes.fill(6, MINUTE - 40, MINUTE - 10);
+    const { container } = render(<SiteRows assets={[asset!]} ga4Realtime={payload} nowMs={NOW} />);
+    const total = container.querySelector('[data-site-today-total]');
+    expect(total).toHaveAccessibleName('900 daily active users today so far');
+    expect(total?.closest('.wall-metric-primary')?.querySelector('[data-age-state]')).toBeNull();
+    expect(container.querySelector('[data-site-today] [data-age-state]')).toHaveTextContent('10m');
   });
 });
