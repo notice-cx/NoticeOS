@@ -17,6 +17,7 @@ export interface RevenueProjection {
   dailyPaceMinor: number | null;
   previousPeriod: string;
   previousMonthMinor: number | null;
+  previousMonthRecordedMinor?: number | null;
   changePercent: number | null;
   historyDays: number;
   holidayHistoryDays: number;
@@ -77,8 +78,10 @@ export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue:
   const completeCurrent = currentDates.every(date => days.has(date));
   const earnedMinor = currentDates.length > 0 && completeCurrent ? currentDates.reduce((sum, date) => sum + days.get(date)!, 0) : null;
   const previousDates = dateRange(`${previousPeriod}-01`, previousEnd);
-  const previousMonthMinor = previousDates.every(date => days.has(date)) ? previousDates.reduce((sum, date) => sum + days.get(date)!, 0) : null;
-  const base: RevenueProjection = { period, status: 'no-revenue', reason: 'Connect a daily revenue source.', reportedThrough, earnedMinor, projectedMinor: null, dailyPaceMinor: null, previousPeriod, previousMonthMinor, changePercent: null, historyDays: 0, holidayHistoryDays: 0, points: [] };
+  const previousReports = previousDates.flatMap(date => days.has(date) ? [days.get(date)!] : []);
+  const previousMonthRecordedMinor = previousReports.length ? previousReports.reduce((sum, amount) => sum + amount, 0) : null;
+  const previousMonthMinor = previousReports.length === previousDates.length ? previousMonthRecordedMinor : null;
+  const base: RevenueProjection = { period, status: 'no-revenue', reason: 'Connect a daily revenue source.', reportedThrough, earnedMinor, projectedMinor: null, dailyPaceMinor: null, previousPeriod, previousMonthMinor, previousMonthRecordedMinor, changePercent: null, historyDays: 0, holidayHistoryDays: 0, points: [] };
   if (!reportedThrough) return base;
   if (reportedThrough < expectedThrough || !completeCurrent) return { ...base, status: 'waiting-revenue', reason: 'Waiting for complete revenue reports.' };
   if (!traffic.collectedAt || !Number.isFinite(Date.parse(traffic.collectedAt)) || now.getTime() - Date.parse(traffic.collectedAt) > 2 * DAY || Date.parse(traffic.collectedAt) > now.getTime()) return { ...base, status: 'waiting-traffic', reason: 'Waiting for a fresh traffic report.' };
@@ -145,22 +148,3 @@ export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue:
 
 const changeAgainst = (projectedMinor: number, previousMinor: number | null) =>
   previousMinor !== null && previousMinor > 0 ? (projectedMinor / previousMinor - 1) * 100 : null;
-
-export interface PortfolioRevenueComparison { previousPeriod: string | null; previousMonthMinor: number | null; changePercent: number | null }
-
-/** The portfolio's previous month and its projection against it, over every
- * site with a daily revenue source (each site's `projectRevenue` for one
- * month). A total of some of those sites is not the portfolio's: it is null
- * unless every one of them has a complete previous month, and the percent is
- * null unless every one of them also has a ready projection. */
-export function portfolioRevenueComparison(projections: readonly RevenueProjection[]): PortfolioRevenueComparison {
-  const sites = projections.filter((projection) => projection.status !== 'no-revenue');
-  const previousPeriod = sites[0]?.previousPeriod ?? null;
-  if (sites.length === 0 || sites.some((projection) => projection.previousPeriod !== previousPeriod || projection.previousMonthMinor === null)) {
-    return { previousPeriod, previousMonthMinor: null, changePercent: null };
-  }
-  const previousMonthMinor = sites.reduce((sum, projection) => sum + projection.previousMonthMinor!, 0);
-  const projected = sites.every((projection) => projection.status === 'ready' && projection.projectedMinor !== null)
-    ? sites.reduce((sum, projection) => sum + projection.projectedMinor!, 0) : null;
-  return { previousPeriod, previousMonthMinor, changePercent: projected === null ? null : changeAgainst(projected, previousMonthMinor) };
-}

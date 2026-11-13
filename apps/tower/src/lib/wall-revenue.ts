@@ -7,17 +7,15 @@
 // is `ready` for that month (`shared/revenue-projection.ts` owns the
 // arithmetic), plus whatever revenue no projection covers.
 //
-// The shape and the comparison are like for like: revenue no projection
-// covers has no days and no last-month total, so the month chart and the "vs
-// last month" change are over the covered sites only. Nothing here re-derives
-// a projection; it only adds up the ones the Worker built, day by day.
+// The chart sums the ready projections day by day. The percentage compares
+// the displayed projection against the available previous-month totals.
 //
 // Yesterday is the providers' own estimate, summed: a site whose report has
 // not arrived is left out of the sum and counted as not reported, while a
 // recorded $0 is a report like any other.
 
 import type { AssetCard, PortfolioBand } from "@shared/wall";
-import { portfolioRevenueComparison, type PortfolioRevenueComparison, type RevenueProjection } from "@shared/revenue-projection";
+import type { RevenueProjection } from "@shared/revenue-projection";
 import { yesterdayRevenue } from "@shared/daily-revenue";
 import { reportingCalendarTrend } from '@shared/reporting-calendar';
 import { portfolioHeadline } from "@/lib/portfolio-headline";
@@ -47,11 +45,8 @@ export interface MonthPace {
   /** Days the projection still has to cover. */
   daysLeft: number;
   previousPeriod: string;
-  /** The covered sites' whole previous month, in dollars; null when any of
-   * them has no complete previous month to add. */
+  /** Available previous-month total in dollars. */
   previousTotal: number | null;
-  /** The covered sites' projection against their own previous month.
-   * The display names the projected basis beside the comparison. */
   changePercent: number | null;
   points: MonthRevenuePoint[];
   crossing: MonthCrossing | null;
@@ -68,8 +63,7 @@ export interface MonthRevenue {
    * reported a complete day this month and the ledger has no revenue row for it. */
   revenue: number | null;
   state: "booked" | "forecast";
-  /** Complete previous-month provider estimates, with explicit source coverage;
-   * dated context only, never the whole portfolio or a comparison basis. */
+  /** Recorded previous-month revenue and source coverage. */
   previousMonth: { period: string; revenue: number; reported: number; sites: number } | null;
   pace: MonthPace | null;
   /** Why there is no pace yet, in the projection's own words, or null. */
@@ -112,10 +106,7 @@ export function monthRevenue(
   const ledgerState = lead && hasRecordedRevenue(lead.state) ? lead.state
     : hasRecordedRevenue("forecast") ? "forecast"
       : hasRecordedRevenue("booked") ? "booked" : null;
-  const sources = assets
-    .filter(hasRevenueSource)
-    .map((asset) => asset.revenueProjection)
-    .filter((projection): projection is RevenueProjection => projection !== undefined);
+  const sources = assets.flatMap(asset => hasRevenueSource(asset) && asset.revenueProjection ? [asset.revenueProjection] : []);
   if (ledgerState === null && sources.length === 0) return null;
   // The month the figure is about. A projection is always about the month the
   // operator is standing in; the ledger's period can be an older one.
@@ -133,10 +124,13 @@ export function monthRevenue(
     : reported.length > 0
       ? sum(reported.map((projection) => projection.earnedMinor!)) / 100
       : null;
-  const previousReports = current.filter(projection => projection.previousMonthMinor !== null);
-  const previousMonth = previousReports.length > 0 && current.every(projection =>
-    projection.previousPeriod === current[0]!.previousPeriod)
-    ? { period: current[0]!.previousPeriod, revenue: sum(previousReports.map(projection => projection.previousMonthMinor!)) / 100,
+  const previousPeriod = ready[0]?.previousPeriod ?? current[0]?.previousPeriod;
+  const previousReports = current.flatMap(projection => {
+    const amount = projection.previousMonthRecordedMinor ?? projection.previousMonthMinor;
+    return projection.previousPeriod === previousPeriod && amount !== null ? [amount] : [];
+  });
+  const previousMonth = previousPeriod && previousReports.length
+    ? { period: previousPeriod, revenue: sum(previousReports) / 100,
         reported: previousReports.length, sites: current.length }
     : null;
   const waiting = revenue === null && ready.length > 0 ? "Waiting for revenue reports." :
@@ -144,6 +138,9 @@ export function monthRevenue(
       ? (current.find((projection) => projection.status !== "ready" && projection.reason !== null)?.reason ?? (revenue === null ? "Waiting for revenue reports." : null))
       : null;
   const readyEarnedMinor = sum(ready.map((projection) => projection.earnedMinor ?? 0));
+  const previousRevenue = portfolio.previousRevenue;
+  const previousTotal = previousRevenue?.period === previousPeriod && previousRevenue?.currency === 'USD'
+    ? previousRevenue.amount : previousMonth?.revenue ?? null;
 
   return {
     period,
@@ -153,17 +150,14 @@ export function monthRevenue(
     previousMonth,
     // What no ready projection covers — another source's booked money, or a
     // learning site's reported days — joins the pace whole.
-    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, portfolioRevenueComparison(current)) : null,
+    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
     waiting,
   };
 }
 
-/** `comparison` is the whole portfolio's previous month and percent, over
- * every site with a revenue source: the ready sites' own previous months
- * would read as the month's total while naming only some of its sites. */
-function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, comparison: PortfolioRevenueComparison): MonthPace {
+function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, previousTotal: number | null): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
-  const previousMinor = comparison.previousMonthMinor;
+  const projected = (coveredMinor + Math.max(0, uncoveredMinor)) / 100;
 
   // Day by day across the covered sites. Every ready projection carries every
   // day of its month, so the dates line up; a date one site lacks is left to
@@ -185,19 +179,24 @@ function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, co
       cumulative: day.cumulativeMinor / 100,
       projected: day.projected,
     }));
+  const last = points.at(-1);
+  if (last && uncoveredMinor > 0) {
+    // Money with no daily series contributes at the endpoint only.
+    last.cumulative = projected;
+    last.projected = true;
+  }
 
-  const previousTotal = previousMinor === null ? null : previousMinor / 100;
   const reached =
     previousTotal !== null && previousTotal > 0
       ? points.find((point) => point.cumulative >= previousTotal)
       : undefined;
 
   return {
-    projected: (coveredMinor + Math.max(0, uncoveredMinor)) / 100,
+    projected,
     daysLeft: points.filter((point) => point.projected).length,
     previousPeriod: ready[0]!.previousPeriod,
     previousTotal,
-    changePercent: comparison.changePercent,
+    changePercent: previousTotal !== null && previousTotal > 0 ? (projected / previousTotal - 1) * 100 : null,
     points,
     crossing: reached ? { day: reached.day, date: reached.date, projected: reached.projected } : null,
     sites: ready.length,
