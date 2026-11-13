@@ -937,14 +937,15 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     const line = EVIDENCE_LINE[row.evidenceSource];
     const id = line ? `${line}:${row.evidenceId}` : `health:${row.eventId}`;
     const label = monitorLabel(row.provider, row.capability);
+    const asset = known(row.asset);
     const back = row.kind === "recovered";
     const searchArchive = !back && row.capability === "gsc-archive";
-    const comparison = !back && row.capability === "ga4-comparison" && known(row.asset) !== null;
+    const comparison = !back && row.capability === "ga4-comparison" && asset !== null;
     add({
       id,
       atMs: ms(row.at),
       kind: back ? "source-back" : "source-failed",
-      asset: known(row.asset),
+      asset,
       text: back ? `${label} working again` : `${label}: ${FAILURE_WORDS[row.failureKind ?? ""] ?? "failed"}`,
       tone: back ? "healthy" : "error",
       foldKey: back ? "source-back" : searchArchive || comparison ? `source-failed:${row.capability}` : "source-failed",

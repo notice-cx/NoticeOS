@@ -180,15 +180,15 @@ export function failingSources(
   };
   for (const asset of assets) {
     for (const reading of sourceReadings(asset.id, asset.dataSources, connections, nowMs)) {
-      if (reading.kind !== "failing" || reading.id === NIGHTLY_SLOT) continue;
-      const failed = reading.site?.works.filter(work => work.kind === "failing") ?? [];
-      const comparison = failed.find(work => work.capability === GA4_COMPARISON.id);
+      if (reading.id === NIGHTLY_SLOT) continue;
+      const works = reading.site?.works ?? [];
+      const comparison = works.find(work => work.capability === GA4_COMPARISON.id && work.latest?.state === "failing");
       if (!comparison) {
-        add(reading.id, asset, sourceProblemSince(reading, connections, nowMs));
+        if (reading.kind === "failing") add(reading.id, asset, sourceProblemSince(reading, connections, nowMs));
         continue;
       }
       add(comparison.capability, asset, failureSince(comparison.latest, connections, nowMs));
-      const other = failed.find(work => work.capability !== comparison.capability);
+      const other = works.find(work => work.capability !== comparison.capability && work.kind === "failing");
       if (other) add(reading.id, asset, failureSince(other.latest, connections, nowMs));
     }
   }

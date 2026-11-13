@@ -205,19 +205,19 @@ describe("the Wall's issue list", () => {
       provider: "google", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
       keyVersion: 1, createdAt: ago(HOUR), updatedAt: ago(HOUR), lastUsedAt: ago(HOUR), lastOkAt: ago(HOUR), lastError: null,
     };
-    const reading = (asset: string, capability: string, state: "healthy" | "failing"): IntegrationHealthItem => ({
+    const reading = (asset: string, capability: string, failure: IntegrationHealthItem["failure"] = null): IntegrationHealthItem => ({
       id: `${capability}:${asset}`, provider: "google", capability, label: capability, asset,
-      detail: null, report: null, reportDate: null, state, lastAttemptAt: ago(MINUTE),
-      lastSuccessAt: ago(HOUR), nextAttemptAt: null, failure: state === "failing" ? "access" : null,
+      detail: null, report: null, reportDate: null, state: failure ? "failing" : "healthy", lastAttemptAt: ago(MINUTE),
+      lastSuccessAt: ago(HOUR), nextAttemptAt: null, failure,
       code: null, action: "Review.", coverage: "monitored",
     });
     const connections: ConnectionReads = {
       credentials: new Map([["google", credential]]),
       items: [
-        reading("northwind.example", "ga4-realtime", "healthy"),
-        reading("northwind.example", "ga4-comparison", "failing"),
-        reading("acorn.example", "ga4-realtime", "failing"),
-        reading("acorn.example", "ga4-comparison", "failing"),
+        reading("northwind.example", "ga4-realtime"),
+        reading("northwind.example", "ga4-comparison", "incomplete-report"),
+        reading("acorn.example", "ga4-realtime", "access"),
+        reading("acorn.example", "ga4-comparison", "access"),
       ],
     };
     const issues = wallIssues({ assets: SITES, attention: [], connections, nowMs: NOW });
