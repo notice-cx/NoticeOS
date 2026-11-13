@@ -88,7 +88,6 @@ export interface WallCanvasProps {
    * grid track. The TV passes nothing. */
   editing?: (slot: WallWidgetSlot) => ReactNode;
   metricEditing?: WallMetricEditing;
-  /** The words of the view the TV is drawn for; the revenue widget reads it. */
 }
 
 /** The one-second tick the strip's time, meeting and countdown share. */

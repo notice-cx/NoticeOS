@@ -125,9 +125,9 @@ describe("Arrange on the Assets page", () => {
     expect(checked("Home and Portfolio for Meadow Board")).toBe("true");
     expect(checked("Home and Portfolio for Northwind")).toBe("false");
     expect(checked("TV for Northwind")).toBe("true");
-    for (const label of ["Home and Portfolio", "TV", "Portfolio Work tile"]) expect(checked(`${label} for Fern Index`)).toBe("false");
+    for (const label of ["Home and Portfolio", "TV", "Work in TV Portfolio"]) expect(checked(`${label} for Fern Index`)).toBe("false");
     expect(screen.getByRole("link", { name: "Restore" })).toHaveAttribute("href", "/assets/ferns.example/settings#restore");
-    for (const label of ["Home and Portfolio", "TV", "Portfolio Work tile"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
+    for (const label of ["Home and Portfolio", "TV", "Work in TV Portfolio"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
     // A retired site reads Retired beside its name; the others carry no stage.
     expect(container.querySelector('[data-site-arrange-row="ferns.example"]')).toHaveTextContent("Retired");
     expect(container.querySelector('[data-site-arrange-row="meadow.example"]')).not.toHaveTextContent("Retired");

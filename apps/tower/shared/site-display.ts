@@ -1,5 +1,5 @@
 // Where each site shows: a row on Home and on the Sites page (`list`), every
-// per-site widget on the TV (`tv`), and its Portfolio Work tile (`work`); and
+// per-site widget on the TV (`tv`), and its Work widget in the TV Portfolio (`work`); and
 // the icon addresses that replace the ones read from its pages (`lightIcon`,
 // `darkIcon`). What the operator set is stored in `config/tower.json` at
 // `/sites` (the `site-display` register in scripts/config-registers.mts). A
@@ -42,7 +42,7 @@ export type SiteDisplay = Readonly<Record<string, Readonly<SiteDisplayRow>>>;
 export const SHOWN_ON_LABEL: Readonly<Record<ShownOnSurface, string>> = {
   list: "Home and Portfolio",
   tv: "TV",
-  work: "Portfolio Work tile",
+  work: "Work in TV Portfolio",
 };
 
 /** The switches a wall read carries. A payload held from before they existed,

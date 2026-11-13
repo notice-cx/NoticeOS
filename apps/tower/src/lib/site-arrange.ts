@@ -40,7 +40,7 @@ export function movedOrder(order: readonly string[], asset: string, to: string):
 const WHERE: Readonly<Record<ShownOnSurface, string>> = {
   list: "on Home and Portfolio",
   tv: "on the TV",
-  work: "in the Portfolio Work tile",
+  work: "in the TV Portfolio’s Work widget",
 };
 
 /** What a switch change is named by in its toast: "Meadow Board hidden on

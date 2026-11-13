@@ -496,7 +496,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteArrange / ShownOnSwitches / LiveSiteArrange / RetiredChip",
     file: "components/SiteArrange.tsx",
     purpose:
-      "The assets in the order Home, Portfolio and the TV use, to drag into a new one by each row's grip (the drop line shows where it lands) or move with Move up and Move down, with each asset's three switches for where it shows: Home and Portfolio, TV, Portfolio Work tile. LiveSiteArrange is it on the wall read with the one move write and the one switch write, each with Undo; ShownOnSwitches is one asset's three switches, which its Settings tab draws on its own; RetiredChip is a retired asset's stage beside its name, with the sidebar's switched-off mark. The TV editor's widget lists narrow one widget; these are the asset's own.",
+      "The assets in the order Home, Portfolio and the TV use, to drag into a new one by each row's grip (the drop line shows where it lands) or move with Move up and Move down, with each asset's three switches for where it shows: Home and Portfolio, TV, Work in TV Portfolio. LiveSiteArrange is it on the wall read with the one move write and the one switch write, each with Undo; ShownOnSwitches is one asset's three switches, which its Settings tab draws on its own; RetiredChip is a retired asset's stage beside its name, with the sidebar's switched-off mark. The TV editor's widget lists narrow one widget; these are the asset's own.",
     variants: ["four assets, one retired", "saves paused (the reason above the list)", "one asset's switches"],
     demo: "Mid-drag is pinned by the journey that drags an asset to the top; the gallery shows the line on its own (DropLine).",
   },

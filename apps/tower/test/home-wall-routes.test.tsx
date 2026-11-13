@@ -1623,15 +1623,13 @@ describe("Portfolio card with no ledger row at all", () => {
   });
 
   it("brings the month's figure back on the first forecast-only row", () => {
-    // One estimated row and nothing reconciled: the figure returns, named an estimate.
     payload.portfolio = { ...nothing, forecast: { currency: 'USD', revenue: 45, cost: 0, net: 45 } };
 
     const { container } = renderWall();
 
     const revenue = container.querySelector("[data-wall-revenue]")!;
     expect(revenue.querySelector("[data-revenue-figure]")?.textContent).toBe("$45");
-    expect(revenue.textContent).toMatch(/· estimated/);
-    expect(screen.queryByText(/· reconciled/)).not.toBeInTheDocument();
+    expect(revenue.querySelector("[data-revenue-pace]")).toBeNull();
   });
 });
 

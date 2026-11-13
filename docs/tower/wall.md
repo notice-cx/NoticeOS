@@ -44,7 +44,7 @@ The tile library also includes **Live feed** (what happened since last night, ne
 
 On wide screens, Live feed fills its column to the Wall's bottom and shows only whole entries.
 
-The **TV** switch controls asset rows and the counts in per-site widgets. **Work this week**, **Revenue this month**, **Attention ticker**, and **Live feed** include eligible activity from assets hidden on the TV. The **Portfolio Work tile** switch in Arrange controls the Work tile in that asset’s Portfolio row. Archived assets stay hidden until restored. See [Where each asset shows](/tower/sites#where-each-asset-shows).
+The **TV** switch controls asset rows and the counts in per-site widgets. **Work this week**, **Revenue this month**, **Attention ticker**, and **Live feed** include eligible activity from assets hidden on the TV. The **Work in TV Portfolio** switch in Arrange controls the Work tile in that asset’s Portfolio row. Archived assets stay hidden until restored. See [Where each asset shows](/tower/sites#where-each-asset-shows).
 
 On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order: the strip, **Revenue this month**, **Work this week**, **Attention ticker**, **Portfolio**, **Last 24 hours**, **Next up**, **Agents**, **Live feed**, the loop, **Asset health**, **The agents · this week** and **Visitors by channel**, leaving out the tiles the layout does not have. On a television the background is true black, so unused pixels emit no light.
 
@@ -57,7 +57,7 @@ On a landscape laptop the television's layout is scaled by one factor, with smal
 - Select **Use full Wall layout** to start a draft with the full composition. Save applies it. Older saved arrangements retain their positions until replaced; a narrow Portfolio column wraps its tiles and scrolls. The full composition shows four asset rows at a 1920×1080 viewport.
 - Open **Row settings** to arrange whole sections, stack and resize them, and set the asset order. See [Arrange the Wall](/guides/arrange-the-wall).
 - Start the layout from a Wall preset with **Add a widget** > **Start from** at `/wall/edit`. See [Start from a Wall preset](/guides/arrange-the-wall#start-from-a-wall-preset).
-- Use **Arrange** on the Portfolio page to reorder assets, change TV visibility or toggle an asset’s Portfolio Work tile.
+- Use **Arrange** on the Portfolio page to reorder assets or change their **TV** and **Work in TV Portfolio** settings.
 
 ## States and labels
 

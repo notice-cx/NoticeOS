@@ -1071,10 +1071,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       },
       {
         name: 'work',
-        label: 'Portfolio Work tile',
+        label: 'Work in TV Portfolio',
         type: 'boolean',
         required: false,
-        describe: 'the Work tile in the asset’s Portfolio row on the TV',
+        describe: 'the asset’s Work widget in the TV Portfolio',
       },
       // The same ceiling the store keeps on a read icon address (migration 0017).
       {
