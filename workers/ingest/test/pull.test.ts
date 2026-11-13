@@ -4,6 +4,7 @@ import { EGRESS_BEACONS, EGRESS_DOWN_RULE_ID } from '../src/egress.js';
 import { PULL_FAILED_RULE_ID, runPullAdapter, type PullAssetConfig } from '../src/pull.js';
 import { ASSET_TOKENS } from './fixtures.js';
 import { flagRows, insertPulse, pgCount, pgRows, promBody, reset, stubFetch } from './helpers.js';
+import { changeSites, siteInStore } from './sites';
 
 beforeEach(reset);
 
@@ -206,6 +207,48 @@ async function pullFailureFlag(
   const [row] = await flagRows(`asset_id = $1 AND rule_id = $2 AND resolved_at IS NULL`, [asset, PULL_FAILED_RULE_ID]);
   return row ? { message: row.message!, rule_inputs: row.rule_inputs!, fired_at: row.fired_at } : null;
 }
+
+describe('pull adapter — asset retirement', () => {
+  it('skips a retired asset and resumes pulling it after restoration', async () => {
+    const asset = MEADOW_ENTRY.asset;
+    const original = (await siteInStore(asset))!.status;
+    const requests: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      requests.push(String(input));
+      return new Response(null, { status: 500 });
+    };
+    const options = { entries: [MEADOW_ENTRY], nowMs: NOW, fetchImpl };
+    try {
+      await changeSites([asset], { status: 'retired' });
+      expect(await runPullAdapter(env, options)).toMatchObject({ attempted: 0, outcomes: [] });
+      expect(requests).toEqual([]);
+      expect(await openPullFailures(asset)).toBe(0);
+
+      await changeSites([asset], { status: 'live' });
+      expect(await runPullAdapter(env, options)).toMatchObject({ attempted: 1, failed: 1 });
+      expect(requests).toEqual([MEADOW_URL]);
+      expect(await openPullFailures(asset)).toBe(1);
+    } finally {
+      await changeSites([asset], { status: original });
+    }
+  });
+
+  it('does not raise a pull-failure alert when an asset retires during the request', async () => {
+    const asset = MEADOW_ENTRY.asset;
+    const original = (await siteInStore(asset))!.status;
+    try {
+      const fetchImpl: typeof fetch = async () => {
+        await changeSites([asset], { status: 'retired' });
+        return new Response(null, { status: 500 });
+      };
+      const result = await runPullAdapter(env, { entries: [MEADOW_ENTRY], nowMs: NOW, fetchImpl });
+      expect(result.outcomes).toMatchObject([{ ok: false, fired: 0, refreshed: 0 }]);
+      expect(await openPullFailures(asset)).toBe(0);
+    } finally {
+      await changeSites([asset], { status: original });
+    }
+  });
+});
 
 describe('pull adapter — successful pull', () => {
   it('writes a pulse row, maps the counters, and runs the central rules', async () => {
