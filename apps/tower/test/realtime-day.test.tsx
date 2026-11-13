@@ -182,7 +182,7 @@ describe('hourly activity and day-so-far pace', () => {
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('.wall-site-axis')?.textContent).toContain('avg users/min');
   });
 
-  it.each(['multiple assets', 'one asset'])('labels the matched cutoff even when distinct user totals and activity move in opposite directions in %s', mode => {
+  it.each(['multiple assets', 'one asset'])('keeps the matched cutoff in the comparison details when totals and activity move in opposite directions in %s', mode => {
     const payload = retained();
     for (const snapshot of payload.assets) {
       if (snapshot.status !== 'success' || !snapshot.realtimeDay) continue;
@@ -197,11 +197,11 @@ describe('hourly activity and day-so-far pace', () => {
     const tile = today.closest('.wall-metric')!;
     expect(tile.querySelector('[data-site-today-total]')).toHaveAccessibleName('994 estimated active users today so far');
     expect(tile.querySelector('.wall-metric-context')).toHaveTextContent('last Tue full day 1,000');
-    expect(today).toHaveTextContent('Minute activity to 7:30 PM');
+    expect(today).toHaveTextContent(/^20%$/);
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');
     expect(chip.getAttribute('data-tone')).toBe('pace-on');
-    expect(chip.getAttribute('aria-label')).toContain('1170 matching minutes');
+    expect(chip.getAttribute('aria-label')).toContain('1170 matching minutes, to 7:30 PM');
     expect(chip.getAttribute('aria-label')).toContain('Includes earlier hours');
   });
 });
