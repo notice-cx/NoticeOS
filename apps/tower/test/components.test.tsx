@@ -604,6 +604,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("cancels the pending clear when the row unmounts", async () => {
       vi.useFakeTimers();
+      const scheduled = vi.spyOn(globalThis, "setTimeout");
+      const cancelled = vi.spyOn(globalThis, "clearTimeout");
       const restore = withClipboard(vi.fn().mockResolvedValue(undefined));
       try {
         const { getByRole, unmount } = renderRow();
@@ -611,12 +613,17 @@ describe("QueryVisibilityRankings comparison labels", () => {
           getByRole("button", { name: "Copy Markdown for jarra del buen beber" }),
         );
         await act(async () => {});
-        expect(vi.getTimerCount()).toBe(1);
+        const copyTimerIndex = scheduled.mock.calls.findIndex(([, delay]) => delay === COPY_FLASH_MS);
+        expect(copyTimerIndex).toBeGreaterThanOrEqual(0);
+        const copyTimer = scheduled.mock.results[copyTimerIndex]!.value;
+        expect(cancelled).not.toHaveBeenCalledWith(copyTimer);
 
         unmount();
-        expect(vi.getTimerCount()).toBe(0);
+        expect(cancelled).toHaveBeenCalledWith(copyTimer);
       } finally {
         restore();
+        scheduled.mockRestore();
+        cancelled.mockRestore();
         vi.useRealTimers();
       }
     });

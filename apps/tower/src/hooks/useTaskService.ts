@@ -6,11 +6,12 @@ import type { TaskServiceStatus } from "@shared/tasks";
 export const TASK_SERVICE_KEY = ["task-service"] as const;
 
 /** Whether this installation's tasks live in Ntasks, and each saved project's Ntasks project. */
-export function useTaskService() {
+export function useTaskService(enabled = true) {
   const { fetchTaskService } = useTowerApi();
   return useQuery<TaskServiceStatus>({
     queryKey: TASK_SERVICE_KEY,
     queryFn: ({ signal }) => fetchTaskService(signal),
+    enabled,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -23,6 +24,6 @@ export function needsNtasks(status: TaskServiceStatus | undefined): boolean {
   return status?.required === true && status.connected === false;
 }
 
-export function useNeedsNtasks(): boolean {
-  return needsNtasks(useTaskService().data);
+export function useNeedsNtasks(enabled = true): boolean {
+  return needsNtasks(useTaskService(enabled).data);
 }

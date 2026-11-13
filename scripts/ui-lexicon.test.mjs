@@ -171,6 +171,7 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/routes/HomeRoute.tsx',
   'apps/tower/src/routes/home/ClockProposal.tsx',
   'apps/tower/src/routes/asset-detail/OverviewTab.tsx',
+  'apps/tower/src/routes/asset-detail/OverviewNumbers.tsx',
   'apps/tower/src/routes/asset-detail/SiteLead.tsx',
   'apps/tower/src/routes/asset-detail/AssetHeader.tsx',
   'apps/tower/src/lib/home-brief.ts',

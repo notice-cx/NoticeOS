@@ -39,7 +39,7 @@ describe('live traffic eligibility', () => {
   });
 
   it('keeps a successful reading through a monitored failure and preserves its observed age', () => {
-    const good = snapshot();
+    const good = wallFixtureRealtime(0).assets.find(reading => reading.asset === asset().id)!;
     const site = asset();
     const { container, rerender } = render(<LiveUsers asset={site} snapshot={good} reconnecting={false} nowMs={NOW} connections={reads([health('healthy')])} />);
     const failure: Ga4RealtimeAsset = { asset: site.id, status: 'error', activeUsers5m: null, activeUsers30m: null,
@@ -47,6 +47,6 @@ describe('live traffic eligibility', () => {
     rerender(<LiveUsers asset={site} snapshot={failure} reconnecting={false} nowMs={NOW + 4 * 60_000} connections={reads([health('failing')])} />);
     expect(container.querySelector('[data-live]')).toHaveAttribute('data-live', 'failed');
     expect(container.querySelector('[data-live-count]')).toHaveAttribute('data-value', '50');
-    expect(container.querySelector('[data-live-age]')).toHaveTextContent('4m');
+    expect(container.querySelector('[data-live-age]')).toHaveTextContent(/^4m$/);
   });
 });

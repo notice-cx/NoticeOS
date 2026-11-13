@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SettingsPayload, TaskHubSpoke } from "@shared/settings";
@@ -13,6 +13,8 @@ const lane = vi.hoisted(() => ({
   fail: null as string | null,
   capability: { live: true, reason: null } as TasksCapabilities,
   service: { connected: true, origin: "https://ntasks.example.com", projects: [], required: true } as TaskServiceStatus,
+  serviceReads: 0,
+  servicePending: null as Promise<TaskServiceStatus> | null,
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => {
@@ -20,7 +22,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
   return {
     ...actual,
     fetchTasksCapabilities: async () => lane.capability,
-    fetchTaskService: async () => lane.service,
+    fetchTaskService: async () => { lane.serviceReads += 1; return lane.servicePending ?? lane.service; },
     fetchTaskProjects: async () => [],
     createTask: async (input: NewTask) => {
       lane.calls.push(input);
@@ -68,6 +70,8 @@ afterEach(() => {
   lane.fail = null;
   lane.capability = { live: true, reason: null };
   lane.service = { connected: true, origin: "https://ntasks.example.com", projects: [], required: true };
+  lane.serviceReads = 0;
+  lane.servicePending = null;
   toasts.success.mockClear();
   toasts.error.mockClear();
 });
@@ -498,8 +502,7 @@ describe("TaskComposer", () => {
 });
 
 describe("FileTaskButton", () => {
-  const render1 = (props: Parameters<typeof FileTaskButton>[0]) => {
-    const client = new QueryClient();
+  const render1 = (props: Parameters<typeof FileTaskButton>[0], client = new QueryClient()) => {
     return { client, ...render(
       <QueryClientProvider client={client}>
         <MemoryRouter>
@@ -538,6 +541,17 @@ describe("FileTaskButton", () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
+  it("keeps the read-only hint when a disconnected service is cached on a nonwritable lane", () => {
+    const client = new QueryClient();
+    client.setQueryData(["tasks-live"], { live: false, reason: READ_ONLY_DEPLOYMENT });
+    client.setQueryData(["task-service"], { connected: false, origin: null, projects: null, required: true });
+    render1({}, client);
+    const button = screen.getByRole("button", { name: "File task" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
+    expect(lane.serviceReads).toBe(0);
+  });
+
   it("blocks filing without Ntasks and identifies where to connect it", async () => {
     lane.service = { connected: false, origin: null, projects: null, required: true };
     const onOpen = vi.fn();
@@ -550,15 +564,45 @@ describe("FileTaskButton", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("blocks an open composer when a delayed service response reports no connection, keeping the draft", async () => {
+    let answer!: (status: TaskServiceStatus) => void;
+    lane.servicePending = new Promise(resolve => { answer = resolve; });
+    const { client } = render1({ projects: SPOKES, prefill: { project: "meadow.example", title: "Review the report" } });
+    const trigger = screen.getByRole("button", { name: "File task" });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "File a task" });
+    const title = within(dialog).getByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Review the revised report" } });
+    await act(async () => answer({ connected: false, origin: null, projects: null, required: true }));
+    const submit = within(dialog).getByRole("button", { name: "File task" });
+    await waitFor(() => expect(submit).toBeDisabled());
+    expect(within(dialog).getByRole("link", { name: "Settings → Task projects" })).toHaveAttribute("href", "/settings/task-projects");
+    fireEvent.click(submit);
+    fireEvent.keyDown(title, { key: "Enter" });
+    fireEvent.keyDown(title, { key: "Enter", ctrlKey: true });
+    expect(lane.calls).toEqual([]);
+    expect(title).toHaveValue("Review the revised report");
+
+    await act(async () => { client.setQueryData(["task-service"], { connected: true, origin: "https://ntasks.example.com", projects: [], required: true }); });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() => expect(lane.calls).toEqual([expect.objectContaining({ title: "Review the revised report" })]));
+  });
+
   it.each(["capabilities", "onFile"] as const)("keeps the explicit %s override without a task service", async override => {
     lane.service = { connected: false, origin: null, projects: null, required: true };
+    const client = new QueryClient();
+    client.setQueryData(["task-service"], lane.service);
     const props = override === "capabilities" ? { capabilities: { live: true, reason: null } }
       : { onFile: async () => ({ id: "md-1", project: "meadow.example" }) };
-    const { client } = render1({ ...props, projects: SPOKES });
-    await waitFor(() => expect(client.getQueryData(["task-service"])).toEqual(lane.service));
+    render1({ ...props, projects: SPOKES }, client);
+    expect(lane.serviceReads).toBe(0);
     expect(screen.getByRole("button", { name: "File task" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "File task" }));
-    expect(screen.getByRole("dialog", { name: "File a task" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "File a task" });
+    expect(within(dialog).getByRole("button", { name: "File task" })).toBeEnabled();
+    expect(lane.serviceReads).toBe(0);
   });
 
   it("names what it is filing, so a table of them does not read as one button", () => {

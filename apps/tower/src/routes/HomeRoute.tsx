@@ -499,10 +499,10 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
 function OneSiteNumbers({ data, nowMs }: { data: AssetDetailFor<"overview">; nowMs: number }) {
   const measures = useOverviewMeasures(data, DEFAULT_RANGE_DAYS, nowMs);
   const report = siteLead(data, DEFAULT_RANGE_DAYS, nowMs);
-  const snapshot = report.kind === "clarity" || report.kind === "rankings";
+  const usesStandaloneChart = report.kind === "clarity" || report.kind === "rankings";
   return <>
-    {measures.length > 0 || !snapshot ? <OverviewNumbers data={data} measures={measures} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
-    {snapshot ? <SiteLead data={data} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
+    {measures.length > 0 || !usesStandaloneChart ? <OverviewNumbers data={data} measures={measures} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
+    {usesStandaloneChart ? <SiteLead data={data} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
   </>;
 }
 

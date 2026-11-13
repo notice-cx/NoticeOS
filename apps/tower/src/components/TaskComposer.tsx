@@ -10,11 +10,12 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import type { TaskHubSpoke } from "@shared/settings";
 import {
   READ_ONLY_TASKS_HINT,
+  TASK_PROJECTS_PATH,
   taskWritesAvailable,
   type TaskCreated,
   type TasksCapabilities,
@@ -230,6 +231,8 @@ export interface TaskComposerProps {
    * `taskHub.spokes`; a caller already holding that map passes it instead, so
    * its select and its project filter cannot disagree. */
   projects?: ComposerProject[];
+  /** Stand in for the build's task capability, including the gallery's examples. */
+  capabilities?: TasksCapabilities;
 }
 
 /** Narrower than `TaskHubSpoke` on purpose: a caller holding only the board's
@@ -255,6 +258,7 @@ export function TaskComposer({
   onFiled,
   onFile,
   projects,
+  capabilities,
 }: TaskComposerProps) {
   const demoReadonly = useDemoReadonly();
   const toast = useOwnerToast();
@@ -265,7 +269,11 @@ export function TaskComposer({
   const operatorRateUsdPerMin = operatorRateOf(settings.data);
   const { data: work } = useWork({ enabled: projects === undefined });
   const createTask = useCreateTask();
-  const capability = useTasksLive();
+  const lane = useTasksLive();
+  const capability = capabilities ?? lane;
+  const checksService = !demoReadonly && capabilities === undefined && !onFile && taskWritesAvailable(capability);
+  const needsNtasks = useNeedsNtasks(open && checksService);
+  const needsConnection = checksService && needsNtasks;
   const catalog = useTaskProjects();
   const iconsOf = useSiteIcons();
   const hostedFields = capability.projectSelection === true && !onFile;
@@ -377,7 +385,7 @@ export function TaskComposer({
   }
 
   async function file() {
-    if (unsupported || projectRosterPending) return;
+    if (unsupported || projectRosterPending || needsConnection) return;
     const next: Record<string, string> = {};
     const cleanTitle = title.trim();
     if (!spoke) {
@@ -981,6 +989,9 @@ export function TaskComposer({
         </div>
 
         <footer className="flex flex-col gap-2 border-t border-border px-4 py-3">
+          {needsConnection ? <p className="text-sm text-muted-foreground" role="status">
+            Connect Ntasks in <Link to={TASK_PROJECTS_PATH} className="font-medium underline underline-offset-2">Settings → Task projects</Link> to file this task.
+          </p> : null}
           {errors.form ? (
             <p className="text-xs text-error" role="alert" data-composer-error>
               {errors.form}
@@ -994,7 +1005,7 @@ export function TaskComposer({
               type="button"
               variant="default"
               onClick={() => void file()}
-              disabled={filing || unsupported || projectRosterPending}
+              disabled={filing || unsupported || projectRosterPending || needsConnection}
               data-composer-submit
             >
               {filing ? "Filing…" : "File task"}
@@ -1077,7 +1088,7 @@ function prefilledMore(prefill: TaskComposerPrefill | null): boolean {
 }
 
 export interface FileTaskButtonProps
-  extends Pick<TaskComposerProps, "prefill" | "onFiled" | "onFile" | "projects"> {
+  extends Pick<TaskComposerProps, "prefill" | "onFiled" | "onFile" | "projects" | "capabilities"> {
   /** Open a composer owned by a stable parent when this trigger may disappear. */
   onOpen?: () => void;
   /** The word on the button. */
@@ -1087,8 +1098,6 @@ export interface FileTaskButtonProps
   className?: string;
   /** What the button is filing, for the accessible name. */
   subject?: string;
-  /** Stand in for `useTasksLive()`, so the gallery can show the read-only face. */
-  capabilities?: TasksCapabilities;
 }
 
 /**
@@ -1112,13 +1121,14 @@ export function FileTaskButton({
   const demoReadonly = useDemoReadonly();
   const [open, setOpen] = useState(false);
   const lane = useTasksLive();
-  const needsNtasks = useNeedsNtasks();
   // An explicit answer wins (the gallery's read-only demo); otherwise a fake
   // writer stands in for the lane, so a demo is a real form even where there is
   // no lane at all; otherwise the lane itself decides.
   const capability =
     capabilities ?? (onFile ? { live: true, reason: null } : lane);
-  const needsConnection = capabilities === undefined && !onFile && needsNtasks;
+  const checksService = !demoReadonly && capabilities === undefined && !onFile && taskWritesAvailable(capability);
+  const needsNtasks = useNeedsNtasks(checksService);
+  const needsConnection = checksService && needsNtasks;
   const enabled = !demoReadonly && !needsConnection && taskWritesAvailable(capability);
 
   return (
@@ -1147,6 +1157,7 @@ export function FileTaskButton({
           onFiled={onFiled}
           onFile={onFile}
           projects={projects}
+          capabilities={capabilities}
         />
       ) : null}
     </>
