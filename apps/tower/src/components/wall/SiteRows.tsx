@@ -163,18 +163,19 @@ function lastWeekdayLabel(zone: string | null, nowMs: number): string {
 
 function PaceFigure({ pace, showCutoff }: { pace: IntradayUsersPace; showCutoff?: boolean }) {
   if (pace.paceChange === null) return <span className="wall-metric-note">Gathering pace</span>;
-  return (
+  const figure = <DeltaChip
+    value={pace.paceChange}
+    render={(value) => `${formatPercent(value)}%`}
+    tone={wallTrafficTone(pace.paceChange)}
+    meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
+    className="whitespace-nowrap"
+  />;
+  return showCutoff ? (
     <span className="inline-flex flex-col items-end">
-      <DeltaChip
-        value={pace.paceChange}
-        render={(value) => `${formatPercent(value)}%`}
-        tone={wallTrafficTone(pace.paceChange)}
-        meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
-        className="whitespace-nowrap"
-      />
-      {showCutoff && <span className="text-wall-micro text-muted-foreground">Hourly activity {paceWindowLabel(pace)}</span>}
+      {figure}
+      <span className="text-wall-micro text-muted-foreground">Hourly activity {paceWindowLabel(pace)}</span>
     </span>
-  );
+  ) : figure;
 }
 
 /** The cutoff stays visible without taking width from the hourly chart. */

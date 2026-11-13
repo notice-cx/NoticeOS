@@ -1014,6 +1014,7 @@ test.describe(() => {
             const tiles = [...row.querySelectorAll<HTMLElement>(".wall-metric")];
             const charts = [...row.querySelectorAll<HTMLElement>(".wall-site-chart")];
             return {
+              asset: row.getAttribute("data-site-row"),
               tileHeights: tiles.map(tile => Math.round(tile.getBoundingClientRect().height)),
               charts: charts.map(chart => ({ width: chart.getBoundingClientRect().width, tile: chart.closest(".wall-metric")!.getBoundingClientRect().width })),
             };
@@ -1029,7 +1030,7 @@ test.describe(() => {
       });
       expect(found.cards.length).toBeGreaterThan(3);
       for (const card of found.cards) {
-        expect(new Set(card.tileHeights).size, `${width}: one height for every metric tile`).toBe(1);
+        expect(card.tileHeights, `${width}: one tile height for ${card.asset}`).toEqual(card.tileHeights.map(() => card.tileHeights[0]));
         for (const chart of card.charts) expect(chart.width, `${width}: chart uses its tile width`).toBeGreaterThan(chart.tile * .6);
       }
       expect(found.feed, `${width}: the feed as tall as its rows`).toEqual({ cut: 0, spare: 0 });
