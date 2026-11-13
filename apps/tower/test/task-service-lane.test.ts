@@ -95,16 +95,15 @@ it("sends a change to Ntasks with the project's id and answers only what Ntasks 
   expect(created).toEqual({ status: 201, body: { id: "ex-2" } });
   expect(calls.at(-1)).toEqual({ method: "POST", path: "/api/tasks", body: { title: "New", projectId: PROJECT.projectId }, idempotencyKey: "create-12345678", onBehalfOf: "tower" });
 
-  const claim = await send(request("PATCH", "/api/tasks/ex-1", { claim: true }));
-  expect(claim).toMatchObject({ status: 501, body: { error: "task_service_unsupported" } });
-  expect(calls.at(-1)).toMatchObject({ method: "PATCH", path: "/api/tasks/ex-1", body: { claim: true, projectId: PROJECT.projectId } });
+  const sent = calls.length;
+  expect((await send(request("PATCH", "/api/tasks/ex-1", { claim: true }))).status).toBe(405);
+  for (const action of ["close", "comments"]) {
+    expect((await send(request("POST", "/api/tasks/ex-1/" + action, {}))).status).toBe(404);
+  }
+  expect(calls).toHaveLength(sent);
 
   state.down = true;
-  for (const [method, url, body] of [["POST", "/api/tasks/ex-1/comments", { text: "Note" }], ["POST", "/api/tasks/ex-1/close", { reason: "Done" }],
-    ["PATCH", "/api/tasks/ex-1", { claim: true }], ["POST", "/api/gates/ex-1/resolve", {}]] as const) {
-    const reply = await send(request(method, url, body));
-    expect(reply.status, url).toBe(503);
-  }
+  expect((await send(request("POST", "/api/tasks", { project: "example.com", title: "Offline" }))).status).toBe(503);
 });
 
 it("shows Ntasks's own sentence when a decision is refused for not coming from a person, and blames the credential otherwise", async () => {
@@ -120,7 +119,7 @@ it("shows Ntasks's own sentence when a decision is refused for not coming from a
 
   // A route the credential should reach: the credential is what to fix.
   refusal = { status: 403, body: { error: "insufficient_scope", detail: "this route needs tasks:write" } };
-  const closed = await send(request("POST", "/api/tasks/ex-1/close", { reason: "Done" }));
+  const closed = await send(request("POST", "/api/tasks", { project: "example.com", title: "New" }));
   expect(closed).toEqual(credentialError);
   expect(JSON.stringify(closed)).not.toContain("this route needs tasks:write");
   for (const answer of [{ status: 401, body: { error: "unauthorized" } }, { status: 403, body: { error: "forbidden", detail: "origin refused" } }]) {
@@ -169,7 +168,7 @@ it("names a site with no Ntasks project instead of reading another", async () =>
 it.each([
   ["GET", "/api/tasks?project=example.com", undefined],
   ["GET", "/api/tasks/projects", undefined],
-  ["POST", "/api/tasks/ex-1/comments", { text: "Note" }],
+  ["POST", "/api/tasks", { project: "example.com", title: "New" }],
 ])("answers %s %s as not connected while no task service is connected", async (method, url, body) => {
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false });
   const reply = await lane(service)(request(method, url, body));
@@ -179,7 +178,7 @@ it.each([
 
 it("refuses reads and changes while the ingest has never said where the tasks live", async () => {
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
-  const change = await lane(service)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
+  const change = await lane(service)(request("POST", "/api/tasks", { project: "example.com", title: "New" }));
   expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
   const read = await lane(service)(request("GET", "/api/tasks?project=example.com"));
   expect(read).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });

@@ -57,12 +57,12 @@ describe('hosted Tasks transport', () => {
     try {
       await first.api.fetchTask('tt-collision', undefined, 'example');
       await second.api.fetchTask('tt-collision', undefined, 'example');
-      await first.api.commentOnTask('tt-collision', '--file=literal comment', 'example');
+      await first.api.createTask({ project: 'example', title: '--file=literal title' });
       const reads = f.transport.mock.calls.filter(([input]) => new URL(String(input)).pathname === '/api/tasks/tt-collision');
       expect(new URL(String(reads[0]?.[0])).searchParams.get('project')).toBe(projectA);
       expect(new URL(String(reads[1]?.[0])).searchParams.get('project')).toBe(projectB);
       const write = f.transport.mock.calls.at(-1);
-      expect(JSON.parse(String(write?.[1]?.body))).toEqual({ projectId: projectA, text: '--file=literal comment' });
+      expect(JSON.parse(String(write?.[1]?.body))).toEqual({ projectId: projectA, title: '--file=literal title' });
       expect(new Headers(write?.[1]?.headers).get('x-noticeos-session-id')).toBe(a.sessionId);
       expect(f.transport.mock.calls.filter(([input]) => new URL(String(input)).pathname === '/api/tasks/projects')).toHaveLength(2);
     } finally { first.retire(); second.retire(); }
@@ -74,7 +74,7 @@ describe('hosted Tasks transport', () => {
       expect(f.transport).not.toHaveBeenCalled();
       await expect(runtime.api.fetchTask('tt-collision', undefined, 'foreign')).rejects.toThrow('Task project is unavailable');
       expect(f.transport.mock.calls).toHaveLength(1);
-      await expect(runtime.api.updateTask('tt-collision', { title: 'Owned edit' }, 'foreign')).rejects.toThrow();
+      await expect(runtime.api.createTask({ project: 'foreign', title: 'Owned title' })).rejects.toThrow();
       expect(f.transport.mock.calls).toHaveLength(1);
     } finally { runtime.retire(); }
   });
@@ -87,38 +87,12 @@ describe('hosted Tasks transport', () => {
       expect(JSON.parse(String(f.transport.mock.calls.at(-1)?.[1]?.body))).toMatchObject({ labels: ['owned-label'], metadata: { noticeos_kind: 'finding' } });
     } finally { runtime.retire(); }
   });
-  it('decision sends retain explicit project, session and page-leave keepalive under the captured owner', async () => {
-    const f = fixture(), runtime = f.runtime(a);
-    try {
-      await runtime.api.respondToTask('tt-collision', '--file=literal answer', { project: 'example', keepalive: true });
-      await runtime.api.dismissTask('tt-collision', undefined, { project: 'example' });
-      await runtime.api.resolveGate('tt-collision', 'Approved', { project: 'example', keepalive: true });
-      const decisions = f.transport.mock.calls.filter(([input]) => /\/(respond|dismiss|resolve)$/u.test(new URL(String(input)).pathname));
-      expect(decisions).toHaveLength(3);
-      expect(JSON.parse(String(decisions[0]?.[1]?.body))).toEqual({ projectId: projectA, response: '--file=literal answer' });
-      expect(JSON.parse(String(decisions[1]?.[1]?.body))).toEqual({ projectId: projectA });
-      expect(JSON.parse(String(decisions[2]?.[1]?.body))).toEqual({ projectId: projectA, reason: 'Approved' });
-      expect(decisions[0]?.[1]?.keepalive).toBe(true);expect(decisions[2]?.[1]?.keepalive).toBe(true);
-      for (const [, init] of decisions) expect(new Headers(init?.headers).get('x-noticeos-session-id')).toBe(a.sessionId);
-      await runtime.api.chooseOnTask('tt-collision', 'b', 'Ship it Friday', { project: 'example', keepalive: true });
-      await runtime.api.chooseOnTask('tt-collision', 'a', ' ', { project: 'example' });
-      const picks = f.transport.mock.calls.filter(([input]) => new URL(String(input), 'https://tower.example.test').pathname === '/api/tasks/tt-collision/choose');
-      expect(picks.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ projectId: projectA, option: 'b', note: 'Ship it Friday' },
-        { projectId: projectA, option: 'a' }]);
-      expect(picks[0]?.[1]?.keepalive).toBe(true);
-      const count=f.transport.mock.calls.length;runtime.retire();
-      await expect(runtime.api.resolveGate('tt-collision', undefined, { project: 'example' })).rejects.toThrow();
-      expect(f.transport.mock.calls).toHaveLength(count);
-    } finally { runtime.retire(); }
-  });
-  it('standalone keeps its id-only path and native edit body unchanged', async () => {
+  it('standalone keeps its id-only read path', async () => {
     const f = fixture(), runtime = f.runtime({ mode: 'standalone', clientGeneration: 1 });
     try {
       await runtime.api.fetchTask('tt-collision');
-      await runtime.api.updateTask('tt-collision', { claim: true });
+      expect(f.transport).toHaveBeenCalledTimes(1);
       expect(String(f.transport.mock.calls[0]?.[0])).toBe(`${origin}/api/tasks/tt-collision`);
-      expect(f.transport.mock.calls).toHaveLength(2);
-      expect(JSON.parse(String(f.transport.mock.calls[1]?.[1]?.body))).toEqual({ claim: true });
     } finally { runtime.retire(); }
   });
   it('a catalog without observed board data does not fabricate zero counts', () => {

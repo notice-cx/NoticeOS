@@ -3,8 +3,6 @@ import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import type { AlertDailyPayload } from "@shared/alert-daily";
 import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
-import type { TaskChoiceKey } from '@noticeos/contract/task-choices';
-import type { TaskResolution } from '@noticeos/contract/task-resolution';
 import type { TaskCard } from '@noticeos/contract/task-card';
 import type { TaskChangeClass } from '@noticeos/contract/task-change-class';
 import { responseJson } from './response-value';
@@ -1260,125 +1258,6 @@ async function createTaskRequest(fetch: ApiTransport, input: NewTask): Promise<T
   return (await res.json()) as TaskCreated;
 }
 
-/** The fields the lane will edit. Anything else is refused by name — a task
- * service's update can do more than an operator edits from a board. */
-export interface TaskEdit {
-  /** Atomic: assignee plus `in_progress`, idempotent. */
-  claim?: true;
-  status?: string;
-  priority?: number;
-  assignee?: string;
-  parent?: string;
-  /** When the deferral ends; the empty string clears the deferral. */
-  defer?: string;
-  title?: string;
-  description?: string;
-  acceptance?: string;
-  addLabels?: string[];
-  removeLabels?: string[];
-  /** Why it ranks and the kind of change; null clears what is recorded. */
-  card?: TaskCard | null;
-  changeClass?: TaskChangeClass | null;
-}
-
-async function updateTaskRequest(fetch: ApiTransport, id: string, edit: TaskEdit, project?: string): Promise<void> {
-  const path = `/api/tasks/${encodeURIComponent(id)}`;
-  const res = await fetch(path, {
-    method: "PATCH",
-    headers: JSON_WRITE_HEADERS,
-    body: JSON.stringify({ ...edit, ...(project === undefined ? {} : { project }) }),
-  });
-  if (!res.ok) throw await refusal(res, `PATCH ${path} failed: ${res.status}`);
-}
-
-/** `keepalive` lets an answer still inside its Undo window be sent while the
- * page is leaving (`lib/answer-queue.ts`); every other write omits it. */
-export interface TaskWriteOptions {
-  keepalive?: boolean;
-  project?: string;
-}
-
-async function actOnTaskRequest(fetch: ApiTransport,
-  id: string,
-  action: string,
-  payload: Record<string, unknown>,
-  options?: TaskWriteOptions,
-): Promise<void> {
-  const path = `/api/tasks/${encodeURIComponent(id)}/${action}`;
-  const res = await fetch(path, {
-    method: "POST",
-    headers: JSON_WRITE_HEADERS,
-    body: JSON.stringify({ ...payload, ...(options?.project === undefined ? {} : { project: options.project }) }),
-    ...(options?.keepalive ? { keepalive: true } : {}),
-  });
-  if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
-}
-
-function disputeTaskRequest(fetch: ApiTransport, id: string, options?: TaskWriteOptions): Promise<void> {
-  return actOnTaskRequest(fetch, id, "dispute", {}, options);
-}
-
-/** How a close ended when it is not done: the resolution and, for a
- * duplicate, the other task's id. */
-export interface CloseTaskOptions extends TaskWriteOptions {
-  resolution?: TaskResolution;
-  duplicateOf?: string;
-}
-
-/** The reason is required, not decoration: completion is evidence, and the
- * closer cites what proves it, or says why nothing shipped. A close with no
- * resolution is done. */
-function closeTaskRequest(fetch: ApiTransport, id: string, reason: string, options?: CloseTaskOptions): Promise<void> {
-  const { resolution, duplicateOf, ...write } = options ?? {};
-  return actOnTaskRequest(fetch, id, "close", {
-    reason,
-    ...(resolution === undefined || resolution === "done" ? {} : { resolution }),
-    ...(duplicateOf === undefined ? {} : { duplicateOf }),
-  }, write.project === undefined && write.keepalive === undefined ? undefined : write);
-}
-
-function commentOnTaskRequest(fetch: ApiTransport, id: string, text: string, project?: string): Promise<void> {
-  return actOnTaskRequest(fetch, id, "comments", { text }, project === undefined ? undefined : { project });
-}
-
-/** Answer an ask carrying the `human` label: a decision closes with the
- * response; any other task takes it as a comment and goes back to ready work. */
-function respondToTaskRequest(fetch: ApiTransport, id: string, response: string, options?: TaskWriteOptions): Promise<void> {
-  return actOnTaskRequest(fetch, id, "respond", { response }, options);
-}
-
-/** Pick one of a task's choices by its key, with an optional note: recorded on
- * the task, which then closes if it is a decision and otherwise goes back to
- * ready work. */
-function chooseOnTaskRequest(fetch: ApiTransport, id: string, option: TaskChoiceKey, note?: string, options?: TaskWriteOptions): Promise<void> {
-  return actOnTaskRequest(fetch, id, "choose", { option, ...(note === undefined || note.trim() === "" ? {} : { note }) }, options);
-}
-
-/** Decline one permanently. The reason is optional — declining is itself the
- * answer. It closes as Won't do unless the options name another resolution
- * (never Done) and, for a duplicate, the other task. */
-function dismissTaskRequest(fetch: ApiTransport, id: string, reason?: string, options?: CloseTaskOptions): Promise<void> {
-  const { resolution, duplicateOf, ...write } = options ?? {};
-  return actOnTaskRequest(fetch, id, "dismiss", {
-    ...(reason === undefined ? {} : { reason }),
-    ...(resolution === undefined || resolution === "wont-do" ? {} : { resolution }),
-    ...(duplicateOf === undefined ? {} : { duplicateOf }),
-  }, write.project === undefined && write.keepalive === undefined ? undefined : write);
-}
-
-/** Release a gate holding a task out of the ready list. Its own path because a gate
- * is not a task: it is the wait condition in front of one. */
-async function resolveGateRequest(fetch: ApiTransport, id: string, reason?: string, options?: TaskWriteOptions): Promise<void> {
-  const path = `/api/gates/${encodeURIComponent(id)}/resolve`;
-  const res = await fetch(path, {
-    method: "POST",
-    headers: JSON_WRITE_HEADERS,
-    body: JSON.stringify({ ...(reason === undefined ? {} : { reason }), ...(options?.project === undefined ? {} : { project: options.project }) }),
-    ...(options?.keepalive ? { keepalive: true } : {}),
-  });
-  if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
-}
-
 // --- Integrations: connect, test and disconnect a provider ------------------
 
 /** The credential read's path, as one constant. `/api/integrations` is the
@@ -1828,14 +1707,6 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchAgentStats: bind(fetchAgentStatsRequest),
     fetchTask: bind(fetchTaskRequest),
     createTask: bind(createTaskRequest),
-    updateTask: bind(updateTaskRequest),
-    closeTask: bind(closeTaskRequest),
-    commentOnTask: bind(commentOnTaskRequest),
-    respondToTask: bind(respondToTaskRequest),
-    chooseOnTask: bind(chooseOnTaskRequest),
-    dismissTask: bind(dismissTaskRequest),
-    resolveGate: bind(resolveGateRequest),
-    disputeTask: bind(disputeTaskRequest),
     fetchIntegrationProviders: bind(fetchIntegrationProvidersRequest),
     saveProviderCredential: bind(saveProviderCredentialRequest),
     saveProviderExpiry: bind(saveProviderExpiryRequest),
@@ -1912,14 +1783,6 @@ export const {
   fetchAgentStats,
   fetchTask,
   createTask,
-  updateTask,
-  closeTask,
-  commentOnTask,
-  respondToTask,
-  chooseOnTask,
-  dismissTask,
-  resolveGate,
-  disputeTask,
   fetchIntegrationProviders,
   saveProviderCredential,
   saveProviderExpiry,

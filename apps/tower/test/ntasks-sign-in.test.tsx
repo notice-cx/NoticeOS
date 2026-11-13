@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPersonSession, finishSignIn, heldSentence, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
+import { createPersonSession, finishSignIn, heldSentence, NtasksSignedOut, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
 
 // A person's sign-in to Ntasks from the Tower: the PKCE start and finish, and
 // the tokens this browser keeps and refreshes for them.
@@ -78,29 +78,6 @@ describe("the person's tokens", () => {
     expect(await session.token()).toBeNull();
     expect(session.snapshot().signedIn).toBe(false);
     expect(storage.values.has(NAME)).toBe(false);
-  });
-
-  it.each([
-    ["another project with the same prefix", "p-other", "w-1"],
-    ["the same project ids in another workspace, as after a backup was loaded there", "p-md", "w-2"],
-  ])("sends no decision when the sign-in reaches %s", async (_case, projectId, workspaceId) => {
-    const storage = memoryStorage({ [NAME]: tokens(Number.MAX_SAFE_INTEGER) });
-    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/access/me")
-      ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId } })
-      : Response.json({ projects: [{ projectId, prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
-    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => ({ projectId: "p-md", workspaceId: "w-1" }));
-    await expect(decisions.chooseOnTask("md-c1", "b")).rejects.toMatchObject({ code: "workspace_mismatch" });
-    expect(fetch.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/choose"))).toEqual([]);
-  });
-
-  it("sends no decision, and blames no sign-in, while the Tower cannot say where the task is held", async () => {
-    const storage = memoryStorage({ [NAME]: tokens(Number.MAX_SAFE_INTEGER) });
-    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/access/me")
-      ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId: "w-1" } })
-      : Response.json({ projects: [{ projectId: "p-md", prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
-    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => null);
-    await expect(decisions.chooseOnTask("md-c1", "b")).rejects.toMatchObject({ code: "task_source_unknown" });
-    expect(fetch.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/choose"))).toEqual([]);
   });
 
   it("starts a sign-in only with an Ntasks new enough for connected apps, with an S256 challenge of the verifier it keeps", async () => {
