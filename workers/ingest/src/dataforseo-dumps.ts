@@ -205,8 +205,10 @@ export interface DataForSeoRunInFlight {
   startedAt: string;
   /** Whole seconds. */
   runningSeconds: number;
-  /** The holder's scope, or null when the weekly portfolio sweep holds the lane. */
+  /** The holder's scope, or null for a portfolio run. */
   scope: DataForSeoCollectScope | null;
+  /** Set when the holder is re-collecting reports missed during an outage. */
+  recovery?: true;
   /** When the lane frees itself even if the holder never returns. */
   leaseExpiresAt: string;
 }
@@ -217,6 +219,7 @@ interface CollectorLane {
   readonly token: number;
   readonly startedAtMs: number;
   readonly scope: DataForSeoCollectScope | null;
+  readonly recovery: boolean;
 }
 
 let lane: CollectorLane | null = null;
@@ -230,13 +233,18 @@ type LaneClaim =
   | { token: null; blockedBy: DataForSeoRunInFlight };
 
 /** Take the lane, or report who has it. Synchronous so two triggers in one tick see each other. */
-function claimLane(nowMs: number, scope: DataForSeoCollectScope | null): LaneClaim {
+function claimLane(
+  nowMs: number,
+  scope: DataForSeoCollectScope | null,
+  recovery: boolean,
+  preserveRecoveryLock: boolean,
+): LaneClaim {
   const held = lane;
-  if (held !== null && nowMs < held.startedAtMs + LANE_LEASE_MS) {
+  if (held !== null && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
     return { token: null, blockedBy: laneHolder(held, nowMs) };
   }
   const token = (laneTokens += 1);
-  lane = { token, startedAtMs: nowMs, scope };
+  lane = { token, startedAtMs: nowMs, scope, recovery };
   return { token, blockedBy: null };
 }
 
@@ -249,6 +257,7 @@ function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
     startedAt: new Date(held.startedAtMs).toISOString(),
     runningSeconds: Math.max(0, Math.round((nowMs - held.startedAtMs) / 1000)),
     scope: held.scope,
+    ...(held.recovery ? { recovery: true } : {}),
     leaseExpiresAt: new Date(held.startedAtMs + LANE_LEASE_MS).toISOString(),
   };
 }
@@ -283,6 +292,8 @@ export interface DataForSeoDumpsOptions {
   configSources?: ConfigSourceMap;
   /** One property instead of the portfolio — see `DataForSeoCollectScope`. */
   scope?: DataForSeoCollectScope | null;
+  /** A scheduled sweep and its automatic retry must never take over outage recovery. */
+  preserveRecoveryLock?: true;
   /** Override the run's egress gate (tests control the verdict TTL); every other
    * caller gets a real one over the same fetcher. */
   egress?: EgressGate;
@@ -683,7 +694,7 @@ async function runCollector(
   owed: EgressLaneRecord | null,
 ): Promise<DataForSeoDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
-  const claim = claimLane(nowMs, options.scope ?? null);
+  const claim = claimLane(nowMs, options.scope ?? null, owed !== null, options.preserveRecoveryLock === true);
   if (claim.blockedBy) {
     // Neither a start nor a complete line: "one start, no complete" keeps
     // meaning an interrupted run.
