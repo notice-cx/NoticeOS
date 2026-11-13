@@ -75,6 +75,14 @@ const iso = (ms: number): string => new Date(ms).toISOString();
 /** The pulse day (UTC) for a generatedAt timestamp — the `(asset,date)` grain. */
 export const pulseDay = (generatedAt: string): string => utcDay(generatedAt);
 
+/** Hold the asset's lifecycle through the alert write, including concurrent retirement. */
+export async function isRetiredForAlert(tx: Transaction, asset: string): Promise<boolean> {
+  const [site] = await tx.query<{ status: string }>(
+    'SELECT status FROM noticeos.assets WHERE asset_id = $1 FOR SHARE', [asset],
+  );
+  return site?.status === 'retired';
+}
+
 export interface WritePulseResult {
   pulseId: number;
   date: string;
@@ -132,19 +140,7 @@ export async function writePulse(
   return env.STORE.write(async (tx) => {
     await holdCountAlerts(tx, envelope.asset);
     await holdCondition(tx, envelope.asset, `report:${date}`);
-    const config = await ruleConfigFor(tx, ruleConfig);
-    // Centrally evaluate against eight matching periods (or aligned
-    // multi-day windows), never the asset-supplied flat avg7d. The cohort is
-    // days strictly before this report's own.
-    const seasonal = await assembleSeasonalInputs(tx, envelope, config);
-    const verdicts = evaluatePulse(envelope, {
-      config,
-      baselineByMetric: seasonal.baselineByMetric,
-      windowObservedByMetric: seasonal.windowObservedByMetric,
-      requireHistoricalBaseline: true,
-    });
-    const central = firedFlags(verdicts);
-    const recoveredMetrics = new Set(verdicts.filter((v) => v.outcome === 'ok').map((v) => String(v.inputs.metric)));
+    const retired = await isRetiredForAlert(tx, envelope.asset);
     const [report] = await tx.query<{ pulse_id: bigint; day_number: number }>(
       `WITH revision AS (
          SELECT coalesce(max(revision), 0) + 1 AS next FROM noticeos.pulses
@@ -171,7 +167,22 @@ export async function writePulse(
       ],
     );
     if (!report) throw new Error('pulse insert returned no id');
+    if (retired) {
+      return { pulseId: report.day_number, date, envelopeFlags: 0, centralFlags: 0, resolvedAnomalies: 0, resolvedFreshness: 0 };
+    }
     const pulseId = report.pulse_id;
+
+    const config = await ruleConfigFor(tx, ruleConfig);
+    // Evaluate against matching periods before this report day, without using the reported avg7d.
+    const seasonal = await assembleSeasonalInputs(tx, envelope, config);
+    const verdicts = evaluatePulse(envelope, {
+      config,
+      baselineByMetric: seasonal.baselineByMetric,
+      windowObservedByMetric: seasonal.windowObservedByMetric,
+      requireHistoricalBaseline: true,
+    });
+    const central = firedFlags(verdicts);
+    const recoveredMetrics = new Set(verdicts.filter((v) => v.outcome === 'ok').map((v) => String(v.inputs.metric)));
 
     // Re-derive only flags the operator has not touched. Dispositioned/resolved
     // rows are event history and must survive a corrected same-day report.

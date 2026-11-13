@@ -11,7 +11,7 @@
 
 import { collectProductData } from './product-data.js';
 import { PulseEnvelope, type Metric } from '@noticeos/contract';
-import { ingestPulseEnvelope, pulseDay, type WritePulseResult } from './db.js';
+import { ingestPulseEnvelope, isRetiredForAlert, pulseDay, type WritePulseResult } from './db.js';
 import { EgressGate, type EgressRunOutcome } from './egress.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import { appendReading, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
@@ -330,9 +330,10 @@ async function firePullFailure(
   error: string,
   provider: ProviderError | undefined,
   failedAt: string,
-): Promise<PullFailureFlagWrite> {
+): Promise<PullFailureFlagWrite | null> {
   return env.STORE.write(async (tx) => {
     await holdCondition(tx, asset, PULL_FAILED_RULE_ID);
+    if (await isRetiredForAlert(tx, asset)) return null;
     const open = await readOpenAlert(tx, asset, PULL_FAILED_RULE_ID);
 
     const inputs: PullFailureInputs = {
@@ -576,7 +577,7 @@ async function pullOne(
         error,
       };
     }
-    const { fired, refreshed, evidence } = await firePullFailure(
+    const failure = await firePullFailure(
       env,
       entry.asset,
       failureUrl,
@@ -585,16 +586,24 @@ async function pullOne(
       provider,
       at,
     );
-    return { asset: entry.asset, ok: false, status, fired, refreshed, resolved: 0, evidence, error };
+    return { asset: entry.asset, ok: false, status, fired: 0, refreshed: 0, resolved: 0, ...failure, error };
   }
 }
 
 /**
- * Nightly pull cron. Pulls every enabled pull-mode asset independently: one
+ * Nightly pull cron. Pulls enabled assets that are not retired independently: one
  * asset's failure is caught, flagged, and never aborts the others.
  */
 export async function runPullAdapter(env: IngestEnv, opts: PullOptions = {}): Promise<PullAdapterResult> {
-  const entries = (opts.entries ?? PULL_CONFIG).filter((e) => e.enabled);
+  const enabled = (opts.entries ?? PULL_CONFIG).filter((entry) => entry.enabled);
+  const retired = enabled.length === 0 ? [] : await env.STORE.read((tx) =>
+    tx.query<{ asset_id: string }>(
+      "SELECT asset_id FROM noticeos.assets WHERE status = 'retired' AND asset_id = ANY($1::text[])",
+      [enabled.map((entry) => entry.asset)],
+    ),
+  );
+  const retiredIds = new Set(retired.map((row) => row.asset_id));
+  const entries = enabled.filter((entry) => !retiredIds.has(entry.asset));
   const fetchImpl = opts.fetchImpl ?? fetch;
   const nowMs = opts.nowMs ?? Date.now();
   // One gate for the run: two properties unreachable on the same dead uplink

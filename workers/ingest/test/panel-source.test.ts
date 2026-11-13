@@ -88,6 +88,7 @@ async function seedObservations(input: {
   /** The provider resource measured (a GSC site, a GA4 property). */
   propertyRef?: string;
   credentialRef?: string;
+  timeZone?: string;
   /** The days the run asked the provider for, and so the days it confirms. */
   windowStart?: string;
   windowEnd?: string;
@@ -108,6 +109,7 @@ async function seedObservations(input: {
       integration,
       credential_ref: input.credentialRef ?? 'test-cred',
       property_ref: input.propertyRef ?? 'example.test',
+      time_zone: input.timeZone ?? null,
       finished_at: finishedAt,
       status: failed ? 'error' : 'success',
       window_start: input.windowStart ?? '2026-05-01',
@@ -325,6 +327,25 @@ describe('GET /api/panel-source — the daily trend', () => {
     expect((await source()).trend.map((row) => [row.date, row.provisional])).toEqual([
       [today(1), 1],
       [today(0), 0],
+    ]);
+  });
+
+  it('does not let a run from a different reporting time zone confirm an older observation', async () => {
+    await seedObservations({
+      timeZone: 'UTC',
+      finishedAt: `${today(1)}T00:15:00.000Z`,
+      provisionalFrom: today(1),
+      rows: [{ date: today(1), metric: 'clicks', value: 20 }],
+    });
+    await seedObservations({
+      timeZone: 'Europe/London',
+      finishedAt: `${today(0)}T00:15:00.000Z`,
+      windowStart: today(1),
+      windowEnd: today(1),
+      rows: [],
+    });
+    expect((await source()).trend).toEqual([
+      { date: today(1), integration: 'gsc', metric: 'clicks', value: 20, provisional: 1 },
     ]);
   });
 

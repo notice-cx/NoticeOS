@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { ASSET_TOKENS } from './fixtures.js';
 import { rollUpAlertDay } from '../src/alert-daily.js';
 import { call, insertAnnotation, insertFlag, insertPulse, pgCount, pgRows, reset } from './helpers.js';
+import { changeSites, siteInStore } from './sites';
 
 const MEADOW = 'meadow.example';
 
@@ -102,6 +103,32 @@ describe('POST /api/pulse — session exploration', () => {
 
 describe('POST /api/pulse — write + flag explosion + central rules', () => {
   const legacy = { severity: 'warn', kind: 'anomaly', metric: 'plansSaved', msg: 'last24h 0 vs avg7d 6.2 (rule poisson-24h, P<=0.002)' };
+
+  it('stores reports during retirement and resumes alerting after restoration', async () => {
+    const original = (await siteInStore(MEADOW))!.status;
+    await seedSeasonalHistory();
+    const envelope = validEnvelope();
+    try {
+      await changeSites([MEADOW], { status: 'retired' });
+      const retired = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
+      expect(retired.status).toBe(201);
+      expect(await retired.json()).toMatchObject({ envelopeFlags: 0, centralFlags: 0 });
+      const [stored] = await pgRows<{ envelope: string }>(
+        'SELECT envelope::text AS envelope FROM noticeos.current_pulses WHERE asset_id = $1 AND pulse_date = $2::date',
+        [MEADOW, envelope.generatedAt.slice(0, 10)],
+      );
+      expect(JSON.parse(stored!.envelope)).toMatchObject(envelope);
+      expect(await pgCount('SELECT count(*) AS n FROM noticeos.flags WHERE asset_id = $1', [MEADOW])).toBe(0);
+
+      await changeSites([MEADOW], { status: 'live' });
+      const restored = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
+      expect(restored.status).toBe(201);
+      expect(await restored.json()).toMatchObject({ envelopeFlags: 1, centralFlags: 1 });
+      expect(await pgCount('SELECT count(*) AS n FROM noticeos.flags WHERE asset_id = $1', [MEADOW])).toBe(2);
+    } finally {
+      await changeSites([MEADOW], { status: original });
+    }
+  });
 
   it('suppresses only recognized legacy arithmetic matching the report', async () => {
     const envelope = { ...validEnvelope(), flags: [legacy, { ...legacy, msg: 'Database unavailable' },
