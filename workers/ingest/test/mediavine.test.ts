@@ -8,11 +8,12 @@ import { connectCredential } from '../src/credential-connect.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { runCollectNow } from '../src/dispatch.js';
 import { connectionState, mediavineSyncOn } from '@noticeos/contract';
-import { credentialSummary, resolveCredential, saveMediavineSession, rotateCredentialKeys } from '../src/credentials.js';
+import { credentialSummary, putCredential, resolveCredential, saveMediavineSession, rotateCredentialKeys } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
 import { applyConfigOps, forgetConfigCache, getConfigDocument } from '../src/config-store.js';
 import { bookEntry, call, credentialVerdict, reset, emptyTables, storedCount, storedCredential, storedHealthStates } from './helpers.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
+import { runNotifier } from '../src/notifier.js';
 
 const NOW = Date.parse('2026-09-09T13:10:00Z');
 const ASSET = 'meadow.example';
@@ -25,6 +26,13 @@ function transport(options: { sites?: readonly typeof SITE[]; revenue?: number |
     const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, string | null> };
     if (body.query.includes('unidashSignIn')) return Response.json({ data: { unidashSignIn: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresIn: 3600, twoFactorRequired: false } } });
     if (body.query.includes('unidashRefreshToken')) return Response.json({ data: { unidashRefreshToken: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh', expiresIn: 3600 } } });
+    if (body.query.includes('NoticeOSDailyRevenue')) {
+      if (options.status) return new Response('', { status: options.status, headers: options.retryAfter ? { 'retry-after': options.retryAfter } : undefined });
+      const date = reportPeriod(body.variables.date!);
+      const earnings = options.revenueOn ? options.revenueOn(date) : options.revenue === undefined ? 1.25 : options.revenue;
+      return Response.json({ data: { sitesForUser: { edges: sites.map(node => ({ node: { ...node, daily: { earnings } } })),
+        pageInfo: { hasNextPage: false } } } });
+    }
     if (body.query.includes('sitesForUser')) {
       const edges = sites.map(node => ({ node }));
       return Response.json({ data: { sitesForUser: { edges, pageInfo: { hasNextPage: false, endCursor: null } } } });
@@ -302,7 +310,7 @@ describe('daily accounting', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(JSON.parse(String(fetchImpl.mock.calls[2]![1]!.body)).variables).toMatchObject({ startDate: '09/09/2026', endDate: '09/09/2026' });
+    expect(JSON.parse(String(fetchImpl.mock.calls[2]![1]!.body)).variables).toEqual({ date: '09/09/2026' });
     expect(await total()).toEqual({ amount: 1125, rows: 1 });
   });
   it('replays unchanged rows once and appends revisions, including a return to an older value', async () => {
@@ -382,7 +390,7 @@ describe('a day Mediavine has not published yet', () => {
   const YESTERDAY = '2026-09-08';
   const HOUR = 3_600_000;
   const reports = (fetchImpl: ReturnType<typeof transport>) =>
-    fetchImpl.mock.calls.filter(([, init]) => String(init?.body).includes('earningsReport')).length;
+    fetchImpl.mock.calls.filter(([, init]) => /earningsReport|NoticeOSDailyRevenue/u.test(String(init?.body))).length;
   async function storedDays() {
     const rows = await env.STORE.read((tx) => tx.query<{ date: string; amount: bigint }>(
       'SELECT revenue_date::text AS date, amount_minor AS amount FROM noticeos.current_revenue WHERE asset_id = $1 ORDER BY revenue_date', [ASSET]));
@@ -450,6 +458,77 @@ describe('a day Mediavine has not published yet', () => {
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 24 * HOUR })).outcome).toBe('ran');
     expect(await storedDays()).toEqual(expect.arrayContaining([[YESTERDAY, 0], ['2026-09-09', 125]]));
     expect(JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]!.body)).variables).toMatchObject({ startDate: '09/08/2026', endDate: '09/09/2026' });
+  });
+});
+describe('portfolio daily collection', () => {
+  it('honors the portfolio retry deadline for other sites and manual refreshes', async () => {
+    const otherAsset = 'northwind.example';
+    const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
+    const source = transport({ sites: [SITE, otherSite] });
+    await putMediavineCredential(env, { provider: 'mediavine', fields: { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET } });
+    expect((await discoverMediavineSites(env, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    for (const [asset, siteId] of [[ASSET, SITE.id], [otherAsset, otherSite.id]] as const) {
+      expect((await saveMediavineSettings(env, { asset, siteId, enabled: true })).ok).toBe(true);
+    }
+    expect((await syncMediavine(env, { asset: ASSET, start: '2026-09-01', end: '2026-09-07' },
+      { fetchImpl: source, nowMs: NOW - 3_600_000 })).ok).toBe(true);
+    const fetchImpl = transport({ status: 429, retryAfter: '7200' });
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('failed');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(await retryState()).toMatchObject({ next_attempt_at: expect.stringContaining('15:10:00') });
+    expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl, nowMs: NOW + 3_600_000 })).outcome).toBe('skipped');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl: source, nowMs: NOW + 7_200_000 })).outcome).toBe('ran');
+  });
+
+  it('uses one request and sends the published projects together, even with another delivery consumer', async () => {
+    const otherAsset = 'northwind.example';
+    const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
+    const waitingAsset = 'pebble.example';
+    const waitingSite = { id: 'waiting-site', title: 'Waiting publisher', domain: waitingAsset };
+    const source = transport({ sites: [SITE, otherSite, waitingSite] });
+    await putMediavineCredential(env, { provider: 'mediavine', fields: { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET } });
+    expect((await discoverMediavineSites(env, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    for (const [asset, siteId] of [[ASSET, SITE.id], [otherAsset, otherSite.id], [waitingAsset, waitingSite.id]] as const) {
+      expect((await saveMediavineSettings(env, { asset, siteId, enabled: true })).ok).toBe(true);
+      expect((await syncMediavine(env, { asset, start: '2026-09-01', end: '2026-09-07' }, { fetchImpl: source, nowMs: NOW - 3_600_000 })).ok).toBe(true);
+    }
+    expect(await applyConfigOps(env, { actor: 'operator', ops: [{
+      kind: 'file-json-set', file: 'config/constants.json', pointer: '/discord_mediavine_revenue', expect: false, value: true,
+    }] })).toMatchObject({ ok: true });
+    await putCredential(env, { provider: 'discord', fields: { DISCORD_WEBHOOK_URL: 'https://discord.test/api/webhooks/1/portfolio-fixture' } });
+    await saveMediavineSession(env, JSON.stringify({ accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresAt: NOW + 7_200_000 }));
+    let waitingEarnings = 0;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      expect(JSON.parse(String(init?.body)).variables).toEqual({ date: '09/08/2026' });
+      return Response.json({ data: { sitesForUser: { edges: [
+        { node: { ...otherSite, daily: { earnings: 7.5 } } },
+        { node: { ...SITE, daily: { earnings: 1.25 } } },
+        { node: { ...waitingSite, daily: { earnings: waitingEarnings } } },
+      ], pageInfo: { hasNextPage: false } } } });
+    });
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('ran');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect((await mediavineStatus(env, ASSET)).daily.at(-1)).toEqual({ date: '2026-09-08', amountMinor: 125 });
+    expect((await mediavineStatus(env, otherAsset)).daily.at(-1)).toEqual({ date: '2026-09-08', amountMinor: 750 });
+    expect((await mediavineStatus(env, waitingAsset)).reportedThrough).toBe('2026-09-07');
+    const discord = vi.fn<typeof fetch>().mockImplementation(async () => new Response(null, { status: 204 }));
+    await Promise.all([
+      runNotifier(env, { nowMs: NOW, fetchImpl: discord }),
+      runNotifier(env, { nowMs: NOW, fetchImpl: discord }),
+    ]);
+    expect(discord).toHaveBeenCalledTimes(1);
+    const amounts = (call: number) => {
+      const message = JSON.parse(String(discord.mock.calls[call]![1]?.body)) as { embeds: { description: string }[] };
+      return message.embeds.map(embed => embed.description.split(' · ')[1]).sort();
+    };
+    expect(amounts(0)).toEqual(['**$1.25**', '**$7.50**']);
+    waitingEarnings = 2;
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 3_600_000 })).outcome).toBe('ran');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    await runNotifier(env, { nowMs: NOW + 3_600_000, fetchImpl: discord });
+    expect(discord).toHaveBeenCalledTimes(2);
+    expect(amounts(1)).toEqual(['**$2.00**']);
   });
 });
 describe('request budget and scheduling', () => {

@@ -1,5 +1,6 @@
 export type FailureKind = 'auth' | 'permission' | 'rate-limit' | 'unavailable' | 'invalid' | 'incomplete' | 'busy';
 type PermissionScope = 'account' | 'site';
+type SiteErrors = Map<number, MediavineError>;
 export class MediavineError extends Error {
   constructor(public readonly kind: FailureKind, message: string, public readonly retryAt: number | null = null,
     public readonly permissionScope: PermissionScope = 'account') {
@@ -18,6 +19,10 @@ export interface Report {
   /** Days whose $0 stands for a day Mediavine has not published yet. */
   unpublishedDates: string[];
   fetchedAt: string;
+}
+export interface PortfolioRevenue {
+  reports: Map<string, Report | MediavineError>;
+  hasNextPage: boolean;
 }
 export interface ClientOptions {
   credentials: { email: string; password: string };
@@ -82,6 +87,9 @@ function minor(value: unknown): number | null {
 function portalDate(date: string): string {
   return `${date.slice(5, 7)}/${date.slice(8, 10)}/${date.slice(0, 4)}`;
 }
+function unpublished(day: RevenueDay, yesterday: string): boolean {
+  return day.date >= yesterday && day.revenueMinor === 0;
+}
 export function normalizeReport(value: unknown, period: Period, now: number): Report {
   const data = object(value);
   const summaryMinor = minor(object(object(data.metricsSummary).summary).earnings);
@@ -104,7 +112,7 @@ export function normalizeReport(value: unknown, period: Period, now: number): Re
   // newest reporting day (yesterday on its clock) can still be that, until the
   // day ends; a $0 on any earlier day is a reported zero.
   const { yesterday } = pacificDay(now);
-  const unpublishedDates = daily.filter(day => day.date >= yesterday && day.revenueMinor === 0).map(day => day.date);
+  const unpublishedDates = daily.filter(day => unpublished(day, yesterday)).map(day => day.date);
   return { site: site(data.internalSite), period, daily, summaryMinor, dailyMinor,
     differenceMinor: summaryMinor !== null && dailyMinor !== null ? summaryMinor - dailyMinor : null,
     missingDates, unpublishedDates, complete, fetchedAt: new Date(now).toISOString() };
@@ -137,7 +145,7 @@ export class MediavineClient {
     this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.now = options.now ?? Date.now;
   }
-  private async request(query: string, variables: Record<string, unknown>, token?: string, permissionScope: PermissionScope = 'account'): Promise<Record<string, unknown>> {
+  private async request(query: string, variables: Record<string, unknown>, token?: string, permissionScope: PermissionScope = 'account', siteErrors?: SiteErrors): Promise<Record<string, unknown>> {
     await this.options.beforeRequest?.();
     let response: Response;
     try {
@@ -194,6 +202,18 @@ export class MediavineClient {
           || (code !== 'FORBIDDEN' && /unauthenticated|unauthorized|invalid.*token|token.*expired/i.test(String(record.message)));
       });
       if (auth) throw new MediavineError('auth', 'Mediavine declined the saved connection. Reconnect your account.');
+      if (siteErrors) {
+        const errors = result.errors.map(error => object(error));
+        if (errors.every(({ path }) => Array.isArray(path) && path[0] === 'sitesForUser' && path[1] === 'edges'
+          && Number.isInteger(path[2]) && path[3] === 'node' && path[4] === 'daily')) {
+          for (const error of errors) {
+            const index = (error.path as [string, string, number])[2];
+            const forbidden = error.extensions && object(error.extensions).code === 'FORBIDDEN';
+            siteErrors.set(index, forbidden ? permissionDenied('site') : invalid());
+          }
+          return object(result.data);
+        }
+      }
       if (result.errors.some(error => {
         const record = object(error);
         return record.extensions && object(record.extensions).code === 'FORBIDDEN';
@@ -228,14 +248,14 @@ export class MediavineClient {
     const result = await this.request('mutation NoticeOSSignIn($data: UnidashSignInInput!) { unidashSignIn(data: $data) { accessToken refreshToken expiresIn twoFactorRequired } }', { data: { email: this.options.credentials.email, password: this.options.credentials.password } });
     return this.save(result.unidashSignIn);
   }
-  private async authenticated(query: string, variables: Record<string, unknown>, permissionScope: PermissionScope = 'account'): Promise<Record<string, unknown>> {
+  private async authenticated(query: string, variables: Record<string, unknown>, permissionScope: PermissionScope = 'account', siteErrors?: SiteErrors): Promise<Record<string, unknown>> {
     // Sign-in and refresh refusals keep account scope even for a site's report.
     const token = await this.token();
-    try { return await this.request(query, variables, token, permissionScope); }
+    try { return await this.request(query, variables, token, permissionScope, siteErrors); }
     catch (error) {
       if (!(error instanceof MediavineError) || error.kind !== 'auth') throw error;
       // One recovery per operation. A second rejection reaches the host and stops the retry schedule.
-      return this.request(query, variables, await this.token(true), permissionScope);
+      return this.request(query, variables, await this.token(true), permissionScope, siteErrors);
     }
   }
   async sites(): Promise<Site[]> {
@@ -257,6 +277,39 @@ export class MediavineClient {
       after = cursor;
     }
     throw invalid();
+  }
+  async dailyRevenue(date: string, siteIds: ReadonlySet<string>): Promise<PortfolioRevenue> {
+    dateTime(date);
+    const siteErrors: SiteErrors = new Map();
+    const data = await this.authenticated(`query NoticeOSDailyRevenue($date: String!) {
+      sitesForUser(first: 99) {
+        edges { node { id title domain daily: metricsSummary(startDate: $date, endDate: $date) { earnings } } }
+        pageInfo { hasNextPage }
+      }
+    }`, { date: portalDate(date) }, 'account', siteErrors);
+    const connection = object(data.sitesForUser);
+    const { hasNextPage } = object(connection.pageInfo);
+    if (!Array.isArray(connection.edges) || typeof hasNextPage !== 'boolean') throw invalid();
+    const now = this.now();
+    const period = { start: date, end: date };
+    const { yesterday } = pacificDay(now);
+    const reports = new Map<string, Report | MediavineError>();
+    for (const [index, edge] of connection.edges.entries()) {
+      const value = edge?.node;
+      if (!siteIds.has(value?.id)) continue;
+      const id = String(value.id);
+      if (reports.has(id)) { reports.set(id, invalid()); continue; }
+      const error = siteErrors.get(index);
+      if (error) { reports.set(id, error); continue; }
+      try {
+        const revenueMinor = value.daily == null ? null : minor(object(value.daily).earnings);
+        const day = { date, revenueMinor };
+        reports.set(id, { site: site(value), period, daily: [day], dailyMinor: revenueMinor, summaryMinor: null,
+          differenceMinor: null, complete: revenueMinor !== null, missingDates: [],
+          unpublishedDates: unpublished(day, yesterday) ? [date] : [], fetchedAt: new Date(now).toISOString() });
+      } catch { reports.set(id, invalid()); }
+    }
+    return { reports, hasNextPage };
   }
   async revenue(siteId: string, period: Period): Promise<Report> {
     dates(period);
