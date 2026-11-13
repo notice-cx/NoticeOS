@@ -1039,11 +1039,14 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
     });
     const stoppedOnSuccess = readBudget(response, state);
-    const payload = await posthogResponseBody(response, state);
     if (stoppedOnSuccess && portfolio) {
       await recordPosthogBudgetStop(env.STORE, requestedAt)
-        .catch((error: unknown) => { throw localStoreError(error, 'posthog', family); });
+        .catch(async (error: unknown) => {
+          await response.body?.cancel().catch(() => undefined);
+          throw localStoreError(error, 'posthog', family);
+        });
     }
+    const payload = await posthogResponseBody(response, state);
     if (!response.ok) throw posthogProviderError(response, payload, state);
 
     const results = queryResults(payload, query.columns);

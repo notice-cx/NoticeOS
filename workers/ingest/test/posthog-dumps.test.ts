@@ -1146,7 +1146,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     expect(await latest('web-daily', '2026-09-22')).toMatchObject({ errorCode: 'posthog_http_503' });
   });
 
-  it.each(['429 refusal', 'zero budget on success'] as const)('replays unasked windows after %s', async (stop) => {
+  it.each(['429 refusal', 'zero budget on success', 'zero budget with malformed JSON'] as const)('replays unasked windows after %s', async (stop) => {
     const keys = JSON.stringify({ 'meadow.example': KEY, 'northwind.example': 'phx_nom_key' });
     const assets: LaneRegister = {
       assets: {
@@ -1167,14 +1167,17 @@ describe('PostHog — an offline night and the windows it cost', () => {
         const answer = answerAll(call);
         if (!call.url.includes('/424242/') || call.family !== 'exceptions') return answer;
         if (stop === '429 refusal') return budgetSpent();
+        if (stop === 'zero budget with malformed JSON') {
+          return new Response('{', { headers: { 'x-posthog-query-budget-remaining-bytes': '0' } });
+        }
         answer.headers.set('x-posthog-query-budget-remaining-bytes', '0');
         return answer;
       }).fetchImpl,
       rawKeys: keys,
       laneRegister: assets,
     });
-    const refused = stop === '429 refusal';
-    expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: refused ? 1 : 0 });
+    const failed = stop !== 'zero budget on success';
+    expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: failed ? 1 : 0 });
     expect(stopped.skipped.filter((skip) => skip.reason === 'budget-exhausted').map((skip) => `${skip.asset} ${skip.family}`)).toEqual([
       ...['rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `meadow.example ${family}`),
       ...NOM_FAMILIES.map((family) => `northwind.example ${family}`),
@@ -1183,9 +1186,9 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: keys, laneRegister: assets });
     // The refused window once more, and every window the stop never asked.
-    expect(next.retried).toBe((refused ? 5 : 4) + NOM_FAMILIES.length);
+    expect(next.retried).toBe((failed ? 5 : 4) + NOM_FAMILIES.length);
     expect(project('424242')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
-      [...(refused ? ['exceptions'] : []), 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
+      [...(failed ? ['exceptions'] : []), 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
     );
     expect(project('700001')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
       NOM_FAMILIES.map((family) => `${family} 2026-09-22`),
