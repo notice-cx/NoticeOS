@@ -1,5 +1,5 @@
 .wall-task-status { display: grid; align-content: center; gap: .375rem; min-width: 0; flex: 1; }
-.wall-task-status-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr); column-gap: .25rem; row-gap: .125rem; margin: 0; }
+.wall-task-status-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .25rem; row-gap: .125rem; margin: 0; }
 .wall-task-status-facts > div { display: grid; grid-template-rows: subgrid; grid-row: span 2; align-items: baseline; min-width: 0; }
 .wall-task-status-facts dt { grid-row: 2; color: var(--muted-foreground); font-size: max(.75rem, calc(10px / var(--wall-scale, 1))); line-height: 1.1; overflow-wrap: anywhere; }
 .wall-task-status-facts dd { grid-row: 1; margin: 0; font-size: clamp(.875rem, 9cqi, 1.5rem); line-height: 1.05; font-weight: 600; letter-spacing: -.035em; overflow-wrap: anywhere; }
@@ -12,6 +12,8 @@
 .wall-asset-work-week { display: flex; align-items: baseline; gap: .375rem; color: var(--muted-foreground); font-size: var(--metric-note-size); line-height: 1.1; }
 .wall-asset-work-week strong { color: var(--milestone); font-size: 1.25rem; }
 @container (width < 9rem) {
-  .wall-task-status-facts dt, .wall-asset-work-week { font-size: max(.6875rem, calc(9px / var(--wall-scale, 1))); }
+  .wall-task-status-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .wall-task-status-facts dt, .wall-asset-work-week { font-size: max(.625rem, calc(8px / var(--wall-scale, 1))); }
+  .wall-task-status-facts dd { font-size: .8125rem; }
   .wall-asset-work-week strong { font-size: 1rem; }
 }

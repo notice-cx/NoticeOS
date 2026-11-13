@@ -1058,11 +1058,18 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["calm", "errors and warnings", "problems left out, counted", "feed reconnecting"],
   },
   {
+    name: "WorkStatus",
+    file: "components/wall/WorkStatus.tsx",
+    purpose:
+      "The Wall's open, blocked and in-progress counts with a segmented bar. Blocked tasks occupy part of the open segment, and in-progress tasks have their own segment. Partial readings show lower bounds.",
+    variants: ["complete", "partial", "unavailable", "empty queue"],
+  },
+  {
     name: "WallWork",
     file: "components/wall/WallWork.tsx",
     purpose:
-      "The Wall's slim title and inline week progress above fixed-height shared metric tiles: cumulative Done this week against last week's total, operator decisions, work in progress and blocked counts. Actual available observations supply each count's history; movement direction and business tone remain separate. Partial operator coverage is a lower bound, and missing readings remain unavailable.",
-    variants: ["counted", "partial inbox", "nothing read", "two observed snapshots", "cumulative week with missing days"],
+      "The Wall's workspace-wide decisions, selected assets' task status and weekly completion chart. The chart shows daily closes, the cumulative total and the previous week's reference. The editor also supports individual in-progress and blocked tiles.",
+    variants: ["complete", "partial inbox", "partial asset counts", "unavailable", "cumulative week with missing days"],
   },
   {
     name: "AppShell / Sidebar",
