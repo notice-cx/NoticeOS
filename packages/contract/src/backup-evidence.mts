@@ -1,6 +1,13 @@
 /** Bounded backup metadata shared by the worker, execution history and Tower. */
+import { D1_FAILURE_LABELS } from './cloudflare-d1.mjs';
+
 export const BACKUP_PARTS = ['postgres', 'r2', 'taskHub', 'assets', 'history', 'recovery'] as const;
 export type BackupPart = typeof BACKUP_PARTS[number];
+const BACKUP_STAGES = ['preparation', ...BACKUP_PARTS, 'instructions', 'publication', 'offsite', 'retention', 'cleanup'] as const;
+export interface BackupFailure {
+  stage: typeof BACKUP_STAGES[number];
+  cause: string;
+}
 export type BackupStatus = 'completed' | 'failed' | 'blocked' | 'not_configured' | 'unrecorded';
 export interface BackupLocation {
   path: string | null;
@@ -23,6 +30,28 @@ const status = (value: unknown): value is BackupStatus => ['completed', 'failed'
 const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 1e12;
 const date = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value));
 const target = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/.test(value);
+const failurePrefix = 'backup-failure:';
+export function isBackupFailure(value: unknown): value is BackupFailure {
+  const failure = row(value);
+  if (!failure || !only(failure, ['stage', 'cause']) || !BACKUP_STAGES.includes(failure.stage as BackupFailure['stage'])
+    || typeof failure.cause !== 'string' || failure.cause.length > 48) return false;
+  return failure.cause === 'stage_failed' || failure.stage === 'assets' && (
+    failure.cause === 'd1_unreachable' || /^d1_http_[45]\d{2}$/u.test(failure.cause)
+    || failure.cause.startsWith('d1_') && Object.hasOwn(D1_FAILURE_LABELS, failure.cause.slice(3))
+  );
+}
+
+/** Store a bounded reason in the existing scheduled job detail field. */
+export function backupFailureDetail(failure: unknown): string | null {
+  return isBackupFailure(failure) ? `${failurePrefix}${failure.stage}:${failure.cause}` : null;
+}
+
+export function readBackupFailureDetail(detail: unknown): BackupFailure | null {
+  if (typeof detail !== 'string' || detail.length > 80 || !detail.startsWith(failurePrefix)) return null;
+  const [stage, cause, extra] = detail.slice(failurePrefix.length).split(':');
+  const failure = { stage, cause };
+  return extra === undefined && isBackupFailure(failure) ? failure : null;
+}
 export function backupFolder(value: unknown): string | null {
   return typeof value === 'string' && value.length <= 2048 && /^(?:\/|[A-Za-z]:[\\/])/.test(value)
     && !/[\u0000-\u001f\u007f?#]/.test(value) ? value : null;

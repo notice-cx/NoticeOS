@@ -3,7 +3,7 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
+import { isBackupFailure, isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
 
 const FORMAT = 'noticeos-backup-request-v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -104,7 +104,9 @@ async function privateCopy(profile, source, target, io) {
 function resultChecked(value) {
   if (!value || typeof value.ok !== 'boolean' || typeof value.detail !== 'string' || value.detail.length > 4000) refusal();
   if (value.backup !== undefined && !isBackupRunEvidence(value.backup)) refusal();
-  return { ok: value.ok, detail: value.detail, ...(value.backup ? { backup: value.backup } : {}) };
+  const failure = { stage: value.stage, cause: value.cause };
+  if ((failure.stage !== undefined || failure.cause !== undefined) && (value.ok || !isBackupFailure(failure))) refusal();
+  return { ok: value.ok, detail: value.detail, ...(failure.stage === undefined ? {} : failure), ...(value.backup ? { backup: value.backup } : {}) };
 }
 
 export async function finishBackupRequest(profile, request, result, options = {}) {

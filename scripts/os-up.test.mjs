@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { mayReadOwnerConfig } from './test-config-isolation.mjs';
 
 import { resolveTowerExposure, runBackup, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
-import { BACKUP_TASKS_UNKNOWN, LABEL_READS } from './runner/task-service-poll.mjs';
+import { LABEL_READS } from './runner/task-service-poll.mjs';
 import {
   JOB_RUN_CATCHUP_DAYS,
   JOB_RUN_OUTCOMES,
@@ -3426,9 +3426,9 @@ test('while the ingest cannot say where the tasks live, no backup is taken, so n
     host: async () => { taken.push(['host']); return { ok: true, detail: 'complete' }; },
     exportTasks: async () => { taken.push(['export']); return { file: '/state/.local/task-export/backup.json' }; } };
   const unanswered = { connected: async () => { throw new TaskServiceUnavailable('ingest'); } };
-  assert.deepEqual(await runBackup({ ...ways, service: unanswered }), { ok: false, detail: BACKUP_TASKS_UNKNOWN });
+  assert.deepEqual(await runBackup({ ...ways, service: unanswered }), { ok: false, stage: 'taskHub', cause: 'stage_failed' });
   assert.deepEqual(taken, [], 'neither the worker nor the local backup runs');
-  assert.deepEqual(await runBackup({ ...ways, service: { connected: async () => false } }), { ok: true, detail: 'complete' });
+  assert.deepEqual(await runBackup({ ...ways, service: { connected: async () => false } }), { ok: true });
   assert.deepEqual(taken, [['worker', {}]], 'with no task service connected the set is taken without tasks');
   taken.length = 0;
   await runBackup({ ...ways, service: { connected: async () => true } });

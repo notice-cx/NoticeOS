@@ -8,20 +8,28 @@ import { createGzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { BACKUP_APP_ORIGIN, privateBackupFile } from './container-backup-profile.mjs';
 import { doorFromEnv } from './ingest-door.mjs';
-import { CLOUDFLARE_D1_BACKUP_PATH, D1_MAX_BYTES, cloudflareAccountId, d1Record, d1Receipt, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
+import { CLOUDFLARE_D1_BACKUP_PATH, D1_FAILURE_LABELS, D1_MAX_BYTES, cloudflareAccountId, d1Record, d1Receipt, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
 
-class Unavailable extends Error {}
+class Unavailable extends Error {
+  constructor(reason, backupCause) {
+    super(`Cloudflare D1 backup unavailable (${reason}); the previous complete set is preserved.`);
+    this.backupCause = backupCause;
+  }
+}
 class TimedOut extends Error {}
 // A reason is built only from fixed words, an HTTP status, an error code or
 // the app's own error token, so a refusal never carries response or error text.
-const unavailable = reason => new Unavailable(`Cloudflare D1 backup unavailable (${reason}); the previous complete set is preserved.`);
-const refuse = reason => { throw unavailable(reason); };
+const unavailable = (reason, cause) => new Unavailable(reason, cause);
+const refuse = (reason, cause) => { throw unavailable(reason, cause); };
+export const cloudflareD1FailureCause = error => error instanceof Unavailable ? error.backupCause : undefined;
 const errorToken = value => typeof value === 'string' && /^[a-z][a-z0-9_]{0,39}$/u.test(value) ? value : null;
+const d1Cause = (status, token) => typeof token === 'string' && Object.hasOwn(D1_FAILURE_LABELS, token) ? `d1_${token}`
+  : status >= 400 && status <= 599 ? `d1_http_${status}` : 'd1_invalid_response';
 function unreachable(error) {
   if (error instanceof Unavailable) throw error;
-  if (error instanceof TimedOut) refuse('the app did not answer in time');
+  if (error instanceof TimedOut) refuse('the app did not answer in time', 'd1_timeout');
   const code = error?.cause?.code ?? error?.code;
-  refuse(typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,39}$/u.test(code) ? `the app could not be reached: ${code}` : 'the app could not be reached');
+  refuse(typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,39}$/u.test(code) ? `the app could not be reached: ${code}` : 'the app could not be reached', 'd1_unreachable');
 }
 async function bounded(promise, signal) {
   if (signal.aborted) { void promise.catch(() => undefined); refuse('the time limit had already passed'); }
@@ -92,10 +100,10 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
       try { response = await request({}, undefined, signal); }
       catch (error) { unreachable(error); }
       try { row = d1Record(await jsonResponse(response, signal)); }
-      catch { refuse(`the app answered ${response.status} without a selection`); }
+      catch { refuse(`the app answered ${response.status} without a selection`, d1Cause(response.status)); }
       if (response.status === 409 && row?.error === 'not_connected' && Object.keys(row).length === 1) return null;
-      if (!response.ok) refuse(`the app answered ${response.status}${errorToken(row?.error) ? ` ${errorToken(row.error)}` : ''}`);
-      if (row?.accountMismatch === true) refuse('the saved selection names another Cloudflare account');
+      if (!response.ok) refuse(`the app answered ${response.status}${errorToken(row?.error) ? ` ${errorToken(row.error)}` : ''}`, d1Cause(response.status, row?.error));
+      if (row?.accountMismatch === true) refuse('the saved selection names another Cloudflare account', 'd1_account_mismatch');
       if (!row || !cloudflareAccountId(row.accountId) || row.accountMismatch !== false || !Array.isArray(row.receipts)) refuse('the app answered an unreadable selection');
       const selection = row.selection === null ? { version: 1, accountId: row.accountId, targets: [] } : d1Selection(row.selection);
       if (!selection || selection.accountId !== row.accountId) refuse('the app answered an unreadable selection');
@@ -109,10 +117,10 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
       try { response = await request({}, { accountId: checked.accountId, databaseId: target.databaseId }, bounds); }
       catch (error) { unreachable(error); }
       try { value = await jsonResponse(response, bounds); }
-      catch { refuse(`the export answered ${response.status} without a receipt`); }
-      if (!response.ok) refuse(`the export answered ${response.status}${errorToken(value?.error) ? ` ${errorToken(value.error)}` : ''}`);
+      catch { refuse(`the export answered ${response.status} without a receipt`, d1Cause(response.status)); }
+      if (!response.ok) refuse(`the export answered ${response.status}${errorToken(value?.error) ? ` ${errorToken(value.error)}` : ''}`, d1Cause(response.status, value?.error));
       const receipt = d1Receipt(value);
-      if (receipt && receipt.state !== 'complete') refuse(`the export ended ${receipt.state}${errorToken(receipt.failure) ? ` ${errorToken(receipt.failure)}` : ''}`);
+      if (receipt && receipt.state !== 'complete') refuse(`the export ended ${receipt.state}${errorToken(receipt.failure) ? ` ${errorToken(receipt.failure)}` : ''}`, d1Cause(response.status, receipt.failure));
       if (!receipt || receipt.accountId !== checked.accountId || receipt.databaseId !== target.databaseId || receipt.asset !== target.asset) {
         refuse('the export answered a receipt for another target');
       }
@@ -132,7 +140,7 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
         : response.headers.get('x-noticeos-sha256') !== checked.sha256 ? 'the download hash header differs from its receipt'
         : response.headers.has('content-encoding') ? 'the download arrived encoded'
         : null;
-      if (reason !== null) { await cancel(response.body); refuse(reason); }
+      if (reason !== null) { await cancel(response.body); refuse(reason, response.ok ? 'd1_invalid_response' : d1Cause(response.status)); }
       return response;
     },
   };
@@ -181,7 +189,8 @@ export async function copyCloudflareD1({ client, selection, target, output, io =
     if (error instanceof Unavailable) throw error;
     const code = error?.code;
     refuse(error instanceof TimedOut ? 'the export did not finish in time'
-      : typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,39}$/u.test(code) ? `the copy failed: ${code}` : 'the copy failed');
+      : typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,39}$/u.test(code) ? `the copy failed: ${code}` : 'the copy failed',
+    error instanceof TimedOut || signal.aborted ? 'd1_timeout' : undefined);
   }
   finally {
     try { await handle?.close(); }

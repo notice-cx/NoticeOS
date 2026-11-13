@@ -197,11 +197,21 @@ for (const offsiteBackupDir of [null, undefined]) test(`conversion keeps an unus
 
 test('without the typed word nothing is stopped, copied or written', async (t) => {
   const box = legacyFixture(t);
+  const old = path.join(box.base, 'old');
+  const settings = path.join(old, 'worker', 'host-backup.json');
+  chmodSync(settings, 0o644);
+  const exportedProjects = path.join(old, 'state', 'installation', 'beads.json');
+  mkdirSync(path.dirname(exportedProjects));
+  writeFileSync(exportedProjects, '{}', { mode: 0o644 });
   let shown = '';
   const code = await convertLegacy(parseOptions(['--dir', box.dir, '--config', box.selectorFile]),
     { run: box.run, develop: box.develop, out: { write: (text) => { shown += text; } }, interactive: false });
   assert.equal(code, 0);
   assert.match(shown, /Nothing has changed yet/u);
+  assert.match(shown, /host-backup\.json: mode 644 grants other users access/u);
+  assert.doesNotMatch(shown, /beads\.json|offsiteBackupDir/u);
+  assert.equal(statSync(settings).mode & 0o777, 0o644);
+  assert.equal(statSync(exportedProjects).mode & 0o777, 0o644);
   assert.match(shown, /To convert it: pnpm os:convert-legacy -- --confirm convert/u);
   assert.ok(!box.calls.some((line) => / (stop|up|down|rm|create)\b|os:(dev|prod)/u.test(line)), box.calls.join('\n'));
   assert.deepEqual(JSON.parse(readFileSync(box.selectorFile, 'utf8')), box.selector);

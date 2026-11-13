@@ -816,7 +816,8 @@ describe("buildWallPayload — populated store", () => {
     const runs: [string, string, string, string, string, string][] = [
       ["backup", "2026-07-05T08:00:00.000Z", "2026-07-05T08:01:00.000Z", "failed", "copy failed", "2026-07-05T08:01:01.000Z"],
       ["backup", "2026-07-05T09:00:00.000Z", "2026-07-05T09:01:00.000Z", "ran", "copy complete", "2026-07-05T09:01:01.000Z"],
-      ["beads-snapshot", "2026-07-05T11:55:00.000Z", "2026-07-05T11:55:03.000Z", "failed", "hub unavailable", "2026-07-05T11:55:04.000Z"],
+      ["backup", "2026-07-05T10:00:00.000Z", "2026-07-05T10:01:00.000Z", "failed", "backup-failure:assets:d1_http_404", "2026-07-05T10:01:01.000Z"],
+      ["beads-snapshot", "2026-07-05T11:55:00.000Z", "2026-07-05T11:55:03.000Z", "failed", "backup-failure:assets:d1_http_403", "2026-07-05T11:55:04.000Z"],
     ];
     await (ctx.call).write((tx) =>
       tx.execute(
@@ -834,11 +835,12 @@ describe("buildWallPayload — populated store", () => {
     expect(wall.system.scheduledLanes).toEqual([
       {
         job: "backup",
-        outcome: "ran",
-        startedAt: "2026-07-05T09:00:00.000Z",
+        outcome: "failed",
+        startedAt: "2026-07-05T10:00:00.000Z",
         lastRanAt: "2026-07-05T09:00:00.000Z",
-        failedRuns: 0,
-        failingSince: null,
+        failedRuns: 1,
+        failingSince: "2026-07-05T10:00:00.000Z",
+        backupFailure: { stage: "assets", cause: "d1_http_404" },
       },
       {
         job: "beads-snapshot",

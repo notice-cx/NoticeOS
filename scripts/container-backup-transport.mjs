@@ -22,7 +22,7 @@ function recoveryInputs(io) {
     try {
       io.lstatSync(source);
       inputs.push([name, source, privateMode]);
-    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    } catch (error) { if (error.code !== 'ENOENT') throw new Error(`${name}: file could not be checked.`); }
   }
   return inputs.sort(([a], [b]) => a.localeCompare(b));
 }
@@ -97,15 +97,15 @@ export async function dumpContainerPostgres(output, options = {}) {
 export async function copyContainerRecovery(output, options = {}) {
   const io = options.fs ?? fs;
   const sync = options.fsSync ?? fsSync;
-  outputChecked(output); readBackupWorker({ fs: sync });
+  outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
   const inputs = recoveryInputs(sync);
   const inventory = {};
   await io.mkdir(output, { mode: 0o700 });
   for (const [name, source, privateMode] of inputs) {
-    const value = privateBackupFile(source, sync, privateMode).text;
+    const value = privateBackupFile(source, sync, privateMode, name).text;
     await io.mkdir(path.dirname(path.join(output, name)), { recursive: true, mode: 0o700 });
     await io.writeFile(path.join(output, name), value, { flag: 'wx', mode: 0o600 });
-    if (privateBackupFile(source, sync, privateMode).text !== value) refusal();
+    if (privateBackupFile(source, sync, privateMode, name).text !== value) throw new Error(`${name}: file changed during backup.`);
     inventory[name] = { bytes: Buffer.byteLength(value), sha256: createHash('sha256').update(value).digest('hex') };
   }
   await io.writeFile(path.join(output, 'recovery.json'), JSON.stringify({ format: 'noticeos-container-recovery-v1', files: inventory }) + '\n', { flag: 'wx', mode: 0o600 });
@@ -114,16 +114,21 @@ export async function copyContainerRecovery(output, options = {}) {
 
 export async function verifyContainerRecovery(output, options = {}) {
   const sync = options.fsSync ?? fsSync;
-  outputChecked(output); readBackupWorker({ fs: sync });
+  outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
   const inputs = recoveryInputs(sync);
-  const marker = JSON.parse(privateBackupFile(path.join(output, 'recovery.json'), sync).text);
-  if (marker.format !== 'noticeos-container-recovery-v1' ||
-    Object.keys(marker.files ?? {}).sort().join() !== inputs.map(([name]) => name).sort().join()) refusal();
+  const inventory = privateBackupFile(path.join(output, 'recovery.json'), sync, true, 'recovery.json').text;
+  let marker;
+  try { marker = JSON.parse(inventory); }
+  catch { throw new Error('recovery.json: the inventory is invalid.'); }
+  if (marker?.format !== 'noticeos-container-recovery-v1' ||
+    Object.keys(marker.files ?? {}).sort().join() !== inputs.map(([name]) => name).sort().join()) {
+    throw new Error('recovery.json: the inventory does not match the recovery files.');
+  }
   for (const [name, source, privateMode] of inputs) {
-    const value = privateBackupFile(path.join(output, name), sync).text;
+    const value = privateBackupFile(path.join(output, name), sync, true, name).text;
     const expected = marker.files[name];
     if (expected?.bytes !== Buffer.byteLength(value) || expected?.sha256 !== createHash('sha256').update(value).digest('hex') ||
-      privateBackupFile(source, sync, privateMode).text !== value) refusal();
+      privateBackupFile(source, sync, privateMode, name).text !== value) throw new Error(`${name}: file changed during backup.`);
   }
 }
 

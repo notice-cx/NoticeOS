@@ -40,6 +40,8 @@ test('wrong endpoints, exposed credentials and aliased storage refuse the worker
   const f = fixture(t);
   fs.chmodSync(f.map('/run/postgres-secrets/owner.url'), 0o644);
   assert.throws(() => readBackupWorker({ fs: f.io }), /not prepared/u);
+  assert.throws(() => readBackupWorker({ fs: f.io, reportFiles: true }),
+    { message: 'postgres/owner.url: file grants access to other users.' });
   fs.chmodSync(f.map('/run/postgres-secrets/owner.url'), 0o600);
   f.write(BACKUP_PATHS.client, JSON.stringify({ format: 'noticeos-backup-client-v1', transportDir: '/other' }));
   assert.throws(() => readBackupWorker({ fs: f.io }), /not prepared/u);

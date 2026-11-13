@@ -71,15 +71,21 @@ test('a request can say only that tasks live in Ntasks, and the worker receives 
 
 test('the worker preserves validated per-run evidence through the channel into execution output', async t => {
   const f = await fixture(t);
-  const backup = { version: 1, startedAt: '2026-09-09T04:00:00.000Z', finishedAt: '2026-09-09T04:00:25.000Z', complete: true,
+  const backup = { version: 1, startedAt: '2026-09-09T04:00:00.000Z', finishedAt: '2026-09-09T04:00:25.000Z', complete: false,
     local: { path: '/state/.local/backups/2026-09-09', context: 'backup-worker', status: 'completed' },
-    offsite: { path: '/backup-offsite/backups/2026-09-09', context: 'backup-worker', status: 'completed' },
-    parts: BACKUP_PARTS.map(id => ({ id, status: 'completed', copied: 1, expected: 1, targets: [], totalTargets: 0 })) };
+    offsite: { path: '/backup-offsite/backups/2026-09-09', context: 'backup-worker', status: 'blocked' },
+    parts: BACKUP_PARTS.map(id => ({ id, status: id === 'assets' ? 'failed' : 'completed', copied: id === 'assets' ? 0 : 1, expected: 1, targets: [], totalTargets: 0 })) };
   const waiting = requestContainerBackup(f.file, { timeoutMs: 2000, intervalMs: 5 });
-  await requested(f.profile);
-  await serviceBackupRequest(f.profile, async () => ({ ok: true, detail: 'Backup complete.', backup, rawSql: 'private marker' }));
+  const request = await requested(f.profile);
+  const expected = { ok: false, detail: 'Asset database backup failed.', stage: 'assets', cause: 'd1_http_404', backup };
+  for (const cause of ['unknown_cause', 'd1_http_404' + 'x'.repeat(1000)]) {
+    await assert.rejects(finishBackupRequest(f.profile, request, { ...expected, cause }), /unavailable/u);
+  }
+  await assert.rejects(finishBackupRequest(f.profile, request, { ...expected, ok: true }), /unavailable/u);
+  await assert.rejects(finishBackupRequest(f.profile, request, { ...expected, stage: 'postgres' }), /unavailable/u);
+  await serviceBackupRequest(f.profile, async () => ({ ...expected, rawSql: 'private marker' }));
   const result = await waiting;
-  assert.deepEqual(result.backup, backup);
+  assert.deepEqual(result, expected);
   assert.deepEqual(captureWorkflowOutput(result).backup, backup);
   assert.ok(!JSON.stringify(result).includes('private marker'));
 });

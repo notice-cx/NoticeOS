@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { backupEvidenceFromReport, backupFolder } from '../packages/contract/src/backup-evidence.mjs';
+import { backupEvidenceFromReport, backupFailureDetail, backupFolder } from '../packages/contract/src/backup-evidence.mjs';
 import { claimBackup, BACKUP_OWNER_FAILURE } from './backup-claim.mjs';
 import { redactLogText } from './os-log.mjs';
 import { HOST_BACKUP_FILE, checkoutRelative, readablePath, installationDir } from './installation.mjs';
@@ -13,7 +13,7 @@ import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs'
 import { dumpPostgres, POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { NTASKS_BACKUP_FORMAT, parseNtasksBackup, readPrivateExport } from './ntasks-backup.mjs';
 import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
-import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
+import { createCloudflareD1BackupClient, cloudflareD1FailureCause, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile } from './container-backup-profile.mjs';
 import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
@@ -36,6 +36,7 @@ function stage(status = 'completed') {
 }
 
 function fail(result, item, error) {
+  if (result.failureCount === 0) result.cause = cloudflareD1FailureCause(error) ?? 'stage_failed';
   result.status = 'failed';
   result.failureCount += 1;
   if (result.errors.length < 8) result.errors.push({
@@ -66,9 +67,9 @@ async function writeBackupReport(io, directory, report, owner) {
   } finally { await io.rm(temporary, { force: true }); }
 }
 
-function containerSummary(stages, claimIssue, reported) {
+function containerSummary(stages, firstFailed, claimIssue, reported) {
   if (claimIssue) return BACKUP_OWNER_FAILURE.detail;
-  const failed = Object.entries(stages).find(([, result]) => result.status === 'failed')
+  const failed = firstFailed
     ?? Object.entries(stages).find(([, result]) => result.status === 'blocked');
   // The worker's /state is the app's state folder on the host.
   const where = reported ? `Details: .local/${BACKUP_REPORT_FILE} in the state folder.` : 'Its report could not be saved.';
@@ -83,7 +84,7 @@ function containerSummary(stages, claimIssue, reported) {
 export function backupRunOutcome(result) {
   return {
     outcome: result?.ok === true ? 'ran' : 'failed',
-    detail: result?.detail ?? 'Backup returned no complete result',
+    detail: result?.ok === true ? null : backupFailureDetail({ stage: result?.stage, cause: result?.cause }),
   };
 }
 
@@ -195,12 +196,12 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, tas
     if (transport !== undefined && !containerMode) throw new Error('Unknown backup transport; no fallback was selected.');
     if (containerMode) {
       if (repoRoot !== '/state') throw new Error('Container backup requires its fixed worker installation.');
-      worker = readBackupWorker();
+      worker = readBackupWorker({ reportFiles: true });
     }
   } catch (error) { preparationError = error; }
   try {
     settings = await readHostBackupSettings({ repoRoot, readHost: () => containerMode
-      ? privateBackupFile('/run/backup-worker/host-backup.json').text
+      ? privateBackupFile('/run/backup-worker/host-backup.json', undefined, true, 'host-backup.json').text
       : io.readFile(hostBackupFile(repoRoot), 'utf8') });
   } catch (error) { settingsError = error; }
   try {
@@ -605,6 +606,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, tas
   // A task hub this installation does not link (`linked`) is not missing.
   const complete = storesComplete() && stages.instructions.status === 'completed';
   const ok = Object.values(stages).every((result) => ['completed', 'not_configured'].includes(result.status));
+  const firstFailed = Object.entries(stages).find(([, result]) => result.status === 'failed');
   const backupSet = { path: published ? destination : null, complete: published && complete };
   const finishedAt = new Date(now()).toISOString();
   const hostFolder = containerMode ? backupFolder((adapters.env ?? process.env).NOTICEOS_HOST_FOLDER) : null;
@@ -628,7 +630,8 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, tas
     ok,
     // Container jobs return only a bounded verdict to the Tower. Full stage
     // diagnostics are in the operator's private backup report.
-    detail: containerMode ? containerSummary(stages, claimIssue, reported) : summary(stages), day, startedAt, finishedAt,
+    detail: containerMode ? containerSummary(stages, firstFailed, claimIssue, reported) : summary(stages), day, startedAt, finishedAt,
+    ...(firstFailed ? { stage: firstFailed[0], cause: firstFailed[1].cause } : {}),
     ...(backup ? { backup } : {}),
     backupSet,
     stages,
