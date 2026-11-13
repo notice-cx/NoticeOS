@@ -2,73 +2,16 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
-// A hand-written `.d.mts` is a second implementation of the same contract.
-//
-// `scripts/` is plain ESM with no build step, on purpose: one implementation
-// bundles into a Worker, runs in a terminal, and is imported by the Tower,
-// which is exactly why `config-registers.mjs` and `wall-layout.mjs` live here
-// rather than in `apps/tower/shared/`. The price is that TypeScript callers
-// reach them through a declaration file, and a name added to the `.mjs` and
-// forgotten in the `.d.mts` goes red nowhere: it simply is not there when a
-// Tower import site reaches for it. The mirror image is quieter still: a name
-// declared that the runtime no longer exports typechecks green and is
-// `undefined` at the point it matters.
-//
-// A shared module is authored as `scripts/<name>.mts`, and `pnpm
-// generate` writes the `.mjs` and the `.d.mts` from it, so a TypeScript
-// caller compiles against the implementation itself and `pnpm generate -- --check`
-// fails a stale output. Those pairs leave this name check: their declarations
-// cannot disagree with their runtime. What stays here is (1) the ratchet
-// below (a HAND-WRITTEN pair is allowed only where `HANDWRITTEN_PAIRS` names
-// it with its reason) and (2) the name check for exactly those pairs, which
-// finds every pair itself by walking `scripts/`. It stops at names: whether a
-// declared TYPE still describes what the runtime returns is `tsc`'s question.
+// Shared scripts generate their runtime and declarations from the same source.
+// The Tower's re-exports must resolve to names in those declarations.
 
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where the Tower's typed mirrors of these modules live — the third file in
  * the chain, checked at the bottom of this file. */
 const SHARED_DIR = path.resolve(SCRIPTS_DIR, '..', 'apps', 'tower', 'shared');
-
-/**
- * The `.mjs` + `.d.mts` pairs still typed by hand, each with why it is not an
- * authored `.mts` yet. Every other pair is generated. A new hand-written pair
- * fails the ratchet test below; one that gains its `.mts` is pruned by it.
- */
-const HANDWRITTEN_PAIRS = {
-  'config-store-client.d.mts':
-    'it reads the operator bearer and attaches it to every request to the ingest door. ' +
-    'Moving that code into a generated file is a change to a protected auth path, which ' +
-    'needs explicit operator scope; until then its three typed callers ' +
-    'read these declarations.',
-  'dev-secrets.d.mts':
-    'it reads and moves credential values between the local secrets file and the store. ' +
-    'Moving that code into a generated file is a change to a protected credential path, ' +
-    'which needs explicit operator scope.',
-};
-
-/**
- * Declaration files that deliberately declare LESS than the runtime exports,
- * with the reason each states in its own header. The pruning test below deletes
- * an entry that has caught up — an allowlist nobody prunes is a habit, not a
- * decision.
- *
- * The bar is high, and "I did not feel like typing the rest" is not it: a
- * partial file trades away half of this guard, so it earns a place here only
- * when declaring the remainder would mean INVENTING types nothing checks —
- * which is the drift the guard exists to catch, invited back in through the
- * front door.
- */
-const DECLARES_ONLY_WHAT_IS_IMPORTED = {
-  'dev-secrets.d.mts':
-    "its own header draws the line: the Tower's env-import lane imports three names, " +
-    'scripts/database-address.mts one, and the CLI reaches the module untyped, as every ' +
-    'script does. The other thirteen exports ' +
-    'have no typed caller, so declaring them would mean writing types nothing reads and ' +
-    'nothing corrects.',
-};
 
 /** Comments carry example code and prose full of the words this file matches on,
  * so they go first. Block comments and WHOLE-LINE `//` only — a trailing strip
@@ -169,14 +112,6 @@ function pairs() {
     .filter((pair) => !existsSync(path.join(SCRIPTS_DIR, pair.runtime.replace(/\.mjs$/, '.mts'))));
 }
 
-/** The names the module really exports. Importing it is the only honest source:
- * a re-export block resolves, a conditional export does not exist, and the CLI
- * entry points here all guard on `process.argv[1]` so a load runs nothing. */
-async function exportedNames(runtime) {
-  const namespace = await import(pathToFileURL(path.join(SCRIPTS_DIR, runtime)).href);
-  return new Set(Object.keys(namespace));
-}
-
 /** Every re-export of a `scripts/` runtime under `apps/tower/shared/`, found the
  * same way: by walking, so a mirror written tomorrow is checked tomorrow. */
 function mirrors() {
@@ -197,123 +132,9 @@ function mirrors() {
 const PAIRS = pairs();
 const MIRRORS = mirrors();
 
-// A guard that scans nothing passes forever.
-test('the walk finds the generated pairs and the hand-written ones', () => {
-  const generated = readdirSync(SCRIPTS_DIR).filter((name) => name.endsWith('.mts') && !name.endsWith('.d.mts'));
-  assert.ok(
-    generated.includes('wall-layout.mts') && generated.includes('config-registers.mts'),
-    'the walk must find wall-layout.mts and config-registers.mts — the widget library and the ' +
-      'register map the television and the write lane read, and the pairs this guard was written for',
-  );
-  assert.ok(PAIRS.length > 0, 'no hand-written pair found — the walk did not resolve, or the ' +
-    'last one gained its .mts and this name check can be retired with HANDWRITTEN_PAIRS');
+test('shared script declarations are generated from TypeScript', () => {
+  assert.deepEqual(PAIRS.map(({ declarations }) => declarations), []);
 });
-
-// The ratchet: a new shared module is authored as `.mts` and generated, never
-// typed twice by hand.
-test('a hand-written declaration pair exists only where HANDWRITTEN_PAIRS says why', () => {
-  const found = PAIRS.map((pair) => pair.declarations);
-  assert.deepEqual(
-    found,
-    Object.keys(HANDWRITTEN_PAIRS).sort(),
-    `hand-written pairs found: ${found.join(', ')}\n` +
-      'A scripts/*.mjs that TypeScript imports is authored as scripts/<name>.mts, listed in ' +
-      'tsconfig.config-contract.json (portable) or tsconfig.config-contract.node.json (Node-only), ' +
-      'and generated with pnpm generate — so its callers compile against the ' +
-      'implementation rather than a copy. If a pair here gained its .mts, delete its ' +
-      'HANDWRITTEN_PAIRS entry; if a new one cannot be generated yet, add it there with the reason.',
-  );
-});
-
-test('every export the runtime carries is declared beside it', async () => {
-  const undeclared = [];
-
-  for (const { runtime, declarations } of PAIRS) {
-    if (Object.hasOwn(DECLARES_ONLY_WHAT_IS_IMPORTED, declarations)) continue;
-    const exported = await exportedNames(runtime);
-    const declared = declarationsOf(declarations);
-    for (const name of [...exported].sort()) {
-      if (!declared.values.has(name)) undeclared.push(`${declarations}  →  no ${name}`);
-    }
-  }
-
-  assert.deepEqual(
-    undeclared,
-    [],
-    `these runtime exports have no declaration:\n  ${undeclared.join('\n  ')}\n` +
-      'The .mjs is the implementation and the .d.mts is the only thing a TypeScript caller ' +
-      'can see, so a name missing here is a name the Tower cannot import — invisible until ' +
-      'somebody reaches for it. Declare it. If the file genuinely declares only what a typed ' +
-      'caller imports, say so in DECLARES_ONLY_WHAT_IS_IMPORTED in this test, with the reason.',
-  );
-});
-
-test('every name the declarations carry the runtime exports', async () => {
-  const phantom = [];
-
-  for (const { runtime, declarations } of PAIRS) {
-    const exported = await exportedNames(runtime);
-    const declared = declarationsOf(declarations);
-    for (const name of [...declared.values].sort()) {
-      if (!exported.has(name)) phantom.push(`${declarations}  →  ${name} is not exported`);
-    }
-  }
-
-  assert.deepEqual(
-    phantom,
-    [],
-    `these declarations name something the runtime does not export:\n  ${phantom.join('\n  ')}\n` +
-      'This is the quiet half: it typechecks green and is `undefined` where it is used. A ' +
-      'renamed or deleted export moves the declaration with it. (Type-only names — interface, ' +
-      'type — are not checked here; they have no runtime to disagree with.)',
-  );
-});
-
-test('a partial-declarations exemption that has caught up is deleted', async () => {
-  const stale = [];
-
-  for (const declarations of Object.keys(DECLARES_ONLY_WHAT_IS_IMPORTED)) {
-    const pair = PAIRS.find((candidate) => candidate.declarations === declarations);
-    if (!pair) {
-      stale.push(`${declarations} — no such pair in scripts/ any more`);
-      continue;
-    }
-    const exported = await exportedNames(pair.runtime);
-    const declared = declarationsOf(declarations);
-    if ([...exported].every((name) => declared.values.has(name))) {
-      stale.push(`${declarations} — it now declares every export, so it is no longer partial`);
-    }
-  }
-
-  assert.deepEqual(
-    stale,
-    [],
-    `these exemptions have stopped being true:\n  ${stale.join('\n  ')}\n` +
-      'Delete the entry so the full check applies. An exemption kept past its reason is how ' +
-      'an allowlist becomes the rule.',
-  );
-});
-
-// ---------------------------------------------------------------------------
-// The third file in the chain.
-//
-// `.mjs` → `.d.mts` → `apps/tower/shared/<name>.ts` → every `@shared/…` import
-// site. The Tower reaches these modules through a path alias, so the shared
-// file is a hand-written MIRROR of the two beside it. A name added to the
-// runtime and its declarations but forgotten in the mirror is a name no Tower
-// component can import, and every gate stays green until somebody reaches for
-// it; a mirror naming what `scripts/` no longer has is the half `tsc` would
-// refuse, and it costs one comparison to say so here.
-//
-// Textual by necessity: the alias means no plain Node loader resolves the
-// shared file. It reuses the parser above rather than growing a second one, and
-// it walks `apps/tower/shared/`, so a mirror written tomorrow is checked
-// tomorrow.
-//
-// ONLY THE `export … from` FORM IS A MIRROR. A file that imports names and
-// re-exports a chosen few beside its own code (`config-registers.ts`) passes
-// through what its callers use and never claimed to carry the whole list.
-// ---------------------------------------------------------------------------
 
 test('the mirror check has mirrors to check', () => {
   const wall = MIRRORS.find((mirror) => mirror.file === 'wall-layout.ts');
@@ -329,17 +150,12 @@ test('the mirror check has mirrors to check', () => {
   );
 });
 
-test("every name scripts/ offers, the Tower's mirror carries", async () => {
+test("every name scripts/ offers, the Tower's mirror carries", () => {
   const missing = [];
 
   for (const mirror of MIRRORS) {
     const declared = declarationsOf(mirror.declarations);
-    // A `.d.mts` that declares less than its runtime ON PURPOSE caps what any
-    // mirror of it could re-export, so there it is the declarations that hold.
-    const offered = Object.hasOwn(DECLARES_ONLY_WHAT_IS_IMPORTED, mirror.declarations)
-      ? declared.values
-      : await exportedNames(mirror.runtime);
-    for (const name of [...offered].sort()) {
+    for (const name of [...declared.values].sort()) {
       if (!mirror.values.has(name)) missing.push(`${mirror.file}  →  no ${name}`);
     }
     for (const name of [...declared.types].sort()) {
@@ -357,14 +173,13 @@ test("every name scripts/ offers, the Tower's mirror carries", async () => {
   );
 });
 
-test("every name the Tower's mirror carries, scripts/ still has", async () => {
+test("every name the Tower's mirror carries, scripts/ still has", () => {
   const phantom = [];
 
   for (const mirror of MIRRORS) {
-    const exported = await exportedNames(mirror.runtime);
     const declared = declarationsOf(mirror.declarations);
     for (const name of [...mirror.values].sort()) {
-      if (!exported.has(name)) {
+      if (!declared.values.has(name)) {
         phantom.push(`${mirror.file}  →  ${mirror.runtime} exports no ${name}`);
       }
     }

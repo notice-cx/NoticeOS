@@ -58,7 +58,8 @@ it('stored demo reports populate the redesigned Wall and each asset’s Journeys
   expect(wall.assets.find(card => card.id === 'weeknightpantry.example')?.product?.funnel?.largestDrop?.lostPeople).toBeGreaterThan(0);
 });
 
-it('ordinary financials and Wall read the same integer-cents ledger without counting estimates twice', async () => {
+// This exercises several database-backed reads after the fixture has been seeded.
+it('ordinary financials and Wall read the same integer-cents ledger without counting estimates twice', { timeout: 30_000 }, async () => {
   const financials = await buildFinancialsPayload(fixture.call, { now: NOW, osTimeZone: 'UTC', domainOrders: [], period: scenario.manifest.referencePeriod });
   const last = financials.months.find(m => m.period === scenario.manifest.referencePeriod)!;
   // The brief's anchors, plus each ad-supported site's reconciled payment for

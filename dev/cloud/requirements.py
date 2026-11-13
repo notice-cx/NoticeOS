@@ -14,11 +14,9 @@ if len(sys.argv) > 2:
 manifest = json.loads((repo / "package.json").read_text())
 if manifest.get("name") != "noticeos":
     raise SystemExit("Expected a NoticeOS checkout")
-ci = (repo / ".github/workflows/ci.yml").read_text()
-pins = set(re.findall(r"node-version:\s*['\"]?(\d+\.\d+\.\d+)", ci))
-if len(pins) != 1:
-    raise SystemExit("CI must select one exact Node version; update environment setup for changed pin format")
-node = pins.pop()
+node = (repo / ".node-version").read_text().strip()
+if not re.fullmatch(r"\d+\.\d+\.\d+", node):
+    raise SystemExit(".node-version must contain one exact Node version")
 engine = manifest.get("engines", {}).get("node", "")
 minimum = re.fullmatch(r">=(\d+\.\d+\.\d+)", engine)
 if minimum:

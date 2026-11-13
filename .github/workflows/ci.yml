@@ -71,7 +71,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/tower run typecheck
@@ -101,7 +101,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter '!@noticeos/tower' typecheck
@@ -127,7 +127,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
@@ -155,7 +155,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
@@ -195,7 +195,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The journeys' run starts one throwaway Postgres for its fixture servers.
@@ -245,7 +245,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The harness and each flow-gate lane start their own fixture server on
@@ -297,7 +297,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"

@@ -13,9 +13,9 @@ function fixture(t) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-cloud-'));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const repo = path.join(base, 'checkout with spaces');
-  fs.mkdirSync(path.join(repo, '.github/workflows'), { recursive: true });
+  fs.mkdirSync(repo);
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ name: 'noticeos', engines: { node: '>=24.0.0' }, packageManager: 'pnpm@12.8.1' }));
-  fs.writeFileSync(path.join(repo, '.github/workflows/ci.yml'), 'node-version: 24.21.0\n');
+  fs.writeFileSync(path.join(repo, '.node-version'), '24.21.0\n');
   fs.writeFileSync(path.join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9\n');
   fs.writeFileSync(path.join(repo, 'pnpm-workspace.yaml'), 'verifyDepsBeforeRun: error\n');
   const env = { ...process.env, NOTICEOS_REPO: repo, NOTICEOS_CLOUD_CACHE: path.join(base, 'cache'),
@@ -32,7 +32,7 @@ function requirements(env) {
   return JSON.parse(result.stdout);
 }
 
-test('cloud setup derives pins and invalidates dependencies on actual checkout inputs', { skip: !supported }, t => {
+test('cloud setup derives pins and invalidates dependencies on actual checkout inputs', t => {
   const { repo, env } = fixture(t);
   const before = requirements(env);
   assert.equal(before.node, '24.21.0');
@@ -45,18 +45,18 @@ test('cloud setup derives pins and invalidates dependencies on actual checkout i
   fs.mkdirSync(path.join(repo, 'apps/example'), { recursive: true });
   fs.writeFileSync(path.join(repo, 'apps/example/package.json'), '{"name":"example"}');
   assert.notEqual(requirements(env).dependencies, locked);
-  fs.writeFileSync(path.join(repo, '.github/workflows/ci.yml'), 'node-version: 24.22.0\n');
+  fs.writeFileSync(path.join(repo, '.node-version'), '24.22.0\n');
   assert.notEqual(requirements(env).dependencies, before.dependencies);
 });
 
-test('cloud setup rejects unsupported or conflicting toolchain requirements', { skip: !supported }, t => {
+test('cloud setup rejects unsupported or conflicting toolchain requirements', t => {
   const { repo, env } = fixture(t);
-  const ci = path.join(repo, '.github/workflows/ci.yml');
-  fs.writeFileSync(ci, 'node-version: 24.21.0\nnode-version: 26.0.0\n');
+  const pin = path.join(repo, '.node-version');
+  fs.writeFileSync(pin, '24.21.0\n26.0.0\n');
   assert.match(run('python3', [path.join(cloud, 'requirements.py')], env).stderr, /one exact Node version/);
-  fs.writeFileSync(ci, 'node-version: 22.0.0\n');
+  fs.writeFileSync(pin, '22.0.0\n');
   assert.match(run('python3', [path.join(cloud, 'requirements.py')], env).stderr, /must satisfy/);
-  fs.writeFileSync(ci, 'node-version: 24.21.0\n');
+  fs.writeFileSync(pin, '24.21.0\n');
   const manifest = path.join(repo, 'package.json');
   const value = JSON.parse(fs.readFileSync(manifest));
   value.packageManager = 'pnpm@latest';
@@ -179,7 +179,7 @@ test('default cloud preparation reconciles dependencies and fetches no browser, 
   const free = Number(spawnSync('df', ['-Pk', base], { encoding: 'utf8' }).stdout.split('\n')[1]?.split(/\s+/)[3]);
   if (!(free >= 12 * 1024 * 1024)) { t.skip('preparation requires 12 GiB free'); return; }
   // The stub toolchain is this Node, so the fixture pins it.
-  fs.writeFileSync(path.join(repo, '.github/workflows/ci.yml'), `node-version: ${process.versions.node}\n`);
+  fs.writeFileSync(path.join(repo, '.node-version'), `${process.versions.node}\n`);
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ name: 'noticeos', engines: { node: `>=${process.versions.node}` }, packageManager: 'pnpm@12.8.1' }));
   for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'fixture']]) {
     assert.equal(spawnSync('git', ['-C', repo, ...args]).status, 0);
