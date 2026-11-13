@@ -9,9 +9,9 @@ import { listCredentialSummaries, recordCredentialOutcome, resolveCredential } f
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { javascriptInstant } from '@noticeos/postgres';
 import { MEDIAVINE_NOTIFICATIONS_ENABLED, projectMediavineMonth, type MediavineRevenueNotification } from './mediavine-notifications.js';
+import { DISCORD_WEBHOOK_FIELD, discordWebhookAnswer, postDiscordWebhook, type DiscordMessage } from './discord-webhook.js';
 
 const NOTIFICATION_PROVIDER = 'discord';
-const WEBHOOK_FIELD = 'DISCORD_WEBHOOK_URL';
 const POST_TIMEOUT_MS = 10_000;
 
 interface DeliveryItem {
@@ -24,10 +24,6 @@ interface DeliveryItem {
 type AlertCandidate = DeliveryItem & { subject: 'alert' | 'data-source'; line: string };
 type RevenueCandidate = DeliveryItem & { subject: 'mediavine-revenue'; revenue: MediavineRevenueNotification };
 type Candidate = AlertCandidate | RevenueCandidate;
-interface DiscordMessage {
-  content: string;
-  embeds?: { title: string; description: string }[];
-}
 export interface NotifierResult {
   monitoringAvailable?: boolean;
   found: number;
@@ -171,7 +167,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
        next_attempt_at = $2::timestamptz WHERE lease_id = $1::uuid AND state = 'pending'`,
     [lease, new Date(nowMs + Date.now() - beganAt + delayMs).toISOString(), disconnected]));
   const credential = await resolveCredential(env, NOTIFICATION_PROVIDER);
-  const webhook = credential.fields[WEBHOOK_FIELD];
+  const webhook = credential.fields[DISCORD_WEBHOOK_FIELD];
   if (webhook === undefined || webhook.trim() === '') {
     await retry(60_000, true);
     return { found: count, fresh: count, sent: 0, skipped: 'no-credential' };
@@ -270,24 +266,9 @@ function discordRevenue(revenue: MediavineRevenueNotification): NonNullable<Disc
   };
 }
 
-/**
- * What a Discord webhook's answer to a post means: one reading, shared by the
- * card's connection test and a real delivery, so a dead webhook reads the same
- * whichever found it. 401/403/404 is Discord no longer knowing the webhook.
- */
-export function discordWebhookAnswer(status: number): { ok: boolean; result: ProbeResult } {
-  // A webhook post answers 204 No Content.
-  if (status >= 200 && status < 300) return { ok: true, result: { outcome: 'answered' } };
-  if (status === 401 || status === 403 || status === 404) {
-    return { ok: false, result: { outcome: 'refused', status, fix: { kind: 'replace' } } };
-  }
-  if (status === 429) return { ok: false, result: { outcome: 'rate-limited', status, fix: { kind: 'wait' } } };
-  return { ok: false, result: { outcome: 'unreachable', status } };
-}
-
 /** The monitoring code a failed delivery is recorded under. */
 function deliveryCode(result: ProbeResult): string {
-  if (result.outcome === 'refused') return 'access';
+  if (result.outcome === 'refused' || result.outcome === 'invalid') return 'access';
   if (result.outcome === 'rate-limited') return 'rate-limit';
   return 'provider';
 }
@@ -299,19 +280,14 @@ async function post(
   message: DiscordMessage,
   fetchImpl: typeof fetch,
 ): Promise<{ ok: true } | { ok: false; reason: string; code: string; retryAfterMs?: number }> {
-  let status: number;
+  let status: number | null;
   let retryAfterMs = 0;
   try {
-    const response = await fetchImpl(webhook, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...message, allowed_mentions: { parse: [] } }),
-      signal: AbortSignal.timeout(POST_TIMEOUT_MS),
-    });
-    const retrySeconds = Number(response.headers.get('retry-after'));
+    const response = await postDiscordWebhook(webhook, message, POST_TIMEOUT_MS, fetchImpl);
+    const retrySeconds = Number(response?.headers.get('retry-after'));
     if (Number.isFinite(retrySeconds) && retrySeconds > 0) retryAfterMs = Math.min(3_600_000, retrySeconds * 1000);
-    await response.body?.cancel();
-    status = response.status;
+    await response?.body?.cancel();
+    status = response?.status ?? null;
   } catch {
     return { ok: false, code: 'network', reason: probeLine({ outcome: 'unreachable' }) };
   }

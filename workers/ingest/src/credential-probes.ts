@@ -53,7 +53,7 @@ import {
 import { parseGoogleTargets } from './google-signals.js';
 import { SignalError } from './signal-store.js';
 import { discoverMediavineSites } from './mediavine-connection.js';
-import { discordWebhookAnswer } from './notifier.js';
+import { DISCORD_WEBHOOK_FIELD, discordWebhookAnswer, postDiscordWebhook } from './discord-webhook.js';
 import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 import { POSTHOG_KEY_SLOT, posthogOrigin, resolvePosthogKeys } from './posthog-dumps.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT, readPosthogAccount } from './posthog-account.js';
@@ -515,15 +515,9 @@ export async function probeDiscord(
   fields: Record<string, string>,
   fetchImpl: typeof fetch,
 ): Promise<ProbeFound> {
-  const response = await fetchImpl(fields.DISCORD_WEBHOOK_URL!, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: DISCORD_TEST_MESSAGE }),
-    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-  });
-  await response.body?.cancel();
-  // The same reading a real delivery gets (notifier.ts).
-  return discordWebhookAnswer(response.status);
+  const response = await postDiscordWebhook(fields[DISCORD_WEBHOOK_FIELD], { content: DISCORD_TEST_MESSAGE }, PROBE_TIMEOUT_MS, fetchImpl);
+  await response?.body?.cancel();
+  return discordWebhookAnswer(response?.status ?? null);
 }
 
 /**

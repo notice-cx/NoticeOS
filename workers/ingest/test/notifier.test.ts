@@ -303,6 +303,18 @@ describe('what the OS interrupts the operator about', () => {
     expect(await notified()).toHaveLength(1);
   });
 
+  it('leaves queued notifications unsent when a legacy webhook uses HTTP', async () => {
+    await insertFlag({});
+    const discord = discordFetch();
+    const legacyEnv = { ...env, DISCORD_WEBHOOK_URL: WEBHOOK.replace(/^https:/, 'http:') };
+    const result = await runNotifier(legacyEnv, { nowMs: NOW, fetchImpl: discord.fetchImpl });
+
+    expect(result).toMatchObject({ fresh: 1, sent: 0, skipped: 'delivery-failed' });
+    expect(discord.posts).toEqual([]);
+    expect(await notified()).toEqual([]);
+    expect(await queued()).toMatchObject([{ state: 'pending', attempts: 1 }]);
+  });
+
   it('never reports the notification channel itself as a broken data source', async () => {
     // A message reading "the channel you are reading this in stopped working"
     // is nonsense on arrival. The failed delivery above leaves Discord's own

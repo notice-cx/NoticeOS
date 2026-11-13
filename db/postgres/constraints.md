@@ -723,7 +723,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `workspace_id` | uuid | yes |  |
 | `event_id` | uuid | yes |  |
 | `channel` | text | yes | `(channel = 'discord')` |
-| `subject` | text | yes | `(subject IN ('alert', 'data-source', 'mediavine-revenue'))` |
+| `subject` | text | yes | `CHECK ((subject IN ('alert', 'data-source', 'mediavine-revenue'))) NOT VALID` |
 | `subject_ref` | text | yes | `(subject_ref <> '')` |
 | `occurrence` | text | yes |  |
 | `connection_id` | uuid | no |  |
@@ -742,7 +742,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, event_id); unique (workspace_id, channel, subject, subject_ref, occurrence)
 - **Links:** (workspace_id) → `workspaces`
-- **Row checks:** `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((state = 'pending') OR (lease_id IS NULL))`; `(((subject = 'mediavine-revenue') AND (revenue_minor IS NOT NULL) AND (month_revenue_minor IS NOT NULL) AND (month_reported_days IS NOT NULL) AND ((month_reported_days >= 1) AND (month_reported_days <= 31))) OR ((subject <> 'mediavine-revenue') AND (revenue_minor IS NULL) AND (previous_revenue_minor IS NULL) AND (month_revenue_minor IS NULL) AND (month_reported_days IS NULL)))`
+- **Row checks:** `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((state = 'pending') OR (lease_id IS NULL))`; `CHECK ((((subject = 'mediavine-revenue') AND (revenue_minor IS NOT NULL) AND (month_revenue_minor IS NOT NULL) AND (month_reported_days IS NOT NULL) AND ((month_reported_days >= 1) AND (month_reported_days <= 31))) OR ((subject <> 'mediavine-revenue') AND (revenue_minor IS NULL) AND (previous_revenue_minor IS NULL) AND (month_revenue_minor IS NULL) AND (month_reported_days IS NULL)))) NOT VALID`
 - **Triggers:** `notification_wakeup` (after insert)
 
 ## `notifications`
@@ -752,7 +752,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `workspace_id` | uuid | yes |  |
 | `notification_id` | bigint, identity | yes |  |
 | `channel` | text | yes | `(channel <> '')` |
-| `subject` | text | yes | `(subject IN ('alert', 'data-source', 'mediavine-revenue'))` |
+| `subject` | text | yes | `CHECK ((subject IN ('alert', 'data-source', 'mediavine-revenue'))) NOT VALID` |
 | `subject_ref` | text | yes | `(subject_ref <> '')` |
 | `occurrence` | text | yes |  |
 | `condition` | text | yes | `(condition <> '')` |
