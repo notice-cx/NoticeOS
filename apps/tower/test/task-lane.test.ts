@@ -80,11 +80,10 @@ describe("without a task service", () => {
   });
 });
 
-it("reads the stored project map joined to this host's repository links", async () => {
+it("reads the stored project map without host repository links", async () => {
   const projects = await readSpokes(await fs.realpath(os.tmpdir()), {
     token: "op",
     fetchImpl: async () => Response.json({ ready: true, documents: [{ file: "config/beads.json", version: 3, body: { spokes: SPOKES } }] }),
-    readHost: async () => JSON.stringify({ repositories: SPOKES }),
   });
   expect(projects.map(({ asset, prefix, database, unavailableReason }) => ({ asset, prefix, database, unavailableReason })))
     .toEqual([{ asset: "example.com", prefix: "ex", database: "ex", unavailableReason: undefined }]);

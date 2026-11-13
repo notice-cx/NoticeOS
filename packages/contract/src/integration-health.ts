@@ -206,6 +206,25 @@ export function integrationCapabilityHealth(input: {
 
 /** Existing display cadences, shared with the Wall; this adds no new threshold. */
 export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, bingSignals: 24, dataforseoSignals: 24 * 7, posthogSignals: 24, cruxSignals: 24 } as const;
+/** Coverage beyond the bounded archive list. `total` is a lower bound when
+ * the monitor stopped reading before it could count every remaining date. */
+export interface IntegrationHealthOverflow {
+  shown: number;
+  total: number;
+  atLeast: boolean;
+  unresolvedFailures?: number;
+}
+
+export function integrationHealthOverflowOf(value: unknown): IntegrationHealthOverflow | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const whole = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+  if (!whole(row.shown) || !whole(row.total) || row.total <= row.shown || typeof row.atLeast !== 'boolean'
+    || row.unresolvedFailures !== undefined && (!whole(row.unresolvedFailures) || !row.atLeast && row.unresolvedFailures > row.total)) return null;
+  return { shown: row.shown, total: row.total, atLeast: row.atLeast,
+    ...(row.unresolvedFailures === undefined ? {} : { unresolvedFailures: row.unresolvedFailures as number }) };
+}
+
 export interface IntegrationHealthItem {
   id: string;
   provider: string;
@@ -223,6 +242,8 @@ export interface IntegrationHealthItem {
    */
   report: string | null;
   reportDate: string | null;
+  /** Not a report family: the archive dates omitted by the monitor's bound. */
+  overflow?: IntegrationHealthOverflow;
   state: IntegrationHealthState;
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;

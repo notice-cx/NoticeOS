@@ -242,7 +242,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     // the full history.
     if ((history[0]?.scope_count ?? 0) > history.length) {
       const def = definition(connection.provider, capability);
-      payload.items.push({ id: await healthId([connection.provider, capability, asset, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: `256 of ${history[0]!.scope_count} report dates · ${history[0]!.failure_count} unresolved failures`, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
+      payload.items.push({ id: await healthId([connection.provider, capability, asset, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: null, overflow: { shown: history.length, total: history[0]!.scope_count, atLeast: false, unresolvedFailures: history[0]!.failure_count }, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
     }
     const families = new Map(plan.map(item => [item.report, item]));
     const wanted = new Map<string, { report: string; date: string; cadenceDays: number; staleAfterHours?: number; row?: DumpRow }>();
@@ -269,7 +269,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           AND (s.outcome = 'failure' OR t.family = ANY($5::text[])) AND ${assetIs(asset, 6)}`,
         [scope.provider, scope.connection, capability, scope.target, [...wanted.keys()], ...assetParam(asset)], 257));
       if (states.length > 256) {
-        payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'monitor-overflow']), provider: connection.provider, capability, label: definition(connection.provider, capability).label, asset, report: null, reportDate: null, detail: '256 of 257+ current reports and failures', state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Review report history for the full backlog.', coverage: 'monitored' });
+        payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'monitor-overflow']), provider: connection.provider, capability, label: definition(connection.provider, capability).label, asset, report: null, reportDate: null, detail: null, overflow: { shown: 256, total: states.length, atLeast: true }, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Review report history for the full backlog.', coverage: 'monitored' });
       }
       // Runs of a depth-bounded family recorded before its depth counted as
       // complete stored an incomplete-report failure against a successful

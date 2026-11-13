@@ -263,21 +263,23 @@ it('keeps an unresolved archived failure when an unmonitored source success move
   expect(result.events.some(event => event.kind === 'recovered')).toBe(false);
 });
 
-it('says a list of unresolved archive failures was cut at 256, and how many there are', async () => {
+it('reports typed archive coverage at the 257-date boundary without inventing a report family', async () => {
   const register = (await getConfigDocument(env, 'config/integrations.json')).body as LaneRegister;
   const google = await resolveGoogleCredential(env);
   const target = googleTargets(google, google.source, googleCredentialResolver(env), register).find(t => t.integration === 'ga4')!;
   const report = (await integrationArchivePlan(env.STORE, target, NOW))[0]!.report;
   const day = (n: number) => new Date(Date.parse('2025-01-01T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
-  await storeArchiveRuns(Array.from({ length: 300 }, (_, n) => ({
+  await storeArchiveRuns(Array.from({ length: 257 }, (_, n) => ({
     id: `failed-date-${n}`, asset: target.asset, integration: target.integration, report, credential_ref: target.credentialRef,
     property_ref: target.propertyRef, report_date: day(n), finished_at: new Date(NOW - 10_000 - n).toISOString(),
     data_state: 'provider-final', status: 'error', error_code: 'http_500', error_message: 'Refused',
   })));
   const result = await readIntegrationHealth(env, Date.now() + 1000);
-  const overflow = result.items.filter(i => i.asset === target.asset && i.detail?.startsWith('256'));
-  expect(overflow).toEqual([expect.objectContaining({ state: 'unknown', code: 'monitoring' })]);
-  expect(overflow[0]!.detail?.match(/\d+/g)).toEqual(['256', '300', '300']);
+  const overflow = result.items.filter(i => i.asset === target.asset && i.overflow);
+  expect(overflow).toEqual([expect.objectContaining({ state: 'unknown', code: 'monitoring', detail: null, report: null, reportDate: null,
+    overflow: { shown: 256, total: 257, atLeast: false, unresolvedFailures: 257 } })]);
+  expect(new Set(result.items.filter(i => i.asset === target.asset && i.capability === 'ga4-archive' && !i.overflow).map(i => i.report)))
+    .toEqual(new Set((await integrationArchivePlan(env.STORE, target, NOW)).map(item => item.report)));
 });
 
 it('does not let thousands of resolved historical archive dates exhaust current health coverage', async () => {

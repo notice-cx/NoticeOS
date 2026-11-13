@@ -11,6 +11,7 @@ import { beginCollection, collectionMonitoring, type CollectionMonitoring } from
 
 import {
   archiveCollectedDump,
+  LOCAL_STORE_FAILED,
   archiveDumpFailure,
   type DumpPage,
   type DumpTarget,
@@ -161,10 +162,11 @@ export async function runClarityDumps(
 
   // The collector is the proof: Clarity's card has no Test button that calls
   // Clarity, so this run is the only thing that can put a verdict on it.
-  if (resolved.source === 'store' && result.attempted > 0) {
-    const failures = outcomes.filter((outcome) => outcome.status === 'error');
+  const measured = outcomes.filter((outcome) => outcome.errorCode !== LOCAL_STORE_FAILED);
+  if (resolved.source === 'store' && measured.length > 0) {
+    const failures = measured.filter((outcome) => outcome.status === 'error');
     await recordCredentialOutcome(env, 'clarity', {
-      ok: failures.length < result.attempted,
+      ok: failures.length < measured.length,
       // One line: what went wrong in the site row's words, then which sites,
       // since each has its own token.
       error: failures.length === 0 ? null : clarityVerdict(failures),

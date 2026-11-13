@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clarityVerdict, runClarityDumps } from '../src/clarity-dumps.js';
 import { putCredential } from '../src/credentials.js';
 import { ARCHIVE_RUNS, credentialVerdict, pgCount, pgFirst, reset } from './helpers.js';
@@ -152,6 +152,21 @@ describe('Microsoft Clarity export lane', () => {
     const stamped = await credentialVerdict('clarity');
     expect(stamped?.lastOkAt).toBe(new Date(NOW).toISOString());
     expect(stamped?.lastError).toBeNull();
+  });
+
+  it('keeps a local archive write failure out of the stored token verdict', async () => {
+    await putCredential(env, {
+      provider: 'clarity',
+      fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': TOKEN }) },
+    });
+    const put = vi.spyOn(env.RAW_SIGNALS, 'put').mockRejectedValue(new Error('Synthetic archive write failure'));
+    try {
+      const { fetchImpl, calls } = clarityFetch();
+      const result = await runClarityDumps(env, { nowMs: NOW, fetchImpl });
+      expect(calls).toHaveLength(1);
+      expect(result.outcomes[0]).toMatchObject({ status: 'error', errorCode: 'local_store_failed', objectKey: null });
+      expect(await credentialVerdict('clarity')).toEqual({ lastOkAt: null, lastError: null });
+    } finally { put.mockRestore(); }
   });
 
   it('records the rejected token and affected asset without exposing the token', async () => {

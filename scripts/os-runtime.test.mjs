@@ -41,7 +41,6 @@ test('from home, every state path is the one a runner has always used', () => {
   assert.equal(state.jobRunsFile, path.join(home, '.local', 'logs', 'job-runs.jsonl'));
   assert.equal(state.runnerStateFile, path.join(home, '.local', 'runner-state.json'));
   assert.equal(state.devSecrets, path.join(home, 'workers', 'ingest', '.dev.secrets.json'));
-  assert.equal(state.taskHost, path.join(home, 'config', 'task-host.json'));
   // The dev server's store: vite.config.ts defaults to exactly this path when
   // OS_UP_PERSIST_STATE is unset, and honors the variable when it is set.
   assert.deepEqual(runtimeChildEnv(home, {}), { [HOME_ENV]: home, OS_UP_PERSIST_STATE: state.persistState });

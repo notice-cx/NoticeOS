@@ -24,7 +24,6 @@ import { importCodebaseHistory } from '../../../workers/ingest/src/codebase-hist
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
 import { attachTestCluster, type TestClusterHandle } from "../../../scripts/postgres-test-copies.mjs";
-import { INSTALLATION_DIR_ENV } from "../../../scripts/installation.mjs";
 import { openWorkspaceStore, type WorkspaceStore } from "@noticeos/postgres";
 import worker, { type TowerEnv } from "../worker/index";
 import { compiledConfig } from "../worker/compiled-config";
@@ -827,12 +826,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       documents: Object.keys(documents).map((file) => ({ file, version: versions.get(file) ?? 1,
         updatedAt: JOURNEY_NOW, updatedBy: "journey-fixture", ...(bodies ? { body: structuredClone(documents[file]) } : {}) })) });
   };
-  // This host inventory is fixed independently of the mutable stored map.
-  // Installation folders are absent from the public source export; the real
-  // resolver still parses and matches every saved asset/prefix/database.
-  const taskHost = JSON.stringify({ repositories: [JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT] });
   const readProjects = () => readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
-    fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot } });
+    fetchImpl: configDoor });
   /** A task the Tower filed through the fixture Ntasks, as the board then lists it. */
   function fileTask(fields: Record<string, unknown>): string {
     const id = `${taskProject.prefix}-f${tasks.length + 1}`;

@@ -103,6 +103,28 @@ describe("a connection's one status", () => {
     expect(reportOf(items[0]!)).toEqual({ report: "", date: "" });
   });
 
+  it("keeps 257 report dates in their real families and represents omitted dates as a count", () => {
+    const dates = Array.from({ length: 256 }, (_, index) => {
+      const date = new Date(Date.parse("2025-01-01T00:00:00Z") + index * 86_400_000).toISOString().slice(0, 10);
+      return outage("meadow.example", "query", date);
+    });
+    const overflow = item({ capability: "gsc-archive", detail: null, report: null, reportDate: null, state: "unknown",
+      lastAttemptAt: null, lastSuccessAt: null, failure: "monitoring", code: "monitoring",
+      overflow: { shown: 256, total: 257, atLeast: false, unresolvedFailures: 257 } });
+    const monitorOverflow = { ...overflow, id: "monitor-overflow", overflow: { shown: 256, total: 257, atLeast: true } };
+    const result = connectionStatus("google", credential(), [...site("meadow.example"), ...dates, overflow, monitorOverflow]);
+    expect(result.sites[0]!.works.filter(work => work.capability === "gsc-archive").map(work => work.report).sort()).toEqual(["page", "query"]);
+    expect(result.sites[0]).toMatchObject({ kind: "working", missing: 256, overflow: { count: 1, atLeast: false } });
+    expect(reportOf(overflow)).toEqual({ report: "", date: "" });
+    const bounded = connectionStatus("google", credential(), [...site("meadow.example"), { ...overflow,
+      overflow: { shown: 256, total: 257, atLeast: true } }]);
+    expect(bounded.sites[0]!.overflow).toEqual({ count: 1, atLeast: true });
+    const twoArchives = connectionStatus("google", credential(), [...site("meadow.example"), overflow,
+      { ...monitorOverflow, capability: "ga4-archive" }]);
+    expect(twoArchives.sites[0]!.overflow).toEqual({ count: 2, atLeast: true });
+    expect(connectionStatus("google", credential(), [overflow]).sites[0]).toMatchObject({ kind: "unknown", works: [] });
+  });
+
   it("is Working · 1 asset failing when one asset of several is refused and the rest work", () => {
     const items = [
       ...["meadow.example", "northwind.example", "ferns.example"].flatMap((asset) => site(asset, "bing-webmaster")),

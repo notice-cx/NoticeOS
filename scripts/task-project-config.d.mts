@@ -12,32 +12,14 @@ export interface TaskProjectReadOptions {
     door?: string;
     token?: string;
     fetchImpl?: typeof fetch;
-    readHost?: () => Promise<string>;
     env?: Environment;
 }
-/** The host's task repository links for the checkout at `repoRoot`: this
- * installation's `task-host.json`, else the product's empty default. The home
- * checkout for the live runner and its lanes. */
-export declare function taskHostFile(repoRoot?: string, env?: Environment): string;
-/** Canonical physical database identifier for backup, poll and drift readers. */
+/** Validate legacy database metadata retained in project projections. */
 export declare function taskDatabaseName(value: unknown): string | null;
-/** A saved project must match this host's asset, prefix and database binding.
- * Saved repo/hub values never select filesystem paths or service endpoints. */
-export declare function resolveTaskProjects(stored: unknown, host: unknown): TaskProject[];
-/**
- * The host's repository links. `absentLinksNone`: no inventory file at all
- * links nothing — a folder `pnpm db:try-tower` made is not a checkout and has neither
- * its own copy nor the product's default, so its task
- * screens report a missing task connection instead of failing on a missing
- * file. Without it a missing file throws: the managed host's backup must not
- * read a lost inventory as an empty one.
- */
-export declare function readTaskHost({ repoRoot, readHost, env, absentLinksNone }?: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost' | 'env'> & {
-    absentLinksNone?: boolean;
-}): Promise<{
-    repositories: unknown[];
-}>;
-export declare function readTaskProjects({ repoRoot, readHost, env, ...storeOptions }?: TaskProjectReadOptions): Promise<TaskProject[]>;
+/** Saved repo/hub values never select filesystem paths or service endpoints.
+ * Ntasks resolves each project by its prefix. */
+export declare function resolveTaskProjects(stored: unknown): TaskProject[];
+export declare function readTaskProjects({ repoRoot: _repoRoot, env: _env, ...storeOptions }?: TaskProjectReadOptions): Promise<TaskProject[]>;
 /** The runner's existing parsers consume one JSON map; host topology is absent. */
 export declare function readTaskProjectConfig(options?: TaskProjectReadOptions): Promise<string>;
 export {};

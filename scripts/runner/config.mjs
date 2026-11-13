@@ -20,9 +20,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // image's code folder (scripts/os-runtime.mjs).
 export const REPO_ROOT = path.resolve(__dirname, '..', '..');
 // Where its STATE is, always: the home checkout. The store,
-// `.local/`, the secret files, the task inventory and the relative checkout
-// paths in it are all resolved from here, so a runner started from a code
-// folder reads and writes exactly what a runner started from home always has.
+// `.local/` and the secret files are all resolved from here, so a runner
+// started from a code folder reads and writes the same state as one at home.
 export const HOME_ROOT = resolveHomeRoot(REPO_ROOT, process.env);
 export const STATE = statePaths(HOME_ROOT);
 
@@ -45,7 +44,6 @@ export function runnerPaths(codeRoot, env = process.env) {
     scheduleStatusFile: path.join(homeRoot, SCHEDULE_STATUS_FILE),
     devSecrets: state.devSecrets,
     devVars: state.devVars,
-    taskHost: state.taskHost,
     backupRoot: homeRoot,
     osCheckout: osCheckoutName(homeRoot),
     towerEnv: runtimeChildEnv(homeRoot, env),

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { taskDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
+import { readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
 import { parseTaskProjects } from './runner/task-hub.mjs';
 import { runTaskPoll } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
@@ -29,10 +29,9 @@ const taskCache = () => path.join(fixtureRoot, 'task-cache', String(caches++));
 
 const old = { asset: 'old.example', prefix: 'old', database: 'old', repo: '../old' };
 const current = { asset: 'current.example', prefix: 'cur', database: 'cur', repo: '../untrusted-request' };
-const host = { repositories: [{ asset: current.asset, prefix: current.prefix, database: current.database, repo: '../linked-checkout' }] };
 
 function options(body, extra = {}) {
-  return { repoRoot: fixtureRoot, env: {}, token: 'op', readHost: async () => JSON.stringify(host),
+  return { repoRoot: fixtureRoot, env: {}, token: 'op',
     fetchImpl: async (url, init) => {
       assert.equal(new URL(url).pathname, '/api/config-documents');
       assert.equal(init.method, 'GET');
@@ -40,29 +39,26 @@ function options(body, extra = {}) {
     }, ...extra };
 }
 
-test('stored membership wins over exported map while repository paths come only from this host', async (t) => {
+test('stored projects need no host inventory and legacy files cannot change membership', async (t) => {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-task-config-'));
   t.after(() => fs.rm(repoRoot, { recursive: true, force: true }));
   await fs.mkdir(path.join(repoRoot, 'config'));
+  await fs.mkdir(path.join(repoRoot, 'installation'));
   await fs.writeFile(path.join(repoRoot, 'config/beads.json'), JSON.stringify({ spokes: [old] }));
-  await fs.writeFile(path.join(repoRoot, 'config/task-host.json'), JSON.stringify(host));
-  const config = options({ spokes: [current], hub: { host: 'untrusted.example' } }, { repoRoot, readHost: undefined });
-  const projects = await readTaskProjects(config);
-  assert.deepEqual(projects, [{ ...current, repo: '../linked-checkout' }]);
-  assert.deepEqual(parseTaskProjects(await readTaskProjectConfig(config)), projects);
-  assert.equal(JSON.stringify(projects).includes('untrusted'), false);
+  const config = options({ spokes: [current, old], hub: { host: 'untrusted.example' } }, { repoRoot });
+  const expected = [current, old].map(project => ({ ...project, repo: '' }));
+  assert.deepEqual(await readTaskProjects(config), expected);
+  for (const directory of ['config', 'installation']) {
+    await fs.writeFile(path.join(repoRoot, directory, 'task-host.json'), '{broken legacy inventory');
+  }
+  assert.deepEqual(await readTaskProjects(config), expected);
+  assert.deepEqual(parseTaskProjects(await readTaskProjectConfig(config)), expected);
 });
 
-test('unknown or reassigned project links cannot choose a directory, and do not hide linked projects', async () => {
-  const projects = resolveTaskProjects({ spokes: [current, old] }, host);
-  assert.equal(projects[0].repo, '../linked-checkout');
-  assert.equal(projects[1].repo, '');
-  assert.match(projects[1].unavailableReason, /no matching task connection on this host/);
-  const moved = resolveTaskProjects({ spokes: [{ ...current, prefix: 'new' }] }, host);
-  assert.equal(moved[0].repo, '');
-  const otherDatabase = resolveTaskProjects({ spokes: [{ ...current, database: 'other' }] }, host);
-  assert.equal(otherDatabase[0].repo, '');
-  assert.match(otherDatabase[0].unavailableReason, /no matching task connection on this host/);
+test('prefix-only membership remains usable without legacy checkout or database metadata', () => {
+  assert.deepEqual(resolveTaskProjects({ spokes: [{ asset: current.asset, prefix: current.prefix }] }), [
+    { asset: current.asset, prefix: current.prefix, database: null, repo: '' },
+  ]);
 });
 
 test('empty membership stays empty; unavailable or invalid configuration never falls back to a file', async () => {
@@ -72,7 +68,6 @@ test('empty membership stays empty; unavailable or invalid configuration never f
     options({ spokes: [current] }, { fetchImpl: async () => Response.json({ ready: true, documents: [] }) }),
     options({ spokes: null }),
     options({ spokes: [current, current] }),
-    options({ spokes: [current] }, { readHost: async () => { throw new Error('host links missing'); } }),
   ]) await assert.rejects(readTaskProjects(config));
 });
 
@@ -86,18 +81,6 @@ test('the runner files the acknowledged map, each project from its Ntasks projec
   });
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].projects.map((row) => [row.asset, row.ok]), [[old.asset, false], [current.asset, true]]);
-});
-
-test('physical backup inventory remains available without the workspace store and retains removed projects', async () => {
-  const inventory = { repositories: [{ ...old }, { ...current, repo: '../linked-checkout' }] };
-  const local = await readTaskHost({ readHost: async () => JSON.stringify(inventory) });
-  assert.deepEqual(local.repositories, inventory.repositories);
-  const active = resolveTaskProjects({ spokes: [current] }, local);
-  assert.equal(active.length, 1);
-  assert.equal(local.repositories.length, 2);
-  const brokenCheckout = await readTaskHost({ readHost: async () => JSON.stringify({ repositories: [old, { ...current, repo: null }, { database: 'bad;sql' }] }) });
-  assert.deepEqual(brokenCheckout.repositories.map((row) => taskDatabaseName(row?.database)), ['old', 'cur', null]);
-  await assert.rejects(readTaskHost({ readHost: async () => JSON.stringify({ repositories: null }) }));
 });
 
 test('an acknowledged empty map clears the board; an unreadable map never clears it', async () => {

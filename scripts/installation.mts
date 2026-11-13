@@ -5,8 +5,8 @@
 //                   no repository path, UTC. Every clone carries them, and a
 //                   fresh clone's `pnpm config:seed` loads them.
 //   installation/   one installation's own documents, its applied changesets
-//                   and its host-only files (the task repository links, the
-//                   task hub's server config, the offsite backup folder). `pnpm config:export` and a Save
+//                   and its host-only files (the offsite backup folder and
+//                   resource names). `pnpm config:export` and a Save
 //                   in the Tower write here; `pnpm config:seed` prefers a copy
 //                   here over the default. The private repository tracks it;
 //                   the public release leaves it out.
@@ -40,8 +40,6 @@ export const DEFAULT_INSTALLATION_DIR: string = 'installation';
 export const PRODUCT_DEFAULTS_DIR: string = 'config';
 /** The applied-changeset archive, inside the installation folder. */
 export const CHANGESETS_DIR: string = 'changesets';
-/** The host's task repository links (host-only, never in the store). */
-export const TASK_HOST_FILE: string = 'task-host.json';
 /** Where this host copies each night's finished backup off the machine
  * (host-only, never in the store). */
 export const HOST_BACKUP_FILE: string = 'host-backup.json';
@@ -66,7 +64,7 @@ export function installationDir({ root = REPO_ROOT, env = process.env }: Install
 
 /**
  * A file's name inside either folder: a store key (`config/pull.json`) loses
- * its `config/` prefix; a bare name (`task-host.json`, `changesets`) is kept.
+ * its `config/` prefix; a bare name (`host-backup.json`, `changesets`) is kept.
  */
 export function fileName(name: string): string {
   const prefix = `${PRODUCT_DEFAULTS_DIR}/`;

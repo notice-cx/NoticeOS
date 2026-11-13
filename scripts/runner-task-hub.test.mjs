@@ -14,14 +14,14 @@ test('the saved projects are read once, in order, dropping what a lane cannot us
     spokes: [
       { asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' },
       { asset: 'shop.example', prefix: 'dup', repo: '../dup', database: 'dup' },
-      { asset: 'blog.example', prefix: 'blog', repo: '', unavailableReason: 'not linked on this host', database: 'blog' },
+      { asset: 'blog.example', prefix: 'blog', database: 'blog' },
       { asset: 'bad.example', prefix: 'bad', repo: '../bad', database: 'bad name' },
       { prefix: 'noasset', repo: '../x' },
     ],
   });
   assert.deepEqual(parseTaskProjects(raw), [
     { asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' },
-    { asset: 'blog.example', prefix: 'blog', repo: '', unavailableReason: 'not linked on this host', database: 'blog' },
+    { asset: 'blog.example', prefix: 'blog', repo: '', database: 'blog' },
     { asset: 'bad.example', prefix: 'bad', repo: '../bad', database: null },
   ]);
   assert.deepEqual(parseTaskProjects('not json'), []);

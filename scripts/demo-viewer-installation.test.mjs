@@ -30,7 +30,6 @@ function fixture(t) {
   const postgres = startPostgresPlan({ root, home, port: 6200 });
   const projects = scenario.manifest.taskProjects.map(project => ({ ...project, projectId: demoNtasksProjectId(scenario.manifest.workspaceId, project.prefix) }));
   write('postgres/secrets/database.url', `postgresql://noticeos_app:own-synthetic-value@127.0.0.1:6202/noticeos?sslmode=disable\n`);
-  write('installation/task-host.json', { version: 1, repositories: projects });
   write('installation/beads.json', { spokes: scenario.manifest.taskProjects });
   write('installation/integrations.json', { assets: demoIntegrationAssets(scenario) });
   const evaluator = { release, tree, artifacts: { 'rules.js': artifact, 'poisson.js': artifact, 'codebase-measures.js': artifact }, workers: {

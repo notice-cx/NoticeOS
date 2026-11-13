@@ -1179,8 +1179,8 @@ test('the poller reads every spoke the task map declares', () => {
 });
 
 test('a half-declared spoke is dropped rather than half-polled', () => {
-  // asset, prefix and repo are all load-bearing (config/beads.README.md); a
-  // spoke missing any of them cannot be joined back to a property.
+  // The asset joins the saved project to the portfolio; the prefix names
+  // its Ntasks project. Checkout metadata is optional.
   const raw = JSON.stringify({
     spokes: [
       { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' },
@@ -1192,13 +1192,14 @@ test('a half-declared spoke is dropped rather than half-polled', () => {
   });
   assert.deepEqual(parseTaskProjects(raw), [
     { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example', database: null },
+    { asset: 'northwind.example', prefix: 'nw', repo: '', database: null },
   ]);
 });
 
 test('the declared database is carried, not required, and not dropped on the floor', () => {
   // The poll never uses this field (Ntasks names a project by its prefix), so
-  // requiring it would blank a working board over a
-  // value only the backup reads. It travels, and travels as null when unusable.
+  // requiring legacy metadata would blank a working board. It travels as
+  // null when unusable.
   const raw = JSON.stringify({
     spokes: [
       { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example', database: 'md' },
@@ -1210,8 +1211,6 @@ test('the declared database is carried, not required, and not dropped on the flo
     parseTaskProjects(raw).map((p) => [p.asset, p.database]),
     [
       ['meadow.example', 'md'],
-      // Both still POLL: only the backup cares, and a board that vanishes is a
-      // worse answer than a database name somebody has to fix.
       ['northwind.example', null],
       ['acorn.example', null],
     ],

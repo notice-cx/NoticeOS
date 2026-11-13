@@ -23,7 +23,7 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   if (plan.installation !== path.join(plan.home, 'installation')) throw new Error('Demo task configuration needs its own installation folder.');
   const directory = present(plan.installation);
   if (directory && (!directory.isDirectory() || directory.isSymbolicLink())) throw new Error('Demo task configuration refuses an unsafe folder.');
-  if (['task-host.json', 'beads.json', 'integrations.json'].some(file => present(path.join(plan.installation, file)))) throw new Error('Demo task configuration refuses existing exports.');
+  if (['beads.json', 'integrations.json'].some(file => present(path.join(plan.installation, file)))) throw new Error('Demo task configuration refuses existing exports.');
   // The source inventory reads its three documents from the store, so the two
   // the demo leaves at their defaults are saved as they are.
   const files = ['config/beads.json', 'config/integrations.json', 'config/constants.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json'];
@@ -46,7 +46,6 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   const document = applied.documents?.find(row => row.file === files[0]);
   if (!applied.ok || applied.applied !== scenario.manifest.taskProjects.length || document?.version !== 2 || JSON.stringify(document.body.spokes) !== JSON.stringify(scenario.manifest.taskProjects)) throw new Error('The ordinary config apply did not acknowledge the exact demo projects.');
   fs.mkdirSync(plan.installation, { recursive: true, mode: 0o700 });
-  write(path.join(plan.installation, 'task-host.json'), { version: 1, repositories: receipt.projects });
   write(path.join(plan.installation, 'beads.json'), document.body);
   write(path.join(plan.installation, 'integrations.json'), roster);
   return { seeded, applied };

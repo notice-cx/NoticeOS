@@ -18,7 +18,7 @@ const GUARD = pathToFileURL(path.join(REPO_ROOT, 'apps', 'tower', 'e2e', 'isolat
 const OWNER_CONSTANTS = path.join(REPO_ROOT, 'config', 'constants.json');
 const OWNER_PULL = path.join(REPO_ROOT, 'config', 'pull.json');
 const OWNER_INSTALLED = path.join(REPO_ROOT, 'installation', 'pull.json');
-const FIXTURE_CONFIG = path.join(REPO_ROOT, 'apps', 'tower', 'e2e', 'fixture-repo', 'installation', 'task-host.json');
+const FIXTURE_CONFIG = path.join(REPO_ROOT, 'apps', 'tower', 'e2e', 'fixture-repo', 'installation', 'beads.json');
 
 const PROBE = `
 import fs from 'node:fs';
@@ -53,7 +53,7 @@ await attempt('readFileSync .dev.vars.example', () => fs.readFileSync('/nowhere/
 await attempt('readFileSync owner constants.json', () => fs.readFileSync(${JSON.stringify(OWNER_CONSTANTS)}, 'utf8'));
 await attempt('named readFile owner pull.json', () => readFile(${JSON.stringify(OWNER_PULL)}, 'utf8'));
 await attempt('readFileSync installation pull.json', () => fs.readFileSync(${JSON.stringify(OWNER_INSTALLED)}, 'utf8'));
-await attempt('readFileSync fixture task-host.json', () => fs.readFileSync(${JSON.stringify(FIXTURE_CONFIG)}, 'utf8'));
+await attempt('readFileSync fixture beads.json', () => fs.readFileSync(${JSON.stringify(FIXTURE_CONFIG)}, 'utf8'));
 for (const port of [8791, 5173]) {
   await attempt('connect ' + port, () => new Promise((resolve, reject) => {
     const socket = net.connect({ host: '127.0.0.1', port });
@@ -88,11 +88,11 @@ test('the journey isolation guard refuses secrets files, owner config and owner 
     'readFileSync owner constants.json': 'refused',
     'named readFile owner pull.json': 'refused',
     'readFileSync installation pull.json': 'refused',
-    'readFileSync fixture task-host.json': 'allowed',
+    'readFileSync fixture beads.json': 'allowed',
     'connect 8791': 'refused',
     'connect 5173': 'refused',
   });
-  // Only the example file and the fixture repo's own host links reached the
+  // Only the example file and the fixture repo's own configuration reached the
   // (stubbed) filesystem; the checkout's config/ and installation folder never
   // did, and no socket opened.
   assert.deepEqual(result.reached, [

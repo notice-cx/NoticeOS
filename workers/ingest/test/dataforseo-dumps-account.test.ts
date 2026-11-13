@@ -72,6 +72,20 @@ describe('DataForSEO account credit', () => {
     expect(summary.lastOkAt).not.toBeNull();
   });
 
+  it('keeps a local archive write failure out of the stored login verdict', async () => {
+    await storeCredential();
+    const put = vi.spyOn(env.RAW_SIGNALS, 'put').mockRejectedValue(new Error('Synthetic archive write failure'));
+    try {
+      const { fetchImpl, calls } = providerFetch();
+      const result = await runDataForSeoDumps(env, { nowMs: NOW, fetchImpl, scope: ONE_FAMILY });
+      expect(result.outcomes[0]).toMatchObject({ status: 'error', errorCode: 'local_store_failed', objectKey: null });
+      expect(accountCalls(calls)).toHaveLength(0);
+      const summary = (await credentialSummary(env, 'dataforseo'))!;
+      expect(summary.lastError).toBeNull();
+      expect(summary.lastOkAt).toBeNull();
+    } finally { put.mockRestore(); }
+  });
+
   it('asks nothing and records nothing when every report in the sweep failed', async () => {
     await storeCredential();
     const { fetchImpl, calls } = providerFetch({
@@ -86,6 +100,7 @@ describe('DataForSEO account credit', () => {
     });
 
     expect(result.failed).toBe(1);
+    expect((await credentialSummary(env, 'dataforseo'))!.lastError).not.toBeNull();
     // A run that just proved it cannot reach this provider does not ask it one
     // more question, and the card keeps its last sighting with its age.
     expect(accountCalls(calls)).toHaveLength(0);

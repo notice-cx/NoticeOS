@@ -22,7 +22,7 @@ export function parseTaskProjects(raw) {
     const database = spoke?.database;
     if (typeof asset !== 'string' || asset.trim() === '') continue;
     if (typeof prefix !== 'string' || prefix.trim() === '') continue;
-    if (typeof repo !== 'string' || (repo.trim() === '' && !spoke.unavailableReason)) continue;
+    if (typeof repo !== 'string') continue;
     if (seen.has(asset)) continue;
     seen.add(asset);
     projects.push({

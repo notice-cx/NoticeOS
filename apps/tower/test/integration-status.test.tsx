@@ -101,6 +101,16 @@ it('opens a failing asset on what failed, what to do and when it last worked', (
   expect(screen.getByRole('link', { name: 'Open example.test' })).toHaveAttribute('href', '/assets/example.test/sources');
   expect(screen.queryByText('access')).toBeNull();
 });
+it('shows bounded archive coverage as a count beside its asset', () => {
+  const overflow = item({ id: 'overflow', capability: 'ga4-archive', report: null, reportDate: null, detail: null,
+    state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, failure: 'monitoring', code: 'monitoring',
+    overflow: { shown: 256, total: 257, atLeast: true } });
+  const { container, rerender } = render(<MemoryRouter><IntegrationHealthPanel data={payload([healthy(), overflow])} nowMs={NOW} provider="google" /></MemoryRouter>);
+  expect(container.querySelector('[data-overflow-count="1"]')).toHaveTextContent('1+');
+  expect(container.querySelector('[data-work="ga4-archive"]')).toBeNull();
+  rerender(<MemoryRouter><IntegrationHealthPanel data={payload([healthy()])} nowMs={NOW} provider="google" /></MemoryRouter>);
+  expect(container.querySelector('[data-overflow-count]')).toBeNull();
+});
 it('shows a provider page nothing to list for a provider that is not connected', () => {
   const { container } = render(<MemoryRouter><IntegrationHealthPanel data={payload([item({ state: 'disconnected' })])} nowMs={NOW} provider="google" /></MemoryRouter>);
   expect(container).toBeEmptyDOMElement();
@@ -114,14 +124,15 @@ it('flags monitoring it cannot confirm, and keeps recorded recovery history', ()
   expect(container.querySelector('ol')).toHaveTextContent('Recovered · Hourly traffic comparison');
 });
 it('uses a read-only saved-health endpoint and rejects malformed responses', async () => {
-  const fetch = vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify(payload([item()]))));
-  await fetchIntegrationHealth();
+  const data = payload([item({ capability: 'ga4-archive', overflow: { shown: 256, total: 257, atLeast: false } })]);
+  const fetch = vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify(data)));
+  expect((await fetchIntegrationHealth()).items[0]!.overflow).toEqual(data.items[0]!.overflow);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch).toHaveBeenCalledWith('/api/integrations/health', expect.objectContaining({ headers: {accept:'application/json'} }));
   fetch.mockResolvedValue(new Response(JSON.stringify({available:true,items:[{}]})));
   await expect(fetchIntegrationHealth()).rejects.toThrow('invalid response');
 });
-it.each([{lastSuccessAt:'broken'}, {nextAttemptAt:'broken'}, {coverage:'invented'}, {failure:'invented'}, {failure:['access']}, {reportDate:'yesterday'}, {report:7}, {report:undefined}])('rejects invalid monitoring evidence %j', async patch => {
+it.each([{lastSuccessAt:'broken'}, {nextAttemptAt:'broken'}, {coverage:'invented'}, {failure:'invented'}, {failure:['access']}, {reportDate:'yesterday'}, {report:7}, {report:undefined}, {overflow:{shown:256,total:257,atLeast:'yes'}}, {overflow:{shown:256,total:255,atLeast:false}}, {overflow:{shown:256,total:257,atLeast:false,unresolvedFailures:-1}}])('rejects invalid monitoring evidence %j', async patch => {
   vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify(payload([{...item(),...patch} as IntegrationHealthItem]))));
   await expect(fetchIntegrationHealth()).rejects.toThrow('invalid response');
 });

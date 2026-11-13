@@ -81,6 +81,7 @@ function Site({ site, provider, nowMs }: { site: SiteStatus; provider: string; n
     <span className="flex flex-wrap items-center gap-1.5 sm:ms-auto">
       <IntegrationStateChip state={site.kind} subject={subject} />
       <ConnectionFacts status={site} subject={subject} />
+      {site.overflow ? <span className="text-xs tabular-nums text-muted-foreground" data-overflow-count={site.overflow.count}>{site.overflow.count}{site.overflow.atLeast ? "+" : ""} more report {site.overflow.count === 1 && !site.overflow.atLeast ? "date" : "dates"}</span> : null}
     </span>
     <span className="hidden w-28 shrink-0 items-center justify-end gap-1 text-xs tabular-nums text-muted-foreground sm:flex" title="Last success">
       {site.lastSuccessAt ? <><Check className="size-3" aria-label="Last success" /><Age at={site.lastSuccessAt} nowMs={nowMs} /></> : '—'}

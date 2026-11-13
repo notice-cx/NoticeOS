@@ -7,6 +7,7 @@ import { observeIntegration, tryHealthConnection, type HealthConnection } from '
 
 import {
   archiveCollectedDump,
+  LOCAL_STORE_FAILED,
   archiveDumpFailure,
   unmeasuredDumpOutcome,
   type DumpPage,
@@ -899,7 +900,7 @@ async function collectDueReports(
   // One stamp per sweep on the credential. A family the dead uplink swallowed
   // says nothing about the login, so a sweep made only of those stamps nothing.
   const sweepWorked = outcomes.some((outcome) => outcome.status !== 'error');
-  const measured = outcomes.filter((outcome) => !outcome.egressDown);
+  const measured = outcomes.filter((outcome) => !outcome.egressDown && outcome.errorCode !== LOCAL_STORE_FAILED);
   if (credentialSource === 'store' && measured.length > 0) {
     await recordCredentialOutcome(env, 'dataforseo', {
       ok: sweepWorked,

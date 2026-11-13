@@ -8,8 +8,6 @@ export declare const DEFAULT_INSTALLATION_DIR: string;
 export declare const PRODUCT_DEFAULTS_DIR: string;
 /** The applied-changeset archive, inside the installation folder. */
 export declare const CHANGESETS_DIR: string;
-/** The host's task repository links (host-only, never in the store). */
-export declare const TASK_HOST_FILE: string;
 /** Where this host copies each night's finished backup off the machine
  * (host-only, never in the store). */
 export declare const HOST_BACKUP_FILE: string;
@@ -28,7 +26,7 @@ export interface InstallationOptions {
 export declare function installationDir({ root, env }?: InstallationOptions): string;
 /**
  * A file's name inside either folder: a store key (`config/pull.json`) loses
- * its `config/` prefix; a bare name (`task-host.json`, `changesets`) is kept.
+ * its `config/` prefix; a bare name (`host-backup.json`, `changesets`) is kept.
  */
 export declare function fileName(name: string): string;
 /** Where this installation's copy of `name` is (whether or not it exists yet).
