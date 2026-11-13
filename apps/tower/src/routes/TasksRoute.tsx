@@ -4,7 +4,7 @@ import "@notice-cx/ntasks-ui/styles.css";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSection";
-import { needsSignIn, useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
+import { useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { needsNtasks, useTaskService } from "@/hooks/useTaskService";
 import { useAppliedTheme } from "@/hooks/useTheme";
 import { useDemoReadonly } from "@/lib/browser-context";
@@ -98,7 +98,7 @@ export function TasksRoute() {
   const problem = versionProblem(version.data);
   if (problem) return <Notice><p className="m-0 text-sm" role="alert" data-ntasks-version>{problem}</p></Notice>;
   if (version.isPending) return null;
-  if (needsSignIn(signIn)) return <Notice><SignInToNtasks size="default" className="self-start" /></Notice>;
+  if (signIn.kind === "unconfigured" || signIn.kind === "signed-out") return <Notice><SignInToNtasks size="default" className="self-start" /></Notice>;
   return <NtasksApp apiOrigin={origin} tokenSource={tokenSource} basePath={BASE_PATH} theme={theme} onTitle={onTitle} sidebar="sheet" />;
 }
 

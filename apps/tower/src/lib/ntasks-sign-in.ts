@@ -1,6 +1,4 @@
 import { sha256 } from "@noble/hashes/sha2.js";
-import type { TaskChoiceKey } from "@noticeos/contract/task-choices";
-import type { TaskResolution } from "@noticeos/contract/task-resolution";
 import { NTASKS_SIGNED_IN_PATH } from "@shared/tasks";
 import { ApiError } from "@/lib/api";
 
@@ -119,15 +117,6 @@ export function challengeOf(verifier: string): string {
 }
 
 /** A UUID where `randomUUID` is missing (a page on plain HTTP). */
-function idempotencyKey(crypto: Crypto): string {
-  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -272,7 +261,6 @@ export interface PersonSession {
   request(path: string, init?: RequestInit): Promise<Response>;
   /** The Ntasks project id holding a task, by the prefix of its id, and the
    * workspace this sign-in reaches, as Ntasks names them for it. */
-  projectIdOf(taskId: string): Promise<{ projectId: string; workspaceId: string | null }>;
   /** Forget the tokens in this browser; revoking stays on Ntasks's own Connected apps page. */
   signOut(): void;
 }
@@ -290,11 +278,11 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
   let tokens = readTokens(options.storage.read(tokensName(app)));
   let state: PersonState = { signedIn: tokens !== null, name: tokens?.name ?? null };
   let refreshing: Promise<PersonTokens | null> | null = null;
-  let projects: Promise<{ byPrefix: ReadonlyMap<string, string>; workspaceId: string | null }> | null = null;
 
   function keep(next: PersonTokens | null) {
     tokens = next;
-    if (next === null) { options.storage.forget(tokensName(app)); projects = null; } else options.storage.write(tokensName(app), JSON.stringify(next));
+    if (next === null) options.storage.forget(tokensName(app));
+    else options.storage.write(tokensName(app), JSON.stringify(next));
     const signedIn = next !== null, name = next?.name ?? null;
     if (state.signedIn === signedIn && state.name === name) return;
     state = { signedIn, name };
@@ -334,7 +322,6 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
       const kept = readTokens(options.storage.read(tokensName(app)));
       if (kept?.access === tokens?.access && kept?.name === tokens?.name) return;
       tokens = kept;
-      projects = null;
       const signedIn = kept !== null, name = kept?.name ?? null;
       if (state.signedIn === signedIn && state.name === name) return;
       state = { signedIn, name };
@@ -377,101 +364,7 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
       }
       return response;
     },
-    projectIdOf(taskId) {
-      projects ??= (async () => {
-        const [listing, me] = await Promise.all([session.request("/api/tasks/projects"), session.request("/api/access/me")]);
-        const listed = listing.ok ? (await bodyOf(listing)).projects : null;
-        if (!Array.isArray(listed)) throw new ApiError("Ntasks did not list its projects for this sign-in.", listing.status);
-        const workspaceId = me.ok ? record((await bodyOf(me)).app)?.workspaceId : null;
-        return { workspaceId: typeof workspaceId === "string" ? workspaceId : null, byPrefix: new Map(listed.flatMap((value) => {
-          const entry = record(value);
-          return typeof entry?.prefix === "string" && typeof entry.projectId === "string" ? [[entry.prefix.toLowerCase(), entry.projectId] as const] : [];
-        })) };
-      })().catch((error: unknown) => { projects = null; throw error; });
-      const prefix = taskId.slice(0, Math.max(0, taskId.indexOf("-"))).toLowerCase();
-      return projects.then(({ byPrefix, workspaceId }) => {
-        const found = byPrefix.get(prefix);
-        if (found === undefined) throw new ApiError(`No Ntasks project this sign-in reaches holds ${taskId}.`, 404, "unknown_project");
-        return { projectId: found, workspaceId };
-      });
-    },
     signOut() { keep(null); },
   };
   return session;
-}
-
-/** How a write ends when the person's call was sent. */
-export interface PersonWriteOptions {
-  keepalive?: boolean;
-  /** The Tower's site scope a page passes along; Ntasks finds the project by the task's id. */
-  project?: string;
-}
-export interface PersonCloseOptions extends PersonWriteOptions {
-  resolution?: TaskResolution;
-  duplicateOf?: string;
-}
-
-/** The person's decisions, with the same calls the Tower's own API offers for them. */
-export interface PersonDecisions {
-  respondToTask(id: string, response: string, options?: PersonWriteOptions): Promise<void>;
-  chooseOnTask(id: string, option: TaskChoiceKey, note?: string, options?: PersonWriteOptions): Promise<void>;
-  dismissTask(id: string, reason?: string, options?: PersonCloseOptions): Promise<void>;
-  resolveGate(id: string, reason?: string, options?: PersonWriteOptions): Promise<void>;
-  disputeTask(id: string, options?: PersonWriteOptions): Promise<void>;
-}
-
-/** Where the Tower reads a task from, with the installation's service credential. */
-export interface TaskSource {
-  readonly projectId: string;
-  readonly workspaceId: string;
-}
-
-/**
- * `readsFrom` names the Ntasks workspace and project the Tower reads a task
- * from. A decision is sent only when the person's sign-in reaches that same
- * workspace and project: a sign-in to an app registered in another workspace
- * would otherwise reach another project with the same prefix, or, after a
- * backup was loaded there, a copy with the same ids.
- */
-export function personDecisions(session: PersonSession, readsFrom: (taskId: string) => TaskSource | null,
-  crypto: Crypto = globalThis.crypto): PersonDecisions {
-  async function decide(path: string, id: string, payload: Record<string, unknown>, options?: PersonWriteOptions): Promise<void> {
-    const { projectId, workspaceId } = await session.projectIdOf(id);
-    const source = readsFrom(id);
-    if (source === null) {
-      throw new ApiError(`The Tower has not read where ${id} is held in Ntasks yet; try again in a minute. Nothing was sent.`, 503, "task_source_unknown");
-    }
-    if (source.projectId !== projectId || source.workspaceId !== workspaceId) {
-      throw new ApiError(`This Ntasks sign-in reaches another workspace than the Tower reads ${id} from; register the Tower in the service credential's workspace. Nothing was sent.`,
-        409, "workspace_mismatch");
-    }
-    let response: Response;
-    try {
-      response = await session.request(path, { method: "POST", ...(options?.keepalive ? { keepalive: true } : {}),
-        headers: { "content-type": "application/json", "idempotency-key": idempotencyKey(crypto) },
-        body: JSON.stringify({ projectId, ...payload }) });
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(`${session.app.origin} did not answer; reload before sending it again.`, 0, "task_service_unreachable");
-    }
-    if (response.ok) return;
-    const body = await bodyOf(response);
-    const code = typeof body.error === "string" ? body.error : null;
-    const detail = typeof body.detail === "string" && body.detail !== "" ? body.detail : null;
-    throw new ApiError(detail ?? code ?? `Ntasks answered HTTP ${response.status}; nothing was sent.`, response.status, code,
-      typeof body.field === "string" ? body.field : null);
-  }
-  const task = (id: string, action: string) => `/api/tasks/${encodeURIComponent(id)}/${action}`;
-  return {
-    respondToTask: (id, response, options) => decide(task(id, "respond"), id, { response }, options),
-    chooseOnTask: (id, option, note, options) =>
-      decide(task(id, "choose"), id, { option, ...(note === undefined || note.trim() === "" ? {} : { note }) }, options),
-    dismissTask: (id, reason, options) => decide(task(id, "dismiss"), id, {
-      ...(reason === undefined ? {} : { reason }),
-      ...(options?.resolution === undefined || options.resolution === "wont-do" ? {} : { resolution: options.resolution }),
-      ...(options?.duplicateOf === undefined ? {} : { duplicateOf: options.duplicateOf }),
-    }, options),
-    resolveGate: (id, reason, options) => decide(`/api/gates/${encodeURIComponent(id)}/resolve`, id, reason === undefined ? {} : { reason }, options),
-    disputeTask: (id, options) => decide(task(id, "dispute"), id, {}, options),
-  };
 }

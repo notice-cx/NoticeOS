@@ -4,10 +4,8 @@
 // Ntasks's answer, addressed by site as the standalone pages address it, and
 // is kept (scripts/task-service-cache.mts); when Ntasks cannot be reached a
 // read answers the kept copy, marked `cached`, with the time Ntasks read it.
-// A write answers only what Ntasks answered: nothing is saved here. These
-// calls carry the installation's service credential, which Ntasks never lets
-// decide; a person's decisions go from their browser to Ntasks with their own
-// sign-in (src/lib/ntasks-sign-in.ts).
+// The composer files tasks using the installation's service credential. The
+// embedded Ntasks UI sends decisions from the person's browser session.
 
 import { randomUUID } from "node:crypto";
 import type { LaneReply, LaneRequest } from "./lane";
@@ -26,10 +24,10 @@ export interface TaskServiceLaneOptions {
 }
 
 const STATUS_PATTERN = /^[a-z_]+(,[a-z_]+)*$/u;
-const ACTIONS = new Set(["close", "comments", "respond", "choose", "dismiss", "dispute"]);
+const PERSON_ACTIONS = new Set(["respond", "choose", "dismiss", "dispute"]);
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
 /** Who Ntasks records for a change made on the Tower's pages: `service:<credential>/tower`. */
-export const TOWER_ACTOR = "tower";
+const TOWER_ACTOR = "tower";
 
 class Refused extends Error {
   constructor(readonly reply: LaneReply) { super(String(reply.body.error)); }
@@ -42,9 +40,6 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 const CREDENTIAL_REFUSED = "Ntasks refused this installation's service credential; replace it in Settings → Task projects.";
-/** The routes only a person signed in to Ntasks may use; the installation's credential is refused them by design. */
-const PERSON_ACTIONS = new Set(["respond", "choose", "dismiss", "dispute"]);
-
 /** Ntasks's refusal, in the `{ error, detail }` shape the pages read. On a
  * route only a person may use, Ntasks's own sentence says where to decide;
  * there the credential is not at fault. */
@@ -120,11 +115,11 @@ async function read(opts: TaskServiceLaneOptions, key: string, path: string, ass
 }
 
 /** A write: Ntasks's own answer, or a refusal that says nothing was saved. */
-async function write(opts: TaskServiceLaneOptions, method: "POST" | "PATCH", path: string, body: Record<string, unknown>,
+async function write(opts: TaskServiceLaneOptions, path: string, body: Record<string, unknown>,
   idempotencyKey: string, personOnly = false): Promise<LaneReply> {
   try {
     // The Tower's own changes are the operator's, under the installation's credential.
-    const { status, body: answer } = await opts.service.call({ method, path, body, idempotencyKey, onBehalfOf: TOWER_ACTOR });
+    const { status, body: answer } = await opts.service.call({ method: "POST", path, body, idempotencyKey, onBehalfOf: TOWER_ACTOR });
     if (status >= 200 && status < 300) return { status, body: record(answer) ?? {} };
     if (status === 404 && record(answer)?.error === "not_found" && typeof record(answer)?.detail !== "string" || status === 405) {
       return { status: 501, body: { error: "task_service_unsupported", detail: "Ntasks does not accept this change yet, so nothing was saved." } };
@@ -182,8 +177,6 @@ export async function taskServiceStatus(service: TaskService | null,
   if (connected !== true) return { connected, origin: null, projects: null, required: true };
   const origin = await service.origin().catch(() => null);
   const clientId = await service.appClientId().catch(() => null);
-  // The workspace the Tower reads, which a person's sign-in must reach before
-  // their decision is sent (src/lib/ntasks-sign-in.ts personDecisions).
   const app = clientId === null ? null : { clientId, workspaceId: await service.workspaceId().catch(() => null) };
   try {
     const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
@@ -272,19 +265,18 @@ export async function handleTaskServiceRequest(pathname: string, url: URL, reque
       const { projectId } = projectFor(await mapped(opts), project => project.asset === asset, asset || "No project");
       const { project: _project, ...fields } = body;
       if (Array.isArray(fields.labels) && fields.labels.length === 0) delete fields.labels;
-      return await write(opts, "POST", "/api/tasks", { ...fields, projectId }, idempotencyKey);
+      return await write(opts, "/api/tasks", { ...fields, projectId }, idempotencyKey);
     }
     const gate = /^\/api\/gates\/([^/]+)\/resolve$/u.exec(pathname);
     const action = /^\/api\/tasks\/([^/]+)\/([^/]+)$/u.exec(pathname);
     const one = /^\/api\/tasks\/([^/]+)$/u.exec(pathname);
     const id = decodeURIComponent((gate ?? action ?? one)?.[1] ?? "");
-    if (!(gate || action || one) || !isTaskId(id) || (action && !ACTIONS.has(action[2]!))) return { status: 404, body: { error: "not_found" } };
+    if (!(gate || action || one) || !isTaskId(id) || (action && !PERSON_ACTIONS.has(action[2]!))) return { status: 404, body: { error: "not_found" } };
+    if (method !== (one ? "GET" : "POST")) return { status: 405, body: { error: "method_not_allowed" } };
     const { asset, projectId } = projectFor(await mapped(opts), project => project.prefix.toLowerCase() === prefixOf(id), id);
-    if (one && method === "GET") return await read(opts, taskKey(id), `/api/tasks/${encodeURIComponent(id)}?project=${encodeURIComponent(projectId)}`, asset);
-    if (one ? method !== "PATCH" : method !== "POST") return { status: 405, body: { error: "method_not_allowed" } };
+    if (one) return await read(opts, taskKey(id), `/api/tasks/${encodeURIComponent(id)}?project=${encodeURIComponent(projectId)}`, asset);
     const { project: _project, ...fields } = parseBody(request);
-    const personOnly = gate !== null || (action !== null && PERSON_ACTIONS.has(action[2]!));
-    return await write(opts, one ? "PATCH" : "POST", pathname, { ...fields, projectId }, idempotencyKey, personOnly);
+    return await write(opts, pathname, { ...fields, projectId }, idempotencyKey, true);
   } catch (error) {
     if (error instanceof Refused) return error.reply;
     if (error instanceof TaskServiceUnavailable) {

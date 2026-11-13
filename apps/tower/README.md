@@ -157,7 +157,7 @@ dispatcher in `worker/stored-read-route.ts`. Paths that exist today:
 
 **Dev-server lanes only** (`vite/*`, `apply: "serve"`; absent from a build)
 
-- `/api/tasks`, `/api/tasks/:id` and its actions, `/api/gates/:id/resolve`.
+- `/api/tasks` lists tasks and files new ones. `/api/tasks/:id` reads a task. Decision requests sent with the installation credential are refused by Ntasks.
 - `/api/scheduled-jobs`, `/api/workflows` (`scheduled-jobs-lane.ts`; the
   hosted profile answers them from `worker/hosted-workflow-read.ts`).
 - `/api/integrations/import-env` — moves legacy env credentials into the

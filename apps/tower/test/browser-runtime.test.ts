@@ -17,7 +17,7 @@ const catalogResponse = () => Response.json({ projects: [project] });
 const retired: Array<() => void> = [];
 function runtime(owner: unknown = A, fetch: typeof globalThis.fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({})), page?: Window) {
   const result = createBrowserRuntime<string>(owner, { origin, fetch, storage: localStorage, page,
-    sendAnswer: (api, answer, keepalive) => api.respondToTask('task-id', answer, { keepalive, project: project.logicalKey }) });
+    sendAnswer: (api, answer) => api.createTask({ project: project.logicalKey, title: answer }).then(() => undefined) });
   retired.push(result.retire);
   return result;
 }
@@ -51,8 +51,8 @@ describe('an explicit browser lifetime', () => {
     expect(new Headers(transport.mock.calls[0]?.[1]?.headers).get('x-noticeos-workspace-id')).toBe(A.workspaceId);
     expect(Object.isFrozen(a.owner)).toBe(true);
     expect('fetch' in a).toBe(false);
-    const forged = { keepalive: true, project: project.logicalKey, workspaceId: B.workspaceId, headers: { 'X-NoticeOS-Workspace-ID': B.workspaceId } };
-    await a.api.respondToTask('task-id', 'answer', forged);
+    const forged = { title: 'New task', project: project.logicalKey, workspaceId: B.workspaceId, headers: { 'X-NoticeOS-Workspace-ID': B.workspaceId } };
+    await a.api.createTask(forged);
     await a.api.fetchAssetDetail('https://foreign.example/api/settings');
     for (const [input, init] of transport.mock.calls) {
       expect(new URL(String(input)).origin).toBe(origin);
@@ -93,10 +93,9 @@ describe('an explicit browser lifetime', () => {
     });
     const a = runtime(A, fetch);
     const abort = new AbortController();
-    await a.api.respondToTask('task-id', 'answer', { keepalive: true, project: project.logicalKey });
+    await a.api.createTask({ title: 'New task', project: project.logicalKey });
     expect(receivedInit?.method).toBe('POST');
-    expect(JSON.parse(String(receivedInit?.body))).toEqual({ response: 'answer', projectId: project.projectId });
-    expect(receivedInit?.keepalive).toBe(true);
+    expect(JSON.parse(String(receivedInit?.body))).toEqual({ title: 'New task', projectId: project.projectId });
     expect(new Headers(receivedInit?.headers).get('content-type')).toBe('application/json');
     expect(receivedInit?.credentials).toBe('same-origin');
     expect(receivedInit?.mode).toBe('same-origin');
@@ -246,13 +245,12 @@ describe('an explicit browser lifetime', () => {
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
     expect(String(fetch.mock.calls[0]?.[0])).toBe(`${origin}/api/tasks/projects`);
     const issued = fetch.mock.calls[1];
-    expect(String(issued?.[0])).toBe(`${origin}/api/tasks/task-id/respond`);
-    expect(JSON.parse(String(issued?.[1]?.body))).toEqual({ response: 'original answer', projectId: project.projectId });
+    expect(String(issued?.[0])).toBe(`${origin}/api/tasks`);
+    expect(JSON.parse(String(issued?.[1]?.body))).toEqual({ title: 'original answer', projectId: project.projectId });
     for (const [, init] of fetch.mock.calls) {
       expect(new Headers(init?.headers).get('x-noticeos-workspace-id')).toBe(A.workspaceId);
       expect(new Headers(init?.headers).get(WORKSPACE_SESSION_HEADER)).toBe(A.sessionId);
     }
-    expect(issued?.[1]?.keepalive).toBe(true);
     a.retire();
     const b = runtime(B);
     expect(b.answers.undo('same-id')).toBe(false);
@@ -281,13 +279,13 @@ describe('an explicit browser lifetime', () => {
     expect(effects).toBe(0); expect(sent).not.toHaveBeenCalled();
     const refused = fetch.mock.calls.find(([, init]) => init?.method === 'POST');
     expect(new Headers(refused?.[1]?.headers).get(WORKSPACE_SESSION_HEADER)).toBe(A.sessionId);
-    expect(JSON.parse(String(refused?.[1]?.body))).toEqual({ response: 'old answer', projectId: project.projectId });
+    expect(JSON.parse(String(refused?.[1]?.body))).toEqual({ title: 'old answer', projectId: project.projectId });
     a.retire();
     const b = runtime(successor, fetch);
-    await b.api.respondToTask('task-id', 'new answer', { project: project.logicalKey }); expect(effects).toBe(1);
+    await b.api.createTask({ project: project.logicalKey, title: 'new answer' }); expect(effects).toBe(1);
     const issued = fetch.mock.calls.at(-1);
     expect(new Headers(issued?.[1]?.headers).get(WORKSPACE_SESSION_HEADER)).toBe(successor.sessionId);
-    expect(JSON.parse(String(issued?.[1]?.body))).toEqual({ response: 'new answer', projectId: project.projectId });
+    expect(JSON.parse(String(issued?.[1]?.body))).toEqual({ title: 'new answer', projectId: project.projectId });
     for (const owner of [{ mode: 'standalone', clientGeneration: 1 }, { mode: 'demo', workspaceId: A.workspaceId, clientGeneration: 1 }]) {
       const unbound = vi.fn<typeof globalThis.fetch>(async () => Response.json(wallMoneyResponse()));
       await runtime(owner, unbound).api.fetchWall();
