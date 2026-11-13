@@ -164,7 +164,7 @@
 }
 .wall-revenue-metric .wall-metric-split { gap: 0; }
 .wall-revenue-metric .wall-metric-summary { z-index: 1; justify-content: flex-start; }
-.wall-revenue-metric .wall-metric-summary :is([data-revenue-figure], [data-revenue-pace], [data-revenue-yesterday], dt) {
+.wall-revenue-metric :is([data-revenue-figure], [data-revenue-yesterday], dt) {
   text-shadow: 0 0 .2em var(--metric-surface), 0 0 .35em var(--metric-surface);
 }
 .wall-revenue-metric .wall-cumulative-facts { gap: var(--metric-gap); }
@@ -174,23 +174,57 @@
   margin-inline-start: calc(-1 * var(--revenue-overlap));
   gap: var(--metric-gap);
 }
+.wall-revenue-metric .wall-metric-chart { position: relative; }
+.wall-revenue-projection {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  z-index: 1;
+  color: var(--foreground);
+  display: grid;
+  gap: var(--metric-fact-gap);
+  padding: var(--metric-gap) var(--metric-padding);
+  border-radius: calc(var(--metric-radius) / 2);
+  background: color-mix(in srgb, var(--background) 90%, transparent);
+  text-align: center;
+  pointer-events: none;
+}
+.wall-revenue-projection [data-revenue-pace] {
+  font-size: var(--metric-cumulative-fact-size);
+  font-weight: 500;
+  line-height: var(--metric-value-line);
+}
 .wall-revenue-metric .wall-cumulative-movement { align-items: flex-end; text-align: right; }
 .wall-revenue-metric .wall-cumulative-movement .wall-metric-change { font-size: min(var(--metric-change-size), 6cqi); }
 .wall-revenue-metric .wall-metric-chart svg { min-height: var(--metric-cumulative-chart-height); }
 .wall-revenue-unreported { font-size: var(--metric-note-size); }
 .wall-revenue-sites { display: flex; flex-wrap: wrap; align-items: center; gap: var(--metric-gap); }
+.wall-revenue-sites > span { position: relative; }
 .wall-revenue-sites [data-property-favicon] { width: var(--revenue-site-icon); height: var(--revenue-site-icon); }
-.wall-revenue-sites [data-revenue-site="waiting"] { filter: grayscale(1); opacity: .45; }
+.wall-revenue-sites [data-revenue-site="waiting"] [data-property-favicon] { opacity: .5; }
+.wall-revenue-reported-badge {
+  position: absolute;
+  inset-inline-end: calc(-1 * var(--metric-fact-gap));
+  inset-block-end: calc(-1 * var(--metric-fact-gap));
+  width: .875rem;
+  height: .875rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  outline: .0625rem solid var(--background);
+  background-color: var(--healthy);
+  color: var(--background);
+}
+.wall-revenue-reported-badge svg { width: 75%; height: 75%; stroke-width: 3; }
 @container (width > 22rem) {
-  .wall-revenue-metric .wall-cumulative-facts:has(.wall-revenue-sites) { flex: 1; justify-content: space-between; }
   .wall-metric-cumulative[data-metric-expanded].wall-revenue-metric .wall-metric-chart svg {
-    /* The bars end at y=44 on the 48-unit plot. Place that line at the icon baseline. */
+    /* The bars end at y=44 on the 48-unit plot. Align them with the chart's lower edge. */
     position: absolute;
     inset: 0;
     height: calc(100% * 48 / 44);
     min-height: 0;
   }
-  .wall-revenue-metric .wall-metric-chart { position: relative; }
   .wall-revenue-metric .wall-metric-chart:has(.wall-metric-reference) { margin-top: calc(var(--metric-axis-size) * 1.25); }
   .wall-revenue-metric .wall-metric-chart .wall-metric-reference {
     position: absolute;

@@ -10,6 +10,7 @@ contact logo services or maker websites to render a mark.
 | --- | --- | --- |
 | `claude.svg` | Anthropic | [Anthropic press kit](https://www.anthropic.com/press-kit), `Claude logos/4 Claude icon/SVG/ClaudeIcon-Square.svg` (light spark on an orange background) |
 | `openai.png` | OpenAI | The icon of OpenAI's Codex editor extension, [published by OpenAI on Open VSX](https://open-vsx.org/extension/openai/chatgpt) |
+| `github.svg` | GitHub | [Primer Octicons `mark-github`](https://primer.style/octicons/icon/mark-github-16/), used for GitHub actions in the Wall feed |
 | `gemini.png` | Google | [Gemini](https://gemini.google.com/), its published 512px asset icon |
 
 Exact download URLs and SHA-256 hashes are in [sources.json](sources.json).

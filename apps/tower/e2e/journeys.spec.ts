@@ -721,7 +721,7 @@ test('the Wall states the month on pace from the store\'s projection, and draws 
   await expect(revenue.locator('[data-revenue-yesterday="none"]')).toHaveText('Not reported yet');
   const reports = revenue.getByRole('group', { name: `Reports for ${formatSeriesDate(displayYesterday)} · ${seed.timeZone}` });
   await expect(reports.getByRole('img', { name: /waiting for report/i })).toHaveCount(1);
-  await expect(reports.locator('[data-revenue-site="waiting"]')).toHaveCSS('filter', 'grayscale(1)');
+  await expect(reports.locator('.wall-revenue-reported-badge')).toHaveCount(0);
   await expect(revenue.locator('[data-revenue-yesterday-figure]')).toHaveCount(0);
   await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
   // The daily bars, their legend and the asset card live on the desk now.
@@ -1054,17 +1054,26 @@ test.describe(() => {
         const facts = section.querySelector(".wall-metric-summary")!.getBoundingClientRect();
         const chart = section.querySelector(".wall-metric-plot")!.getBoundingClientRect();
         const scale = (section as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+        const projected = section.querySelector(".wall-revenue-projection")!.getBoundingClientRect();
+        const plot = section.querySelector(".wall-metric-chart")!.getBoundingClientRect();
+        const icons = section.querySelector(".wall-revenue-sites")!.getBoundingClientRect();
+        const main = section.querySelector("[data-revenue-figure]")!.getBoundingClientRect();
+        const yesterday = section.querySelector('[data-metric-fact="Yesterday"]')!.getBoundingClientRect();
         const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")), bottom: bar.getBoundingClientRect().bottom }));
         return { height: section.getBoundingClientRect().height / scale, overlap: facts.right - chart.left, stacked: facts.bottom <= chart.top, chartWidth: chart.width, factsWidth: facts.width,
-          iconBottom: section.querySelector(".wall-revenue-sites")!.getBoundingClientRect().bottom,
+          yesterdayGap: yesterday.top - main.bottom, iconBottom: icons.bottom,
+          projectedOffset: Math.hypot(projected.x + projected.width / 2 - plot.x - plot.width / 2, projected.y + projected.height / 2 - plot.y - plot.height / 2),
           actual: readings("current"), forecast: readings("forecast"), reference: Boolean(section.querySelector("[data-metric-previous-total]")), actualLine: Boolean(section.querySelector("[data-chart-line='solid']")) };
       });
       expect(found).toMatchObject({ height: 324, reference: true, actualLine: false });
+      expect(found.yesterdayGap).toBeGreaterThanOrEqual(0);
+      expect(found.yesterdayGap).toBeLessThan(24);
+      expect(found.projectedOffset).toBeLessThanOrEqual(5);
       if (size[0] === 1920) {
         expect(found.stacked).toBe(false);
         expect(found.overlap / found.factsWidth).toBeGreaterThan(.6);
         expect(found.chartWidth / (found.chartWidth + found.factsWidth - found.overlap)).toBeGreaterThan(.8);
-        expect(Math.abs(found.actual[0]!.bottom - found.iconBottom)).toBeLessThanOrEqual(1);
+        expect(found.actual[0]!.bottom - found.iconBottom).toBeGreaterThan(32);
       } else expect(found.stacked).toBe(true);
       expect(found.actual.length).toBeGreaterThan(0);
       expect(found.forecast.length).toBeGreaterThan(0);
@@ -1075,6 +1084,7 @@ test.describe(() => {
       }
       expect(found.forecast.every(bar => !found.actual.some(actual => actual.date === bar.date))).toBe(true);
       await expect(revenue.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Filled: observed.*Outlined: forecast/);
+      await expect(revenue.locator('[data-revenue-site="reported"] .wall-revenue-reported-badge').first()).toBeVisible();
       expect(found.chartWidth).toBeGreaterThan(80);
       expect(found.factsWidth).toBeGreaterThan(80);
       await assertNoPageOverflow(page);

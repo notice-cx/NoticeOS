@@ -12,6 +12,12 @@
     "retrieved": "2026-10-13",
     "sha256": "2ce1c57dd3b312417106a487815ab1235bddce17e1fa9b32a2f048bd71ee25d3"
   },
+  "github.svg": {
+    "source": "https://raw.githubusercontent.com/primer/octicons/main/icons/mark-github-16.svg",
+    "reference": "https://primer.style/octicons/icon/mark-github-16/",
+    "retrieved": "2026-11-13",
+    "sha256": "7421820090b50ac79d7c2bf7c951a433d7098a8a9c474809207bdd45f62d9d46"
+  },
   "gemini.png": {
     "source": "https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png",
     "reference": "https://gemini.google.com/",

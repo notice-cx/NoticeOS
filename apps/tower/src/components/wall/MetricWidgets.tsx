@@ -125,7 +125,7 @@ export interface MetricComparisonChartProps {
 }
 
 /** All series share dates and scale; unavailable days stay gaps. */
-export function MetricComparisonChart({ current, reference = [], forecast = [], previousTotal, domain, startLabel, endLabel, label, showLabels = true, tone = "neutral", className, variant = "line" }: MetricComparisonChartProps) {
+export function MetricComparisonChart({ current, reference = [], forecast = [], previousTotal, domain, startLabel, endLabel, label, showLabels = true, tone = "neutral", className, variant = "line", center }: MetricComparisonChartProps & { center?: ReactNode }) {
   const { binding } = useWallMetricBinding();
   if (binding?.configured) label = binding.tile.title ?? label;
   if (binding?.configured && binding.tile.reference === false) { reference = []; previousTotal = undefined; }
@@ -165,7 +165,7 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
     {variant === "cumulative-bars" ? bars : <><ChartLine runs={currentRuns} /><ChartLine runs={runs(forecast)} kind="projection" />{currentRuns.filter(run => run.length === 1 && run[0] !== endpoint).map((run, index) => <ChartDot key={index} at={run[0]!} size="sm" halo={false} />)}{endpoint ? <ChartDot at={endpoint} size="sm" halo={false} /> : null}</>}
     <ChartLine runs={runs(reference)} kind="ghost" />
     {previousTotal ? <g data-metric-previous-total><line x1="4" x2="196" y1={y(previousTotal.value)} y2={y(previousTotal.value)} /><title>{previousTotal.label}: {previousTotal.value}</title></g> : null}
-  </svg> : <span className="wall-metric-empty">History unavailable</span>}{showLabels ? <div className="wall-metric-axis"><span>{startLabel}</span><span>{endLabel}</span></div> : null}{showLabels && forecast.length ? <div className="wall-metric-series-key" data-metric-series-key><span>Current</span><span>Projected</span></div> : null}</div>;
+  </svg> : <span className="wall-metric-empty">History unavailable</span>}{center}{showLabels ? <div className="wall-metric-axis"><span>{startLabel}</span><span>{endLabel}</span></div> : null}{showLabels && forecast.length ? <div className="wall-metric-series-key" data-metric-series-key><span>Current</span><span>Projected</span></div> : null}</div>;
 }
 
 export interface SparklineCompareMetricProps extends TileProps, Omit<MetricComparisonChartProps, "label" | "className" | "current" | "startLabel" | "endLabel"> {
@@ -203,11 +203,12 @@ export interface CumulativeCompareMetricProps extends TileProps {
   }[];
   note?: ReactNode;
   chartProps?: Omit<MetricComparisonChartProps, "label" | "className">;
+  chartCenter?: ReactNode;
   chartUnavailable?: ReactNode;
 }
 
 /** Facts and observations share one hierarchy at the base and expanded sizes. */
-export function CumulativeCompareMetric({ value, qualifier, unit, valueNote, movement, secondary = [], note, chartProps, chartUnavailable, size = "wide", expanded = false, ...tile }: CumulativeCompareMetricProps) {
+export function CumulativeCompareMetric({ value, qualifier, unit, valueNote, movement, secondary = [], note, chartProps, chartCenter, chartUnavailable, size = "wide", expanded = false, ...tile }: CumulativeCompareMetricProps) {
   const { binding } = useWallMetricBinding();
   if (binding?.configured && binding.tile.reference === false) {
     movement = undefined;
@@ -225,7 +226,7 @@ export function CumulativeCompareMetric({ value, qualifier, unit, valueNote, mov
       </div>
       <div className="wall-metric-plot">
         {expanded ? comparison : null}
-        {chartProps ? <MetricComparisonChart {...chartProps} variant={chartProps.variant ?? "cumulative-bars"} label={tile.title} /> : <span className="wall-metric-empty">{chartUnavailable ?? "History unavailable"}</span>}
+        {chartProps ? <MetricComparisonChart {...chartProps} variant={chartProps.variant ?? "cumulative-bars"} label={tile.title} center={chartCenter} /> : <span className="wall-metric-empty">{chartUnavailable ?? "History unavailable"}</span>}
       </div>
     </div>
   </MetricTile>;

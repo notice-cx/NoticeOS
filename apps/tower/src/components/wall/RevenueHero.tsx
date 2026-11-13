@@ -1,4 +1,4 @@
-import { CircleDollarSign } from "lucide-react";
+import { Check, CircleDollarSign } from "lucide-react";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import { wallMetricTiles, type WallWidget } from "@shared/wall-layout";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -75,10 +75,11 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     showLabels: false,
     tone: "revenue",
   } : undefined;
-  const secondary: CumulativeCompareMetricProps["secondary"] = [
-    ...(pace ? [{ label: "Projected month", value: <span data-revenue-pace>{formatUsd(pace.projected)}</span>, labelPosition: "below" as const }] : []),
-    ...(yesterday ? [yesterdayFact(yesterday)] : []),
-  ];
+  const secondary = yesterday ? [yesterdayFact(yesterday)] : [];
+  const projection = pace ? <div className="wall-revenue-projection">
+    <span data-revenue-pace>{formatUsd(pace.projected)}</span>
+    <span className="wall-metric-note">Projected month</span>
+  </div> : undefined;
   const note = model.waiting || model.revenue === null && model.previousMonth ? <>
     {model.waiting ? <span data-revenue-waiting>{model.waiting}</span> : null}
     {model.revenue === null && model.previousMonth ? <span data-revenue-previous-month>
@@ -95,7 +96,7 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
         <span data-revenue-figure>{formatUsd(model.revenue)}</span>
       </span>}
       movement={movement} secondary={secondary} note={note}
-      chartProps={chartProps} chartUnavailable={model.waiting ?? "No projection available"}
+      chartProps={chartProps} chartCenter={projection} chartUnavailable={model.waiting ?? "No projection available"}
     />
     </WallMetricBinding>)}
   </section>;
@@ -115,6 +116,7 @@ function yesterdayFact(total: NonNullable<ReturnType<typeof yesterdayTotal<Reven
         const status = `${asset.displayName} · ${reported ? "Reported" : "Waiting for report"}`;
         return <span key={asset.id} role="img" aria-label={status} title={status} data-revenue-site={reported ? "reported" : "waiting"}>
           <PropertyFavicon domain={asset.id} displayName={asset.displayName} icons={asset.icons} scheme="dark" />
+          {reported ? <span className="wall-revenue-reported-badge" aria-hidden="true"><Check /></span> : null}
         </span>;
       })}
     </span>,
