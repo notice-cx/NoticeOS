@@ -12,7 +12,8 @@
 [data-wall-feed] .wall-feed-label, [data-wall-feed] .wall-feed-meta { font-size: var(--feed-meta-size); line-height: 1.25; }
 [data-wall-feed] .wall-feed-glyph { width: var(--feed-glyph-size); height: var(--feed-glyph-size); }
 [data-wall-feed] .wall-feed-agent-badge { width: .875rem; height: .875rem; }
-[data-wall-feed] .wall-feed-actor { display: inline-flex; align-items: center; gap: .3em; vertical-align: baseline; }
+[data-wall-feed] .wall-feed-actor > :is([data-feed-agent], .wall-feed-github) { display: inline-block; vertical-align: middle; margin-inline-end: .3em; }
+[data-wall-feed] [data-feed-agent] { line-height: 0; }
 [data-wall-feed] :is(.wall-feed-inline-agent, .wall-feed-github) { width: 1.25em; height: 1.25em; }
 [data-wall-feed] .wall-feed-github { filter: invert(1); }
 @container wall (width >= calc(1800px - 1.5rem)) {
