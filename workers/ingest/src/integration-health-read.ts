@@ -201,7 +201,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       lastSuccessAt: stored?.last_success_finished_at });
     const unpublishedAt = spec.connection.configured && !spec.paused && observerAvailable && spec.unpublishedAt
       && Date.parse(spec.unpublishedAt) <= nowMs ? spec.unpublishedAt : null;
-    const state = unpublishedAt ? 'waiting' : setup && spec.connection.configured ? 'idle' : projected.state;
+    const state = unpublishedAt ? (obligation !== null && Date.parse(unpublishedAt) < Date.parse(obligation) ? 'stale' : 'waiting')
+      : setup && spec.connection.configured ? 'idle' : projected.state;
     // Public IDs are based on product identity, never on credentials or private targets.
     const id = await healthId([spec.connection.provider, spec.capability, spec.asset ?? '', spec.family ?? '', spec.detail ?? '']);
     const lastSuccess = unpublishedAt ? spec.lastSuccessAt : stored?.last_success_finished_at ?? projected.lastSuccessAt;

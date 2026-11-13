@@ -466,6 +466,8 @@ describe('a day Mediavine has not published yet', () => {
       asset: ASSET, target: SITE.id, observedAt: new Date(waitingAt).toISOString(), attemptId: legacyId, evidenceSource: 'mediavine_runs',
       ok: false, code: 'incomplete' });
     expect(await read(waitingAt)).toEqual(waiting);
+    expect((await read(waitingAt + 37 * HOUR)).item).toMatchObject({ state: 'stale',
+      reportDate: nextDate, lastAttemptAt: new Date(waitingAt).toISOString(), lastSuccessAt: failed.item?.lastSuccessAt, failure: null });
 
     const publishedAt = waitingAt + HOUR;
     expect((await runMediavine(env, { fetchImpl: transport(), nowMs: publishedAt })).outcome).toBe('ran');
