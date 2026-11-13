@@ -1629,6 +1629,7 @@ describe("Portfolio card with no ledger row at all", () => {
 
     const revenue = container.querySelector("[data-wall-revenue]")!;
     expect(revenue.querySelector("[data-revenue-figure]")?.textContent).toBe("$45");
+    expect(revenue.querySelector("[data-revenue-figure]")?.parentElement).toHaveAttribute("title");
     expect(revenue.querySelector("[data-revenue-pace]")).toBeNull();
   });
 });

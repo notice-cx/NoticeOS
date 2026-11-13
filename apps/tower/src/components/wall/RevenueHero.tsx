@@ -83,12 +83,16 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     {model.revenue === null && model.previousMonth ? <span data-revenue-previous-month>
     {formatPeriodMonthYear(model.previousMonth.period)} {formatUsd(model.previousMonth.revenue)}{model.previousMonth.reported < model.previousMonth.sites ? <> · {model.previousMonth.reported} of {model.previousMonth.sites} assets</> : null}
   </span> : null}</> : undefined;
+  const provisional = model.state === "forecast" ? "Provisional revenue" : undefined;
   return <section aria-label="Revenue this month" data-metrics-configured={widget?.settings?.metrics !== undefined || undefined} data-wall-revenue={model.revenue === null ? "waiting" : pace ? "pace" : "figure"}>
     {wallMetricTiles(widget ?? { id: "revenue", type: "revenue", width: 1 }).map(tile => <WallMetricBinding key={tile.id} tile={tile} configured={widget?.settings?.metrics !== undefined}>
     <CumulativeCompareMetric
       title={model.periodIsCurrent ? "Revenue this month" : `${month} revenue`}
       icon={CircleDollarSign} expanded className="wall-revenue-metric"
-      value={model.revenue === null ? null : <span data-revenue-figure>{formatUsd(model.revenue)}</span>}
+      value={model.revenue === null ? null : <span title={provisional}>
+        {provisional ? <span className="sr-only">{provisional} </span> : null}
+        <span data-revenue-figure>{formatUsd(model.revenue)}</span>
+      </span>}
       movement={movement} secondary={secondary} note={note}
       chartProps={chartProps} chartUnavailable={model.waiting ?? "No projection available"}
     />
