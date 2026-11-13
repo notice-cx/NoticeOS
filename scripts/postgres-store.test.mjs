@@ -692,8 +692,7 @@ test('a connection the server ends in the packet that opens it fails its work al
   for (const { name, role, access, open, operate, refusal } of [
     { name: 'task directory', role: 'noticeos_task_directory', access: 'resolver',
       open: openTaskDirectory, refusal: TaskDirectoryRefused,
-      operate: (directory) => directory.withProjectMutation(A, B, { deadline: Date.now() + 10_000 },
-        async () => assert.fail('mutation must not start on a lost connection')) },
+      operate: (directory, work) => directory.withProjectMutation(A, B, { deadline: Date.now() + 10_000 }, work) },
     { name: 'task catalog', role: 'noticeos_platform', access: 'required_access',
       open: openTaskCatalogSetup, refusal: TaskCatalogRefused,
       operate: (catalog) => catalog.configure({ workspaceId: A, projectId: B,
@@ -701,17 +700,19 @@ test('a connection the server ends in the packet that opens it fails its work al
   ]) {
     await t.test(name, async (subtest) => {
       const fixture = await endingServer(subtest, role, access);
-      const helper = open({ connectionString: fixture.url,
-        verifyProject: async () => assert.fail('verification must not start on a lost connection') });
-      const held = operate(helper);
+      let workCalls = 0;
+      const recordWork = async () => { workCalls++; };
+      const helper = open({ connectionString: fixture.url, verifyProject: recordWork });
+      const held = operate(helper, recordWork);
       const retired = Promise.allSettled([held]);
       try {
         await Promise.race([fixture.occupied, held]);
-        await assert.rejects(operate(helper), refusal);
+        await assert.rejects(operate(helper, recordWork), refusal);
       } finally {
         fixture.release();
         await Promise.all([helper.close(), retired]);
       }
+      assert.equal(workCalls, 0, 'The operation must refuse before running callback work');
     });
   }
 });
