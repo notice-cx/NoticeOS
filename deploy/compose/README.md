@@ -380,7 +380,8 @@ nothing. Existing state mounts keep archives and runner records in the
 installation; generated Worker configs link to its existing secret file.
 The command replaces only the app, preserves the stores,
 backups and their volumes, and applies no migration. Its dependency check has
-no network or installation mounts. When the checkout's lockfile or package
+no network or installation mounts. The backup worker runs its declared image
+in both modes. When the checkout's lockfile or package
 manifests no longer match the app's image (after a pull, for example), the app
 does not start, so it never runs mismatched dependencies, and
 `pnpm os:logs -- noticeos` shows the reason. Run `pnpm os:dev` again: it builds the checkout's packages into a new
@@ -405,6 +406,10 @@ pnpm os:prod
 The private `stack-development/previous.json` and journal beside the selector
 record recovery. The switch shares the update lock and restores the old
 app if startup fails, provided the stores and declarations still match.
+Changes to backup settings can stay in `installation.env` when returning to
+the prepared image. The application declaration must still match. An existing
+development record that checks the entire file still requires the original
+settings for that return to the prepared image.
 `pnpm os:update` does not run on a development selector until `pnpm os:prod`
 returns it to an image. Neither mode removes the checkout or its dependencies.
 

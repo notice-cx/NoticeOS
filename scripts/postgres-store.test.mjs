@@ -21,6 +21,8 @@ import {
   withHostedWorkspaceStore,
   storeLocation,
 } from '../packages/postgres/src/store.mjs';
+import { openTaskCatalogSetup, TaskCatalogRefused } from '../packages/postgres/src/task-catalog.mjs';
+import { openTaskDirectory, TaskDirectoryRefused } from '../packages/postgres/src/task-directory.mjs';
 import { PROOF_WORKSPACES, PostgresUnavailable, createWorkspace, openDevelopmentUrl, openThrowaway } from './postgres-dev.mjs';
 import { applyMigrations, bootstrapWorkspace } from './postgres-migrate.mjs';
 
@@ -620,36 +622,98 @@ const backendMessage = (type, body) => {
   return Buffer.concat([Buffer.from(type), length, body]);
 };
 
-test('a connection the server ends in the packet that opens it fails its work alone: the process carries on', async (t) => {
-  // A server that answers every startup with "authenticated", "ready" and
-  // "terminating connection" in one packet, as a session ended the moment it
-  // opened arrives (a restart, a failover, a test copy taken back).
-  const ending = Buffer.concat([
-    backendMessage('R', Buffer.from([0, 0, 0, 0])),
-    backendMessage('Z', Buffer.from('I')),
-    backendMessage('E', Buffer.from('SFATAL\0VFATAL\0C57P01\0Mterminating connection due to administrator command\0\0')),
-  ]);
+const ready = backendMessage('Z', Buffer.from('I'));
+const startup = Buffer.concat([backendMessage('R', Buffer.alloc(4)), ready]);
+const ending = Buffer.concat([startup,
+  backendMessage('E', Buffer.from('SFATAL\0VFATAL\0C57P01\0Mterminating connection due to administrator command\0\0')),
+]);
+
+function roleResult(role, access) {
+  const fields = { session_role: role, acting_role: role, elevated: false, another_role: false,
+    broad_access: false, [access]: true };
+  const count = Buffer.from([0, Object.keys(fields).length]);
+  const descriptions = Object.entries(fields).map(([name, value]) => {
+    const type = Buffer.alloc(18);
+    type.writeUInt32BE(typeof value === 'boolean' ? 16 : 25, 6);
+    type.writeInt16BE(-1, 10);
+    type.writeInt32BE(-1, 12);
+    return Buffer.concat([Buffer.from(`${name}\0`), type]);
+  });
+  const values = Object.values(fields).map(value => {
+    const body = Buffer.from(typeof value === 'boolean' ? (value ? 't' : 'f') : value);
+    const size = Buffer.alloc(4);
+    size.writeInt32BE(body.length);
+    return Buffer.concat([size, body]);
+  });
+  return Buffer.concat([backendMessage('T', Buffer.concat([count, ...descriptions])),
+    backendMessage('D', Buffer.concat([count, ...values])), backendMessage('C', Buffer.from('SELECT 1\0')), ready]);
+}
+
+async function endingServer(t, role, access) {
   const sockets = new Set();
+  const occupied = Promise.withResolvers();
+  let first;
   const server = net.createServer((socket) => {
     sockets.add(socket);
     socket.on('error', () => undefined);
-    socket.once('data', () => socket.write(ending));
+    if (!access || first) {
+      // Both messages arrive before the driver's connect promise resumes.
+      socket.once('data', () => socket.write(ending));
+      return;
+    }
+    // The first connection validates the role and holds the first operation
+    // in BEGIN, so the next operation checks out a new connection directly.
+    first = socket;
+    socket.once('data', () => {
+      socket.write(startup);
+      socket.once('data', () => {
+        socket.write(roleResult(role, access));
+        socket.once('data', () => occupied.resolve());
+      });
+    });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => {
     for (const socket of sockets) socket.destroy();
     return new Promise((resolve) => server.close(resolve));
   });
-  const store = openStore(`postgres://noticeos_app:fixture@127.0.0.1:${server.address().port}/noticeos`, { maxConnections: 1 });
-  t.after(() => store.close());
-  const uncaught = [];
-  const onUncaught = (error) => uncaught.push(error);
-  process.on('uncaughtException', onUncaught);
-  t.after(() => process.removeListener('uncaughtException', onUncaught));
+  return { url: `postgres://${role}:fixture@127.0.0.1:${server.address().port}/noticeos`,
+    occupied: occupied.promise, release: () => first?.destroy() };
+}
 
-  await assert.rejects(store.onlyWorkspace());
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(uncaught.map((error) => error.message), [], 'nothing reached the process as a crash');
+test('a connection the server ends in the packet that opens it fails its work alone: the process carries on', async (t) => {
+  await t.test('shared store', async (subtest) => {
+    const { url } = await endingServer(subtest, 'noticeos_app');
+    const store = openStore(url, { maxConnections: 1 });
+    try {
+      await assert.rejects(store.onlyWorkspace());
+    } finally { await store.close(); }
+  });
+  for (const { name, role, access, open, operate, refusal } of [
+    { name: 'task directory', role: 'noticeos_task_directory', access: 'resolver',
+      open: openTaskDirectory, refusal: TaskDirectoryRefused,
+      operate: (directory) => directory.withProjectMutation(A, B, { deadline: Date.now() + 10_000 },
+        async () => assert.fail('mutation must not start on a lost connection')) },
+    { name: 'task catalog', role: 'noticeos_platform', access: 'required_access',
+      open: openTaskCatalogSetup, refusal: TaskCatalogRefused,
+      operate: (catalog) => catalog.configure({ workspaceId: A, projectId: B,
+        logicalKey: 'example', displayName: 'Example', prefix: 'ex' }) },
+  ]) {
+    await t.test(name, async (subtest) => {
+      const fixture = await endingServer(subtest, role, access);
+      const helper = open({ connectionString: fixture.url,
+        verifyProject: async () => assert.fail('verification must not start on a lost connection') });
+      const held = operate(helper);
+      const retired = Promise.allSettled([held]);
+      try {
+        await Promise.race([fixture.occupied, held]);
+        await assert.rejects(operate(helper), refusal);
+      } finally {
+        fixture.release();
+        await Promise.all([helper.close(), retired]);
+      }
+    });
+  }
 });
 
 test("a call's store works in its one workspace: reads cannot write, a write commits whole, and another workspace sees none of it", async (t) => {

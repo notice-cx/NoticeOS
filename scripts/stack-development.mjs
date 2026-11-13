@@ -7,7 +7,7 @@
 //   pnpm os:prod    Run the app from the prepared image it ran before.
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readSelector, validateSelector } from './stack-control.mjs';
@@ -108,6 +108,21 @@ function regular(file) {
   return fs.readFileSync(file,'utf8');
 }
 
+function appSeal(model) {
+  const app = model.services.noticeos;
+  const resources = (key, names) => Object.fromEntries(names.map(name => [name, model[key]?.[name]]));
+  const names = (entries) => Array.isArray(entries) ? entries.map(entry => entry.source ?? entry) : Object.keys(entries ?? {});
+  const declaration = { app,
+    volumes: resources('volumes', app.volumes.filter(volume => volume.type === 'volume').map(volume => volume.source)),
+    networks: resources('networks', names(app.networks)),
+    configs: resources('configs', names(app.configs)),
+    secrets: resources('secrets', names(app.secrets)),
+  };
+  const ordered = JSON.stringify(declaration, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
+  return createHash('sha256').update(ordered).digest('hex');
+}
+
 export async function developStack({ root = ROOT, selectorFile, disable = false, image = null,
   run = runCommand, env = process.env, out = process.stdout, build = buildDevelopmentImage } = {}) {
   root = fs.realpathSync(root);
@@ -151,7 +166,9 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       const prior = JSON.parse(regular(previous));
       if (prior.schema !== 'noticeos-stack-development/1' || prior.selectorFile !== selectorFile || !IMAGE.test(prior.image)) fail('The prepared-image recovery record is invalid.');
       selected = validateSelector(prior.selector);
-      if (!stackSameInputs(prior.inputs)) fail('The prepared stack declarations changed; restore refused.');
+      if (!equal(selected,declared) || (prior.appSeal === undefined
+        ? !stackSameInputs(prior.inputs)
+        : prior.appSeal !== appSeal(baseModel.value))) fail('The prepared stack declarations changed; restore refused.');
       targetImage = prior.image;
       targetBefore = prior.before;
       assertPreserved(prior.before,before,{ image:before.noticeos.image, added:JSON.parse(regular(overrideFile)).services.noticeos.volumes });
@@ -225,7 +242,7 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       }
       added = override.services.noticeos.volumes;
       if (!active) stackAtomic(previous,json({ schema:'noticeos-stack-development/1', selectorFile, selector, inputs:Object.fromEntries(Object.entries(inputHashes).filter(([file])=>file!==selectorFile)),
-        before, image:before.noticeos.image, source:root }));
+        appSeal: appSeal(baseModel.value), before, image:before.noticeos.image, source:root }));
     }
     if (!stackSameInputs(inputHashes) || !equal(before,await inspectStack(run,selector,env)) ||
       baseModel.seal !== (await stackComposition(run,declared,env)).seal) fail('Stack declarations or containers changed during preparation.');

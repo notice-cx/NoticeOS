@@ -78,6 +78,8 @@ export function openTaskCatalogSetup(options: {
       const candidate = new Pool({ connectionString, max: 2, connectionTimeoutMillis: 5000,
         idleTimeoutMillis: 1000, statement_timeout: 5000, lock_timeout: 5000, query_timeout: 6000 });
       candidate.on('error', () => undefined);
+      // PostgreSQL can end the connection in the packet that makes it ready.
+      candidate.on('connect', (client) => client.on('error', () => undefined));
       try {
         const row = (await candidate.query(ROLE_SQL)).rows[0] as Record<string, unknown> | undefined;
         if (row?.session_role !== 'noticeos_platform' || row.acting_role !== 'noticeos_platform'
@@ -87,11 +89,15 @@ export function openTaskCatalogSetup(options: {
     })();
     return opening;
   }
-  async function configure(input: ReturnType<typeof command>, signal: AbortSignal, deadline: number): Promise<void> {
+  async function configure(input: ReturnType<typeof command>, controller: AbortController, deadline: number): Promise<void> {
+    const { signal } = controller;
     const checkpoint = () => { if (signal.aborted || Date.now() >= deadline) refuse(); };
     checkpoint();
-    const client = await (await connected()).connect();
-    let begun = false;
+    const client = await (await connected()).connect().catch(refuse);
+    let begun = false, broken = false;
+    const connectionLost = () => { broken = true; controller.abort(); };
+    client.on('error', connectionLost);
+    client.on('end', connectionLost);
     try {
       checkpoint(); await client.query('BEGIN'); begun = true;
       const rows = (await client.query('SELECT * FROM noticeos_platform.lock_task_catalog($1::uuid,$2::uuid)',
@@ -111,8 +117,16 @@ export function openTaskCatalogSetup(options: {
         [mapping.workspaceId, mapping.projectId, mapping.executorRef, mapping.credentialRef, mapping.databaseKey,
           input.logicalKey, input.displayName, input.prefix]);
       checkpoint(); await client.query('COMMIT'); begun = false;
-    } catch { if (begun) await client.query('ROLLBACK'); refuse(); }
-    finally { client.release(); }
+    } catch {
+      if (begun && !broken) {
+        try { await client.query('ROLLBACK'); } catch { broken = true; }
+      }
+      refuse();
+    } finally {
+      client.removeListener('error', connectionLost);
+      client.removeListener('end', connectionLost);
+      client.release(broken);
+    }
   }
   return Object.freeze({
     configure(input: unknown) {
@@ -121,7 +135,7 @@ export function openTaskCatalogSetup(options: {
       const controller = new AbortController(), deadline = Date.now() + 60000;
       controllers.add(controller);
       const timer = setTimeout(() => controller.abort(), 60000);
-      const work = configure(captured, controller.signal, deadline).finally(() => {
+      const work = configure(captured, controller, deadline).finally(() => {
         clearTimeout(timer); controllers.delete(controller);
       });
       pending.add(work); void work.then(() => pending.delete(work), () => pending.delete(work));

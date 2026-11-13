@@ -8,7 +8,7 @@ import {execFileSync,spawnSync} from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
-import {EventEmitter} from 'node:events';
+import {EventEmitter,once} from 'node:events';
 import {stopLocalSecretReads} from './worker-config-folder.mjs';
 import {findPostgres,LOOPBACK_HBA} from './postgres-dev.mjs';
 import {openOnLoopbackPort} from './postgres-test-cluster.mjs';
@@ -287,18 +287,51 @@ test('platform task directory has immutable ownership and no customer grants',{t
     await t.test('catalog setup is verified, audited, set-once and active-workspace scoped',async()=>{
       for(const id of[a,b])await admin.query('INSERT INTO noticeos_identity.auth_organization(id,name,slug,created_at) VALUES($1,$2,$2,now())',[id,`fixture-${id}`]);
       assert.deepEqual(await reader.catalog(a),[],'Old mappings are not silently adopted');
-      let verifyCalls=0,deny=true;
-      const setup=openTaskCatalogSetup({connectionString:platform.fixtureConnection,verifyProject:async(mapping,budget)=>{
+      let verifyCalls=0,deny=true,heldVerification;
+      const catalogUrl=new URL(platform.fixtureConnection),catalogName=`catalog-loss-${randomUUID()}`;
+      catalogUrl.searchParams.set('application_name',catalogName);
+      const setup=openTaskCatalogSetup({connectionString:catalogUrl.href,verifyProject:async(mapping,budget)=>{
         verifyCalls++;assert.equal(mapping.projectId,pa);assert.ok(Object.isFrozen(mapping));
         assert.equal(budget.expectedPrefix,'tt');assert.ok(budget.deadline>Date.now());
         if(deny)throw new Error('Synthetic physical verification refused');
+        if(heldVerification){
+          heldVerification.entered.resolve(budget.signal);
+          await heldVerification.release.promise;
+        }
       }});
       try{
         const configuration=workspaceId=>({workspaceId,projectId:pa,logicalKey:'example',displayName:'Example',prefix:'tt'});
         await assert.rejects(setup.configure(configuration(a)),{name:'TaskCatalogRefused'});
         assert.equal((await platform.query('SELECT count(*)::int AS count FROM noticeos_platform.task_project_catalog_changes')).rows[0].count,0);
         assert.deepEqual(await reader.catalog(a),[]);
-        deny=false;await setup.configure(configuration(a));await setup.configure(configuration(b));
+        deny=false;
+        heldVerification={entered:Promise.withResolvers(),release:Promise.withResolvers()};
+        const interrupted=setup.configure(configuration(a));
+        let settled=false;
+        const retired=Promise.allSettled([interrupted]).then(results=>{settled=true;return results;});
+        try {
+          const signal=await Promise.race([heldVerification.entered.promise,interrupted]);
+          const stopWaiting=new AbortController();
+          const aborted=once(signal,'abort',{signal:AbortSignal.any([stopWaiting.signal,AbortSignal.timeout(5000)])});
+          const observed=Promise.allSettled([aborted]);
+          try {
+            const backend=(await admin.query('SELECT pid FROM pg_catalog.pg_stat_activity WHERE application_name=$1 AND usename=$2',
+              [catalogName,'noticeos_platform'])).rows;
+            assert.equal(backend.length,1);
+            assert.equal((await admin.query('SELECT pg_catalog.pg_terminate_backend($1,5000) stopped',[backend[0].pid])).rows[0].stopped,true);
+            await aborted;
+            assert.equal(settled,false,'Connection loss waits for verification cleanup');
+          } finally {
+            stopWaiting.abort();
+            await observed;
+          }
+        } finally {
+          heldVerification.release.resolve();heldVerification=undefined;
+          await retired;
+        }
+        await assert.rejects(interrupted,{name:'TaskCatalogRefused'});
+        assert.equal((await platform.query('SELECT count(*)::int AS count FROM noticeos_platform.task_project_catalog_changes')).rows[0].count,0);
+        await setup.configure(configuration(a));await setup.configure(configuration(b));
         assert.deepEqual(await reader.catalog(a),[],'Provisioning workspaces expose no runtime catalog');
         for(const id of[a,b])await admin.query("UPDATE noticeos.workspaces SET status='active' WHERE workspace_id=$1",[id]);
         const expected=[{projectId:pa,logicalKey:'example',displayName:'Example',prefix:'tt'}];

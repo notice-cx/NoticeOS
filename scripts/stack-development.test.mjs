@@ -57,11 +57,18 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,st
  const file=path.join(local,'stack.json');const base=path.join(local,'compose.json');const envFile=path.join(local,'env');fs.writeFileSync(base,'{}');fs.writeFileSync(envFile,'');
  const selector={project:'synthetic-dev',files:[base],envFile,dockerHost:'unix:///synthetic.sock'};fs.writeFileSync(file,JSON.stringify(selector));
  const mounts=[{Type:'bind',Source:'/synthetic/state',Destination:'/state',RW:true}];
- const baseline={name:selector.project,services:{noticeos:{image,read_only:true,user:'1000:1000',environment:{},labels:{},volumes:[{type:'bind',source:'/synthetic/state',target:'/state',bind:{create_host_path:false}}]},postgres:{image:other},dolt:{image:other},backup:{image:other}}};
+ const baseline={name:selector.project,networks:{installation:{name:'synthetic-network'}},services:{noticeos:{image,read_only:true,user:'1000:1000',environment:{},labels:{},networks:{installation:null},volumes:[{type:'bind',source:'/synthetic/state',target:'/state',bind:{create_host_path:false}}]},postgres:{image:other},dolt:{image:other},backup:{image:other}}};
  const inventory=new Map(['noticeos','postgres','dolt','backup'].map((s,i)=>[s,{Id:String(i+1).repeat(64),Image:s==='noticeos'?image:other,State:{Status:'running',Health:{Status:'healthy'}},Mounts:structuredClone(mounts),Config:{Labels:{'com.docker.compose.project':selector.project,'com.docker.compose.service':s,'org.opencontainers.image.revision':'a'.repeat(40)}}}]));
  const calls=[];let ups=0;
  const model=args=>{
   const value=structuredClone(baseline);
+  const declaredSettings=fs.readFileSync(envFile,'utf8');
+  const backupPath=/^NOTICEOS_BACKUP_OFFSITE_PARENT=(.+)$/mu.exec(declaredSettings)?.[1];
+  if(backupPath) value.services.backup.volumes=[{type:'bind',source:backupPath,target:'/backup-offsite'}];
+  const appPort=/^NOTICEOS_TOWER_PORT=(.+)$/mu.exec(declaredSettings)?.[1];
+  if(appPort) value.services.noticeos.ports=[{published:appPort,target:5173}];
+  const network=/^NOTICEOS_NETWORK=(.+)$/mu.exec(declaredSettings)?.[1];
+  if(network) value.networks.installation.name=network;
   for(let i=0;i<args.length;i++) if(args[i]==='-f' && args[i+1]!==base) {
    const all=JSON.parse(fs.readFileSync(args[i+1],'utf8'));const overlay=all.services.noticeos;const app=value.services.noticeos;
    Object.assign(app,{...overlay,environment:{...app.environment,...overlay.environment},labels:{...app.labels,...overlay.labels},volumes:[...app.volumes.filter(m=>!overlay.volumes.some(next=>next.target===m.target)),...overlay.volumes]});value.volumes={...value.volumes,...all.volumes};
@@ -93,6 +100,23 @@ test('switch and disable touch only the app, preserving the original selector an
   const back=await developStack({root:f.root,selectorFile:f.file,disable:true,...f});assert.equal(back.mode,'prepared');
   assert.deepEqual(JSON.parse(fs.readFileSync(f.file)),f.selector);assert.equal(f.upCount(),2);
   const probe=f.calls.find(c=>c.args[2]==='run');assert.ok(probe.args.includes('none'));assert.ok(!probe.args.includes('/state'));
+ }finally{f.close();}
+});
+test('returning to the prepared image keeps backup settings but refuses changed app settings', async () => {
+ const f=fixture();try {
+  await developStack({root:f.root,selectorFile:f.file,...f});
+  const backup='NOTICEOS_BACKUP_OFFSITE_PARENT=/synthetic/elsewhere\n';
+  fs.writeFileSync(f.selector.envFile,backup+'NOTICEOS_TOWER_PORT=5910\n');
+  await assert.rejects(developStack({root:f.root,selectorFile:f.file,disable:true,...f}),/prepared stack declarations changed/u);
+  fs.writeFileSync(f.selector.envFile,backup+'NOTICEOS_NETWORK=changed-network\n');
+  await assert.rejects(developStack({root:f.root,selectorFile:f.file,disable:true,...f}),/prepared stack declarations changed/u);
+  assert.equal(f.upCount(),1);
+  fs.writeFileSync(f.selector.envFile,backup);
+  const back=await developStack({root:f.root,selectorFile:f.file,disable:true,...f});
+  assert.equal(back.image,image);
+  assert.deepEqual(back.after.backup,back.before.backup);
+  assert.equal(fs.readFileSync(f.selector.envFile,'utf8'),backup);
+  assert.equal(f.upCount(),2);
  }finally{f.close();}
 });
 test('failed health restores the prior app; unexpected sibling or app drift retains recovery lock',async()=>{
