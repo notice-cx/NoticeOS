@@ -34,12 +34,12 @@ test('event consumer batches committed wake-ups, follows durable retries and clo
       drain: async (kind, signal) => {
         assert.equal(signal.aborted, false);
         started++;
-        const rows = await store.read(tx => tx.query(`SELECT event_id::text FROM noticeos.notification_outbox WHERE state='pending'`));
+        const rows = await store.read(tx => tx.query(`SELECT event_id::text FROM noticeos.notification_events WHERE state='pending'`));
         calls.push({ kind, count: rows.length, at: Date.now() });
         if (kind === 'event' && rows.length) {
-          await store.write(tx => tx.execute(`UPDATE noticeos.notification_outbox SET next_attempt_at=clock_timestamp()+interval '1.5 seconds' WHERE state='pending'`));
+          await store.write(tx => tx.execute(`UPDATE noticeos.notification_events SET next_attempt_at=clock_timestamp()+interval '1.5 seconds' WHERE state='pending'`));
         } else if (rows.length) {
-          await store.write(tx => tx.execute(`UPDATE noticeos.notification_outbox SET state='cancelled',finished_at=clock_timestamp() WHERE state='pending'`));
+          await store.write(tx => tx.execute(`UPDATE noticeos.notification_events SET state='cancelled',finished_at=clock_timestamp() WHERE state='pending'`));
         }
         // A failed delivery persists its next deadline and reports no success.
         return kind !== 'event' && rows.length > 0;
@@ -55,7 +55,7 @@ test('event consumer batches committed wake-ups, follows durable retries and clo
     await until(() => calls.length >= 3);
     assert.deepEqual(calls.slice(1).map(call => [call.kind, call.count]), [['event', 2], ['recovery', 2]]);
     assert.ok(calls[2].at - calls[1].at >= 1400, 'retry deadline is honored');
-    await until(async () => (await store.read(tx => tx.query(`SELECT 1 FROM noticeos.notification_outbox WHERE state = 'pending'`))).length === 0);
+    await until(async () => (await store.read(tx => tx.query(`SELECT 1 FROM noticeos.notification_events WHERE state = 'pending'`))).length === 0);
 
     const beforeReconnect = calls.length;
     await cluster.asOwner(database, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity

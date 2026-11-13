@@ -23,8 +23,8 @@ test('notification intent is atomic, episode-scoped and wakes consumers only aft
     const workspace = await store.workspaceId();
     await store.write(tx => tx.execute(`INSERT INTO noticeos.assets
       (workspace_id, asset_id, display_name, status) VALUES ($1::uuid, 'outbox.example', 'Outbox', 'live')`, [workspace]));
-    const rows = () => store.read(tx => tx.query(`SELECT subject, subject_ref, occurrence, connection_id::text,
-      occurred_at FROM noticeos.notification_outbox ORDER BY subject, occurred_at`));
+    const rows = () => store.read(tx => tx.query(`SELECT notification_type, source_kind, source_ref, occurrence, connection_id::text,
+      occurred_at FROM noticeos.notification_events ORDER BY source_kind, occurred_at`));
     const insertFlag = (tx, severity, rule) => tx.query(`INSERT INTO noticeos.flags
       (workspace_id, asset_id, fired_at, severity, kind, metric, message, rule_id)
       VALUES ($1::uuid, 'outbox.example', $2::timestamptz, $3, 'anomaly', 'pulse', 'Synthetic condition', $4)
@@ -45,7 +45,8 @@ test('notification intent is atomic, episode-scoped and wakes consumers only aft
       assert.equal(notifications.length, 1);
       assert.equal(notifications[0].channel, 'noticeos_notifications');
       assert.equal(notifications[0].payload, '');
-      assert.deepEqual((await rows()).map(row => [row.subject, row.subject_ref]), [['alert', String(flag.flag_number)]]);
+      assert.deepEqual((await rows()).map(row => [row.notification_type, row.source_kind, row.source_ref]),
+        [['open-error', 'alert', String(flag.flag_number)]]);
       await listener.end(); listener = null;
     });
 
@@ -59,7 +60,7 @@ test('notification intent is atomic, episode-scoped and wakes consumers only aft
       await reading('2026-10-21T19:02:00.000Z');
       const after = await rows();
       assert.equal(after.length, before + 1);
-      assert.equal(after.find(row => row.subject_ref === String(flag.flag_number)).occurred_at, '2026-10-21T19:01:00.000000Z');
+      assert.equal(after.find(row => row.source_ref === String(flag.flag_number)).occurred_at, '2026-10-21T19:01:00.000000Z');
     });
 
     await t.test('a connection emits one event per failure episode and excludes Discord', async () => {
@@ -71,12 +72,13 @@ test('notification intent is atomic, episode-scoped and wakes consumers only aft
         SET last_used_at = $1::timestamptz, last_error = 'Synthetic provider failure'`, [at]));
       await failure('2026-10-21T19:03:00.000Z');
       await failure('2026-10-21T19:04:00.000Z');
-      assert.deepEqual((await rows()).filter(row => row.subject === 'data-source').map(row => row.subject_ref), ['google']);
+      const failures = async () => (await rows()).filter(row => row.notification_type === 'source-failing');
+      assert.deepEqual((await failures()).map(row => row.source_ref), ['google']);
       await store.write(tx => tx.execute(`UPDATE noticeos.integration_connections
         SET last_error = NULL, last_ok_at = '2026-10-21T19:05:00Z' WHERE provider = 'google'`));
       await failure('2026-10-21T19:06:00.000Z');
-      const episodes = (await rows()).filter(row => row.subject === 'data-source');
-      assert.deepEqual(episodes.map(row => row.subject_ref), ['google', 'google']);
+      const episodes = await failures();
+      assert.deepEqual(episodes.map(row => row.source_ref), ['google', 'google']);
       assert.notEqual(episodes[0].occurrence, episodes[1].occurrence);
       assert.equal(episodes[0].connection_id, episodes[1].connection_id);
 
@@ -85,39 +87,39 @@ test('notification intent is atomic, episode-scoped and wakes consumers only aft
         SET last_ok_at = '2026-10-21T19:10:00Z' WHERE provider = 'google'`));
       await store.write(tx => tx.execute(`UPDATE noticeos.integration_connections
         SET last_used_at = '2026-10-21T19:09:00Z', last_error = 'Older failed outcome' WHERE provider = 'google'`));
-      assert.equal((await rows()).filter(row => row.subject === 'data-source').length, 2);
+      assert.equal((await failures()).length, 2);
       // The next genuinely newer failure starts a new episode, even when the
       // stored error sentence itself is unchanged.
       await store.write(tx => tx.execute(`UPDATE noticeos.integration_connections
         SET last_used_at = '2026-10-21T19:11:00Z' WHERE provider = 'google'`));
-      assert.equal((await rows()).filter(row => row.subject === 'data-source').length, 3);
+      assert.equal((await failures()).length, 3);
     });
 
     await t.test('sparse due reads use the pending index beside terminal history', async proof => {
       const began = performance.now();
-      await store.write(tx => tx.execute(`INSERT INTO noticeos.notification_outbox
-        (workspace_id, subject, subject_ref, occurrence, occurred_at, next_attempt_at, state, finished_at)
-        SELECT $1::uuid, 'alert', 'history-' || i, '', $2::timestamptz, $2::timestamptz, 'sent', $2::timestamptz
+      await store.write(tx => tx.execute(`INSERT INTO noticeos.notification_events
+        (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, next_attempt_at, state, finished_at)
+        SELECT $1::uuid, 'open-error', 'alert', 'history-' || i, '', $2::timestamptz, $2::timestamptz, 'sent', $2::timestamptz
           FROM generate_series(1, 5000) i`, [workspace, AT]));
-      await store.write(tx => tx.execute(`INSERT INTO noticeos.notification_outbox
-        (workspace_id, subject, subject_ref, occurrence, occurred_at, next_attempt_at)
-        SELECT $1::uuid, 'alert', 'due-' || i, '', $2::timestamptz,
+      await store.write(tx => tx.execute(`INSERT INTO noticeos.notification_events
+        (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, next_attempt_at)
+        SELECT $1::uuid, 'open-error', 'alert', 'due-' || i, '', $2::timestamptz,
                $2::timestamptz + CASE WHEN i <= 3 THEN interval '0 seconds' ELSE interval '1 day' END
           FROM generate_series(1, 6) i`, [workspace, AT]));
       const seedMs = performance.now() - began;
-      await cluster.asOwner(database, 'ANALYZE noticeos.notification_outbox');
+      await cluster.asOwner(database, 'ANALYZE noticeos.notification_events');
       const [explained] = await store.write(tx => tx.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-        SELECT event_id FROM noticeos.notification_outbox WHERE state = 'pending'
+        SELECT event_id FROM noticeos.notification_events WHERE channel = 'discord' AND state = 'pending'
           AND next_attempt_at <= $1::timestamptz AND (lease_until IS NULL OR lease_until <= $1::timestamptz)
         ORDER BY next_attempt_at, event_id FOR UPDATE SKIP LOCKED LIMIT 10`, [AT]));
       const plan = JSON.parse(explained['QUERY PLAN'])[0];
       const descendants = node => [node, ...(node.Plans ?? []).flatMap(descendants)];
-      const indexed = descendants(plan.Plan).find(node => node['Index Name'] === 'notification_outbox_due');
+      const indexed = descendants(plan.Plan).find(node => node['Index Name'] === 'notification_events_due');
       assert.ok(indexed, 'the application due read uses the pending-only index');
       assert.match(indexed['Index Cond'], /workspace_id/);
       assert.match(indexed['Index Cond'], /next_attempt_at/);
-      const [sizes] = await cluster.asOwner(database, `SELECT pg_relation_size('noticeos.notification_outbox_due')::text AS index_bytes,
-        pg_total_relation_size('noticeos.notification_outbox')::text AS total_bytes`);
+      const [sizes] = await cluster.asOwner(database, `SELECT pg_relation_size('noticeos.notification_events_due')::text AS index_bytes,
+        pg_total_relation_size('noticeos.notification_events')::text AS total_bytes`);
       proof.diagnostic(JSON.stringify({ terminalRows: 5000, addedPendingRows: 6, seedMs: Number(seedMs.toFixed(2)),
         indexBytes: Number(sizes.index_bytes), tableAndIndexesBytes: Number(sizes.total_bytes),
         dueRowsRead: indexed['Actual Rows'], executionMs: plan['Execution Time'] }));

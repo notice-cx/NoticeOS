@@ -135,16 +135,16 @@ test('every table and view in the model has its revision rule, over columns it r
   for (const [name, target] of Object.entries(definition.targets)) {
     if (target.view) {
       assert.ok(model.views.includes(name), `${name} is declared a view`);
-      continue;
+      if (!target.revision) continue;
     }
     const { insert, update, delete: remove } = target.revision;
     assert.equal(typeof insert, 'boolean', `${name}: insert`);
     assert.equal(typeof remove, 'boolean', `${name}: delete`);
     assert.ok(update === 'all' || Array.isArray(update), `${name}: update is "all" or a column list`);
     if (Array.isArray(update)) {
-      for (const column of update) assert.ok(model.tables[name].includes(column), `${name}.${column} is not a column`);
+      for (const column of update) assert.ok(target.view || model.tables[name].includes(column), `${name}.${column} is not a column`);
     }
-    assert.ok(model.tables[name].includes('workspace_id'), `${name}: every table carries workspace_id`);
+    if (!target.view) assert.ok(model.tables[name].includes('workspace_id'), `${name}: every table carries workspace_id`);
   }
 });
 
@@ -394,21 +394,29 @@ test('on a disposable Postgres: the migrations apply, workspace isolation holds,
             return [name, { select, insert, update, remove }];
           }),
       );
-      const columnUpdates = new Set(
+      const columns = new Map();
+      const columnUpdates = new Set();
+      for (const line of
         psql(
-          `SELECT table_name || '.' || column_name FROM information_schema.columns
+          `SELECT table_name || ':' || column_name || ':' ||
+                  has_column_privilege('noticeos_app', 'noticeos.' || quote_ident(table_name), column_name, 'UPDATE')
+             FROM information_schema.columns
             WHERE table_schema = 'noticeos'
-              AND has_column_privilege('noticeos_app', 'noticeos.' || quote_ident(table_name), column_name, 'UPDATE')`,
+          `,
         )
           .trim()
           .split('\n')
-          .filter(Boolean),
-      );
+          .filter(Boolean)) {
+        const [name, column, canUpdate] = line.split(':');
+        if (!columns.has(name)) columns.set(name, []);
+        columns.get(name).push(column);
+        if (canUpdate === 'true') columnUpdates.add(`${name}.${column}`);
+      }
       assert.deepEqual([...tablePrivileges.keys()].sort(), Object.keys(definition.targets).sort());
       for (const [name, target] of Object.entries(definition.targets)) {
         const has = tablePrivileges.get(name);
         assert.equal(has.select, true, `${name}: the application reads it`);
-        if (target.view) {
+        if (target.view && !target.revision) {
           assert.deepEqual([has.insert, has.update, has.remove], [false, false, false], `${name}: a view is read-only`);
           continue;
         }
@@ -416,7 +424,10 @@ test('on a disposable Postgres: the migrations apply, workspace isolation holds,
         assert.equal(has.insert, insert, `${name}: INSERT privilege`);
         assert.equal(has.remove, remove, `${name}: DELETE privilege`);
         assert.equal(has.update, update === 'all', `${name}: table-wide UPDATE privilege`);
-        for (const column of model.tables[name]) {
+        for (const column of Array.isArray(update) ? update : []) {
+          assert.ok(columns.get(name).includes(column), `${name}.${column} is not a column`);
+        }
+        for (const column of columns.get(name)) {
           const allowed = update === 'all' || update.includes(column);
           assert.equal(columnUpdates.has(`${name}.${column}`), allowed, `${name}.${column}: UPDATE privilege`);
         }

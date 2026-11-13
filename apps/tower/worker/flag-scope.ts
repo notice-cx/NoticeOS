@@ -30,7 +30,7 @@ export function everTunedSql(alias = ""): string {
 }
 
 /** When each alert was first sent to the operator's channel, keyed by workspace
- * number. A row means a message landed; absence claims nothing either way. */
+ * number. Pending and cancelled deliveries have no delivery time. */
 export async function loadNotifiedAt(
   store: WorkspaceStore,
   flagIds: readonly number[],
@@ -38,11 +38,11 @@ export async function loadNotifiedAt(
   if (flagIds.length === 0) return new Map();
   const rows = await store.read((tx) =>
     tx.query<{ subjectRef: string; sentAt: string }>(
-      `SELECT subject_ref AS "subjectRef", min(sent_at) AS "sentAt"
-         FROM noticeos.notifications
-        WHERE subject = 'alert'
-          AND subject_ref = ANY($1::text[])
-        GROUP BY subject_ref`,
+      `SELECT source_ref AS "subjectRef", min(finished_at) AS "sentAt"
+         FROM noticeos.notification_events
+        WHERE source_kind = 'alert' AND notification_type = 'open-error' AND state = 'sent'
+          AND source_ref = ANY($1::text[])
+        GROUP BY source_ref`,
       [flagIds.map((id) => String(id))],
     ),
   );

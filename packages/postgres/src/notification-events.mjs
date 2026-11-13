@@ -53,7 +53,7 @@ function notificationEvents(options, store) {
             return;
         try {
             const [row] = await store.read(tx => tx.query(`SELECT min(greatest(next_attempt_at, coalesce(lease_until, next_attempt_at))) AS due
-           FROM noticeos.notification_outbox WHERE state = 'pending'`));
+           FROM noticeos.notification_events WHERE channel = 'discord' AND state = 'pending'`));
             if (stopped)
                 return;
             const due = row?.due ? Date.parse(row.due) - Date.now() : Infinity;
@@ -151,7 +151,7 @@ function notificationEvents(options, store) {
             return;
         checking = true;
         void store.read(tx => tx.query(`SELECT EXISTS (
-      SELECT 1 FROM noticeos.notification_outbox WHERE state = 'pending'
+      SELECT 1 FROM noticeos.notification_events WHERE channel = 'discord' AND state = 'pending'
         AND next_attempt_at <= clock_timestamp()
         AND (lease_until IS NULL OR lease_until <= clock_timestamp())) AS due`))
             .then(rows => { if (rows[0]?.due)

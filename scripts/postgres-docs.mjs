@@ -20,7 +20,7 @@ export const CONSTRAINTS_PATH = path.join(MODEL, 'constraints.md');
 
 function revisionWords(target) {
   if (!target) return '—';
-  if (target.view) return 'read-only view';
+  if (target.view && !target.revision) return 'read-only view';
   const { insert, update, delete: remove } = target.revision;
   if (!insert) return 'read-only';
   if (update === 'all') return remove ? 'insert, update, delete' : 'insert, update';

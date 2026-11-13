@@ -43,7 +43,7 @@ async function state() {
     pulses: await tx.query(`SELECT pulse_id::text,envelope::text,received_at FROM noticeos.pulses ORDER BY pulse_id`),
     flags: await tx.query(`SELECT * FROM noticeos.flags ORDER BY flag_id`),
     jobs: await tx.query(`SELECT * FROM noticeos.job_runs ORDER BY job_run_id`),
-    notifications: await tx.query(`SELECT * FROM noticeos.notification_outbox`),
+    notifications: await tx.query(`SELECT * FROM noticeos.notification_events`),
     evidence: await tx.query(`SELECT * FROM noticeos.flag_evidence`),
   }));
   return rows;

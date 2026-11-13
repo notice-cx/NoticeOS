@@ -395,7 +395,7 @@ describe('a day Mediavine has not published yet', () => {
       kind: 'file-json-set', file: 'config/constants.json', pointer: '/discord_mediavine_revenue', expect: false, value: true,
     }] })).toMatchObject({ ok: true });
     const queuedYesterday = () => storedCount(
-      "SELECT count(*)::int AS n FROM noticeos.notification_outbox WHERE subject = 'mediavine-revenue' AND occurrence = '2026-09-08'");
+      "SELECT count(*)::int AS n FROM noticeos.notification_events WHERE notification_type = 'daily-mediavine-revenue' AND occurrence = '2026-09-08'");
     let published = false;
     const fetchImpl = transport({ revenueOn: (date) => (date === YESTERDAY && !published ? 0 : 1.25) });
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('ran');

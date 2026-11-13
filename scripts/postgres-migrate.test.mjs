@@ -749,6 +749,118 @@ test('a failing migration rolls the whole run back: no table, no record, no role
   });
 });
 
+test('notification upgrade preserves workspace history and accepts delivery from the previous app', async t => {
+  await live(t, async () => {
+    const dev = throwaway(t);
+    const old = tempDir('nos-notifications-upgrade-');
+    for (const file of migrationFiles().filter(file => path.basename(file) < '0030_')) {
+      copyFileSync(file, path.join(old, path.basename(file)));
+    }
+    applyMigrations(dev, { dir: old });
+    const first = '0000000a-0000-4000-8000-00000000000a';
+    const second = '0000000b-0000-4000-8000-00000000000b';
+    const at = '2026-11-10T12:00:00Z';
+    const sentAt = '2026-11-10T12:01:00Z';
+    const asset = 'fixture.example';
+    for (const [workspace, amount] of [[first, '9007199254740993'], [second, '42']]) {
+      createWorkspace(dev, { workspaceId: workspace, slug: `notifications-${amount}` });
+      inWorkspace(dev, workspace, `INSERT INTO noticeos.notification_outbox
+        (workspace_id, subject, subject_ref, occurrence, occurred_at, next_attempt_at,
+         revenue_minor, month_revenue_minor, month_reported_days, attempts, lease_id, lease_until)
+        VALUES (:'workspace_id', 'mediavine-revenue', '${asset}', '2026-11-09', '${at}', '${sentAt}',
+          ${amount}, 19007199254740993000, 9, 2, '0000000c-0000-4000-8000-00000000000c', '${sentAt}')`);
+    }
+    inWorkspace(dev, first, `
+      INSERT INTO noticeos.integration_connections
+        (workspace_id, provider, scope, created_at, updated_at)
+      VALUES (:'workspace_id', 'bing-webmaster', 'shared', '2026-11-10T11:00:00Z', '2026-11-10T11:00:00Z');
+      UPDATE noticeos.integration_connections SET last_used_at = '${at}', last_error = 'Fixture failure';
+      INSERT INTO noticeos.notification_outbox
+        (workspace_id, subject, subject_ref, occurrence, occurred_at, state, finished_at)
+      VALUES (:'workspace_id', 'alert', '1', '', '${at}', 'cancelled', '${sentAt}');
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'alert', '2', '', 'error-flag', '${sentAt}'),
+             (:'workspace_id', 'discord', 'data-source', 'bing-webmaster', '${at}', 'source-failing', '${sentAt}'),
+             (:'workspace_id', 'discord', 'mediavine-revenue', '${asset}', '2026-11-09', 'daily-mediavine-revenue', '${sentAt}');
+    `);
+    assert.ok(applyMigrations(dev).applied.includes('0030_unify_notifications'));
+    const rows = workspace => inWorkspace(dev, workspace, '', { read: `
+      SELECT notification_type, source_ref, state, payload ->> 'amount_minor' AS amount,
+             payload ->> 'month_minor' AS month, attempts, lease_id::text
+        FROM noticeos.notification_events ORDER BY notification_type, source_ref, state` });
+    assert.deepEqual(rows(first).map(row => [row.notification_type, row.source_ref, row.state]), [
+      ['daily-mediavine-revenue', asset, 'sent'], ['open-error', '1', 'cancelled'], ['open-error', '2', 'sent'],
+      ['source-failing', 'bing-webmaster', 'cancelled'], ['source-failing', 'bing-webmaster', 'sent'],
+    ]);
+    const [revenue] = rows(first);
+    assert.equal(revenue.amount, '9007199254740993');
+    assert.equal(revenue.month, '19007199254740993000');
+    assert.equal(revenue.attempts, '2');
+    assert.equal(revenue.lease_id, null);
+    const [pending] = rows(second);
+    assert.equal(pending.amount, '42');
+    assert.equal(pending.state, 'pending');
+    assert.equal(pending.lease_id, '0000000c-0000-4000-8000-00000000000c');
+    assert.equal(rows(second).length, 1);
+    assert.deepEqual(inWorkspace(dev, first, '', { read: `
+      SELECT condition, sent_at = '${sentAt}'::timestamptz AS time_kept FROM noticeos.notifications
+      WHERE subject = 'alert'` }), [{ condition: 'error-flag', time_kept: 't' }]);
+
+    // Use the previous app's INSERT, lease claim and receipt/update sequence.
+    inWorkspace(dev, second, `
+      INSERT INTO noticeos.notification_outbox
+        (workspace_id, subject, subject_ref, occurrence, occurred_at, revenue_minor, month_revenue_minor, month_reported_days)
+      VALUES (:'workspace_id', 'mediavine-revenue', '${asset}', '2026-11-10', '${at}', 7, 49, 10)
+      ON CONFLICT DO NOTHING;
+      WITH due AS (
+        SELECT event_id FROM noticeos.notification_outbox WHERE occurrence = '2026-11-10' FOR UPDATE SKIP LOCKED
+      )
+      UPDATE noticeos.notification_outbox q SET lease_id = '0000000d-0000-4000-8000-00000000000d',
+        lease_until = '${sentAt}', attempts = attempts + 1 FROM due WHERE q.event_id = due.event_id;
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'mediavine-revenue', '${asset}', '2026-11-10', 'legacy-revenue-condition', '${sentAt}')
+      ON CONFLICT DO NOTHING;
+      UPDATE noticeos.notification_outbox SET state = 'sent', finished_at = '${sentAt}', lease_id = NULL, lease_until = NULL
+      WHERE lease_id = '0000000d-0000-4000-8000-00000000000d';
+    `);
+    const after = rows(second);
+    assert.equal(after.length, 2);
+    assert.deepEqual(after.find(row => row.amount === '7'), {
+      notification_type: 'daily-mediavine-revenue', source_ref: asset, state: 'sent',
+      amount: '7', month: '49', attempts: '1', lease_id: null,
+    });
+    assert.deepEqual(inWorkspace(dev, second, '', { read: `
+      SELECT condition FROM noticeos.notifications WHERE occurrence = '2026-11-10'`
+    }), [{ condition: 'legacy-revenue-condition' }]);
+    assert.throws(() => inWorkspace(dev, first, `UPDATE noticeos.notification_events
+      SET state = 'sent' WHERE source_kind = 'alert' AND source_ref = '1'`), /finished notification events cannot change/iu);
+    inWorkspace(dev, first, `
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'alert', '1', '', 'late-legacy-receipt', '${sentAt}')
+      ON CONFLICT DO NOTHING;
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'alert', '1', '', 'duplicate-receipt', '${at}')
+      ON CONFLICT DO NOTHING;
+    `);
+    assert.deepEqual(inWorkspace(dev, first, '', { read: `
+      SELECT condition, sent_at = '${sentAt}'::timestamptz AS time_kept
+      FROM noticeos.notifications WHERE subject = 'alert' AND subject_ref = '1'`
+    }), [{ condition: 'late-legacy-receipt', time_kept: 't' }]);
+    assert.throws(() => inWorkspace(dev, second, `
+      INSERT INTO noticeos.notification_events
+        (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at)
+      VALUES (:'workspace_id', 'daily-mediavine-revenue', 'asset', '${asset}', '2026-11-11', '${at}')
+    `), /notification_event_revenue/iu);
+    assert.throws(() => inWorkspace(dev, second, `UPDATE noticeos.notification_events SET source_ref = 'changed'`), /permission denied/iu);
+    assert.throws(() => inWorkspace(dev, second, `UPDATE noticeos.notification_events
+      SET state = 'pending', finished_at = NULL WHERE state = 'sent'`), /finished notification events cannot change/iu);
+    assert.throws(() => inWorkspace(dev, second, `
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES ('${first}', 'discord', 'alert', '3', '', 'open-error', '${sentAt}') ON CONFLICT DO NOTHING
+    `), /row-level security/iu);
+  });
+});
+
 test('a second runner is refused while another holds the lock, and succeeds once it is released', async (t) => {
   await live(t, async () => {
     const dev = throwaway(t);

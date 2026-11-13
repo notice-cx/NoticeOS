@@ -276,7 +276,7 @@ there, never handed out twice.
 row's id leaves the store — an API response or route (`PATCH /api/flags/:id`),
 the Wall and its feed, task-hub labels (`key:`, `noticeos_key`), MCP answers —
 it is this number. So is a pointer another row stores as text:
-`watch_windows.ref` naming an annotation, `notifications.subject_ref` naming
+`watch_windows.ref` naming an annotation, `notification_events.source_ref` naming
 an alert. A route that receives one finds its row by `(workspace_id, number)`,
 a unique key.
 
@@ -541,8 +541,9 @@ by column; retention and maintenance privileges are checked separately.
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
 | `mediavine_state` | insert, update, delete | Retry state. |
 | `mercury_readings` | append-only | Append-only complete bank observations, scoped to the connection and its edit time; never booked as revenue or cost. |
-| `notification_outbox` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | Delivery intent commits with its source condition; immutable events retain delivery, cancellation, lease and retry state. |
-| `notifications` | append-only | Append-only; the unique key is the dedupe. |
+| `notification_events` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at, legacy_condition | The type, source and payload stay fixed. A delivery updates the same row from pending to sent or cancelled. |
+| `notification_outbox` (view) | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | Previous app versions enqueue and update delivery state through this view. |
+| `notifications` (view) | append-only | Previous app versions read and record successful deliveries through this view. |
 | `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |
 | `portfolio_briefings` | append-only | Append-only. The newest row per review scope contains the saved briefing and its latest attempt state. |
 | `pulses` | append-only | A retry is a new revision. |

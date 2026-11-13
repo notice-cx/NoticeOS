@@ -716,17 +716,19 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Links:** (workspace_id) → `workspaces`
 - **Triggers:** `history_leaves_only_when_exported` (before delete); `retain_latest_mercury_reading` (before delete)
 
-## `notification_outbox`
+## `notification_events`
 
 | Column | Type | Required | Checks |
 |---|---|---|---|
 | `workspace_id` | uuid | yes |  |
 | `event_id` | uuid | yes |  |
-| `channel` | text | yes | `(channel = 'discord')` |
-| `subject` | text | yes | `CHECK ((subject IN ('alert', 'data-source', 'mediavine-revenue'))) NOT VALID` |
-| `subject_ref` | text | yes | `(subject_ref <> '')` |
+| `channel` | text | yes | `(channel <> '')` |
+| `notification_type` | text | yes | `(notification_type <> '')` |
+| `source_kind` | text | yes | `(source_kind <> '')` |
+| `source_ref` | text | yes | `(source_ref <> '')` |
 | `occurrence` | text | yes |  |
 | `connection_id` | uuid | no |  |
+| `payload` | jsonb | yes | `(jsonb_typeof(payload) = 'object')` |
 | `occurred_at` | timestamp with time zone | yes |  |
 | `created_at` | timestamp with time zone | yes |  |
 | `state` | text | yes | `(state IN ('pending', 'sent', 'cancelled'))` |
@@ -735,31 +737,19 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `lease_id` | uuid | no |  |
 | `lease_until` | timestamp with time zone | no |  |
 | `finished_at` | timestamp with time zone | no |  |
-| `revenue_minor` | bigint | no |  |
-| `previous_revenue_minor` | bigint | no |  |
-| `month_revenue_minor` | numeric | no |  |
-| `month_reported_days` | integer | no |  |
+| `legacy_receipt_id` | bigint | no |  |
+| `legacy_condition` | text | no |  |
 
-- **Keys:** primary (workspace_id, event_id); unique (workspace_id, channel, subject, subject_ref, occurrence)
+- **Keys:** primary (workspace_id, event_id); unique (workspace_id, channel, notification_type, source_kind, source_ref, occurrence)
 - **Links:** (workspace_id) → `workspaces`
-- **Row checks:** `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((state = 'pending') OR (lease_id IS NULL))`; `CHECK ((((subject = 'mediavine-revenue') AND (revenue_minor IS NOT NULL) AND (month_revenue_minor IS NOT NULL) AND (month_reported_days IS NOT NULL) AND ((month_reported_days >= 1) AND (month_reported_days <= 31))) OR ((subject <> 'mediavine-revenue') AND (revenue_minor IS NULL) AND (previous_revenue_minor IS NULL) AND (month_revenue_minor IS NULL) AND (month_reported_days IS NULL)))) NOT VALID`
-- **Triggers:** `notification_wakeup` (after insert)
-
-## `notifications`
-
-| Column | Type | Required | Checks |
-|---|---|---|---|
-| `workspace_id` | uuid | yes |  |
-| `notification_id` | bigint, identity | yes |  |
-| `channel` | text | yes | `(channel <> '')` |
-| `subject` | text | yes | `CHECK ((subject IN ('alert', 'data-source', 'mediavine-revenue'))) NOT VALID` |
-| `subject_ref` | text | yes | `(subject_ref <> '')` |
-| `occurrence` | text | yes |  |
-| `condition` | text | yes | `(condition <> '')` |
-| `sent_at` | timestamp with time zone | yes |  |
-
-- **Keys:** primary (workspace_id, notification_id); unique (workspace_id, channel, subject, subject_ref, occurrence)
-- **Links:** (workspace_id) → `workspaces`
+- **Row checks:** `((notification_type <> 'daily-mediavine-revenue') OR ((state = 'sent') AND (payload = '{}')) OR COALESCE(((jsonb_typeof((payload -> 'amount_minor')) = 'number') AND (((payload ->> 'amount_minor')) IS NOT NULL) AND (((payload ->> 'previous_minor') IS NULL) OR (((payload ->> 'previous_minor')) IS NOT NULL)) AND ((payload ->> 'month_minor') ~ '^-?[0-9]+$') AND ((((payload ->> 'month_reported_days')) >= 1) AND (((payload ->> 'month_reported_days')) <= 31))), false))`; `
+CASE notification_type
+    WHEN 'open-error' THEN (source_kind = 'alert')
+    WHEN 'source-failing' THEN (source_kind = 'integration')
+    WHEN 'daily-mediavine-revenue' THEN (source_kind = 'asset')
+    ELSE true
+END`; `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((state = 'pending') OR (lease_id IS NULL))`
+- **Triggers:** `guard_finished_notification` (before update); `notification_wakeup` (after insert)
 
 ## `person_preferences`
 

@@ -330,27 +330,28 @@ no call.
   daily pace to the end of that month once every day through the reporting
   date has a figure. Rechecks and revised figures do not create another
   notification for the same asset and date.
-- **Event-triggered delivery.** Source transactions save notification intent in
-  `notification_outbox`. The standalone runner listens for committed wake-ups,
+- **Event-triggered delivery.** Source transactions save pending events in
+  `notification_events`. The standalone runner listens for committed wake-ups,
   groups events for one second, and sends up to ten events per message.
 - **Once per failure episode.** Repeated failed provider calls do not create
   additional notifications. A successful call followed by a failure starts a
-  new episode. An alert receives at most one successful-delivery receipt.
+  new episode. An alert has one delivery per channel.
 - **Durable retries.** Failed sends retry after 30 seconds, with exponential
   backoff capped at 15 minutes and the provider's retry delay honored up to an
   hour. Startup, reconnection and the hourly `:05` recovery check collect missed
   events. Unsent events expire after 24 hours; resolved, acknowledged, replaced
   or recovered conditions are suppressed before delivery.
-- **Delivered items only.** The append-only `notifications` table records only
-  events included in a successfully delivered message. Overflow remains pending
-  for another message. A real delivery also records the credential's outcome.
+- **Delivery history.** The same event row records its type, source, channel
+  and delivery state. Only events included in a successful message are marked
+  sent. Overflow remains pending for another message. A real delivery also
+  records the credential's outcome.
 - **At least once.** A crash after Discord accepts a message but before its
-  receipt commits can cause a duplicate. Leases prevent concurrent consumers
+  sent state commits can cause a duplicate. Leases prevent concurrent consumers
   from sending the same claimed batch.
-- **Operator-controlled migrations.** The notification queue starts with
-  `0021_notification_outbox.sql`. Daily revenue notifications also require
-  `0029_mediavine_revenue_notifications.sql`. Apply pending migrations before
-  updating an existing installation. [Database migrations](../scripts/README.md#database-migrations)
+- **Operator-controlled migrations.** Migration `0030_unify_notifications.sql`
+  copies the queue and delivery history into one table. The two previous table
+  names remain available as views during the app update. Apply pending migrations
+  before updating an existing installation. [Database migrations](../scripts/README.md#database-migrations)
 
 ### Clarity: the one per-asset credential
 

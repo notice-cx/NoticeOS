@@ -185,12 +185,14 @@ VALUES (:'ws', 'tower', E'{\n  "panels": []\n}\n', 1, '2026-09-01T00:00:00Z', 'c
 INSERT INTO noticeos.config_changes (workspace_id, document_key, ops, reason, actor, version_before, version_after, changed_at)
 VALUES (:'ws', 'tower', '[{"op":"replace","path":"/panels","value":[]}]', 'seed', 'config:seed', 0, 1, '2026-09-01T00:00:00Z');
 
-INSERT INTO noticeos.notification_outbox (workspace_id, subject, subject_ref, occurrence, connection_id, occurred_at, next_attempt_at)
-SELECT :'ws', 'data-source', provider, 'fixture-episode', connection_id, '2026-09-02T03:00:00Z', '2026-09-02T03:00:00Z'
+INSERT INTO noticeos.notification_events (workspace_id, notification_type, source_kind, source_ref, occurrence, connection_id, occurred_at, next_attempt_at)
+SELECT :'ws', 'source-failing', 'integration', provider, 'fixture-episode', connection_id, '2026-09-02T03:00:00Z', '2026-09-02T03:00:00Z'
   FROM noticeos.integration_connections WHERE provider = 'dataforseo';
 
-INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
-VALUES (:'ws', 'discord', 'alert', '1', '', 'error-flag', '2026-09-02T03:01:00Z');
+INSERT INTO noticeos.notification_events (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, state, finished_at)
+VALUES (:'ws', 'open-error', 'alert', '1', '', '2026-09-02T03:01:00Z', 'sent', '2026-09-02T03:01:00Z')
+ON CONFLICT (workspace_id, channel, notification_type, source_kind, source_ref, occurrence)
+DO UPDATE SET state = 'sent', finished_at = EXCLUDED.finished_at;
 
 INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, recorded_at)
 VALUES (:'ws', 'backup', '2026-09-05T04:00:00Z', '2026-09-05T04:01:00Z', 'ran', '2026-09-05T04:01:01Z');

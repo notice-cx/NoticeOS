@@ -1,5 +1,5 @@
 // Source transactions persist delivery intent. Delivery claims a bounded batch,
-// rechecks current conditions, sends once, then commits receipts and completion.
+// rechecks current conditions, sends once, then marks the events as sent.
 // A provider acceptance followed by a process crash can still be delivered twice.
 import {
   DAILY_MEDIAVINE_REVENUE, NOTIFICATION_CHANNEL, NOTIFIED_CONDITIONS, NOTIFY_BATCH_CAP, NOTIFY_WINDOW_HOURS,
@@ -14,16 +14,10 @@ import { DISCORD_WEBHOOK_FIELD, discordWebhookAnswer, postDiscordWebhook, type D
 const NOTIFICATION_PROVIDER = 'discord';
 const POST_TIMEOUT_MS = 10_000;
 
-interface DeliveryItem {
-  eventId?: string;
-  attempts?: number;
-  condition: NotifiedCondition;
-  subjectRef: string;
-  occurrence: string;
-}
-type AlertCandidate = DeliveryItem & { subject: 'alert' | 'data-source'; line: string };
-type RevenueCandidate = DeliveryItem & { subject: 'mediavine-revenue'; revenue: MediavineRevenueNotification };
-type Candidate = AlertCandidate | RevenueCandidate;
+type Candidate = { eventId: string; attempts: number; sourceRef: string } & (
+  | { type: 'open-error' | 'source-failing'; line: string }
+  | { type: typeof DAILY_MEDIAVINE_REVENUE; revenue: MediavineRevenueNotification }
+);
 export interface NotifierResult {
   monitoringAvailable?: boolean;
   found: number;
@@ -35,69 +29,64 @@ export interface NotifierOptions { nowMs?: number; fetchImpl?: typeof fetch; rec
 
 // The same eligibility predicate cancels stale intent and chooses what to send.
 // A later successful call closes a connection episode even if it failed again.
-const ELIGIBLE = `(q.subject = 'alert' AND EXISTS (
-  SELECT 1 FROM noticeos.current_flags f WHERE f.flag_number::text = q.subject_ref
+const ELIGIBLE = `(q.notification_type = 'open-error' AND EXISTS (
+  SELECT 1 FROM noticeos.current_flags f WHERE f.flag_number::text = q.source_ref
     AND f.severity = 'error' AND f.disposition IS NULL AND f.resolved_at IS NULL
-)) OR (q.subject = 'data-source' AND EXISTS (
+)) OR (q.notification_type = 'source-failing' AND EXISTS (
   SELECT 1 FROM noticeos.integration_connections c WHERE c.connection_id = q.connection_id
-    AND c.provider = q.subject_ref AND c.provider <> 'discord' AND c.last_error IS NOT NULL
+    AND c.provider = q.source_ref AND c.provider <> 'discord' AND c.last_error IS NOT NULL
     AND (c.last_ok_at IS NULL OR c.last_ok_at < q.occurred_at)
-)) OR (q.subject = 'mediavine-revenue' AND ${MEDIAVINE_NOTIFICATIONS_ENABLED})`;
+)) OR (q.notification_type = '${DAILY_MEDIAVINE_REVENUE}' AND ${MEDIAVINE_NOTIFICATIONS_ENABLED})`;
+
+const DISCORD_EVENTS = `channel = '${NOTIFICATION_CHANNEL}'
+  AND notification_type IN ('open-error', 'source-failing', '${DAILY_MEDIAVINE_REVENUE}')`;
 
 async function claim(env: IngestEnv, now: string, lease: string): Promise<Candidate[]> {
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
   return env.STORE.write(async tx => {
-    // A receipt written by the previous release also suppresses delivery.
-    await tx.execute(`UPDATE noticeos.notification_outbox q SET state = 'sent', finished_at = n.sent_at,
-      lease_id = NULL, lease_until = NULL FROM noticeos.notifications n
-      WHERE q.state = 'pending' AND (q.lease_until IS NULL OR q.lease_until <= $1::timestamptz)
-        AND n.channel = q.channel AND n.subject = q.subject
-        AND n.subject_ref = q.subject_ref AND (n.occurrence = q.occurrence OR (
-          q.subject = 'data-source' AND n.occurrence ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
-          AND n.sent_at >= q.occurred_at AND EXISTS (
-            SELECT 1 FROM noticeos.integration_connections c WHERE c.connection_id = q.connection_id
-              AND n.sent_at >= c.created_at)))`, [now]);
-    await tx.execute(`UPDATE noticeos.notification_outbox q SET state = 'cancelled', finished_at = $1::timestamptz,
+    await tx.execute(`UPDATE noticeos.notification_events q SET state = 'cancelled', finished_at = $1::timestamptz,
       lease_id = NULL, lease_until = NULL WHERE q.state = 'pending'
+        AND ${DISCORD_EVENTS}
         AND (q.lease_until IS NULL OR q.lease_until <= $1::timestamptz)
         AND (q.occurred_at < $2::timestamptz OR NOT (${ELIGIBLE}))`, [now, cutoff]);
     const rows = await tx.query<{
-      eventId: string; subject: Candidate['subject']; subjectRef: string; occurrence: string; attempts: number;
+      eventId: string; type: NotifiedCondition; sourceRef: string; occurrence: string; attempts: number;
       collectedAt: string; revenueMinor: bigint | null; previousRevenueMinor: bigint | null;
       monthMinor: string | null; monthReportedDays: number | null;
       asset: string | null; displayName: string | null; isOs: boolean | null;
       metric: string | null; message: string | null; ruleId: string | null; error: string | null;
     }>(`WITH due AS (
-      SELECT event_id FROM noticeos.notification_outbox WHERE state = 'pending'
+      SELECT event_id FROM noticeos.notification_events WHERE state = 'pending' AND ${DISCORD_EVENTS}
         AND next_attempt_at <= $1::timestamptz AND (lease_until IS NULL OR lease_until <= $1::timestamptz)
       ORDER BY next_attempt_at, event_id FOR UPDATE SKIP LOCKED LIMIT $3
     ), claimed AS (
-      UPDATE noticeos.notification_outbox q SET lease_id = $2::uuid,
+      UPDATE noticeos.notification_events q SET lease_id = $2::uuid,
         lease_until = $1::timestamptz + interval '2 minutes', attempts = attempts + 1
       FROM due WHERE q.event_id = due.event_id RETURNING q.*
-    ) SELECT q.event_id::text AS "eventId", q.subject, q.subject_ref AS "subjectRef", q.occurrence, q.attempts,
-      q.occurred_at AS "collectedAt", q.revenue_minor AS "revenueMinor", q.previous_revenue_minor AS "previousRevenueMinor",
-      q.month_revenue_minor AS "monthMinor", q.month_reported_days AS "monthReportedDays",
+    ) SELECT q.event_id::text AS "eventId", q.notification_type AS type, q.source_ref AS "sourceRef", q.occurrence, q.attempts,
+      q.occurred_at AS "collectedAt", (q.payload ->> 'amount_minor')::bigint AS "revenueMinor",
+      (q.payload ->> 'previous_minor')::bigint AS "previousRevenueMinor",
+      q.payload ->> 'month_minor' AS "monthMinor", (q.payload ->> 'month_reported_days')::integer AS "monthReportedDays",
       a.asset_id AS asset, a.display_name AS "displayName", a.is_os AS "isOs",
       f.metric, f.message, f.rule_id AS "ruleId", c.last_error AS error
       FROM claimed q
-      LEFT JOIN noticeos.current_flags f ON q.subject = 'alert' AND f.flag_number::text = q.subject_ref
+      LEFT JOIN noticeos.current_flags f ON q.notification_type = 'open-error' AND f.flag_number::text = q.source_ref
       LEFT JOIN noticeos.assets a ON a.workspace_id = q.workspace_id
-        AND a.asset_id = CASE WHEN q.subject = 'mediavine-revenue' THEN q.subject_ref ELSE f.asset_id END
-      LEFT JOIN noticeos.integration_connections c ON q.subject = 'data-source' AND c.connection_id = q.connection_id`,
+        AND a.asset_id = CASE WHEN q.notification_type = '${DAILY_MEDIAVINE_REVENUE}' THEN q.source_ref ELSE f.asset_id END
+      LEFT JOIN noticeos.integration_connections c ON q.notification_type = 'source-failing' AND c.connection_id = q.connection_id`,
       [now, lease, NOTIFY_BATCH_CAP]);
     return rows.map((row): Candidate => {
       const asset = row.displayName === null ? row.asset : assetDisplayName(row.isOs === true ? 1 : 0, row.displayName);
-      if (row.subject === 'alert') return { ...row, subject: row.subject, condition: 'open-error',
+      if (row.type === 'open-error') return { ...row, type: row.type,
         line: `${asset} — ${row.metric ?? row.ruleId}: ${row.message ?? row.ruleId}` };
-      if (row.subject === 'data-source') return { ...row, subject: row.subject, condition: 'source-failing',
-        line: `${row.subjectRef} stopped working — ${row.error ?? 'no reason recorded'}` };
+      if (row.type === 'source-failing') return { ...row, type: row.type,
+        line: `${row.sourceRef} stopped working — ${row.error ?? 'no reason recorded'}` };
       if (row.revenueMinor === null || row.monthMinor === null || row.monthReportedDays === null) {
         throw new Error('Mediavine notification is missing its revenue figures.');
       }
       const monthMinor = BigInt(row.monthMinor);
-      return { ...row, subject: row.subject, condition: DAILY_MEDIAVINE_REVENUE, revenue: {
-        asset: asset ?? row.subjectRef, date: row.occurrence, collectedAt: row.collectedAt,
+      return { ...row, type: row.type, revenue: {
+        asset: asset ?? row.sourceRef, date: row.occurrence, collectedAt: row.collectedAt,
         amountMinor: row.revenueMinor, previousMinor: row.previousRevenueMinor, monthMinor,
         projectedMinor: projectMediavineMonth(row.occurrence, monthMinor, row.monthReportedDays),
       } };
@@ -105,34 +94,34 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
   });
 }
 
-/** Recovery repairs cutover or missed enqueue obligations without replaying receipts. */
+/** Recover missed events without replaying successful deliveries. */
 async function recoverIntents(env: IngestEnv, now: string): Promise<void> {
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
   await env.STORE.write(async tx => {
-    await tx.execute(`INSERT INTO noticeos.notification_outbox
-      (workspace_id, subject, subject_ref, occurrence, occurred_at, next_attempt_at)
-      SELECT f.workspace_id, 'alert', f.flag_number::text, '', coalesce(e.observed_at, f.fired_at), $1::timestamptz
+    await tx.execute(`INSERT INTO noticeos.notification_events
+      (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at, next_attempt_at)
+      SELECT f.workspace_id, 'open-error', 'alert', f.flag_number::text, '', coalesce(e.observed_at, f.fired_at), $1::timestamptz
       FROM noticeos.current_flags f LEFT JOIN LATERAL (
         SELECT observed_at FROM noticeos.flag_evidence WHERE flag_id = f.flag_id ORDER BY observed_at DESC LIMIT 1
       ) e ON true WHERE f.severity = 'error' AND f.disposition IS NULL AND f.resolved_at IS NULL
         AND coalesce(e.observed_at, f.fired_at) >= $2::timestamptz
-        AND NOT EXISTS (SELECT 1 FROM noticeos.notifications n WHERE n.channel = 'discord'
-          AND n.subject = 'alert' AND n.subject_ref = f.flag_number::text AND n.occurrence = '')
       ON CONFLICT DO NOTHING`, [now, cutoff]);
     // Source row locks serialize repair with transitions and another repair;
     // the following statement observes their committed intent before inserting.
     await tx.query(`SELECT connection_id FROM noticeos.integration_connections
       WHERE provider <> 'discord' AND last_error IS NOT NULL ORDER BY connection_id FOR UPDATE`);
-    await tx.execute(`INSERT INTO noticeos.notification_outbox
-      (workspace_id, subject, subject_ref, occurrence, connection_id, occurred_at, next_attempt_at)
-      SELECT c.workspace_id, 'data-source', c.provider, gen_random_uuid()::text, c.connection_id, c.last_used_at, $1::timestamptz
+    await tx.execute(`INSERT INTO noticeos.notification_events
+      (workspace_id, notification_type, source_kind, source_ref, occurrence, connection_id, occurred_at, next_attempt_at)
+      SELECT c.workspace_id, 'source-failing', 'integration', c.provider, gen_random_uuid()::text, c.connection_id, c.last_used_at, $1::timestamptz
       FROM noticeos.integration_connections c WHERE c.provider <> 'discord' AND c.last_error IS NOT NULL
         AND c.last_used_at >= $2::timestamptz AND (c.last_ok_at IS NULL OR c.last_ok_at < c.last_used_at)
-        AND NOT EXISTS (SELECT 1 FROM noticeos.notification_outbox q WHERE q.connection_id = c.connection_id
-          AND (c.last_ok_at IS NULL OR q.occurred_at > c.last_ok_at))
-        AND NOT EXISTS (SELECT 1 FROM noticeos.notifications n WHERE n.subject = 'data-source'
-          AND n.channel = 'discord' AND n.subject_ref = c.provider
-          AND n.sent_at >= coalesce(c.last_ok_at, c.created_at))`, [now, cutoff]);
+        AND NOT EXISTS (
+          SELECT 1 FROM noticeos.notification_events n WHERE n.notification_type = 'source-failing'
+            AND n.channel = '${NOTIFICATION_CHANNEL}' AND n.source_ref = c.provider AND (
+              (n.connection_id = c.connection_id AND (c.last_ok_at IS NULL OR n.occurred_at > c.last_ok_at))
+              OR (n.state = 'sent' AND n.finished_at >= coalesce(c.last_ok_at, c.created_at))
+            )
+        )`, [now, cutoff]);
   });
 }
 
@@ -146,15 +135,15 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
   try {
     if (options.recover) await recoverIntents(env, now);
     candidates = await claim(env, now, lease);
-    if (candidates.some(candidate => candidate.subject === 'data-source')) {
+    if (candidates.some(candidate => candidate.type === 'source-failing')) {
       const carded = new Set(integrationProviderCards().map(provider => provider.id));
       const summaries = await listCredentialSummaries(env);
       const failing = new Set(summaries.summaries.filter(summary => carded.has(summary.provider)
         && connectionState(summary) === 'failing').map(summary => String(summary.provider)));
-      const excluded = candidates.filter(candidate => candidate.subject === 'data-source' && !failing.has(candidate.subjectRef));
-      if (excluded.length) await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_outbox
+      const excluded = candidates.filter(candidate => candidate.type === 'source-failing' && !failing.has(candidate.sourceRef));
+      if (excluded.length) await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_events
         SET state = 'cancelled', finished_at = $2::timestamptz, lease_id = NULL, lease_until = NULL
-        WHERE lease_id = $1::uuid AND event_id = ANY($3::uuid[])`, [lease, now, excluded.map(candidate => candidate.eventId!)]));
+        WHERE lease_id = $1::uuid AND event_id = ANY($3::uuid[])`, [lease, now, excluded.map(candidate => candidate.eventId)]));
       candidates = candidates.filter(candidate => !excluded.includes(candidate));
     }
   }
@@ -162,7 +151,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
   let count = candidates.length;
   if (!count) return { found: 0, fresh: 0, sent: 0, skipped: 'nothing-to-say' };
   const retry = async (delayMs: number, disconnected = false) => env.STORE.write(tx => tx.execute(
-    `UPDATE noticeos.notification_outbox SET lease_id = NULL, lease_until = NULL,
+    `UPDATE noticeos.notification_events SET lease_id = NULL, lease_until = NULL,
        attempts = attempts - CASE WHEN $3::boolean THEN 1 ELSE 0 END,
        next_attempt_at = $2::timestamptz WHERE lease_id = $1::uuid AND state = 'pending'`,
     [lease, new Date(nowMs + Date.now() - beganAt + delayMs).toISOString(), disconnected]));
@@ -178,37 +167,30 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
   const sendingAt = new Date(nowMs + Date.now() - beganAt).toISOString();
   try {
     const held = await env.STORE.write(async tx => {
-      await tx.execute(`UPDATE noticeos.notification_outbox q SET state = 'cancelled',
+      await tx.execute(`UPDATE noticeos.notification_events q SET state = 'cancelled',
         finished_at = $2::timestamptz, lease_id = NULL, lease_until = NULL
         WHERE q.lease_id = $1::uuid AND NOT (${ELIGIBLE})`, [lease, sendingAt]);
-      return tx.query<{ id: string }>(`UPDATE noticeos.notification_outbox SET
+      return tx.query<{ id: string }>(`UPDATE noticeos.notification_events SET
         lease_until = $2::timestamptz + interval '2 minutes'
         WHERE lease_id = $1::uuid AND state = 'pending' AND lease_until > $2::timestamptz
         RETURNING event_id::text AS id`, [lease, sendingAt]);
     });
     const ids = new Set(held.map(row => row.id));
-    candidates = candidates.filter(candidate => ids.has(candidate.eventId!));
+    candidates = candidates.filter(candidate => ids.has(candidate.eventId));
     count = candidates.length;
   } catch { return { found: count, fresh: count, sent: 0, skipped: 'store-unavailable' }; }
   if (!count) return { found: 0, fresh: 0, sent: 0, skipped: 'nothing-to-say' };
   const delivered = await post(webhook, discordMessage(candidates), options.fetchImpl ?? fetch);
-  // Receipts precede optional health bookkeeping. Nothing omitted by the batch
-  // limit is marked sent, and a failed bookkeeping write cannot erase delivery.
+  // A failed health update cannot erase a successful delivery.
   if (delivered.ok) {
     await env.STORE.write(async tx => {
-      const held = await tx.query<{ event_id: string }>(
-        `SELECT event_id::text FROM noticeos.notification_outbox
-          WHERE lease_id = $1::uuid AND state = 'pending' FOR UPDATE`, [lease]);
-      if (held.length !== count) throw new Error('Notification delivery lease was lost.');
-      for (const candidate of candidates) await tx.execute(
-        `INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
-          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz) ON CONFLICT DO NOTHING`,
-        [tx.workspaceId, NOTIFICATION_CHANNEL, candidate.subject, candidate.subjectRef, candidate.occurrence, candidate.condition, now]);
-      await tx.execute(`UPDATE noticeos.notification_outbox SET state = 'sent', finished_at = $2::timestamptz,
-        lease_id = NULL, lease_until = NULL WHERE lease_id = $1::uuid`, [lease, now]);
+      const sent = await tx.query<{ event_id: string }>(`UPDATE noticeos.notification_events
+        SET state = 'sent', finished_at = $2::timestamptz, lease_id = NULL, lease_until = NULL
+        WHERE lease_id = $1::uuid AND state = 'pending' RETURNING event_id::text`, [lease, now]);
+      if (sent.length !== count) throw new Error('Notification delivery lease was lost.');
     });
   } else {
-    const attempt = Math.max(...candidates.map(candidate => candidate.attempts ?? 1));
+    const attempt = Math.max(...candidates.map(candidate => candidate.attempts));
     await retry(Math.max(delivered.retryAfterMs ?? 0, Math.min(900_000, 30_000 * 2 ** Math.min(attempt - 1, 5))));
   }
   const monitoringAvailable = await observeIntegration(env, health, { capability: 'discord-delivery', target: webhook,
@@ -220,7 +202,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
 }
 
 /** Discord limits content to 2,000 characters; keep every claimed item visible. */
-export function composeMessage(fresh: readonly AlertCandidate[], carried: readonly AlertCandidate[] = fresh): string {
+export function composeMessage(fresh: readonly { line: string }[], carried: readonly { line: string }[] = fresh): string {
   const head = `NoticeOS — ${fresh.length} new ${fresh.length === 1 ? 'alert' : 'alerts'}`;
   const lines = carried.map(candidate => {
     const line = candidate.line.replace(/[\r\n]+/g, ' ');
@@ -231,8 +213,8 @@ export function composeMessage(fresh: readonly AlertCandidate[], carried: readon
 }
 
 function discordMessage(candidates: readonly Candidate[]): DiscordMessage {
-  const alerts = candidates.filter(candidate => candidate.subject !== 'mediavine-revenue');
-  const revenue = candidates.filter(candidate => candidate.subject === 'mediavine-revenue');
+  const alerts = candidates.filter(candidate => candidate.type !== DAILY_MEDIAVINE_REVENUE);
+  const revenue = candidates.filter(candidate => candidate.type === DAILY_MEDIAVINE_REVENUE);
   if (revenue.length === 0) return { content: composeMessage(alerts) };
   return {
     content: alerts.length > 0 ? composeMessage(alerts) : '**NoticeOS · Mediavine revenue**',
