@@ -35,6 +35,7 @@ import {
   archivePart,
   archivePartKey,
   LOCAL_STORE_FAILED,
+  localStoreError,
   networkFailure,
   parseDatedArchivePart,
   unmeasuredDumpOutcome,
@@ -63,7 +64,7 @@ import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
 import { asRecord, stringField } from './shared.js';
 import { claimLease } from './integration-leases.js';
-import { posthogCooldown, posthogRetryAt, savePosthogCooldown, type PosthogQueryCooldown } from './posthog-query-budget.js';
+import { POSTHOG_BUDGET_STOP_OWNER, posthogCooldown, posthogRetryAt, recordPosthogBudgetStop, savePosthogCooldown, type PosthogQueryCooldown } from './posthog-query-budget.js';
 
 /** The credential field: asset id → that asset's read-only personal API key. */
 export const POSTHOG_KEY_SLOT = 'POSTHOG_KEYS';
@@ -393,6 +394,7 @@ export async function runPosthogDumps(
           monitoring,
           state,
           skipped,
+          portfolio: options.scope === undefined,
         })),
       );
     } finally {
@@ -505,10 +507,10 @@ function posthogPropertyRef(settings: PosthogAssetSettings): string {
  * asks for the window ending yesterday, so a window end a run did not collect
  * would never be asked again. Owed: a window end whose latest attempt failed
  * for a network reason (asked again until PostHog answers); one whose latest
- * attempt PostHog answered "not now" (5xx, malformed, 429), asked once more
+ * attempt PostHog answered "not now" (5xx, malformed, unfinished, 429), asked once more
  * per kind, because the same answer twice is PostHog's settled answer; one the
  * dead uplink swallowed (named on the open `os-egress-down` flag); and one a
- * 429 stopped the run before asking (`stoppedRuns`). A refused key and a local
+ * provider budget stop left unasked (`stoppedRuns`). A refused key and a local
  * store failure are never re-asked. `assetAsks` decides which a run asks.
  */
 async function owedWindows(
@@ -548,10 +550,11 @@ const RATE_LIMITED_CODES: ReadonlySet<string> = new Set(['posthog_query_budget_e
  * A PostHog answer that means "not now" rather than "no", by kind. Null for
  * anything else.
  */
-function transientRefusal(code: string | null): 'server' | 'malformed' | 'rate-limited' | null {
+function transientRefusal(code: string | null): 'server' | 'malformed' | 'unfinished' | 'rate-limited' | null {
   if (code === null) return null;
   if (/^posthog_http_5\d\d$/.test(code)) return 'server';
   if (code === 'posthog_invalid_response') return 'malformed';
+  if (code === 'posthog_incomplete_query') return 'unfinished';
   if (RATE_LIMITED_CODES.has(code)) return 'rate-limited';
   return null;
 }
@@ -597,16 +600,15 @@ async function failedWindows(store: WorkspaceStore): Promise<FailedWindow[]> {
                AND later.report_date = e.report_date AND later.property_ref = e.property_ref
                AND later.requested_at > e.requested_at
           )`,
-      [['posthog_invalid_response', ...RATE_LIMITED_CODES]],
+      [['posthog_invalid_response', 'posthog_incomplete_query', ...RATE_LIMITED_CODES]],
     ),
   );
   return rows.map((row) => ({ ...row, codes: row.codes.filter((code): code is string => typeof code === 'string') }));
 }
 
 /**
- * The runs a PostHog 429 stopped, read back from the rows they left. Every stop
- * writes exactly one 429 row and every row of a run shares its `requested_at`,
- * so a 429 row's `requested_at` names a stopped run, and a family with no row
+ * A 429 error or a successful response's budget stop identifies a run,
+ * and a family with no archive row
  * for the window that run would have asked is owed. Only for an asset already
  * being collected on its current project when the run was stopped (`since`).
  * The dates read are the three a run's window end can fall on.
@@ -624,8 +626,10 @@ async function stoppedRuns(
       `SELECT DISTINCT requested_at AS "stoppedAt" FROM noticeos.archive_runs
         WHERE integration = 'posthog' AND status = 'error'
           AND error_code = ANY($1::text[])
-        ORDER BY requested_at`,
-      [[...RATE_LIMITED_CODES]],
+        UNION
+       SELECT expires_at AS "stoppedAt" FROM noticeos.integration_leases WHERE owner = $2
+        ORDER BY "stoppedAt"`,
+      [[...RATE_LIMITED_CODES], POSTHOG_BUDGET_STOP_OWNER],
     );
     if (runs.length === 0) return null;
     const stoppedAt = runs.map((row) => javascriptInstant(row.stoppedAt));
@@ -816,6 +820,7 @@ interface AssetRun {
   monitoring: CollectionMonitoring;
   state: RunState;
   skipped: PosthogSkip[];
+  portfolio: boolean;
 }
 
 /** One request this run makes for an asset: today's window, or an earlier one
@@ -885,6 +890,7 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
       egress,
       monitoring,
       state,
+      portfolio: run.portfolio,
     });
     outcomes.push(outcome);
     if (ask.owed) {
@@ -1005,6 +1011,7 @@ interface FamilyRun {
   egress: EgressLane;
   monitoring: CollectionMonitoring;
   state: RunState;
+  portfolio: boolean;
 }
 
 const ACCESS_DENIED = 'posthog_access_denied';
@@ -1017,7 +1024,7 @@ export function posthogQueryName(family: string): string {
 }
 
 async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDumpOutcome> {
-  const { target, key, settings, family, window, projectTimeZone, origin, requestedAt, egress, monitoring, state } = run;
+  const { target, key, settings, family, window, projectTimeZone, origin, requestedAt, egress, monitoring, state, portfolio } = run;
   const rowLimit = family === 'funnels' ? funnelStepCount(settings.funnels) : POSTHOG_ROW_LIMITS[family];
   try {
     const query = posthogQuery(family, window, settings.funnels);
@@ -1031,8 +1038,12 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       body: JSON.stringify({ query: { kind: 'HogQLQuery', query: query.text }, name: posthogQueryName(family) }),
       signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
     });
-    readBudget(response, state);
+    const stoppedOnSuccess = readBudget(response, state);
     const payload = await posthogResponseBody(response, state);
+    if (stoppedOnSuccess && portfolio) {
+      await recordPosthogBudgetStop(env.STORE, requestedAt)
+        .catch((error: unknown) => { throw localStoreError(error, 'posthog', family); });
+    }
     if (!response.ok) throw posthogProviderError(response, payload, state);
 
     const results = queryResults(payload, query.columns);
@@ -1125,7 +1136,7 @@ async function readProjectTimeZone(
   return typeof zone === 'string' && zone.length > 0 ? zone : null;
 }
 
-function readBudget(response: Response, state: RunState): void {
+function readBudget(response: Response, state: RunState): boolean {
   const remaining = Number(response.headers.get(BUDGET_HEADER));
   if (response.headers.has(BUDGET_HEADER) && Number.isFinite(remaining)) state.budgetRemainingBytes = remaining;
   const read = Number(response.headers.get(BYTES_READ_HEADER));
@@ -1133,7 +1144,9 @@ function readBudget(response: Response, state: RunState): void {
   // Nothing left means the next query would be refused: stop before asking.
   if (response.ok && state.budgetRemainingBytes !== null && state.budgetRemainingBytes <= 0 && state.stop === null) {
     state.stop = { reason: 'budget-exhausted', detail: 'PostHog reported no query budget left this hour.', nextAttemptAt: posthogRetryAt(response, state.clock()) };
+    return true;
   }
+  return false;
 }
 
 async function posthogResponseBody(response: Response, state: RunState): Promise<unknown> {

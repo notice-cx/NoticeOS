@@ -67,6 +67,9 @@ export const POSTHOG_ROW_LIMITS: Readonly<Record<PosthogFamily, number>> = {
   funnels: POSTHOG_FUNNEL_LIMITS.maxFunnels * POSTHOG_FUNNEL_LIMITS.maxSteps,
 };
 
+/** Ranked exception and rage-click reports retain the highest counts. */
+export const POSTHOG_DEPTH_BOUNDED_REPORTS: readonly PosthogFamily[] = ['exceptions', 'rageclicks'];
+
 /** Web vitals keep the top paths by measurement count, then every device and
  * OS segment of those paths. */
 export const POSTHOG_WEB_VITALS_TOP_PATHS = 20;

@@ -19,6 +19,34 @@ import {
 beforeEach(resetWithFernsLaunched);
 
 describe('DataForSEO weekly archives', () => {
+  it.each([
+    { returned: 865, total: 865, truncated: false },
+    { returned: 1_000, total: 1_000, truncated: false },
+    { returned: 1_000, total: 1_250, truncated: true },
+    { returned: 200, total: 865, truncated: false },
+  ])('checks ranked-keyword completeness for $returned of $total rows', async ({ returned, total, truncated }) => {
+    const items = Array.from({ length: returned }, (_, index) => ({ keyword_data: { keyword: `keyword ${index}` } }));
+    const fetchImpl: typeof fetch = async () => Response.json({
+      status_code: 20000, cost: 0.11,
+      tasks: [{ status_code: 20000, result: [{ items_count: returned, total_count: total, items }] }],
+    });
+    const result = await runDataForSeoDumps(env, {
+      nowMs: NOW, fetchImpl, login: 'operator-login', password: 'operator-password',
+      scope: { asset: 'meadow.example', families: ['ranked-keywords'] },
+    });
+    if (returned !== Math.min(total, 1_000)) {
+      expect(result.outcomes).toMatchObject([{ status: 'error', errorCode: 'dataforseo_invalid_response', objectKey: null }]);
+    } else {
+      expect(result.outcomes).toMatchObject([{ status: 'success', providerRows: returned, providerTruncated: truncated }]);
+      const object = await env.RAW_SIGNALS.get(result.outcomes[0]!.objectKey!);
+      const saved = await new Response(object!.body.pipeThrough(new DecompressionStream('gzip'))).json<{
+        pages: { response: { tasks: { result: { items: typeof items }[] }[] } }[];
+      }>();
+      expect(saved.pages[0]!.response.tasks[0]!.result[0]!.items).toEqual(items);
+    }
+    expect(result.costUsd).toBe(0.11);
+  });
+
   it('archives each family once and spends nothing when automation repeats inside its cadence', async () => {
     const { fetchImpl, calls } = providerFetch();
     const first = await runDataForSeoDumps(env, {
@@ -49,7 +77,7 @@ describe('DataForSEO weekly archives', () => {
     ).toMatchObject({
       location_code: 2840,
       language_code: 'en',
-      limit: 200,
+      limit: 1_000,
     });
     expect(
       calls.find((call) =>

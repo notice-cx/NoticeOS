@@ -162,25 +162,59 @@ it('does not silently accept a malformed calendar configuration', async () => {
 const dfsEnv = () => ({ ...env, DATAFORSEO_LOGIN: 'op@example.test', DATAFORSEO_PASSWORD: 'fixture-password' });
 /** One stored SERP panel run for meadow.example and its stored health, as
  * the collector records them. */
-async function storedPanelRun(id: string, at: string, health: { ok: boolean; code?: string }) {
+async function storedPanelRun(id: string, at: string, health: { ok: boolean; code?: string }, report = 'serp-panel') {
   const [candidate] = await dataForSeoCandidates(env.STORE, 'meadow.example');
   const target = dataForSeoTarget(candidate!);
   const monitoring = beginCollection(env.STORE, await healthConnection(dfsEnv(), 'dataforseo'));
   const reportDate = at.slice(0, 10);
-  await storeArchiveRun({ id, asset: target.asset, integration: 'dataforseo', report: 'serp-panel', report_date: reportDate, finished_at: at,
+  await storeArchiveRun({ id, asset: target.asset, integration: 'dataforseo', report, report_date: reportDate, finished_at: at,
     credential_ref: target.credentialRef, property_ref: target.propertyRef, provider_truncated: true });
-  await recordCollectedHealth({ target, monitoring, attempt: { id, startedAt: at, finishedAt: at, source: 'signal_dump_runs', ...health, report: 'serp-panel', reportDate } });
+  await recordCollectedHealth({ target, monitoring, attempt: { id, startedAt: at, finishedAt: at, source: 'signal_dump_runs', ...health, report, reportDate } });
   return target;
 }
-const panelItem = async (nowMs: number) => (await readIntegrationHealth(dfsEnv(), nowMs)).items
-  .find(i => i.capability === 'dataforseo-research' && i.asset === 'meadow.example' && i.report === 'serp-panel');
+const panelItem = async (nowMs: number, report = 'serp-panel') => (await readIntegrationHealth(dfsEnv(), nowMs)).items
+  .find(i => i.capability === 'dataforseo-research' && i.asset === 'meadow.example' && i.report === report);
 
-it('reads a SERP panel run stored as incomplete only because it stopped at its own depth as the success it was', async () => {
+it.each(['serp-panel', 'ranked-keywords'])('recovers retained %s health that failed only because of the configured depth', async (report) => {
   const at = new Date(NOW).toISOString();
-  await storedPanelRun('panel-at-depth', at, { ok: false, code: 'incomplete-report' });
-  const panel = await panelItem(NOW + 1000);
+  await storedPanelRun('panel-at-depth', at, { ok: false, code: 'incomplete-report' }, report);
+  const panel = await panelItem(NOW + 1000, report);
   expect(panel).toMatchObject({ state: 'healthy', reportDate: at.slice(0, 10), failure: null });
   expect(panel?.lastSuccessAt).toBe(at);
+});
+
+it('treats a stored PostHog top-results cap as complete while preserving a later unfinished query', async () => {
+  const keyMap = JSON.stringify({ 'meadow.example': 'synthetic-posthog-key' });
+  await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: keyMap } });
+  await setConnection('posthog', { updated_at: new Date(NOW - 86_400_000).toISOString() });
+  const { body } = await getConfigDocument(env, 'config/integrations.json');
+  const config = structuredClone(body) as LaneRegister;
+  config.assets['meadow.example'] = { ...config.assets['meadow.example'], posthog: { host: 'us', projectId: '424242' } };
+  await emptyTables(['config_documents']);
+  forgetConfigCache();
+  const documents = Object.fromEntries(await Promise.all(
+    ['config/ga4-custom-dimensions.json', 'config/serp-panel.json'].map(async file => [file, (await getConfigDocument(env, file)).body])));
+  await seedConfigDocuments(env, { documents: { ...documents, 'config/integrations.json': config }, actor: 'test' });
+  const monitoring = beginCollection(env.STORE, await healthConnection(env, 'posthog'));
+  const target = { asset: 'meadow.example', integration: 'posthog' as const, propertyRef: 'us:424242', credentialRef: 'store:POSTHOG_KEYS' };
+  const requestedAt = new Date(NOW).toISOString();
+  const reportDate = requestedAt.slice(0, 10);
+  await storeArchiveRun({ id: 'previous-depth', asset: target.asset, integration: target.integration, report: 'exceptions',
+    report_date: reportDate, property_ref: target.propertyRef, finished_at: requestedAt, provider_truncated: true });
+  await recordCollectedHealth({ target, monitoring, attempt: { id: 'previous-depth', startedAt: requestedAt, finishedAt: requestedAt,
+    source: 'signal_dump_runs', ok: false, code: 'incomplete-report', report: 'exceptions', reportDate } });
+  await archiveCollectedDump(env, { monitoring, provider: 'posthog', target, report: 'rageclicks', reportDate, requestedAt,
+    dataState: 'provider-snapshot', collected: { pages: [{ request: {}, response: {} }], providerRows: 100, providerTruncated: true } });
+  const reports = async () => (await readIntegrationHealth(env, Date.now() + 10_000)).items
+    .filter(item => item.asset === target.asset && item.capability === 'posthog-archive' && item.reportDate === reportDate);
+  expect(await reports()).toEqual(expect.arrayContaining([
+    expect.objectContaining({ report: 'exceptions', state: 'healthy', failure: null }),
+    expect.objectContaining({ report: 'rageclicks', state: 'healthy', failure: null }),
+  ]));
+  await archiveDumpFailure(env.STORE, { monitoring, target, report: 'exceptions', reportDate,
+    requestedAt: new Date(NOW + 1).toISOString(), dataState: 'provider-snapshot',
+    error: new SignalError('posthog_incomplete_query', 'The query is unfinished.') });
+  expect(await reports()).toContainEqual(expect.objectContaining({ report: 'exceptions', state: 'failing', failure: 'incomplete-report' }));
 });
 
 it('reads a weekly DataForSEO family overdue a day after it fell due, not before', async () => {
@@ -373,6 +407,30 @@ it('retires a current-state network failure once a later attempt was answered â€
   // A dated archive is asked again instead, so its failure stays until it is.
   expect(result.items.find(i => i.asset === ga4.asset && i.detail === `${report} Â· 2026-01-01`)).toMatchObject({ state: 'failing', failure: 'network' });
 });
+it('uses retained weekly Bing snapshots as collection evidence on their saved property', async () => {
+  await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-bing-key' } });
+  await setConnection('bing-webmaster', { updated_at: new Date(NOW - 3 * 86_400_000).toISOString() });
+  const target = { asset: 'meadow.example', integration: 'bing-webmaster' as const,
+    credentialRef: 'store:BING_WEBMASTER_API_KEY', propertyRef: 'https://meadow.example/' };
+  const at = new Date(NOW - 2 * 86_400_000).toISOString();
+  const reportDate = at.slice(0, 10);
+  for (const report of ['pages', 'queries']) {
+    await archiveCollectedDump(env, { provider: 'microsoft', target, report, reportDate, requestedAt: at,
+      dataState: 'provider-snapshot', collected: { pages: [{ request: {}, response: { d: [] } }],
+        providerRows: 0, providerTruncated: false } });
+  }
+  const weekly = (payload: Awaited<ReturnType<typeof readIntegrationHealth>>) => payload.items.filter(
+    item => item.asset === target.asset && item.capability === 'bing-archive'
+      && (item.report === 'pages' || item.report === 'queries') && item.reportDate === reportDate);
+  const readAt = Date.now() + 1_000;
+  const current = weekly(await readIntegrationHealth(env, readAt));
+  expect(current.map(item => item.state)).toEqual(['healthy', 'healthy']);
+  expect(current.every(item => item.lastSuccessAt !== null)).toBe(true);
+  expect(weekly(await readIntegrationHealth(env, readAt + 15 * 86_400_000)).map(item => item.state)).toEqual(['stale', 'stale']);
+  await setConnection('bing-webmaster', { updated_at: new Date(NOW - 86_400_000).toISOString() });
+  expect(weekly(await readIntegrationHealth(env, readAt))).toEqual([]);
+});
+
 // The properties a Bing site was saved under come from its daily runs and its
 // report runs, one statement over both: this site has daily runs alone.
 it('finds a Bing site by the property its daily runs were saved under, when its archive has none', async () => {

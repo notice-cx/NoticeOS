@@ -72,7 +72,8 @@ const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 130_000;
 /** Not `REQUEST_TIMEOUT_MS`: a courtesy read must never hold a finished sweep open. */
 const ACCOUNT_TIMEOUT_MS = 10_000;
-const RANKED_KEYWORD_LIMIT = 200;
+// The largest single page the provider accepts for ranked keywords.
+const RANKED_KEYWORD_LIMIT = 1_000;
 const HISTORY_DAYS = 90;
 /** The head answers both questions these families ask, and 100 rows keeps a
  * call inside the per-family reserve. */
@@ -1127,6 +1128,7 @@ async function collectReport(
 ): Promise<DataForSeoDumpOutcome> {
   const pages: DumpPage[] = [];
   let providerRows = 0;
+  let rankedKeywordsTruncated = false;
   let costUsd = 0;
   let failedRequests = 0;
   let failedAttempts = 0;
@@ -1192,6 +1194,7 @@ async function collectReport(
       // persistence itself fails, the error manifest still records what we paid.
       costUsd += parsed.costUsd;
       providerRows += parsed.providerRows;
+      rankedKeywordsTruncated ||= parsed.rankedKeywordsTruncated === true;
       if (spec.independentRequests === true) {
         const key =
           checkpointKey ??
@@ -1250,7 +1253,7 @@ async function collectReport(
       collected: {
         pages,
         providerRows,
-        providerTruncated: providerTruncated(spec, providerRows),
+        providerTruncated: rankedKeywordsTruncated || spec.name === 'serp-panel',
       },
       providerCostUsd: costUsd,
     });
@@ -1586,19 +1589,10 @@ function isTransientTransport(error: unknown): boolean {
   return !(error instanceof SignalError) && error instanceof Error;
 }
 
-/** An explicit "there is more than what is stored here". Both families that can
- * say it are bounded by our own cap, not the provider's. */
-function providerTruncated(spec: ReportSpec, providerRows: number): boolean {
-  if (spec.name === 'ranked-keywords') {
-    return providerRows >= RANKED_KEYWORD_LIMIT;
-  }
-  // The panel reads two pages of a result set that always continues past them.
-  return spec.name === 'serp-panel';
-}
-
 interface ParsedProviderResponse {
   providerRows: number;
   costUsd: number;
+  rankedKeywordsTruncated?: boolean;
   /** Set instead of thrown when the caller retains independent requests. */
   taskError: SignalError | null;
 }
@@ -1679,6 +1673,21 @@ function parseProviderResponse(
   }
   const declaredItems = finiteNumber(result.items_count);
   const nestedItems = arrayField(result, 'items').length;
+  if (report === 'ranked-keywords') {
+    const total = result.total_count;
+    const validTotal = total === undefined
+      || (typeof total === 'number' && Number.isSafeInteger(total) && nestedItems === Math.min(total, RANKED_KEYWORD_LIMIT));
+    const validItems = Array.isArray(result.items) || (result.items === null && result.items_count === 0);
+    if (!validItems || result.items_count !== nestedItems || nestedItems > RANKED_KEYWORD_LIMIT || !validTotal) {
+      return failed(new SignalError('dataforseo_invalid_response', 'DataForSEO ranked-keyword counts disagree with the returned rows.'));
+    }
+    return {
+      providerRows: nestedItems,
+      costUsd: rootCost ?? finiteNumber(task?.cost) ?? 0,
+      taskError: null,
+      rankedKeywordsTruncated: typeof total === 'number' ? total > nestedItems : nestedItems === RANKED_KEYWORD_LIMIT,
+    };
+  }
   return {
     providerRows: Math.max(1, declaredItems ?? nestedItems),
     costUsd: rootCost ?? finiteNumber(task?.cost) ?? 0,

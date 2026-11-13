@@ -24,8 +24,9 @@ import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister 
 import { eligibleAssets } from './hygiene.js';
 import { CRUX_DAILY_CAPABILITY } from './crux.js';
 import { STRIPE_LANE, STRIPE_REVENUE_CAPABILITY } from './stripe.js';
+import { BING_CREDENTIAL_REF } from './bing-client.js';
 
-type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
+type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; verifiedArchive?: boolean; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
 interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string;
   /** An archive run whose report is incomplete: truncated where truncation is not the family's own depth. */
   cut_short?: number }
@@ -175,14 +176,14 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const scope = await healthScope(spec.connection, spec.capability, spec.asset, spec.target, spec.family);
     const key = integrationScopeKey(scope);
     const stored = observed.get(key);
-    const legacyUnverified = !spec.connection.demo && spec.observations !== undefined && spec.observations.length > 0 && !stored;
+    const legacyUnverified = !spec.connection.demo && !spec.verifiedArchive && spec.observations !== undefined && spec.observations.length > 0 && !stored;
     // A source result cannot prove this connection recovered, but an unmatched
     // newer attempt does invalidate an older green monitoring result.
     const unrecordedAttempt = stored?.outcome !== 'failure' && spec.observations?.some(item =>
       item.attemptId !== stored?.attempt_id && Date.parse(item.startedAt) >= Date.parse(stored?.started_at ?? ''));
     // A demo connection never changes and records nothing but its runs, so
     // the runs the demo's simulator saves are its evidence.
-    const observations = stored ? [observationFromRow(stored)] : spec.connection.demo ? spec.observations ?? [] : [];
+    const observations = stored ? [observationFromRow(stored)] : spec.connection.demo || spec.verifiedArchive ? spec.observations ?? [] : [];
     const latestAt = observations.reduce<string | null>((latest, item) => !latest || item.startedAt > latest ? item.startedAt : latest, null);
     // A display's old success is idle, never an unattended freshness promise.
     // A failure stays visible however old it becomes.
@@ -323,9 +324,14 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     }
     for (const [family, item] of wanted) {
       const observations = item.row ? [await fromLegacy(connection, capability, asset, target, family, { ...item.row, started_at: item.row.requested_at })] : [];
+      // Weekly Bing snapshots predate capability observations. A stored
+      // credential has an edit time that the archive query already checks.
+      const verifiedArchive = lane === 'bing-webmaster' && (item.report === 'pages' || item.report === 'queries')
+        && connection.changedAt !== null && item.row?.credential_ref === `store:${BING_CREDENTIAL_REF}`
+        && item.row.status !== 'error' && item.row.cut_short === 0;
       await add({ connection, capability, asset, target, family, detail: [item.report, item.date, ...(lane === 'bing-webmaster' ? [target.split('?')[0]] : [])].filter(Boolean).join(' · '),
         report: item.report || undefined, reportDate: /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : undefined, paused,
-        requiredSince: item.staleAfterHours === undefined ? since(nowMs, item.cadenceDays * 24) : new Date(nowMs - item.staleAfterHours * 3_600_000).toISOString(), observations, lastSuccessAt: item.row?.last_success_at });
+        requiredSince: item.staleAfterHours === undefined ? since(nowMs, item.cadenceDays * 24) : new Date(nowMs - item.staleAfterHours * 3_600_000).toISOString(), observations, verifiedArchive, lastSuccessAt: item.row?.last_success_at });
     }
   };
 

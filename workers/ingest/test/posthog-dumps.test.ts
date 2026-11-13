@@ -1045,6 +1045,20 @@ describe('PostHog — an offline night and the windows it cost', () => {
   const budgetSpent = () =>
     Response.json({ type: 'throttled_error', code: 'api_queries_budget_exceeded', detail: 'Query budget exceeded.' }, { status: 429 });
 
+  it('asks an unfinished query once more and stops retrying after the same answer', async () => {
+    const unfinished = () => Response.json({ query_status: { complete: false } });
+    const responses = answering(['events', '2026-09-22', unfinished]);
+    const run = async (nowMs: number) => {
+      const provider = posthogFetch(responses);
+      await runPosthogDumps(env, { nowMs, fetchImpl: provider.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+      return asked(provider.calls);
+    };
+    expect(await run(NOW)).toContain('events 2026-09-22');
+    expect(await run(NEXT_DAY)).toContain('events 2026-09-22');
+    expect(await run(NEXT_DAY + 86_400_000)).not.toContain('events 2026-09-22');
+    expect(await latest('events', '2026-09-22')).toMatchObject({ errorCode: 'posthog_incomplete_query' });
+  });
+
   it('asks a window PostHog failed with a 5xx or a malformed answer once more, and it leaves the Integrations page once answered', async () => {
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: KEYS } });
     await setConnection('posthog', { updated_at: '2026-09-01T00:00:00.000Z' });
@@ -1132,7 +1146,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     expect(await latest('web-daily', '2026-09-22')).toMatchObject({ errorCode: 'posthog_http_503' });
   });
 
-  it('asks the next day every window a 429 stopped the run before asking, on every asset it never reached', async () => {
+  it.each(['429 refusal', 'zero budget on success'] as const)('replays unasked windows after %s', async (stop) => {
     const keys = JSON.stringify({ 'meadow.example': KEY, 'northwind.example': 'phx_nom_key' });
     const assets: LaneRegister = {
       assets: {
@@ -1149,11 +1163,18 @@ describe('PostHog — an offline night and the windows it cost', () => {
     // meadow.example and all of northwind.example are skipped, with no row.
     const stopped = await runPosthogDumps(env, {
       nowMs: NOW,
-      fetchImpl: posthogFetch((call) => (call.url.includes('/424242/') && call.family === 'exceptions' ? budgetSpent() : answerAll(call))).fetchImpl,
+      fetchImpl: posthogFetch((call) => {
+        const answer = answerAll(call);
+        if (!call.url.includes('/424242/') || call.family !== 'exceptions') return answer;
+        if (stop === '429 refusal') return budgetSpent();
+        answer.headers.set('x-posthog-query-budget-remaining-bytes', '0');
+        return answer;
+      }).fetchImpl,
       rawKeys: keys,
       laneRegister: assets,
     });
-    expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: 1 });
+    const refused = stop === '429 refusal';
+    expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: refused ? 1 : 0 });
     expect(stopped.skipped.filter((skip) => skip.reason === 'budget-exhausted').map((skip) => `${skip.asset} ${skip.family}`)).toEqual([
       ...['rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `meadow.example ${family}`),
       ...NOM_FAMILIES.map((family) => `northwind.example ${family}`),
@@ -1162,9 +1183,9 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: keys, laneRegister: assets });
     // The refused window once more, and every window the stop never asked.
-    expect(next.retried).toBe(5 + NOM_FAMILIES.length);
+    expect(next.retried).toBe((refused ? 5 : 4) + NOM_FAMILIES.length);
     expect(project('424242')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
-      ['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
+      [...(refused ? ['exceptions'] : []), 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
     );
     expect(project('700001')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
       NOM_FAMILIES.map((family) => `${family} 2026-09-22`),
