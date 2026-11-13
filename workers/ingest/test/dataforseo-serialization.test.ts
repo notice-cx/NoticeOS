@@ -17,12 +17,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DATAFORSEO_DUMPS_CRON } from '../src/crons.js';
 import {
   runDataForSeoDumps,
+  runDataForSeoRecovery,
   type DataForSeoDumpsResult,
 } from '../src/dataforseo-dumps.js';
-import { runCron } from '../src/dispatch.js';
+import { runCron, runScheduledCron } from '../src/dispatch.js';
+import { EgressGate } from '../src/egress.js';
 import { handleSignalCollect } from '../src/routes/signal-collect.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
-import { ARCHIVE_RUNS, pgCount, reset } from './helpers.js';
+import { ARCHIVE_RUNS, cutUplink, pgCount, reset } from './helpers.js';
 
 const NOW = Date.parse('2026-08-04T09:12:00.000Z');
 const CREDENTIALS = { login: 'operator-login', password: 'operator-password' };
@@ -238,6 +240,43 @@ describe('the DataForSEO collector runs one collection at a time', () => {
 
     holder.open();
     await running;
+  });
+
+  it('reports a weekly sweep blocked by outage recovery as failed and collects only outstanding reports on replay', async () => {
+    const asset = 'northwind.example';
+    const recoveredReport = 'backlinks-summary';
+    const offline = new EgressGate(env, {
+      lane: 'dataforseo', at: new Date().toISOString(), fetchImpl: cutUplink(provider().fetchImpl),
+    });
+    expect(await offline.isDown()).toBe(true);
+    offline.recordUnmeasured(asset, recoveredReport);
+    await offline.finalize();
+
+    const holder = gatedProvider();
+    const recovery = runDataForSeoRecovery(env, { ...CREDENTIALS, fetchImpl: holder.fetchImpl });
+    const weekly = provider();
+    vi.stubGlobal('fetch', weekly.fetchImpl);
+    try {
+      await holder.started;
+      const refusal = await runScheduledCron(DATAFORSEO_DUMPS_CRON, env);
+      expect(refusal.outcome).toBe('failed');
+      expect(refusal.steps?.find((step) => step.id === 'search')?.state).toBe('failed');
+      expect(weekly.calls).toEqual([]);
+      expect(await pgCount(DUMP_ROWS)).toBe(0);
+
+      holder.open();
+      expect(await recovery).toMatchObject({ attempted: 1, succeeded: 1 });
+      const replay = await runScheduledCron(DATAFORSEO_DUMPS_CRON, env);
+      expect(replay.outcome).toBe('ran');
+      expect(weekly.calls.some((url) => url.includes('/ranked_keywords/'))).toBe(true);
+      expect(await pgCount(
+        `${DUMP_ROWS} AND asset = $1 AND report = $2`,
+        [asset, recoveredReport],
+      )).toBe(1);
+    } finally {
+      holder.open();
+      try { await recovery; } finally { vi.unstubAllGlobals(); }
+    }
   });
 
   /** The other direction: the Monday sweep is running and somebody fires the

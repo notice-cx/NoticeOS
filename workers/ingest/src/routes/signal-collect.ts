@@ -189,7 +189,7 @@ function inFlightDetail(inFlight: DataForSeoRunInFlight): string {
   const { scope } = inFlight;
   const what = scope
     ? `${scope.asset}${scope.families ? ` (${scope.families.join(', ')})` : ''}`
-    : 'the weekly portfolio sweep';
+    : inFlight.recovery ? 'outage recovery' : 'the weekly portfolio sweep';
   return (
     `A DataForSEO collection is already running — ${what}, started ${inFlight.startedAt}, ` +
     `${inFlight.runningSeconds}s ago. Nothing was billed for this call: two runs at once pay ` +

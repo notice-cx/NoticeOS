@@ -204,7 +204,18 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   posthog: {
     steps: { product: (env, cfg) => runPosthogDumps(env, { laneRegister: cfg.laneRegister, configSources: cfg.configSources }) },
   },
-  dataforseo: { steps: { search: (env, cfg) => searchLane(env, cfg) } },
+  dataforseo: {
+    steps: {
+      search: async (env, cfg) => {
+        const result = await searchLane(env, cfg);
+        // A failed weekly firing uses the runner's one retry and checks freshness again.
+        if (result.refused?.recovery) {
+          throw new Error('Weekly DataForSEO collection could not start while outage recovery was running');
+        }
+        return result;
+      },
+    },
+  },
   'ga4-realtime': { steps: { traffic: async (env, cfg) => {
     if (schedulePaused(cfg.constants, 'ga4-realtime')) return { outcome: 'skipped', detail: 'Realtime traffic is paused' };
     const result = await runGa4Realtime(env);
