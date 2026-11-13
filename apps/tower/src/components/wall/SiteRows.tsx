@@ -129,7 +129,7 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
     referenceFact={{ label: `${lastWeekdayLabel(daily.timeZone, nowMs)} full day`, value: daily.reference === null ? null : <span data-site-today-reference title={`${daily.referenceEstimated ? 'Estimated' : 'Reported'} full-day active users on ${daily.referenceDate}, ${daily.timeZone}`}>{formatInt(daily.reference)}</span> }}
     secondary={
     <span data-site-today>
-      {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} showCutoff={chartCutoffHidden} /> : <span className="wall-metric-note">Comparison unavailable</span>}
+      {retained ? <ActivityPace day={retained} nowMs={nowMs} showAge={!estimate} /> : pace ? <PaceFigure pace={pace} showCutoff={chartCutoffHidden} /> : <span className="wall-metric-note">Comparison unavailable</span>}
     </span>} chart={<>
     <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)}>
       {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" reference={reference} /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} reference={reference} /> : null}
@@ -210,16 +210,19 @@ function RealtimeTodayChart({ day, nowMs, weight, reference = true }: { day: Ga4
   );
 }
 
-function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
+function ActivityPace({ day, nowMs, showAge }: { day: Ga4RealtimeDay; nowMs: number; showAge: boolean }) {
   const minute = Math.floor(nowMs / 60_000);
   const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, weekday: "short" }).format(new Date(nowMs));
   const through = activity.through ? new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(activity.through)) : null;
   const meaning = `Provisional activity today so far vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Includes earlier hours; the chart shows each hour separately. Per-minute active users, not distinct hourly or daily users. Unreported current minutes are excluded; ${activity.estimatedComparisonMinutes} comparison minutes use average activity. GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
   return activity.change !== null ? (
-    <span className="inline-flex flex-col items-end" title={meaning}>
-      <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} />
-      <span className="text-wall-micro text-muted-foreground">Minute activity{through && ` to ${through}`}</span>
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-1">
+      <span className="wall-metric-note">Activity</span>
+      <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} className="whitespace-nowrap" />
+      {showAge && activity.through && nowMs - Date.parse(activity.through) > 3 * 60_000
+        ? <AgeBadge iso={activity.through} cadenceHours={1 / 60} nowMs={nowMs} />
+        : null}
     </span>
   ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
 }

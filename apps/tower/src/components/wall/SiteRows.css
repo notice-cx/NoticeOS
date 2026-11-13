@@ -17,6 +17,8 @@
 .wall-portfolio-legend i { display: inline-block; width: 1.5rem; border-top: 2px solid var(--traffic); }
 .wall-portfolio-legend span:last-child i { border-color: var(--muted-foreground); border-top-style: dashed; }
 .wall-portfolio-list { display: flex; flex-direction: column; gap: var(--portfolio-row-gap); min-height: 0; overflow: auto; }
+.wall-root[data-wall-kiosk][data-wall-layout="tv"] .wall-portfolio-list { scrollbar-width: none; }
+.wall-root[data-wall-kiosk][data-wall-layout="tv"] .wall-portfolio-list::-webkit-scrollbar { display: none; }
 .wall-portfolio-row { position: relative; display: flex; flex-direction: column; gap: .25rem; padding: 0; border: 0; border-radius: 0; background: transparent; width: 100%; max-width: 100%; }
 .wall-portfolio-row + .wall-portfolio-row::before { content: ""; position: absolute; top: calc(var(--portfolio-row-gap) / -2 - .5px); left: 0; right: 0; height: 1px; background: var(--portfolio-separator); pointer-events: none; }
 .wall-portfolio[data-row-separators="hidden"] .wall-portfolio-row::before { display: none; }
@@ -50,7 +52,8 @@
   }
   .wall-root[data-wall-compact] .wall-site-chart { min-height: calc(21px / var(--wall-scale, 1)); }
 @container wall-sites (width >= 72rem) {
-  .wall-portfolio-row { --portfolio-tile: calc((100cqw - 4 * var(--portfolio-gap)) / 5); }
+  /* The row's available width accounts for the portfolio's scrollbar gutter. */
+  .wall-portfolio-row { --portfolio-tile: calc((100% - 4 * var(--portfolio-gap)) / 5); }
 }
 @container wall-sites (width < 72rem) {
   .wall-portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); width: 100%; }
