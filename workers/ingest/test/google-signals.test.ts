@@ -11,7 +11,8 @@ import type { LaneRegister } from '../src/lane-mapping.js';
 import { SignalError } from '../src/signal-store.js';
 import { dateInTimeZone } from '../src/time-zone.js';
 import { putCredential } from '../src/credentials.js';
-import { EGRESS_DOWN_CODE } from '../src/egress.js';
+import { EGRESS_DOWN_CODE, openEgressLaneRecord } from '../src/egress.js';
+import { readGa4CoreReport } from '../src/ga4-core.js';
 import { readPanelTrend } from '../src/panel-source.js';
 import { WORKERD_TRANSPORT_ERROR, credentialVerdict, cutUplink, openEgressFlags, pgRows, reset, storeSignalRun, storedCount, storedEgressChecks, storedHealthStates } from './helpers.js';
 
@@ -503,6 +504,24 @@ describe('Google signal collector', () => {
       expect(await openEgressFlags()).toBe(0);
     });
 
+    it('keeps a quota-deferred property owed until collection can resume', async () => {
+      const fetchImpl = googleFetch().fetchImpl;
+      await runGoogleSignals(env, { nowMs: NOW, fetchImpl: cutUplink(fetchImpl) });
+      expect(await openEgressFlags()).toBe(1);
+
+      await readGa4CoreReport(env.STORE, '123456', async () =>
+        Response.json({ error: { message: 'Exhausted server errors quota.' } }, { status: 429 }),
+      {}, { clock: () => NOW, lane: 'signal-dumps', maxBytes: 1024 });
+      const restored = cutUplink(fetchImpl, { beaconUp: true, through: () => true });
+      const during = await runGoogleSignals(env, { nowMs: NOW + 900_000, fetchImpl: restored });
+      expect(during.egress).toMatchObject({ up: true, resolved: 0 });
+      expect((await openEgressLaneRecord(env, 'google-signals'))?.unmeasuredAssets).toEqual(['meadow.example']);
+
+      const after = await runGoogleSignals(env, { nowMs: NOW + 3_600_000, fetchImpl: restored });
+      expect(after.outcomes).toContainEqual(expect.objectContaining({ asset: 'meadow.example', integration: 'ga4', status: 'success' }));
+      expect(await openEgressFlags()).toBe(0);
+    });
+
     it('asks nothing on a healthy run', async () => {
       const result = await runGoogleSignals(env, { nowMs: NOW, fetchImpl: googleFetch().fetchImpl });
       expect(result.egress).toMatchObject({ checked: false, probes: 0 });
@@ -519,7 +538,7 @@ describe('Google signal collector', () => {
       return row ?? null;
     }
 
-    it('asks what the 96-runs-a-day lane costs', async () => {
+    it('requests quota with each GA4 daily report', async () => {
       const { fetchImpl, calls } = googleFetch({ ga4Quota: { consumed: 100, remaining: 199_900 } });
       await runGoogleSignals(env, { nowMs: NOW, fetchImpl });
 

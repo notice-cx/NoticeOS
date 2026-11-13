@@ -380,7 +380,10 @@ export async function runGoogleSignals(
   };
   // One `os-egress-down` fact for the whole run, or the retraction of one an
   // earlier run left open.
-  const egress = await gate.finalize();
+  const deferredAssets = new Set(deferred.map(entry => entry.asset));
+  const egress = await gate.finalize({
+    covers: (asset) => !deferredAssets.has(asset) && (options.assets === undefined || options.assets.includes(asset)),
+  });
   // What this run actually measured: a collection the uplink swallowed may not
   // stamp the credential or the property.
   const measured = outcomes.filter((outcome) => !outcome.egressDown);
