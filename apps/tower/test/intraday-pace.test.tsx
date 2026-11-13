@@ -119,7 +119,7 @@ describe("the Wall's today cell", () => {
     expect(tones).toEqual(["wall-traffic-decline", "wall-traffic-decline"]);
   });
 
-  it.each([{ display: "number" }, { display: "sparkline", axes: false }] as const)(
+  it.each([{ display: "number" }, { display: "compare", axes: false }] as const)(
     "keeps the hourly cutoff with the percentage when the chart axis is unavailable (%o)",
     options => {
       const today = drawRow(SIX_HOURS, LATE_MORNING, {
