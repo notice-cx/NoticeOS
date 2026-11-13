@@ -989,7 +989,7 @@ export function TaskComposer({
         </div>
 
         <footer className="flex flex-col gap-2 border-t border-border px-4 py-3">
-          {needsConnection ? <p className="text-sm text-muted-foreground" role="status">
+          {needsConnection ? <p className="text-sm text-muted-foreground" role="status" data-status-for="tasks:ntasks">
             Connect Ntasks in <Link to={TASK_PROJECTS_PATH} className="font-medium underline underline-offset-2">Settings → Task projects</Link> to file this task.
           </p> : null}
           {errors.form ? (
