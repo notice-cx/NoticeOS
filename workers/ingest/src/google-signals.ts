@@ -12,6 +12,7 @@ import { beginCollection, collectionMonitoring } from './collection-attempt.js';
 
 import {
   OS_TIME_ZONE,
+  INTEGRATION_CADENCE_HOURS,
   type CredentialSource,
   type CredentialStoreState,
   integrationProvider,
@@ -64,7 +65,9 @@ import {
   parseGa4PropertyQuota,
   recordGa4Quota,
 } from './ga4-quota.js';
-import { dateInTimeZone } from './time-zone.js';
+import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
+import { GA4_CORE_BACKOFF_CODE, Ga4CoreDeferred, ga4CoreCooldown, readGa4CoreReport } from './ga4-core.js';
+import { dateInTimeZone, shiftCalendarDate } from './time-zone.js';
 import {
   previousTimeZone,
   recordTimeZoneChange,
@@ -83,6 +86,9 @@ import {
 import { arrayField, asRecord, stringField, utcDay } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const GA4_REFRESH_HOUR_MS = INTEGRATION_CADENCE_HOURS.ga4Signals * 3_600_000;
+const GA4_RECENT_DAYS = 7;
+const GA4_RECONCILE_DAYS = 7;
 /**
  * The day boundary assumed for a GA4 property whose config entry names no
  * `time_zone`, when the caller has not resolved the saved one: the operator's
@@ -143,6 +149,7 @@ export interface GoogleSignalsResult {
   succeeded: number;
   failed: number;
   outcomes: GoogleSignalOutcome[];
+  deferred: { asset: string; reason: 'not-due' | typeof GA4_CORE_BACKOFF_CODE; nextAttemptAt?: string }[];
   /** What the run's egress gate concluded — see {@link EgressRunOutcome}. */
   egress: EgressRunOutcome;
 }
@@ -162,6 +169,8 @@ export interface GoogleSignalsOptions {
   egress?: EgressGate;
   /** Collect only these assets. Narrower than the schedule, never wider. */
   assets?: readonly string[];
+  /** Routine firings can reuse stored history. A manual read collects the full window. */
+  scheduled?: boolean;
 }
 
 type GoogleCredentialResolver = (binding: string) => string | undefined;
@@ -171,6 +180,7 @@ export async function runGoogleSignals(
   options: GoogleSignalsOptions = {},
 ): Promise<GoogleSignalsResult> {
   const nowMs = options.nowMs ?? Date.now();
+  const clock = options.nowMs === undefined ? Date.now : () => nowMs;
   const fetchImpl = options.fetchImpl ?? fetch;
   // One gate per run, asked only when a Google call came back with no status
   // at all; otherwise one dead token mint writes a `request_failed` row per
@@ -204,7 +214,7 @@ export async function runGoogleSignals(
       event: resolved.oauth === null ? 'google_signals_not_connected' : 'google_signals_no_properties_mapped',
     }));
     // Nothing was asked of anyone, so there is no verdict to file either way.
-    return { attempted: 0, succeeded: 0, failed: 0, outcomes: [], egress: EGRESS_NOT_ASKED };
+    return { attempted: 0, succeeded: 0, failed: 0, outcomes: [], deferred: [], egress: EGRESS_NOT_ASKED };
   }
 
   // One line per pull naming the properties whose day boundary was assumed. A
@@ -215,11 +225,32 @@ export async function runGoogleSignals(
   if (assumed) console.warn(JSON.stringify(assumed));
 
   const outcomes: GoogleSignalOutcome[] = [];
+  const deferred: GoogleSignalsResult['deferred'] = [];
+  const deferQuota = (target: GooglePropertyTarget, nextAttemptAt: string) => {
+    deferred.push({ asset: target.asset, reason: GA4_CORE_BACKOFF_CODE, nextAttemptAt });
+  };
 
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     const auth = accountTargets[0]!.auth;
     for (const integration of ['ga4', 'gsc'] as const) {
-      const scopedTargets = accountTargets.filter((target) => target.integration === integration);
+      const scopedTargets: { target: GooglePropertyTarget; window: SignalDateWindow }[] = [];
+      for (const target of accountTargets) {
+        if (target.integration !== integration) continue;
+        let window = collectionWindow(target, nowMs);
+        if (integration === 'ga4') {
+          const cooling = await ga4CoreCooldown(env.STORE, target.propertyRef, clock());
+          if (cooling) { deferQuota(target, cooling); continue; }
+          if (options.scheduled) {
+            const due = await scheduledGa4Window(env.STORE, target, window, nowMs, health?.changedAt ?? null);
+            if (!due) {
+              deferred.push({ asset: target.asset, reason: 'not-due' });
+              continue;
+            }
+            window = due;
+          }
+        }
+        scopedTargets.push({ target, window });
+      }
       if (scopedTargets.length === 0) continue;
 
       let accessToken: string;
@@ -233,21 +264,19 @@ export async function runGoogleSignals(
       } catch (error) {
         // When the uplink is what failed, no property was measured and none is blamed.
         if (await egressExplains(gate, transport, error)) {
-          for (const target of scopedTargets) outcomes.push(unmeasuredOutcome(gate, target));
+          for (const { target } of scopedTargets) outcomes.push(unmeasuredOutcome(gate, target));
           continue;
         }
         const normalized = normalizeSignalError(error, 'Google request failed.');
-        for (const target of scopedTargets) {
-          const window = collectionWindow(target, nowMs);
+        for (const { target, window } of scopedTargets) {
           await recordSignalFailure(env, target, window, nowMs, normalized, monitoring);
           outcomes.push(errorOutcome(target, normalized));
         }
         continue;
       }
 
-      for (const target of scopedTargets) {
-        const window = collectionWindow(target, nowMs);
-        const startedAt = new Date().toISOString();
+      for (const { target, window } of scopedTargets) {
+        const startedAt = new Date(options.scheduled ? clock() : Date.now()).toISOString();
         try {
           const result = await withFreshTokenOnce(
             auth,
@@ -257,7 +286,7 @@ export async function runGoogleSignals(
             googleFetch,
             (token) =>
               integration === 'ga4'
-                ? collectGa4(target.propertyRef, window, token, googleFetch)
+                ? collectGa4(env.STORE, target.propertyRef, window, token, googleFetch, clock)
                 : collectGsc(target.propertyRef, window, token, googleFetch),
             (token) => {
               // The whole account shares the token, so a refresh earned by one
@@ -315,6 +344,7 @@ export async function runGoogleSignals(
             mappingSource: target.mappingSource,
           });
         } catch (error) {
+          if (error instanceof Ga4CoreDeferred) { deferQuota(target, error.nextAttemptAt); continue; }
           // The uplink can also die mid-run, after the token was minted.
           if (await egressExplains(gate, transport, error)) {
             outcomes.push(unmeasuredOutcome(gate, target));
@@ -346,16 +376,20 @@ export async function runGoogleSignals(
     succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
     failed: outcomes.filter((outcome) => outcome.status === 'error').length,
     outcomes,
+    deferred,
   };
   // One `os-egress-down` fact for the whole run, or the retraction of one an
   // earlier run left open.
-  const egress = await gate.finalize();
+  const deferredAssets = new Set(deferred.map(entry => entry.asset));
+  const egress = await gate.finalize({
+    covers: (asset) => !deferredAssets.has(asset) && (options.assets === undefined || options.assets.includes(asset)),
+  });
   // What this run actually measured: a collection the uplink swallowed may not
   // stamp the credential or the property.
   const measured = outcomes.filter((outcome) => !outcome.egressDown);
   // One stamp per pull on the credential, not per property: a property-level
   // failure is the property's story, and a run swallowed whole stamps nothing.
-  if (source === 'store' && !(outcomes.length > 0 && measured.length === 0)) {
+  if (source === 'store' && measured.length > 0) {
     const firstError = measured.find((outcome) => outcome.status === 'error');
     // A revoked grant gets its own sentence: it is a statement about the
     // credential, nothing about any property is wrong, and the column has to
@@ -386,6 +420,7 @@ export async function runGoogleSignals(
       attempted: result.attempted,
       succeeded: result.succeeded,
       failed: result.failed,
+      deferred,
       // `store` means this run read the document an operator saved; `file` the
       // copy compiled into this Worker.
       ...configSourceLine(options.configSources, ['config/integrations.json']),
@@ -869,38 +904,36 @@ export function googleCredentialResolver(env: IngestEnv): GoogleCredentialResolv
 }
 
 async function collectGa4(
+  store: WorkspaceStore,
   propertyId: string,
   window: SignalDateWindow,
   accessToken: string,
   fetchImpl: typeof fetch,
+  clock: () => number,
 ): Promise<SignalProviderResult> {
-  const response = await fetchImpl(
-    `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-    {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        dateRanges: [{ startDate: window.start, endDate: window.end }],
-        dimensions: [{ name: 'date' }],
-        metrics: [
-          { name: 'sessions' },
-          { name: 'activeUsers' },
-          { name: 'screenPageViews' },
-          { name: 'eventCount' },
-        ],
-        keepEmptyRows: true,
-        limit: '100',
-        // The heaviest cadence this OS has: ask what it costs, or a ceiling hit
-        // arrives as an ordinary failure.
-        returnPropertyQuota: true,
-      }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  const { response, body } = await readGa4CoreReport(store, propertyId, fetchImpl, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
     },
-  );
-  const body = await responseJson(response);
+    body: JSON.stringify({
+      dateRanges: [{ startDate: window.start, endDate: window.end }],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'activeUsers' },
+        { name: 'screenPageViews' },
+        { name: 'eventCount' },
+      ],
+      keepEmptyRows: true,
+      limit: '100',
+      // The heaviest cadence this OS has: ask what it costs, or a ceiling hit
+      // arrives as an ordinary failure.
+      returnPropertyQuota: true,
+    }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }, { lane: 'google-signals', clock, maxBytes: 1_000_000 });
   if (!response.ok) throw ga4RequestError(response.status, body);
   const record = asRecord(body);
   const dimensionHeaders = arrayField(record, 'dimensionHeaders');
@@ -1045,6 +1078,40 @@ async function collectGsc(
     dataState: 'includes-provisional',
     provisionalFrom,
   };
+}
+
+async function scheduledGa4Window(store: WorkspaceStore, target: GooglePropertyTarget, full: SignalDateWindow,
+  nowMs: number, changedAt: string | null): Promise<SignalDateWindow | null> {
+  const [history] = await store.read(tx => tx.query<{
+    lastAttempt: string | null; attemptProperty: string | null; sameCredential: boolean | null; property: string | null; lastDay: string | null; fullDay: string | null;
+  }>(`WITH latest_success AS (
+         SELECT property_ref, time_zone, window_end FROM noticeos.signal_runs
+         WHERE asset_id = $1 AND integration = 'ga4' AND status = 'success'
+         ORDER BY started_at DESC, run_seq DESC LIMIT 1
+       ), latest_attempt AS (
+         SELECT started_at, property_ref, credential_ref FROM noticeos.signal_runs
+         WHERE asset_id = $1 AND integration = 'ga4' AND ($4::timestamptz IS NULL OR started_at >= $4::timestamptz)
+         ORDER BY started_at DESC, run_seq DESC LIMIT 1
+       )
+       SELECT (SELECT started_at FROM latest_attempt) AS "lastAttempt",
+              (SELECT property_ref FROM latest_attempt) AS "attemptProperty",
+              (SELECT credential_ref = $3 FROM latest_attempt) AS "sameCredential",
+              (SELECT property_ref FROM latest_success) AS property,
+              (SELECT window_end::text FROM latest_success) AS "lastDay",
+              (SELECT max(window_end)::text FROM noticeos.signal_runs
+               WHERE asset_id = $1 AND integration = 'ga4' AND property_ref = $2 AND status = 'success'
+                 AND time_zone IS NOT DISTINCT FROM (SELECT time_zone FROM latest_success)
+                 AND window_end >= $5::date AND window_end - window_start >= $6::integer) AS "fullDay"`,
+    [target.asset, target.propertyRef, target.credentialRef, changedAt,
+      shiftCalendarDate(full.end, -GA4_RECONCILE_DAYS + 1), LIVE_SIGNAL_WINDOW_DAYS - 1]));
+  const lastAttempt = history?.lastAttempt ? Date.parse(javascriptInstant(history.lastAttempt)) : NaN;
+  if (history?.attemptProperty === target.propertyRef && history.sameCredential &&
+      Math.floor(lastAttempt / GA4_REFRESH_HOUR_MS) === Math.floor(nowMs / GA4_REFRESH_HOUR_MS)) return null;
+  const recentStart = shiftCalendarDate(full.end, 1 - GA4_RECENT_DAYS);
+  // The last pull's provisional dates must still be inside the new window.
+  if (history?.property !== target.propertyRef || !history.fullDay || !history.lastDay ||
+      ga4ProvisionalFrom(history.lastDay) < recentStart) return full;
+  return { start: recentStart, end: full.end };
 }
 
 function collectionWindow(

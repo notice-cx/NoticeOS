@@ -4,6 +4,7 @@ import { alignComparisonMinutes, backfillComparison, collectComparison, emptyCom
 import { reset } from './helpers.js';
 
 const NOW = Date.parse('2026-07-29T12:00:00Z');
+const reportRead = { get store() { return env.STORE; }, clock: () => NOW, previous: null };
 type Row = [range: 'today' | 'last_week', stamp: string, value: number];
 const ROWS: Row[] = [['today', '202607290000', 4], ['today', '202607290800', 6], ['today', '202607290801', 5], ['last_week', '202607220000', 2]];
 /** One range's answer as GA4 sends it for a single-range request. */
@@ -25,9 +26,28 @@ const everyMinute = (date: string, hours: number) => Array.from({ length: hours 
 beforeEach(reset);
 
 describe('GA4 activity comparison backfill', () => {
+  it('refreshes today with one request after saving the prior weekday', async () => {
+    const fetchImpl = provider();
+    const update = (nowMs: number, nextFetch: typeof fetch = fetchImpl) => updateComparison(env, {
+      asset: 'meadow.example', property: '123456', token: 'synthetic', zone: 'UTC',
+      nowMs, fetchImpl: nextFetch, cache: null, shared: new Map(),
+    });
+    await expect(update(NOW)).resolves.toMatchObject({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const next = provider([['today', '202607290000', 8], ['today', '202607290801', 4]]);
+    await expect(update(NOW + 3_600_000, next)).resolves.toMatchObject({ ok: true });
+    expect(next).toHaveBeenCalledTimes(1);
+    const chart = emptyComparison(NOW + 3_600_000, 'UTC');
+    await backfillComparison(env.STORE, 'meadow.example', '123456', chart);
+    expect(chart.minutes[0]).toBe(8);
+    expect(chart.sameDayLastWeek?.[0]).toBe(2);
+    await expect(update(NOW + 86_400_000)).resolves.toMatchObject({ ok: true });
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
   it('backfills the same weekday immediately and stops today before the processing edge', async () => {
     const fetchImpl = provider();
-    const result = await collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC');
+    const result = await collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC', reportRead);
     expect(result.day.minutes.slice(479, 483)).toEqual([0, 6, null, null]);
     expect(result.day.minutes[0]).toBe(4);
     expect(result.day.sameDayLastWeek?.slice(0, 3)).toEqual([2, 0, 0]);
@@ -45,7 +65,7 @@ describe('GA4 activity comparison backfill', () => {
 
   it('keeps an all-zero current report unknown while a completed prior day can be zero', async () => {
     const empty = { ...answer(), rowCount: undefined };
-    const result = await collectComparison('123456', 'synthetic', sameAnswer(empty), NOW, 'UTC');
+    const result = await collectComparison('123456', 'synthetic', sameAnswer(empty), NOW, 'UTC', reportRead);
     expect(result.day.minutes.every(value => value === null)).toBe(true);
     expect(result.day.sameDayLastWeek?.every(value => value === 0)).toBe(true);
   });
@@ -56,7 +76,7 @@ describe('GA4 activity comparison backfill', () => {
       ...['20260721', '20260722', '20260723'].flatMap(date => everyMinute(date, 24)).map((stamp): Row => ['last_week', stamp, 1]),
     ];
     const pretty = (body: unknown) => new Response(JSON.stringify(body, null, 2));
-    const result = await collectComparison('123456', 'synthetic', provider(rows, { timeZone: 'America/Los_Angeles' }, pretty), NOW, 'America/Los_Angeles');
+    const result = await collectComparison('123456', 'synthetic', provider(rows, { timeZone: 'America/Los_Angeles' }, pretty), NOW, 'America/Los_Angeles', reportRead);
     expect(result.day.date).toBe('2026-07-29');
     expect(result.day.minutes.slice(0, 299).every(value => value === 1)).toBe(true);
     expect(result.day.sameDayLastWeek?.every(value => value === 1)).toBe(true);
@@ -66,7 +86,7 @@ describe('GA4 activity comparison backfill', () => {
     const stamps = ['20260725', '20260726', '20260727', '20260728', '20260729', '20260730', '20260731'].flatMap(date => everyMinute(date, 24)).slice(0, 9_900);
     const text = JSON.stringify(answer(stamps.map((stamp): [string, number] => [stamp, 1])), null, 2);
     expect(text.length).toBeGreaterThan(1_000_000);
-    const result = await collectComparison('123456', 'synthetic', vi.fn<typeof fetch>(async () => new Response(text)), NOW, 'UTC');
+    const result = await collectComparison('123456', 'synthetic', vi.fn<typeof fetch>(async () => new Response(text)), NOW, 'UTC', reportRead);
     expect(result.day.minutes[0]).toBe(1);
   });
 
@@ -89,14 +109,14 @@ describe('GA4 activity comparison backfill', () => {
     ['an hour that begins on another day', withRows([row('202609060000')], { timeZone: 'America/Santiago' }), 'malformed_hour_date'],
     ['a minute the clock skips', withRows([row('202603080230')], { timeZone: 'America/Los_Angeles' }), 'malformed_clock'],
   ])('refuses %s under its own code', async (_case, body, check) => {
-    await expect(collectComparison('123456', 'synthetic', sameAnswer(body), NOW, 'UTC'))
+    await expect(collectComparison('123456', 'synthetic', sameAnswer(body), NOW, 'UTC', reportRead))
       .rejects.toMatchObject({ code: `ga4_comparison_${check}` });
   });
 
   it('converts each range using its reported property clock after a timezone change', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => Response.json(answer([], {
       timeZone: JSON.parse(String(init?.body)).dateRanges[0].endDate === 'today' ? 'UTC' : 'America/Los_Angeles' })));
-    const result = await collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC');
+    const result = await collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC', reportRead);
     expect(result.day.timeZone).toBe('UTC');
     expect(result.day.sameDayLastWeek).toHaveLength(1440);
   });
@@ -113,7 +133,7 @@ describe('GA4 activity comparison backfill', () => {
   });
 
   it('converts the property clock to the installation clock', async () => {
-    const result = await collectComparison('123456', 'synthetic', provider(), NOW, 'Asia/Kolkata');
+    const result = await collectComparison('123456', 'synthetic', provider(), NOW, 'Asia/Kolkata', reportRead);
     expect(result.day.startAt).toBe('2026-07-28T18:30:00.000Z');
     expect(result.day.minutes[330]).toBe(4);
     expect(result.day.sameDayLastWeek?.[330]).toBe(2);
@@ -150,7 +170,7 @@ describe('GA4 activity comparison backfill', () => {
 
   it('leaves both folds unknown when the provider hour resolves to the later fold', async () => {
     const fetchImpl = provider([['today', '202610250200', 8], ['today', '202610250400', 1], ['last_week', '202610180200', 4]], { timeZone: 'Europe/Berlin' });
-    const result = await collectComparison('123456', 'synthetic', fetchImpl, Date.parse('2026-10-25T12:00:00Z'), 'UTC');
+    const result = await collectComparison('123456', 'synthetic', fetchImpl, Date.parse('2026-10-25T12:00:00Z'), 'UTC', reportRead);
     expect(result.day.minutes[0]).toBeNull();
     expect(result.day.minutes[60]).toBeNull();
     expect(result.day.minutes[120]).toBe(0);

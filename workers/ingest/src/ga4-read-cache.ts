@@ -1,4 +1,5 @@
 import type { Ga4RateLimit } from '@noticeos/contract';
+import { Ga4CoreDeferred } from './ga4-core.js';
 import { Ga4ReadError } from './ga4-read-errors.js';
 import { normalizeSignalError } from './signal-store.js';
 import { cachedProviderRead, providerCacheScope, ProviderReadCacheError, type ProviderReadCache, type ProviderReadFailure } from './provider-read-cache.js';
@@ -9,7 +10,7 @@ interface Ga4StoredFailure extends ProviderReadFailure { rateLimit?: Ga4RateLimi
 
 /** Keep the established Google keys, cooldowns and one early cold-cache read.
  * The shared core stores completed data rather than cross-request promises. */
-export async function cachedGa4Read<T>(context: Ga4ReadCache | null, capability: string, nowMs: number, ttlMs: number, read: () => Promise<T>): Promise<{ value: T; observedAt: string }> {
+export async function cachedGa4Read<T>(context: Ga4ReadCache | null, capability: string, nowMs: number, ttlMs: number, read: () => Promise<T>, refreshAt?: (startedAt: number) => number): Promise<{ value: T; observedAt: string }> {
   if (!context) {
     const observedAt = new Date(nowMs).toISOString();
     return { value: await read(), observedAt };
@@ -18,10 +19,11 @@ export async function cachedGa4Read<T>(context: Ga4ReadCache | null, capability:
     const entry = await cachedProviderRead<T, Ga4StoredFailure>(context, {
       cacheNamespace: 'ga4/v2', leaseNamespace: 'ga4-read', capability,
       nowMs, ttlMs, leaseMs: 30_000, allowEarlyRead: true, failureRetryMs: 60_000,
+      refreshAt,
     }, read, (error, at, retryAt) => {
       const normalized = normalizeSignalError(error, 'The Google traffic read failed.');
       return { ok: false, code: normalized.code, observedAt: at,
-        refreshAt: error instanceof Ga4ReadError ? error.nextAttemptAt : retryAt,
+        refreshAt: error instanceof Ga4ReadError || error instanceof Ga4CoreDeferred ? error.nextAttemptAt : retryAt,
         ...(error instanceof Ga4ReadError && error.rateLimit ? { rateLimit: error.rateLimit } : {}),
       };
     });

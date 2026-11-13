@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_STORE_FAILED, runSignalDumps } from '../src/signal-dumps.js';
+import { ga4CoreCooldown } from '../src/ga4-core.js';
+import { runGoogleSignals } from '../src/google-signals.js';
 import { EGRESS_DOWN_CODE } from '../src/egress.js';
 import { healthFailure } from '../src/integration-health-store.js';
 import {
@@ -27,6 +29,48 @@ import {
 beforeEach(reset);
 
 describe('analysis-grade signal dumps', () => {
+  it('stops the archive on a property quota refusal and shares its retry time with daily reports', async () => {
+    const fixture = providerDumpFetch();
+    const target = '123456:runReport';
+    let refused = 0;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      if (String(input).endsWith(target)) {
+        refused++;
+        return Response.json({ error: { message: 'Exhausted server errors quota.', status: 'RESOURCE_EXHAUSTED' } },
+          { status: 429, headers: { 'Retry-After': '7200' } });
+      }
+      return fixture.fetchImpl(input, init);
+    };
+    const first = await runSignalDumps(env, { nowMs: NOW, fetchImpl, revisionDays: 1 });
+    expect(refused).toBe(1);
+    expect(first.outcomes.filter(outcome => outcome.integration === 'ga4' && outcome.asset === 'meadow.example'))
+      .toEqual([expect.objectContaining({ status: 'error', errorCode: 'ga4_quota_exhausted' })]);
+    expect(first.outcomes.some(outcome => outcome.integration === 'ga4' && outcome.asset === 'northwind.example' && outcome.status === 'success')).toBe(true);
+    const nextAttemptAt = new Date(NOW + 7_200_000).toISOString();
+    expect(await ga4CoreCooldown(env.STORE, '123456', NOW)).toBe(nextAttemptAt);
+
+    const daily: typeof fetch = async (input, init) => {
+      if (String(input).endsWith(target)) throw new Error('a cooled-down property must not reach the provider');
+      return fixture.fetchImpl(input, init);
+    };
+    const during = await runGoogleSignals(env, { nowMs: NOW + 3_600_000, fetchImpl: daily, assets: ['meadow.example'] });
+    expect(during.deferred).toEqual([{ asset: 'meadow.example', reason: 'ga4_core_quota_backoff', nextAttemptAt }]);
+    expect(during.outcomes.map(outcome => outcome.integration)).toEqual(['gsc']);
+    const next = await runSignalDumps(env, { nowMs: NOW + 7_200_000, fetchImpl: fixture.fetchImpl, revisionDays: 1 });
+    expect(next.outcomes.some(outcome => outcome.integration === 'ga4' && outcome.asset === 'meadow.example' && outcome.status === 'success')).toBe(true);
+  });
+
+  it('reuses saved interim GA4 archives and collects a missing date and the final revision', async () => {
+    const day = 86_400_000;
+    const archive = (nowMs: number) => runSignalDumps(env, { nowMs, scheduled: true, fetchImpl: providerDumpFetch().fetchImpl });
+    const dates = (run: Awaited<ReturnType<typeof archive>>) => run.outcomes
+      .filter(outcome => outcome.asset === 'meadow.example' && outcome.integration === 'ga4' && outcome.report === 'pages-screens')
+      .map(outcome => outcome.reportDate).sort();
+    expect(dates(await archive(NOW))).toEqual(['2026-07-25', '2026-07-26', '2026-07-27', '2026-07-28']);
+    expect(dates(await archive(NOW + day))).toEqual(['2026-07-26', '2026-07-29']);
+    expect(dates(await archive(NOW + 3 * day))).toEqual(['2026-07-27', '2026-07-28', '2026-07-30', '2026-07-31']);
+  });
+
   it('retries a timed-out Search Console appearance request once and keeps a persistent failure', async () => {
     const provider = providerDumpFetch();
     const detailCalls = new Map<string, AbortSignal[]>();
@@ -253,7 +297,7 @@ describe('analysis-grade signal dumps', () => {
       expect(next.retried).toBe(0);
     });
 
-    it('never re-asks a date the provider answered with a refusal', async () => {
+    it('re-asks a quota refusal and leaves permanent provider refusals alone', async () => {
       await failedDump('meadow.example', 'gsc', 'page-query', '2026-09-10', 'gsc_dump_http_403');
       await failedDump('meadow.example', 'ga4', 'pages-screens', '2026-09-10', 'ga4_quota_exhausted');
       // Network first, then the provider's own answer: the LATEST attempt decides.
@@ -263,8 +307,9 @@ describe('analysis-grade signal dumps', () => {
       const fixture = providerDumpFetch();
       const result = await runSignalDumps(env, { nowMs: LATER, fetchImpl: fixture.fetchImpl, revisionDays: 1 });
 
-      expect(result.retried).toBe(0);
-      expect(askedFor(fixture, '2026-09-10')).toHaveLength(0);
+      expect(result.retried).toBe(1);
+      expect(askedFor(fixture, '2026-09-10')).toHaveLength(1);
+      expect(await latest('meadow.example', 'ga4', 'pages-screens', '2026-09-10')).toMatchObject({ status: 'success' });
       expect(await latest('meadow.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ errorCode: 'gsc_dump_http_403' });
     });
 

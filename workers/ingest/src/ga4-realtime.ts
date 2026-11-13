@@ -1,7 +1,8 @@
+import { GA4_CORE_BACKOFF_CODE } from './ga4-core.js';
 import { updateComparison, type SharedComparisons } from './ga4-comparison.js';
 import { timeZoneChangesFor } from './time-zone-change.js';
 import { getConfigDocuments } from './config-store.js';
-import { readGa4Reading, saveGa4Reading, realtimeReadDue, realtimeNextReadAt } from './ga4-realtime-store.js';
+import { readGa4Reading, saveGa4Reading, realtimeReadDue, realtimeNextReadAt, nextRealtimeMinute } from './ga4-realtime-store.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 // Scheduled realtime collection owns Google credentials. Display reads use
 // retained observations, so refreshing a dashboard spends no provider quota.
@@ -97,8 +98,8 @@ export async function runGa4Realtime(
   let monitoringAvailable = health !== null;
   let unrecordedFailure = false;
   const assets: Ga4RealtimeAsset[] = [];
-  const zoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
-  for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
+  const comparisons: { target: GooglePropertyTarget; token: string; shared: SharedComparisons }[] = [];
+  for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     let accessToken: string;
     try {
       accessToken = await accessTokenFor(
@@ -125,6 +126,7 @@ export async function runGa4Realtime(
     const sharedComparisons: SharedComparisons = new Map();
     const sharedReadings = new Map<string, Promise<Awaited<ReturnType<typeof collectGa4Realtime>>>>();
     for (const target of accountTargets) {
+      comparisons.push({ target, token: accessToken, shared: sharedComparisons });
       try {
         const prior = await readGa4Reading(env.STORE, target.asset, target.propertyRef);
         if (prior && !realtimeReadDue(prior, clock())) { assets.push(prior); continue; }
@@ -185,21 +187,26 @@ export async function runGa4Realtime(
         }
         if (!recorded) unrecordedFailure = true;
         assets.push({ ...errorResult(target.asset, error instanceof Ga4ReadError ? error.observedAt : observedAt, normalized), ...(reconnecting ? { reconnecting: true as const } : {}) });
-      } finally {
-        try {
-          const cache = responseCache ? { store: env.STORE, cache: responseCache, clock,
-            scope: await ga4CacheScope({ auth: target.auth, property: target.propertyRef }) } : null;
-          const comparison = await updateComparison(env, { asset: target.asset, property: target.propertyRef, token: accessToken,
-            zone: osTimeZone, nowMs: clock(), fetchImpl, cache, shared: sharedComparisons, changes: zoneChanges.get(target.asset) });
-          if (comparison) {
-            const recorded = await observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset,
-              target: target.propertyRef, ...comparison });
-            monitoringAvailable = recorded && monitoringAvailable;
-          }
-        } catch {
-          monitoringAvailable = false;
-        }
       }
+    }
+  }
+
+  // Finish realtime for every site before the hourly Core reports start.
+  if (comparisons.length > 0) {
+    try {
+      const zoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
+      const results = await Promise.allSettled(comparisons.map(async ({ target, token, shared }) => {
+        const cache = responseCache ? { store: env.STORE, cache: responseCache, clock,
+          scope: await ga4CacheScope({ auth: target.auth, property: target.propertyRef }) } : null;
+        const comparison = await updateComparison(env, { asset: target.asset, property: target.propertyRef, token,
+          zone: osTimeZone, nowMs: clock(), clock, fetchImpl, cache, shared, changes: zoneChanges.get(target.asset) });
+        if (!comparison) return true;
+        return observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset,
+          target: target.propertyRef, ...comparison });
+      }));
+      monitoringAvailable = results.every(result => result.status === 'fulfilled' && result.value) && monitoringAvailable;
+    } catch {
+      monitoringAvailable = false;
     }
   }
 
@@ -248,9 +255,11 @@ export async function refreshGa4Comparisons(
     const shared: SharedComparisons = new Map();
     for (const target of accountTargets) {
       const comparison = await updateComparison(env, { asset: target.asset, property: target.propertyRef, token, zone: osTimeZone,
-        nowMs: clock(), fetchImpl, cache: null, shared, changes: zoneChanges.get(target.asset), force: true });
+        nowMs: clock(), clock, fetchImpl, cache: null, shared, changes: zoneChanges.get(target.asset), force: true });
       if (!comparison) continue;
-      await observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset, target: target.propertyRef, ...comparison });
+      if (comparison.code !== GA4_CORE_BACKOFF_CODE) {
+        await observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset, target: target.propertyRef, ...comparison });
+      }
       results.push({ asset: target.asset, ...comparison });
     }
   }
@@ -334,7 +343,7 @@ export async function collectGa4Realtime(
 ): Promise<Omit<Extract<Ga4RealtimeAsset, { status: 'success' }>, 'asset' | 'status' | 'errorCode' | 'timeZone'>> {
   try {
     const read = await cachedGa4Read(cache && { ...cache, version: LIVE_READING_VERSION }, 'realtime', nowMs, LIVE_READING_TTL_MS,
-      () => collectGa4RealtimeWindows(propertyId, accessToken, fetchImpl, clock(), clock));
+      () => collectGa4RealtimeWindows(propertyId, accessToken, fetchImpl, clock(), clock), nextRealtimeMinute);
     if (observe) await observe({ capability: 'ga4-realtime', observedAt: read.observedAt, ok: true });
     const windows = read.value;
     return {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { javascriptInstant, openWorkspaceStore } from '@noticeos/postgres';
 import { forgetConfigCache } from '../src/config-store.js';
 import { putCredential } from '../src/credentials.js';
+import { readGa4CoreReport } from '../src/ga4-core.js';
 import { parseGa4MinuteRows, runGa4Realtime, readGa4Realtime } from '../src/ga4-realtime.js';
 import { asOwner, reset } from './helpers.js';
 import { storedHealthEvents } from './helpers.js';
@@ -39,6 +40,22 @@ function realtimeFetch(status = 200, quota: QuotaFixture = {}, _unused = {}, min
 beforeEach(reset);
 
 describe('scheduled GA4 realtime collection', () => {
+  it('keeps reading both live reports in successive clock minutes during Core quota backoff', async () => {
+    await readGa4CoreReport(env.STORE, '123456', async () =>
+      Response.json({ error: { message: 'Exhausted server errors quota.' } }, { status: 429 }),
+    {}, { clock: () => NOW, lane: 'google-signals', maxBytes: 1024 });
+
+    const fixture = realtimeFetch();
+    const options = { fetchImpl: fixture.fetchImpl, tokenCache: new Map(), responseCache: await caches.open(crypto.randomUUID()) };
+    const first = await runGa4Realtime(env, { ...options, nowMs: NOW + 5_000 });
+    const second = await runGa4Realtime(env, { ...options, nowMs: NOW + 60_000 });
+    expect(first.assets[0]?.status).toBe('success');
+    expect(second.assets[0]).toMatchObject({ status: 'success', observedAt: new Date(NOW + 60_000).toISOString() });
+    expect(fixture.calls.filter(call => call.url.endsWith('123456:runRealtimeReport'))).toHaveLength(4);
+    expect(fixture.calls.filter(call => call.url.endsWith('123456:runReport'))).toHaveLength(0);
+    expect(fixture.calls.filter(call => call.url.endsWith('654321:runReport'))).toHaveLength(2);
+  });
+
   it('does not count cached network failures as new checks or erase the retained reading', async () => {
     let failed = false;
     const synthetic = realtimeFetch();
