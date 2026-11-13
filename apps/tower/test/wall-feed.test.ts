@@ -77,14 +77,14 @@ function dump(id: string, a: string, integration: string, finishedAt: string, co
 
 /** A source's transition, with the target it is about. */
 async function health(pg: TestStore, eventId: string, provider: string, capability: string, a: string, recordedAt: string,
-  kind: "failed" | "recovered", evidenceSource: string, evidenceId: string): Promise<void> {
+  kind: "failed" | "recovered", evidenceSource: string, evidenceId: string, failureKind = "access"): Promise<void> {
   await pg.call.write(async (tx) => {
     const [target] = await tx.query<{ seq: string }>(
       `INSERT INTO noticeos.capability_targets (workspace_id, provider, connection_revision, capability, asset_id, target_id, family)
        VALUES ($1, $2, 'rev', $3, $4, 'target', '') RETURNING target_seq::text AS seq`,
       [tx.workspaceId, provider, capability, a],
     );
-    const failure = kind === "failed" ? "access" : null;
+    const failure = kind === "failed" ? failureKind : null;
     await tx.execute(
       `INSERT INTO noticeos.integration_health_events (workspace_id, event_id, target_seq, attempt_id, started_at, recorded_at,
          kind, failure_kind, safe_code, evidence_source, evidence_id)
@@ -189,6 +189,8 @@ async function seedMoney(store: WorkspaceStore): Promise<void> {
     id: `run-${site}`, asset: a, siteId: site, start: "2026-09-15", end: "2026-09-21", attemptedAt: at("16:14"),
     days: [["2026-09-20", 999], ["2026-09-21", cents]] as [string, number][], recordedAt: at("16:15"),
   })));
+  await writeMediavine(store, [{ id: "still-waiting", asset: "money.example.com", siteId: "mv-money",
+    start: "2026-09-21", end: "2026-09-21", attemptedAt: at("16:14"), outcome: "incomplete" }]);
   await bookLedger(store, [{ kind: "cost", asset: "os.example.com", period: "2026-09", family: "infra", amount_minor: 1200,
     booking_state: "reconciled", recorded_at: at("13:00") }]);
 }
@@ -443,6 +445,24 @@ needsPostgres("buildWallFeed", () => {
     expect(realtime[0]?.text).toBe("Realtime traffic failed");
   });
 
+  it("shows only the latest pending revenue report and keeps real failures visible", async () => {
+    const day = "2026-09-21";
+    await writeMediavine(pg.call, [
+      { id: "older-wait", asset: "money.example.com", siteId: "mv-money", start: day, end: day, attemptedAt: at("15:14"), outcome: "incomplete" },
+      { id: "published-later", asset: "recipes.example.com", siteId: "mv-mp", start: day, end: day, attemptedAt: at("15:14"), outcome: "incomplete" },
+      { id: "provider-error", asset: "codes.example.com", siteId: "mv-codes", start: day, end: day, attemptedAt: at("16:14"), outcome: "failed" },
+    ]);
+    await health(pg, "legacy-wait", "mediavine", "mediavine-revenue", "money.example.com", at("16:14"),
+      "failed", "mediavine_runs", "still-waiting", "incomplete-report");
+
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    expect(items.filter(item => item.kind === "source-waiting")).toEqual([
+      expect.objectContaining({ id: "mediavine_runs:still-waiting", asset: "money.example.com", tone: "neutral", count: 1 }),
+    ]);
+    expect(items).toContainEqual(expect.objectContaining({ id: "mediavine_runs:provider-error", kind: "source-failed", tone: "error" }));
+    expect(items).toContainEqual(expect.objectContaining({ kind: "collected", text: "Mediavine · 2 of 3 assets" }));
+  });
+
   it("excludes archived noise before small source caps, including task and money reads", async () => {
     await pg.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["recipes.example.com"]));
     await storeAlerts(pg.call, [flag("codes.example.com", at("17:00"), "Active alert")]);
@@ -490,6 +510,7 @@ needsPostgres("buildWallFeed", () => {
       "17:05 task-claimed Recipes · Recipe cards load faster",
       "16:15 revenue - · 2 assets reported $55.25 for Sep 21",
       "16:14 collected - · Mediavine · 2 assets, none failed",
+      "16:14 source-waiting Money · Waiting for Sep 21 ad revenue",
       "16:00 resolved Medley · Catalog imports stalled",
       "15:30 cost Recipes · DataForSEO · $0.12 for 1 lookup",
       "15:02 collected - · DataForSEO · 2 assets, none failed",

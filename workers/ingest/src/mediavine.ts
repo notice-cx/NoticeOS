@@ -287,7 +287,7 @@ async function recordReportFailure(
       `INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, message)
        VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, $8, $9)`,
       [tx.workspaceId, runId, asset, siteId, start, end, missedAt,
-        error instanceof MediavineError && error.kind === 'incomplete' ? 'incomplete' : 'failed', message]);
+        unfinished ? 'incomplete' : 'failed', message]);
     await tx.execute(
       `INSERT INTO noticeos.mediavine_state (workspace_id, asset_id, site_id, target_date, attempts, next_attempt_at, last_error, auth_blocked)
        VALUES ($1::uuid, $2, $3, $4::date, $5, $6::timestamptz, $7, $8)
@@ -295,6 +295,7 @@ async function recordReportFailure(
          next_attempt_at = excluded.next_attempt_at, last_error = excluded.last_error, auth_blocked = excluded.auth_blocked`,
       [tx.workspaceId, asset, siteId, targetDate, failures, next === null ? null : new Date(next), message, auth]);
   });
+  if (unfinished) return true;
   const monitoringAvailable = await observeIntegration(env, health, { capability: 'mediavine-revenue', asset, target: siteId, observedAt: missedAt, attemptId: runId, evidenceSource: 'mediavine_runs', ok: false, code: error instanceof MediavineError ? error.kind : 'network', nextAttemptAt: next ? new Date(next).toISOString() : null });
   if (auth && error.permissionScope === 'account') {
     await recordCredentialOutcome(env, 'mediavine', { ok: false, error: message, at: new Date(now).toISOString() });

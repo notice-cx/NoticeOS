@@ -159,7 +159,7 @@ export interface IntegrationObservation {
 }
 export const REALTIME_ATTEMPT_EVIDENCE = 'realtime-attempt';
 export const REALTIME_NETWORK_CONFIRMATION = { checks: 3, spanMs: 120_000 } as const;
-export type IntegrationHealthState = 'healthy' | 'failing' | 'reconnecting' | 'stale' | 'never-run' | 'idle' | 'paused' | 'disconnected' | 'unmonitored' | 'unknown';
+export type IntegrationHealthState = 'healthy' | 'failing' | 'reconnecting' | 'waiting' | 'stale' | 'never-run' | 'idle' | 'paused' | 'disconnected' | 'unmonitored' | 'unknown';
 export interface IntegrationCapabilityHealth {
   scope: IntegrationHealthScope;
   state: IntegrationHealthState;
@@ -274,7 +274,7 @@ export interface IntegrationHealthPayload {
   events: IntegrationHealthEvent[];
 }
 export const INTEGRATION_HEALTH_LABELS: Record<IntegrationHealthState, string> = {
-  healthy: 'Working', failing: 'Failing', reconnecting: 'Reconnecting', stale: 'Overdue', 'never-run': 'Awaiting first result', idle: 'Idle',
+  healthy: 'Working', failing: 'Failing', reconnecting: 'Reconnecting', waiting: 'Waiting for publication', stale: 'Overdue', 'never-run': 'Awaiting first result', idle: 'Idle',
   paused: 'Paused', disconnected: 'Not connected', unmonitored: 'Not monitored', unknown: 'Unknown',
 };
 export function integrationHealthNeedsAttention(item: Pick<IntegrationHealthItem, 'state'>): boolean {

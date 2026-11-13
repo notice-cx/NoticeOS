@@ -27,7 +27,7 @@ import { CRUX_DAILY_CAPABILITY } from './crux.js';
 import { STRIPE_LANE, STRIPE_REVENUE_CAPABILITY } from './stripe.js';
 import { BING_CREDENTIAL_REF } from './bing-client.js';
 
-type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; verifiedArchive?: boolean; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
+type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; verifiedArchive?: boolean; lastSuccessAt?: string | null; nextAttemptAt?: string | null; unpublishedAt?: string };
 interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string;
   /** An archive run whose report is incomplete: truncated where truncation is not the family's own depth. */
   cut_short?: number }
@@ -148,6 +148,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         FROM noticeos.integration_health_events e
         JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
         WHERE e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}'
+          AND (t.capability <> 'mediavine-revenue' OR e.safe_code IS DISTINCT FROM 'incomplete-report')
         ORDER BY e.recorded_at DESC, e.started_at DESC, e.event_id COLLATE "C" LIMIT 100`);
       return rows.map(row => ({ ...row, recorded_at: javascriptInstant(row.recorded_at), started_at: javascriptInstant(row.started_at) }));
     });
@@ -176,7 +177,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const def = definition(spec.connection.provider, spec.capability);
     const scope = await healthScope(spec.connection, spec.capability, spec.asset, spec.target, spec.family);
     const key = integrationScopeKey(scope);
-    const stored = observed.get(key);
+    const saved = observed.get(key);
+    const stored = spec.capability === 'mediavine-revenue' && saved?.safe_code === 'incomplete-report' ? undefined : saved;
     const legacyUnverified = !spec.connection.demo && !spec.verifiedArchive && spec.observations !== undefined && spec.observations.length > 0 && !stored;
     // A source result cannot prove this connection recovered, but an unmatched
     // newer attempt does invalidate an older green monitoring result.
@@ -197,16 +199,19 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const projected = integrationCapabilityHealth({ scope, connection: !spec.connection.configured ? 'disconnected' : spec.paused ? 'paused' : 'connected',
       covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince: obligation, nowMs,
       lastSuccessAt: stored?.last_success_finished_at });
-    const state = setup && spec.connection.configured ? 'idle' : projected.state;
+    const unpublishedAt = spec.connection.configured && !spec.paused && observerAvailable && spec.unpublishedAt
+      && Date.parse(spec.unpublishedAt) <= nowMs ? spec.unpublishedAt : null;
+    const state = unpublishedAt ? (obligation !== null && Date.parse(unpublishedAt) < Date.parse(obligation) ? 'stale' : 'waiting')
+      : setup && spec.connection.configured ? 'idle' : projected.state;
     // Public IDs are based on product identity, never on credentials or private targets.
     const id = await healthId([spec.connection.provider, spec.capability, spec.asset ?? '', spec.family ?? '', spec.detail ?? '']);
-    const lastSuccess = stored?.last_success_finished_at ?? projected.lastSuccessAt;
+    const lastSuccess = unpublishedAt ? spec.lastSuccessAt : stored?.last_success_finished_at ?? projected.lastSuccessAt;
     const item: IntegrationHealthItem = { id, provider: spec.connection.provider, capability: spec.capability, label: def.label, asset: spec.asset ?? null,
       // `detail` is display text; nothing downstream parses it.
-      detail: spec.detail ?? null, report: spec.report ?? null, reportDate: spec.reportDate ?? null, state, lastAttemptAt: projected.latest?.startedAt ?? null,
+      detail: spec.detail ?? null, report: spec.report ?? null, reportDate: spec.reportDate ?? null, state, lastAttemptAt: unpublishedAt ?? projected.latest?.startedAt ?? null,
       lastSuccessAt: lastSuccess && Date.parse(lastSuccess) <= nowMs ? lastSuccess : null,
       nextAttemptAt: spec.nextAttemptAt ?? projected.latest?.nextAttemptAt ?? null,
-      failure: projected.latest?.failure ?? null, code: projected.latest?.code ?? null,
+      failure: unpublishedAt ? null : projected.latest?.failure ?? null, code: unpublishedAt ? null : projected.latest?.code ?? null,
       action: def.action, coverage: setup ? 'setup' : 'monitored' };
     payload.items.push(item); currentItems.set(key, item);
   };
@@ -466,8 +471,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           // The site's attempts (a run is known by its own text id), its retry
           // time and its latest success since the connection last changed.
           const stored = await env.STORE.read(async (tx) => ({
-            history: await tx.query<{ id: string; attempted_at: string; outcome: string }>(
-              `SELECT run_id AS id, attempted_at, outcome FROM noticeos.mediavine_runs
+            history: await tx.query<{ id: string; attempted_at: string; outcome: string; report_date: string }>(
+              `SELECT run_id AS id, attempted_at, outcome, end_date::text AS report_date FROM noticeos.mediavine_runs
                 WHERE asset_id = $1 AND site_id = $2 ORDER BY attempted_at DESC, run_seq DESC LIMIT 50`, [asset, target]),
             retry: (await tx.query<{ next_attempt_at: string | null }>(
               'SELECT next_attempt_at FROM noticeos.mediavine_state WHERE asset_id = $1 AND site_id = $2', [asset, target]))[0],
@@ -478,9 +483,16 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           }));
           const history = stored.history.map(row => ({ ...row, attempted_at: javascriptInstant(row.attempted_at) })).filter(row => afterEdit(connection, row.attempted_at));
           const retryAt = stored.retry?.next_attempt_at ? javascriptInstant(stored.retry.next_attempt_at) : null;
-          const observations = await Promise.all(history.map(row => fromLegacy(connection, 'mediavine-revenue', asset, target, '', { id: row.id, asset, integration: provider, property_ref: target, started_at: row.attempted_at, finished_at: row.attempted_at, status: row.outcome === 'success' ? 'success' : 'error', error_code: row.outcome === 'incomplete' ? 'incomplete-report' : 'provider', credential_ref: '' })));
+          const latest = history[0];
+          const unpublished = latest?.outcome === 'incomplete' ? latest : null;
+          const observations = await Promise.all(history.filter(row => row.outcome !== 'incomplete')
+            .map(row => fromLegacy(connection, 'mediavine-revenue', asset, target, '', { id: row.id, asset, integration: provider,
+              property_ref: target, started_at: row.attempted_at, finished_at: row.attempted_at,
+              status: row.outcome === 'success' ? 'success' : 'error', error_code: 'provider', credential_ref: '' })));
           const success = stored.success ? javascriptInstant(stored.success.attempted_at) : undefined;
-          await add({ connection, capability: 'mediavine-revenue', lastSuccessAt: success, asset, target, paused: !mediavineSyncOn(config), requiredSince: new Date(nowMs - 36 * 3_600_000).toISOString(), observations, nextAttemptAt: retryAt });
+          await add({ connection, capability: 'mediavine-revenue', lastSuccessAt: success, asset, target, paused: !mediavineSyncOn(config),
+            requiredSince: new Date(nowMs - 36 * 3_600_000).toISOString(), observations, nextAttemptAt: retryAt,
+            ...(unpublished ? { unpublishedAt: unpublished.attempted_at, reportDate: unpublished.report_date } : {}) });
         }
       }
       if ((await healthConnection(env, provider)).revision !== connection.revision) throw new Error('Connection changed');

@@ -10,10 +10,12 @@ import { runCollectNow } from '../src/dispatch.js';
 import { connectionState, mediavineSyncOn } from '@noticeos/contract';
 import { credentialSummary, putCredential, resolveCredential, saveMediavineSession, rotateCredentialKeys } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
-import { applyConfigOps, forgetConfigCache, getConfigDocument } from '../src/config-store.js';
+import { applyConfigOps, forgetConfigCache, getConfigDocument, seedConfigDocuments } from '../src/config-store.js';
 import { bookEntry, call, credentialVerdict, reset, emptyTables, storedCount, storedCredential, storedHealthStates } from './helpers.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { runNotifier } from '../src/notifier.js';
+import { readIntegrationHealth } from '../src/integration-health-read.js';
+import { healthConnection, observeIntegration } from '../src/integration-health-context.js';
 
 const NOW = Date.parse('2026-09-09T13:10:00Z');
 const ASSET = 'meadow.example';
@@ -425,6 +427,53 @@ describe('a day Mediavine has not published yet', () => {
     expect(await queuedYesterday()).toBe(1);
     await runMediavine(env, { fetchImpl, nowMs: NOW + 3 * HOUR });
     expect(reports(fetchImpl)).toBe(3);
+  });
+
+  it('shows pending publication without a failed or successful health observation', async () => {
+    await connect();
+    const documents = await Promise.all(['config/ga4-custom-dimensions.json', 'config/serp-panel.json']
+      .map(file => getConfigDocument(env, file)));
+    await seedConfigDocuments(env, { documents: Object.fromEntries(documents.map(read => [read.file, read.body])), actor: 'test' });
+    const { changedAt } = await healthConnection(env, 'mediavine');
+    const start = Date.parse(changedAt!.slice(0, 10) + 'T15:10:00Z') + 24 * HOUR;
+    const nextDate = new Intl.DateTimeFormat('sv-SE', { timeZone: MEDIAVINE_REPORTING_CLOCK.timeZone,
+      year: 'numeric', month: '2-digit', day: '2-digit' }).format(start);
+    await runMediavine(env, { fetchImpl: transport(), nowMs: start });
+    const read = async (nowMs: number) => {
+      const health = await readIntegrationHealth(env, nowMs + 1_000);
+      const item = health.items.find(row => row.asset === ASSET && row.capability === 'mediavine-revenue');
+      return { item, events: health.events.filter(event => event.itemId === item?.id) };
+    };
+    const failedAt = start + 24 * HOUR;
+    expect((await runMediavine(env, { fetchImpl: transport({ status: 503 }), nowMs: failedAt })).outcome).toBe('failed');
+    const failed = await read(failedAt);
+    expect(failed.item).toMatchObject({ state: 'failing', lastAttemptAt: new Date(failedAt).toISOString() });
+    expect(failed.events.map(event => event.kind)).toEqual(['failed']);
+
+    const waitingAt = failedAt + HOUR;
+    const empty = transport({ revenueOn: date => date === nextDate ? 0 : 1.25 });
+    expect((await runMediavine(env, { fetchImpl: empty, nowMs: waitingAt })).outcome).toBe('skipped');
+    const waiting = await read(waitingAt);
+    expect(waiting.item).toMatchObject({ state: 'waiting', failure: null, reportDate: nextDate,
+      lastAttemptAt: new Date(waitingAt).toISOString(), lastSuccessAt: failed.item?.lastSuccessAt,
+      nextAttemptAt: new Date(waitingAt + UNPUBLISHED_RETRY_MS).toISOString() });
+    expect(waiting.events).toEqual(failed.events);
+    expect((await storedHealthStates()).find(row => row.capability === 'mediavine-revenue')?.safe_code).not.toBe('incomplete-report');
+
+    const legacyId = (await env.STORE.read(tx => tx.query<{ run_id: string }>(
+      "SELECT run_id FROM noticeos.mediavine_runs WHERE outcome = 'incomplete' ORDER BY attempted_at DESC LIMIT 1")))[0]!.run_id;
+    await observeIntegration(env, await healthConnection(env, 'mediavine'), { capability: 'mediavine-revenue',
+      asset: ASSET, target: SITE.id, observedAt: new Date(waitingAt).toISOString(), attemptId: legacyId, evidenceSource: 'mediavine_runs',
+      ok: false, code: 'incomplete' });
+    expect(await read(waitingAt)).toEqual(waiting);
+    expect((await read(waitingAt + 37 * HOUR)).item).toMatchObject({ state: 'stale',
+      reportDate: nextDate, lastAttemptAt: new Date(waitingAt).toISOString(), lastSuccessAt: failed.item?.lastSuccessAt, failure: null });
+
+    const publishedAt = waitingAt + HOUR;
+    expect((await runMediavine(env, { fetchImpl: transport(), nowMs: publishedAt })).outcome).toBe('ran');
+    const published = await read(publishedAt);
+    expect(published.item).toMatchObject({ state: 'healthy', lastSuccessAt: new Date(publishedAt).toISOString(), failure: null });
+    expect(published.events.map(event => event.kind)).toEqual(['recovered', 'failed']);
   });
 
   it('reports a collect-now press that finds yesterday unpublished as skipped, not a provider failure', async () => {

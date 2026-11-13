@@ -108,10 +108,13 @@ export async function recordIntegrationObservation(store: WorkspaceStore, input:
     const newer = !old || started > javascriptInstant(old.started_at) || started === javascriptInstant(old.started_at) && input.outcome === 'failure' && old.outcome === 'success';
     const realtime = input.scope.capability === 'ga4-realtime';
     const candidate = realtime && safe?.failure === 'network';
-    const [incident] = realtime ? await tx.query<{ kind: 'failed' | 'changed' | 'recovered'; safe_code: string | null }>(
-      `SELECT kind, safe_code FROM noticeos.integration_health_events WHERE target_seq = $1::bigint AND evidence_source <> $2
-        ORDER BY recorded_at DESC, started_at DESC, event_id DESC LIMIT 1`, [seq, REALTIME_ATTEMPT_EVIDENCE]) : [];
-    const open = realtime ? !!incident && incident.kind !== 'recovered' : old?.outcome === 'failure';
+    const legacyPublication = input.scope.capability === 'mediavine-revenue' && old?.safe_code === 'incomplete-report';
+    const [incident] = realtime || legacyPublication ? await tx.query<{ kind: 'failed' | 'changed' | 'recovered'; safe_code: string | null }>(
+      `SELECT kind, safe_code FROM noticeos.integration_health_events
+        WHERE target_seq = $1::bigint AND evidence_source <> $2
+          AND (NOT $3::boolean OR safe_code IS DISTINCT FROM 'incomplete-report')
+        ORDER BY recorded_at DESC, started_at DESC, event_id DESC LIMIT 1`, [seq, REALTIME_ATTEMPT_EVIDENCE, legacyPublication]) : [];
+    const open = realtime || legacyPublication ? !!incident && incident.kind !== 'recovered' : old?.outcome === 'failure';
     let onset = started;
     let reconnecting = false;
     let lateConfirmation = false;
@@ -136,7 +139,7 @@ export async function recordIntegrationObservation(store: WorkspaceStore, input:
         if (confirmed && streak?.first_at) onset = javascriptInstant(streak.first_at);
       }
     }
-    const previousCode = realtime ? incident?.safe_code : old?.safe_code;
+    const previousCode = realtime || legacyPublication ? incident?.safe_code : old?.safe_code;
     const kind = input.outcome === 'success' ? open ? 'recovered' : null
       : reconnecting ? null : !open ? 'failed' : previousCode !== safe?.code ? 'changed' : null;
     if ((newer || lateConfirmation) && kind) await tx.execute(`INSERT INTO noticeos.integration_health_events

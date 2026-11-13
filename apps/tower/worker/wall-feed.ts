@@ -93,7 +93,9 @@ export const FEED_HEALTH_SQL = `SELECT e.event_id AS "eventId", t.provider, t.ca
        e.kind, e.failure_kind AS "failureKind", e.evidence_source AS "evidenceSource", e.evidence_id AS "evidenceId"
   FROM noticeos.integration_health_events e
   JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
- WHERE e.recorded_at >= $1::timestamptz AND e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}' AND ${unarchivedAssetSql("t.asset_id", "t.workspace_id")}
+ WHERE e.recorded_at >= $1::timestamptz AND e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}'
+   AND (t.capability <> 'mediavine-revenue' OR e.safe_code IS DISTINCT FROM 'incomplete-report')
+   AND ${unarchivedAssetSql("t.asset_id", "t.workspace_id")}
  ORDER BY e.recorded_at DESC LIMIT $2`;
 
 /** Driven from the site list, each site's lane seeking its newest runs down
@@ -147,7 +149,7 @@ export const FEED_DUMPS_SQL = `SELECT d.run_id AS id, d.asset_id AS asset, d.int
 
 /** Driven from the site list so each site seeks its own (site, time) range.
  * A run is known by its own text id, the one its health event names. */
-export const FEED_MEDIAVINE_RUNS_SQL = `SELECT m.run_id AS id, m.asset_id AS asset, m.attempted_at AS at, m.outcome
+export const FEED_MEDIAVINE_RUNS_SQL = `SELECT m.run_id AS id, m.asset_id AS asset, m.attempted_at AS at, m.outcome, m.end_date::text AS "reportDate"
   FROM noticeos.assets a
   JOIN noticeos.mediavine_runs m
     ON m.workspace_id = a.workspace_id AND m.asset_id = a.asset_id AND m.attempted_at >= $1::timestamptz
@@ -521,6 +523,7 @@ interface MediavineRow {
   asset: string;
   at: string;
   outcome: "success" | "incomplete" | "failed";
+  reportDate: string;
 }
 interface RevenueRow {
   id: number;
@@ -984,10 +987,20 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     if (!ok) failure(`signal_dump_runs:${row.id}`, row.asset, row.at, searchArchive ? "Search Console report archive" : `${provider} report`, searchArchive);
     attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: provider === "Google" ? GOOGLE_ARCHIVES : provider, atMs: ms(row.at), ok });
   }
+  const latestRevenueAttempts = new Set<string>();
   for (const row of active(mediavine)) {
+    const id = `mediavine_runs:${row.id}`;
+    const latest = !latestRevenueAttempts.has(row.asset);
+    latestRevenueAttempts.add(row.asset);
+    if (row.outcome === "incomplete") {
+      if (latest) add({ id, atMs: ms(row.at), kind: "source-waiting", asset: row.asset,
+        text: `Waiting for ${monthDay(row.reportDate)} ad revenue`, tone: "neutral", foldKey: `ad-revenue-waiting:${row.reportDate}`,
+        many: (_n, sites) => `Waiting for ${monthDay(row.reportDate)} ad revenue · ${siteCount(sites)}` });
+      continue;
+    }
     const ok = row.outcome === "success";
-    if (!ok) failure(`mediavine_runs:${row.id}`, row.asset, row.at, "Ad revenue report");
-    attempts.push({ id: `mediavine_runs:${row.id}`, asset: row.asset, provider: collector("mediavine"), atMs: ms(row.at), ok });
+    if (!ok) failure(id, row.asset, row.at, "Ad revenue report");
+    attempts.push({ id, asset: row.asset, provider: collector("mediavine"), atMs: ms(row.at), ok });
   }
   for (const row of active(hygiene)) {
     // A check that finds a broken page is an alert of its own; the check

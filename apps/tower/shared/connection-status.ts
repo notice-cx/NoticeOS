@@ -143,7 +143,7 @@ export function currentHealth(
   const age = nowMs - Date.parse(data?.generatedAt ?? "");
   const current = Boolean(data && !isError && age >= -10_000 && age < 90_000);
   const items = (data?.items ?? []).map((saved) =>
-    !current && (saved.state === "healthy" || saved.state === "idle") && saved.coverage !== "setup"
+    !current && (saved.state === "healthy" || saved.state === "idle" || saved.state === "waiting") && saved.coverage !== "setup"
       ? { ...saved, state: "unknown" as const }
       : saved,
   );
@@ -200,7 +200,7 @@ function workStatus(key: string, items: IntegrationHealthItem[]): WorkStatus {
   else if (latest.state === "reconnecting") kind = "reconnecting";
   else if (latest.state === "unknown" || latest.state === "unmonitored") kind = "unknown";
   else if (latest.state === "paused") kind = "not-using";
-  else if (latest.state === "never-run") kind = "collecting";
+  else if (latest.state === "never-run" || latest.state === "waiting") kind = "collecting";
   else if (latest.state === "idle" || latest.state === "disconnected") kind = "idle";
   else kind = "working";
   return {
