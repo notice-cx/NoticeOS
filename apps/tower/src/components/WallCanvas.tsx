@@ -7,8 +7,8 @@
 
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
+import { isRetired } from "@shared/asset-setup";
 import { NO_READS, type ConnectionReads } from "@shared/connection-status";
-import type { WordLevel } from "@shared/views";
 import type { WallPayload } from "@shared/wall";
 import {
   isWallColumn,
@@ -88,8 +88,6 @@ export interface WallCanvasProps {
    * grid track. The TV passes nothing. */
   editing?: (slot: WallWidgetSlot) => ReactNode;
   metricEditing?: WallMetricEditing;
-  /** The words of the view the TV is drawn for; the revenue widget reads it. */
-  wordLevel?: WordLevel;
 }
 
 /** The one-second tick the strip's time, meeting and countdown share. */
@@ -159,10 +157,8 @@ export function WallCanvas({
   connections,
   editing,
   metricEditing,
-  wordLevel,
 }: WallCanvasProps) {
-  // The TV switch filters site rows and counts. Revenue and the live feed
-  // keep the whole portfolio's money and activity.
+  // Site display settings apply to the per-site views of the portfolio.
   const { data, hidden } = wallOnTv(payload);
 
   function draw(widget: WallWidget): ReactNode {
@@ -184,7 +180,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} timeZone={payload.osTimeZone} wordLevel={wordLevel} widget={widget} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} timeZone={payload.osTimeZone} widget={widget} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.
@@ -203,8 +199,10 @@ export function WallCanvas({
           />
         );
       }
-      case "work":
-        return <WallWork assets={filterWallAssets(sitesInWork(data), widget.settings)} operator={data.operator} nowMs={nowMs} widget={widget} />;
+      case "work": {
+        const projects = payload.workProjects ?? payload.assets.filter(asset => !isRetired(asset.status)).map(asset => asset.work);
+        return <WallWork projects={projects} operator={payload.operator} nowMs={nowMs} widget={widget} />;
+      }
       case "needs": {
         const assets = filterWallAssets(payload.assets, widget.settings);
         const selected = widget.settings?.assets;

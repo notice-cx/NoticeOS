@@ -809,20 +809,9 @@ describe("the selected widget's settings", () => {
     expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
   });
 
-  it("draws an asset off Work this week by its own setting unticked on the Work widget alone", () => {
-    renderEditor(null, { "northwind.example": { work: false } });
-    fireEvent.click(widget("work"));
-    const work = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
-    expect(within(work).getByRole("checkbox", { name: /Northwind/u })).toBeDisabled();
-    expect(work).toHaveTextContent("Off in Work this week by its own setting");
-    fireEvent.click(widget("sites"));
-    const sites = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
-    expect(within(sites).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
-  });
-
-  it("offers no asset filter on a widget the renderer does not filter", () => {
+  it.each(["revenue", "work"])("offers no asset filter on the portfolio-wide %s widget", (type) => {
     renderEditor();
-    fireEvent.click(widget("revenue"));
+    fireEvent.click(widget(type));
     expect(document.querySelector("[data-wall-asset-filter]")).toBeNull();
   });
 

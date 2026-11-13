@@ -158,6 +158,34 @@
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-plot { justify-content: flex-start; }
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: var(--metric-fact-gap); }
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart svg { flex: 1; height: auto; min-height: 0; }
+.wall-metric.wall-revenue-metric {
+  --revenue-overlap: clamp(1rem, 7cqi, 5rem);
+  --revenue-site-icon: 1.375rem;
+}
+.wall-revenue-metric .wall-metric-split { gap: 0; }
+.wall-revenue-metric .wall-metric-summary { z-index: 1; justify-content: flex-start; }
+.wall-revenue-metric .wall-cumulative-facts { gap: var(--metric-padding); }
+.wall-revenue-metric .wall-cumulative-facts dd { overflow-wrap: normal; }
+.wall-revenue-metric .wall-cumulative-facts [data-fact-divider] { border: 0; padding-top: 0; }
+.wall-revenue-metric .wall-metric-plot:has(.wall-metric-chart) {
+  margin-inline-start: calc(-1 * var(--revenue-overlap));
+  gap: var(--metric-gap);
+}
+.wall-revenue-metric .wall-cumulative-movement { align-items: flex-end; text-align: right; }
+.wall-revenue-metric .wall-cumulative-movement .wall-metric-change { font-size: min(var(--metric-change-size), 6cqi); }
+.wall-revenue-metric .wall-metric-chart svg { min-height: var(--metric-cumulative-chart-height); }
+.wall-revenue-unreported { font-size: var(--metric-note-size); }
+.wall-revenue-sites { display: flex; flex-wrap: wrap; align-items: center; gap: var(--metric-gap); }
+.wall-revenue-sites [data-property-favicon] { width: var(--revenue-site-icon); height: var(--revenue-site-icon); }
+.wall-revenue-sites [data-revenue-site="waiting"] { filter: grayscale(1); opacity: .45; }
+@container (max-width: 22rem) {
+  .wall-revenue-metric .wall-metric-split { grid-template-columns: minmax(0, 1fr); gap: var(--metric-gap); }
+  .wall-revenue-metric .wall-metric-summary { gap: var(--metric-fact-gap); }
+  .wall-revenue-metric .wall-cumulative-facts { flex-direction: row; flex-wrap: wrap; gap: var(--metric-gap) var(--metric-padding); }
+  .wall-revenue-metric .wall-metric-plot:has(.wall-metric-chart) { margin-inline-start: 0; }
+  .wall-revenue-metric .wall-cumulative-movement { align-items: flex-start; text-align: left; }
+  .wall-revenue-metric .wall-metric-chart { min-height: var(--metric-cumulative-chart-height); }
+}
 @container (max-width: 11rem) {
   .wall-metric-breakdown { --metric-primary-value-size: 1.5rem; --metric-detail-value-size: 1rem; }
   .wall-metric-value { font-size: calc(var(--metric-value-size) * .85); }

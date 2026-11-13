@@ -17,3 +17,13 @@
     --metric-cumulative-chart-height: 2.5rem;
   }
 }
+
+.wall-weekly-comparison { display: flex; align-items: center; justify-content: space-between; gap: var(--metric-padding); flex: 1; min-width: 0; }
+.wall-weekly-count { display: grid; flex: none; gap: var(--metric-fact-gap); }
+.wall-weekly-benchmark { display: grid; min-width: 0; flex: 1; gap: var(--metric-gap); }
+.wall-weekly-bars { display: grid; gap: var(--metric-fact-gap); }
+.wall-weekly-bars > span { position: relative; height: .375rem; border-radius: 1rem; background: var(--muted); }
+.wall-weekly-bars > span::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: var(--week-bar-fill); border-radius: inherit; background: var(--healthy); }
+.wall-weekly-bars > [data-week-bar="previous"]::before { background: var(--muted-foreground); }
+.wall-weekly-reference { color: var(--muted-foreground); font-size: var(--metric-note-size); line-height: var(--metric-note-line); }
+.wall-weekly-reference strong { color: var(--foreground); }

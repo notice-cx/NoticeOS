@@ -947,6 +947,7 @@ export async function buildWallPayload(
     attention,
     snoozed,
     operator,
+    workProjects: taskSnapshot?.projects.map(project => workByAsset.get(project.asset) ?? null) ?? [],
     agents: wallAgentsOf(taskSnapshot),
     next: wallNextUpOf(taskSnapshot, now),
     attentionTasks: wallAttentionTasksOf(taskSnapshot),

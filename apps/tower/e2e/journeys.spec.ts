@@ -719,7 +719,9 @@ test('the Wall states the month on pace from the store\'s projection, and draws 
   expect(seed.through).not.toBe(providerYesterday);
   const displayYesterday = new Date(Date.parse(`${seed.today}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   await expect(revenue.locator('[data-revenue-yesterday="none"]')).toHaveText('Not reported yet');
-  await expect(revenue.locator('[data-metric-fact="Yesterday"]')).toContainText(`${formatSeriesDate(displayYesterday)} · ${seed.timeZone}`);
+  const reports = revenue.getByRole('group', { name: `Reports for ${formatSeriesDate(displayYesterday)} · ${seed.timeZone}` });
+  await expect(reports.getByRole('img', { name: /waiting for report/i })).toHaveCount(1);
+  await expect(reports.locator('[data-revenue-site="waiting"]')).toHaveCSS('filter', 'grayscale(1)');
   await expect(revenue.locator('[data-revenue-yesterday-figure]')).toHaveCount(0);
   await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
   // The daily bars, their legend and the asset card live on the desk now.
@@ -1053,10 +1055,14 @@ test.describe(() => {
         const chart = section.querySelector(".wall-metric-plot")!.getBoundingClientRect();
         const scale = (section as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
         const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")) }));
-        return { height: section.getBoundingClientRect().height / scale, apart: facts.right <= chart.left, chartWidth: chart.width, factsWidth: facts.width,
+        return { height: section.getBoundingClientRect().height / scale, overlap: facts.right - chart.left, stacked: facts.bottom <= chart.top, chartWidth: chart.width, factsWidth: facts.width,
           actual: readings("current"), forecast: readings("forecast"), reference: Boolean(section.querySelector("[data-metric-previous-total]")), actualLine: Boolean(section.querySelector("[data-chart-line='solid']")) };
       });
-      expect(found).toMatchObject({ height: 324, apart: true, reference: true, actualLine: false });
+      expect(found).toMatchObject({ height: 324, reference: true, actualLine: false });
+      if (size[0] === 1920) {
+        expect(found.stacked).toBe(false);
+        expect(found.overlap).toBeGreaterThan(0);
+      } else expect(found.stacked).toBe(true);
       expect(found.actual.length).toBeGreaterThan(0);
       expect(found.forecast.length).toBeGreaterThan(0);
       for (const bar of [...found.actual, ...found.forecast]) {
@@ -1073,7 +1079,7 @@ test.describe(() => {
     }
   });
 
-  test("the Wall's work metrics share one fixed height and keep observed history distinct from missing history", desktopOnly("the TV's fixed height", PR_SMOKE), async ({ page }, testInfo) => {
+  test("the Wall's work metrics share one fixed height and compare the same point in each week", desktopOnly("the TV's fixed height", PR_SMOKE), async ({ page }, testInfo) => {
     const scene = await wallScene(page, "fire");
     await wallAt(page, [1920, 1080]);
     await expect(page.locator("#boot-splash")).toHaveCount(0);
@@ -1099,47 +1105,14 @@ test.describe(() => {
     expect(statusWidth).toBeGreaterThan(decisionsWidth);
     const done = work.getByRole("region", { name: "Done this week", exact: true });
     expect((await done.boundingBox())!.width).toBeGreaterThan(statusWidth);
-    const hasHistory = wallFixturePayload(scene.variant).assets.some(asset => asset.work?.weeks?.done.history?.some(point => point.v !== null));
-    if (hasHistory) {
-      const bars = done.locator("[data-metric-daily-bar='current']");
-      expect(await bars.count()).toBeGreaterThan(0);
-      await expect(bars.first()).toBeVisible();
-      expect(await done.locator("[data-chart-line='solid']").count()).toBeGreaterThan(0);
-      await expect(done.locator("[data-metric-cumulative-bar]")).toHaveCount(0);
-      const dates = await bars.evaluateAll(elements => elements.map(element => element.getAttribute("data-date")));
-      expect(new Set(dates).size).toBe(dates.length);
-      const missing = done.locator("[data-metric-daily-day='missing']");
-      expect(await missing.count()).toBeGreaterThan(0);
-      await expect(missing.locator("rect")).toHaveCount(0);
-      await expect(done.locator("[data-metric-previous-total]")).toBeAttached();
-      await expect(done.locator("svg[role='img']")).toBeVisible();
-      await expect(done.locator("svg[role='img']")).toHaveAccessibleName(/Bars: daily closes.*Solid line: cumulative closes.*share one count scale from zero.*Missing daily readings have no bar/);
-      const scales = await done.locator("svg[role='img']").evaluate(svg => {
-        const reference = svg.querySelector('[data-metric-previous-total]')!;
-        const total = Number(reference.querySelector('title')!.textContent!.split(':').at(-1)!.trim().replaceAll(',', ''));
-        const daily = [...svg.querySelectorAll('[data-metric-daily-bar]')].filter(bar => Number(bar.getAttribute('data-value')) > 0).map(bar => ({ y: Number(bar.getAttribute('y')), height: Number(bar.getAttribute('height')), value: Number(bar.getAttribute('data-value')) }));
-        const baseline = daily[0]!.y + daily[0]!.height;
-        const referenceScale = (baseline - Number(reference.querySelector('line')!.getAttribute('y1'))) / total;
-        return { referenceScale, baseline, daily };
-      });
-      expect(scales.daily.length).toBeGreaterThan(0);
-      for (const bar of scales.daily) {
-        expect(bar.y + bar.height).toBeCloseTo(scales.baseline, 4);
-        expect(bar.height).toBeCloseTo(bar.value * scales.referenceScale, 4);
-      }
-      const reference = await done.locator("[data-metric-previous-total] line").evaluate(line => ({
-        x1: Number(line.getAttribute("x1")), x2: Number(line.getAttribute("x2")),
-        y1: Number(line.getAttribute("y1")), y2: Number(line.getAttribute("y2")),
-      }));
-      expect(reference.x2).toBeGreaterThan(reference.x1);
-      expect(reference.y2).toBe(reference.y1);
-      expect(Number.isFinite(reference.y1)).toBe(true);
-    } else {
-      await expect(done).toContainText("History unavailable");
-      await expect(done.locator("[data-metric-daily-bar], [data-chart-line='solid']")).toHaveCount(0);
-    }
-    await expect(done).toContainText("Monday");
-    await expect(done).toContainText("Sunday");
+    const current = done.locator('[data-week-bar="current"]');
+    const previous = done.locator('[data-week-bar="previous"]');
+    await expect(current).toBeVisible();
+    await expect(previous).toBeVisible();
+    await expect(done.getByRole("img")).toHaveAccessibleName(/completed this week.*by the same time last week/);
+    const ratio = await done.locator('[data-week-bar]').evaluateAll(bars => bars.map(bar =>
+      Number.parseFloat(getComputedStyle(bar, '::before').width) / bar.getBoundingClientRect().width));
+    expect(Math.max(...ratio)).toBeCloseTo(1, 2);
     await assertNoPageOverflow(page);
     await work.screenshot({ path: testInfo.outputPath("wall-work-metrics-1920.png") });
     await page.screenshot({ path: testInfo.outputPath("wall-work-full-1920.png"), fullPage: true });

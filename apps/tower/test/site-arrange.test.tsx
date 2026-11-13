@@ -125,9 +125,9 @@ describe("Arrange on the Assets page", () => {
     expect(checked("Home and Portfolio for Meadow Board")).toBe("true");
     expect(checked("Home and Portfolio for Northwind")).toBe("false");
     expect(checked("TV for Northwind")).toBe("true");
-    for (const label of ["Home and Portfolio", "TV", "Work this week"]) expect(checked(`${label} for Fern Index`)).toBe("false");
+    for (const label of ["Home and Portfolio", "TV", "Work in TV Portfolio"]) expect(checked(`${label} for Fern Index`)).toBe("false");
     expect(screen.getByRole("link", { name: "Restore" })).toHaveAttribute("href", "/assets/ferns.example/settings#restore");
-    for (const label of ["Home and Portfolio", "TV", "Work this week"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
+    for (const label of ["Home and Portfolio", "TV", "Work in TV Portfolio"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
     // A retired site reads Retired beside its name; the others carry no stage.
     expect(container.querySelector('[data-site-arrange-row="ferns.example"]')).toHaveTextContent("Retired");
     expect(container.querySelector('[data-site-arrange-row="meadow.example"]')).not.toHaveTextContent("Retired");
@@ -255,7 +255,6 @@ describe("the arithmetic of a drag", () => {
   });
 
   it("names a change and a place in words", () => {
-    expect(shownOnLabel("Meadow Board", "work", true)).toBe("Meadow Board shown in Work this week");
     expect(shownOnLabel("Meadow Board", "list", false)).toBe("Meadow Board hidden on Home and Portfolio");
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23].map(formatOrdinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd"]);
   });

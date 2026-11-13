@@ -101,9 +101,7 @@ export function wallOnTv(data: WallPayload): WallOnTv {
   return { data: { ...data, assets: shown, attention }, hidden };
 }
 
-/** The sites with a row in the TV's Work this week: their Work this week
- * switch is on. Read on a payload `wallOnTv` already narrowed, so a site off
- * the TV has no row either. */
+/** The visible sites whose Portfolio rows include a Work tile. */
 export function sitesInWork(data: Pick<WallPayload, "assets" | "dashboard">): AssetCard[] {
   return sitesShownOn(data.assets, siteDisplayOf(data), "work");
 }

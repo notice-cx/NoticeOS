@@ -192,13 +192,14 @@ export const WALL_PAYLOAD_INVENTORY = {
   portfolio: { class: "material-current", placement: "primary-content", destination: "RevenueHero + Home and Assets net; MCP list_properties returns the whole band" },
   system: { class: "material-current", placement: "fixed-horizon", destination: "AttentionTicker problems + Home System tile" },
   dashboard: { class: "configuration", placement: "primary-content", destination: "WallStrip countdown + the saved Wall layout" },
-  assets: { class: "material-current", placement: "primary-content", destination: "SiteRows + WallLoop + WallWork" },
+  assets: { class: "material-current", placement: "primary-content", destination: "SiteRows + WallLoop" },
   attention: { class: "material-current", placement: "fixed-horizon", destination: "AttentionTicker problems + SiteRows issue marks" },
   attentionTasks: { class: "material-current", placement: "fixed-horizon", destination: "AttentionTicker urgent tasks and human decisions" },
   // History: a snoozed condition is a decision already made, so it belongs on
   // `/alerts`, never on the Wall.
   snoozed: { class: "history", placement: "primary-content", destination: "AlertsRoute Snoozed list" },
   operator: { class: "material-current", placement: "fixed-horizon", destination: "WallWork Your decisions + WallLoop Decide" },
+  workProjects: { class: "material-current", placement: "primary-content", destination: "WallWork task counts" },
   agents: { class: "material-current", placement: "primary-content", destination: "WallAgents standings" },
   next: { class: "material-current", placement: "primary-content", destination: "NextUp decisions and the agents now" },
   ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen)" },

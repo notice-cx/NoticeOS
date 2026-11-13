@@ -588,9 +588,7 @@ describe("every default widget draws its own empty state", () => {
   });
 });
 
-// A site's TV switch filters site rows and counts, whatever a widget's site
-// list names; its Work this week switch takes its row out of Work alone.
-// Revenue and the live feed keep every site's money and activity.
+// Site rows follow the TV switches. The portfolio totals read the full payload.
 describe("an asset off the TV by its own setting", () => {
   const everything: WallLayout = {
     version: 1,
@@ -626,7 +624,7 @@ describe("an asset off the TV by its own setting", () => {
     const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false } } } });
     expect(siteRows(view.container)).toEqual(["northwind.example"]);
     expect(view.container.querySelector('[data-wall-timeline] [data-lane="meadow.example"]')).toBeNull();
-    expect(view.container.querySelector("[data-wall-work]")).not.toBeNull();
+    expect(view.container.querySelector('[data-wall-work] [data-task-status="open"]')).toHaveTextContent("6");
     expect(view.container.querySelector("[data-wall-needs]")!.textContent).toMatch(/Meadow Board/u);
     expect(view.container.querySelector("[data-wall-feed]")).toHaveTextContent("Recipe cards load faster");
     // Only the other site's task is in progress on the loop.
@@ -650,10 +648,15 @@ describe("an asset off the TV by its own setting", () => {
     expect(feed.querySelector('[data-property-favicon="northwind.example"] img')).toHaveAttribute("src", "https://northwind.example/dark.png");
   });
 
-  it("leaves Work this week alone when only its Work switch is off", () => {
-    const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "northwind.example": { work: false } } } });
+  it("keeps all task projects when the Work switch or a saved filter excludes a site", () => {
+    const layout = structuredClone(everything);
+    const widget = layout.rows[2]!.widgets.find(slot => slot.type === "work");
+    if (!widget || !("type" in widget) || widget.type !== "work") throw new Error("Missing Work widget");
+    widget.settings = { assets: ["meadow.example"] };
+    const projects = [...PAYLOAD.assets.map(site => site.work), { ...PAYLOAD.assets[0]!.work!, open: 9 }];
+    const view = canvas(layout, { workProjects: projects, dashboard: { ...PAYLOAD.dashboard, sites: { "northwind.example": { work: false } } } });
     expect(siteRows(view.container)).toEqual(["meadow.example", "northwind.example"]);
-    expect(view.container.querySelector("[data-wall-work]")).not.toBeNull();
+    expect(view.container.querySelector('[data-wall-work] [data-task-status="open"]')).toHaveTextContent("15");
   });
 
   it("keeps an archived asset hidden even with its TV switch on", () => {

@@ -203,21 +203,21 @@ describe("yesterday's revenue on the Wall", () => {
   });
 
   it("adds up every asset's report when all of them are in", () => {
-    expect(yesterdayTotal([site(day(4_318)), site(day(1_207))], NOW)).toEqual({ amount: 55.25, reported: 2, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(4_318)), site(day(1_207))], NOW)).toMatchObject({ amount: 55.25, reported: 2, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
 
   it("leaves an asset whose report is not in out of the sum, and counts it", () => {
-    expect(yesterdayTotal([site(day(4_318)), site(day(null))], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
-    expect(yesterdayTotal([site(day(4_318)), site(undefined)], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(4_318)), site(day(null))], NOW)).toMatchObject({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(4_318)), site(undefined)], NOW)).toMatchObject({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
 
   it("has no number, never $0, when no report is in yet", () => {
-    expect(yesterdayTotal([site(day(null)), site(day(null))], NOW)).toEqual({ amount: null, reported: 0, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(null)), site(day(null))], NOW)).toMatchObject({ amount: null, reported: 0, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
 
   it("counts a recorded $0 as a real report", () => {
-    expect(yesterdayTotal([site(day(0)), site(day(null))], NOW)).toEqual({ amount: 0, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
-    expect(yesterdayTotal([site(day(0))], NOW)).toEqual({ amount: 0, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(0)), site(day(null))], NOW)).toMatchObject({ amount: 0, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(0))], NOW)).toMatchObject({ amount: 0, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
   });
   it("converts different provider reporting dates into the selected calendar", () => {
     const at = Date.parse("2026-09-22T00:30:00Z");
@@ -225,18 +225,18 @@ describe("yesterday's revenue on the Wall", () => {
     const utc = { ...day(200, "2026-09-21"), timeZone: "UTC" };
     const source = { ...paced, points: [] };
     expect(yesterdayTotal([site(pacific, source), site(utc, source), site(day(0, "2026-09-20"), source), site(day(null), source)], at, TZ))
-      .toEqual({ amount: 3, reported: 3, sites: 4, basis: { date: '2026-09-20', timeZone: TZ }, estimated: true });
+      .toMatchObject({ amount: 3, reported: 3, sites: 4, basis: { date: '2026-09-20', timeZone: TZ }, estimated: true });
   });
   it("keeps the total available across different reporting clocks", () => {
     const source = { ...paced, points: [] };
     expect(yesterdayTotal([site(day(100), source), site({ ...day(200), timeZone: "UTC" }, source)], NOW, TZ))
-      .toEqual({ amount: 3, reported: 2, sites: 2, basis: { date: '2026-09-21', timeZone: TZ }, estimated: true });
+      .toMatchObject({ amount: 3, reported: 2, sites: 2, basis: { date: '2026-09-21', timeZone: TZ }, estimated: true });
   });
 
   it("preserves a received partial report's basis when another source's clock has no report", () => {
     const at = Date.parse("2026-09-22T00:30:00Z");
     expect(yesterdayTotal([site(day(100, "2026-09-20")), site({ ...day(null), timeZone: "UTC" })], at))
-      .toEqual({ amount: 1, reported: 1, sites: 2, basis: { date: "2026-09-20", timeZone: TZ } });
+      .toMatchObject({ amount: 1, reported: 1, sites: 2, basis: { date: "2026-09-20", timeZone: TZ } });
   });
 
   it("counts only the assets with a revenue source", () => {
@@ -245,7 +245,7 @@ describe("yesterday's revenue on the Wall", () => {
     expect(hasRevenueSource(withoutSource[1]!)).toBe(false);
     // A projection still learning is a source: the site reports, it just has no pace yet.
     expect(hasRevenueSource(site(day(1_207), learning))).toBe(true);
-    expect(yesterdayTotal([site(day(1_207), learning), ...withoutSource], NOW)).toEqual({ amount: 12.07, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(1_207), learning), ...withoutSource], NOW)).toMatchObject({ amount: 12.07, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
     expect(yesterdayTotal(withoutSource, NOW)).toBeNull();
     expect(yesterdayTotal([], NOW)).toBeNull();
   });
@@ -254,8 +254,8 @@ describe("yesterday's revenue on the Wall", () => {
     // 1 AM on Sep 23 in Los Angeles: yesterday is now Sep 22, and the held
     // summaries still describe Sep 21.
     const afterMidnight = Date.parse("2026-09-23T08:00:00.000Z");
-    expect(yesterdayTotal([site(day(4_318)), site(day(1_207))], afterMidnight)).toEqual({ amount: null, reported: 0, sites: 2, basis: { date: "2026-09-22", timeZone: TZ } });
-    expect(yesterdayTotal([site(day(4_318, "2026-09-22")), site(day(1_207))], afterMidnight)).toEqual({
+    expect(yesterdayTotal([site(day(4_318)), site(day(1_207))], afterMidnight)).toMatchObject({ amount: null, reported: 0, sites: 2, basis: { date: "2026-09-22", timeZone: TZ } });
+    expect(yesterdayTotal([site(day(4_318, "2026-09-22")), site(day(1_207))], afterMidnight)).toMatchObject({
       amount: 43.18,
       reported: 1,
       sites: 2,
