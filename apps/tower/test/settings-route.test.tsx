@@ -103,6 +103,7 @@ const READ_ONLY_REASON =
 function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
   return {
     generatedAt: "2026-09-04T12:00:00.000Z",
+    discordMediavineRevenue: false,
     portfolioReview: { owner: "config/constants.json", assetIds: null, assets: [] },
     clock: {
       owner: "config/constants.json",
@@ -468,6 +469,7 @@ describe("/settings", () => {
       "/settings",
       "/settings/ai",
       "/settings/alert-rules",
+      "/settings/notifications",
       "/settings/data-collection",
       "/settings/tv-dashboard",
       "/settings/ownership",
@@ -475,7 +477,7 @@ describe("/settings", () => {
       "/settings/installation",
     ]);
 
-    for (const id of ["general", "ai", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
+    for (const id of ["general", "ai", "alert-rules", "notifications", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
       pickSection(id);
       expect(container.querySelector(`#${id}`), `tab #${id} is missing`).not.toBeNull();
       expect(container.querySelectorAll("[data-settings-tab]")).toHaveLength(1);
@@ -488,11 +490,35 @@ describe("/settings", () => {
     }
   });
 
+  it("saves and undoes Discord daily revenue notifications from Settings", async () => {
+    const calls = stubFetch();
+    renderPage("/settings/notifications");
+    const panel = screen.getByRole("tabpanel");
+    const toggle = within(panel).getByRole("group", { name: "Daily Mediavine revenue" });
+    const on = within(toggle).getByRole("button", { name: "On" });
+    const off = within(toggle).getByRole("button", { name: "Off" });
+    const writes = () => calls.filter(call => call.method === "PUT");
+    expect(off).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(on);
+    await waitFor(() => expect(within(panel).getByRole("status")).toHaveTextContent("Saved"));
+    expect(writes()[0]).toMatchObject({ url: "/api/config", body: {
+      ops: [{ file: "config/constants.json", pointer: "/discord_mediavine_revenue", expect: false, value: true }],
+    } });
+    expect(on).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(panel).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(writes()).toHaveLength(2));
+    expect(writes()[1]).toMatchObject({ body: { ops: [
+      { pointer: "/discord_mediavine_revenue", expect: true, value: false },
+    ] } });
+    await waitFor(() => expect(within(panel).getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true"));
+  });
+
   it("moves between tabs from the keyboard: arrows move focus, Enter opens", () => {
     stubFetch();
     const { container } = renderPage();
     const tabs = within(tabList()).getAllByRole("tab");
-    expect(tabs.map((tab) => tab.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1", "-1", "-1", "-1"]);
+    expect(tabs[0]).toHaveAttribute("tabindex", "0");
+    expect(tabs.slice(1).every(tab => tab.getAttribute("tabindex") === "-1")).toBe(true);
     tabs[0]!.focus();
     fireEvent.keyDown(tabs[0]!, { key: "ArrowRight" });
     expect(document.activeElement).toBe(tabs[1]);
@@ -560,7 +586,7 @@ describe("/settings", () => {
       taskSourceMock.connected = null;
       state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], local: false } });
       const fresh = renderPage("general");
-      expect(tabHrefs()).toEqual(["/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
+      expect(tabHrefs()).toEqual(["/settings", "/settings/ai", "/settings/alert-rules", "/settings/notifications", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
       fresh.unmount();
       const connecting = renderPage("task-projects");
       expect(connecting.container.querySelector("#task-projects")).not.toBeNull();

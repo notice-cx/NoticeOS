@@ -210,6 +210,10 @@ export function noNightlyReportAssets(constants) {
 }
 export const PORTFOLIO_REVIEW_FILE = 'config/constants.json';
 export const PORTFOLIO_REVIEW_POINTER = '/portfolio_brief/asset_ids';
+export const DISCORD_MEDIAVINE_REVENUE_KEY = 'discord_mediavine_revenue';
+export function discordMediavineRevenueEnabled(constants) {
+    return isPlainObject(constants) && constants[DISCORD_MEDIAVINE_REVENUE_KEY] === true;
+}
 export function portfolioReviewRefusal(value) {
     if (value === null)
         return null;

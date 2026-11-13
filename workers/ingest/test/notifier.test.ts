@@ -15,11 +15,13 @@
 
 import { env } from 'cloudflare:test';
 import { SYSTEM_NAME } from '@noticeos/contract';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { composeMessage, runNotifier } from '../src/notifier.js';
+import { persistReport } from '../src/mediavine.js';
+import { normalizeReport } from '@noticeos/mediavine';
 import { putCredential } from '../src/credentials.js';
 import { runScheduledCron } from '../src/dispatch.js';
-import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
+import { applyConfigOps, forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import constantsJson from './fixture-config/constants.json';
 import { asOwner, credentialVerdict, emptyTables, forgetCredentials, insertFlag as storeFlag, insertPulse, pgRows, refuseHealthStates, reset, setConnection } from './helpers.js';
 import { changeSites, storeSites } from './sites';
@@ -30,15 +32,15 @@ const WEBHOOK = 'https://discord.test/api/webhooks/1/notifier-suite';
 
 interface Posted {
   fetchImpl: typeof fetch;
-  posts: { url: string; content: string; allowedMentions: unknown }[];
+  posts: { url: string; content: string; allowedMentions: unknown; embeds?: { title: string; description: string }[] }[];
 }
 
 function discordFetch(status = 204, headers?: HeadersInit): Posted {
   const posts: Posted['posts'] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const body = JSON.parse(String(init?.body)) as { content: string; allowed_mentions: unknown };
-    posts.push({ url, content: body.content, allowedMentions: body.allowed_mentions });
+    const body = JSON.parse(String(init?.body)) as { content: string; allowed_mentions: unknown; embeds?: Posted['posts'][number]['embeds'] };
+    posts.push({ url, content: body.content, allowedMentions: body.allowed_mentions, ...body.embeds && { embeds: body.embeds } });
     return new Response(null, { status, headers });
   }) as typeof fetch;
   return { fetchImpl, posts };
@@ -84,6 +86,65 @@ async function notified(): Promise<{ subject: string; ref: string; condition: st
 beforeEach(reset);
 beforeEach(async () => {
   await forgetCredentials();
+});
+
+describe('first daily Mediavine revenue notifications', () => {
+  const collected = Date.parse('2026-09-09T15:00:00Z');
+  const revenue = (asset: string, start: string, amounts: number[]) => {
+    const end = new Date(Date.parse(start) + (amounts.length - 1) * 86_400_000).toISOString().slice(0, 10);
+    return persistReport(env, asset, normalizeReport({
+      internalSite: { id: `site-${asset}`, domain: asset, title: asset },
+      metricsSummary: { summary: { earnings: 0 } },
+      earningsReport: { earnings: amounts.map((amount, index) => ({
+        date: new Date(Date.parse(start) + index * 86_400_000).toISOString().slice(0, 10).replaceAll('-', '/'),
+        revenue: amount,
+      })) },
+    }, { start, end }, collected));
+  };
+
+  async function enable() {
+    // An older installation lacks the key. The Settings write must create it.
+    const { discord_mediavine_revenue: _newSetting, ...olderConstants } = constantsJson;
+    await seedConfigDocuments(env, { documents: { 'config/constants.json': olderConstants }, actor: 'config:seed' }, NOW);
+    const outcome = await applyConfigOps(env, { actor: 'operator', ops: [{
+      kind: 'file-json-set', file: 'config/constants.json', pointer: '/discord_mediavine_revenue', expect: false, value: true,
+    }] });
+    expect(outcome.ok).toBe(true);
+  }
+
+  beforeEach(async () => {
+    await emptyTables(['config_changes', 'config_documents']);
+    forgetConfigCache();
+  });
+  afterEach(async () => {
+    await emptyTables(['config_changes', 'config_documents']);
+    forgetConfigCache();
+  });
+
+  it('sends the first day per asset with its same-weekday change, month totals and collection time', async () => {
+    await connectDiscord();
+    await revenue('meadow.example', '2026-09-01', [4, 5, 6, 7, 8, 9, 10]);
+    await revenue('northwind.example', '2026-09-01', [8]);
+    expect(await queued()).toEqual([]);
+    await enable();
+    await revenue('meadow.example', '2026-09-07', [11, 6]);
+    await revenue('northwind.example', '2026-09-08', [4]);
+    await revenue('meadow.example', '2026-09-08', [7]);
+
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 2 });
+    expect(discord.posts[0]?.embeds).toEqual(expect.arrayContaining([
+      { title: 'Meadow Board', description: `2026-09-08 · **$6.00** · 📈 +50% vs last week · Collected <t:${collected / 1000}:f>\nMonth to date **$56.00** · Projected at current pace **$210.00**` },
+      expect.objectContaining({ description: expect.stringContaining('**$4.00** · 📉 -50% vs last week') }),
+      expect.objectContaining({ description: expect.stringContaining('Month to date **$12.00** · Projected at current pace **Pending**') }),
+    ]));
+    expect(await notified()).toEqual(expect.arrayContaining([
+      { subject: 'mediavine-revenue', ref: 'meadow.example', condition: 'daily-mediavine-revenue' },
+      { subject: 'mediavine-revenue', ref: 'northwind.example', condition: 'daily-mediavine-revenue' },
+    ]));
+    expect(await runNotifier(env, { nowMs: collected + HOUR, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(1);
+  });
 });
 
 describe('what the OS interrupts the operator about', () => {

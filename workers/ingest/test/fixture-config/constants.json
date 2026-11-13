@@ -1,5 +1,6 @@
 {
   "readme": "config/constants.README.md",
+  "discord_mediavine_revenue": false,
   "os_time_zone": "America/Los_Angeles",
   "operator_rate_usd_per_min": 2,
   "explore_sleeve": 0.15,

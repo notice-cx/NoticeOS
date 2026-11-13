@@ -548,7 +548,7 @@ their net by month. **System health** starts with the System as a `FlowGraph`
 and, under it, every scheduled job's last seven days as one row of cells, the
 newest failure named at the top.
 
-**Settings is a form, laid out like one**: General, Alert rules, Data
+**Settings is a form, laid out like one**: General, Alert rules, Notifications, Data
 collection, TV dashboard, Ownership and Task projects as tabs (Installation
 and Members where they apply), each a single column of a readable width so a
 field and the visual beside it stay close together on a wide screen. Every

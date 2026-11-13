@@ -2,24 +2,31 @@
 // rechecks current conditions, sends once, then commits receipts and completion.
 // A provider acceptance followed by a process crash can still be delivered twice.
 import {
-  NOTIFICATION_CHANNEL, NOTIFIED_CONDITIONS, NOTIFY_BATCH_CAP, NOTIFY_WINDOW_HOURS,
+  DAILY_MEDIAVINE_REVENUE, NOTIFICATION_CHANNEL, NOTIFIED_CONDITIONS, NOTIFY_BATCH_CAP, NOTIFY_WINDOW_HOURS,
   type NotifiedCondition, type ProbeResult, assetDisplayName, connectionState, integrationProviderCards, probeLine,
 } from '@noticeos/contract';
 import { listCredentialSummaries, recordCredentialOutcome, resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
+import { javascriptInstant } from '@noticeos/postgres';
+import { MEDIAVINE_NOTIFICATIONS_ENABLED, projectMediavineMonth, type MediavineRevenueNotification } from './mediavine-notifications.js';
 
 const NOTIFICATION_PROVIDER = 'discord';
 const WEBHOOK_FIELD = 'DISCORD_WEBHOOK_URL';
 const POST_TIMEOUT_MS = 10_000;
 
-interface Candidate {
+interface DeliveryItem {
   eventId?: string;
   attempts?: number;
   condition: NotifiedCondition;
-  subject: 'alert' | 'data-source';
   subjectRef: string;
   occurrence: string;
-  line: string;
+}
+type AlertCandidate = DeliveryItem & { subject: 'alert' | 'data-source'; line: string };
+type RevenueCandidate = DeliveryItem & { subject: 'mediavine-revenue'; revenue: MediavineRevenueNotification };
+type Candidate = AlertCandidate | RevenueCandidate;
+interface DiscordMessage {
+  content: string;
+  embeds?: { title: string; description: string }[];
 }
 export interface NotifierResult {
   monitoringAvailable?: boolean;
@@ -39,7 +46,7 @@ const ELIGIBLE = `(q.subject = 'alert' AND EXISTS (
   SELECT 1 FROM noticeos.integration_connections c WHERE c.connection_id = q.connection_id
     AND c.provider = q.subject_ref AND c.provider <> 'discord' AND c.last_error IS NOT NULL
     AND (c.last_ok_at IS NULL OR c.last_ok_at < q.occurred_at)
-))`;
+)) OR (q.subject = 'mediavine-revenue' AND ${MEDIAVINE_NOTIFICATIONS_ENABLED})`;
 
 async function claim(env: IngestEnv, now: string, lease: string): Promise<Candidate[]> {
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
@@ -59,7 +66,9 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
         AND (q.lease_until IS NULL OR q.lease_until <= $1::timestamptz)
         AND (q.occurred_at < $2::timestamptz OR NOT (${ELIGIBLE}))`, [now, cutoff]);
     const rows = await tx.query<{
-      eventId: string; subject: 'alert' | 'data-source'; subjectRef: string; occurrence: string; attempts: number;
+      eventId: string; subject: Candidate['subject']; subjectRef: string; occurrence: string; attempts: number;
+      collectedAt: string; revenueMinor: bigint | null; previousRevenueMinor: bigint | null;
+      monthMinor: string | null; monthReportedDays: number | null;
       asset: string | null; displayName: string | null; isOs: boolean | null;
       metric: string | null; message: string | null; ruleId: string | null; error: string | null;
     }>(`WITH due AS (
@@ -71,19 +80,32 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
         lease_until = $1::timestamptz + interval '2 minutes', attempts = attempts + 1
       FROM due WHERE q.event_id = due.event_id RETURNING q.*
     ) SELECT q.event_id::text AS "eventId", q.subject, q.subject_ref AS "subjectRef", q.occurrence, q.attempts,
-      f.asset_id AS asset, a.display_name AS "displayName", a.is_os AS "isOs",
+      q.occurred_at AS "collectedAt", q.revenue_minor AS "revenueMinor", q.previous_revenue_minor AS "previousRevenueMinor",
+      q.month_revenue_minor AS "monthMinor", q.month_reported_days AS "monthReportedDays",
+      a.asset_id AS asset, a.display_name AS "displayName", a.is_os AS "isOs",
       f.metric, f.message, f.rule_id AS "ruleId", c.last_error AS error
       FROM claimed q
       LEFT JOIN noticeos.current_flags f ON q.subject = 'alert' AND f.flag_number::text = q.subject_ref
-      LEFT JOIN noticeos.assets a ON a.asset_id = f.asset_id
+      LEFT JOIN noticeos.assets a ON a.workspace_id = q.workspace_id
+        AND a.asset_id = CASE WHEN q.subject = 'mediavine-revenue' THEN q.subject_ref ELSE f.asset_id END
       LEFT JOIN noticeos.integration_connections c ON q.subject = 'data-source' AND c.connection_id = q.connection_id`,
       [now, lease, NOTIFY_BATCH_CAP]);
-    return rows.map(row => ({ ...row,
-      condition: row.subject === 'alert' ? 'open-error' : 'source-failing',
-      line: row.subject === 'alert'
-        ? `${row.displayName === null ? row.asset : assetDisplayName(row.isOs === true ? 1 : 0, row.displayName)} — ${row.metric ?? row.ruleId}: ${row.message ?? row.ruleId}`
-        : `${row.subjectRef} stopped working — ${row.error ?? 'no reason recorded'}`,
-    }));
+    return rows.map((row): Candidate => {
+      const asset = row.displayName === null ? row.asset : assetDisplayName(row.isOs === true ? 1 : 0, row.displayName);
+      if (row.subject === 'alert') return { ...row, subject: row.subject, condition: 'open-error',
+        line: `${asset} — ${row.metric ?? row.ruleId}: ${row.message ?? row.ruleId}` };
+      if (row.subject === 'data-source') return { ...row, subject: row.subject, condition: 'source-failing',
+        line: `${row.subjectRef} stopped working — ${row.error ?? 'no reason recorded'}` };
+      if (row.revenueMinor === null || row.monthMinor === null || row.monthReportedDays === null) {
+        throw new Error('Mediavine notification is missing its revenue figures.');
+      }
+      const monthMinor = BigInt(row.monthMinor);
+      return { ...row, subject: row.subject, condition: DAILY_MEDIAVINE_REVENUE, revenue: {
+        asset: asset ?? row.subjectRef, date: row.occurrence, collectedAt: row.collectedAt,
+        amountMinor: row.revenueMinor, previousMinor: row.previousRevenueMinor, monthMinor,
+        projectedMinor: projectMediavineMonth(row.occurrence, monthMinor, row.monthReportedDays),
+      } };
+    });
   });
 }
 
@@ -173,7 +195,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
     count = candidates.length;
   } catch { return { found: count, fresh: count, sent: 0, skipped: 'store-unavailable' }; }
   if (!count) return { found: 0, fresh: 0, sent: 0, skipped: 'nothing-to-say' };
-  const delivered = await post(webhook, composeMessage(candidates), options.fetchImpl ?? fetch);
+  const delivered = await post(webhook, discordMessage(candidates), options.fetchImpl ?? fetch);
   // Receipts precede optional health bookkeeping. Nothing omitted by the batch
   // limit is marked sent, and a failed bookkeeping write cannot erase delivery.
   if (delivered.ok) {
@@ -202,7 +224,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
 }
 
 /** Discord limits content to 2,000 characters; keep every claimed item visible. */
-export function composeMessage(fresh: readonly Candidate[], carried: readonly Candidate[] = fresh): string {
+export function composeMessage(fresh: readonly AlertCandidate[], carried: readonly AlertCandidate[] = fresh): string {
   const head = `NoticeOS — ${fresh.length} new ${fresh.length === 1 ? 'alert' : 'alerts'}`;
   const lines = carried.map(candidate => {
     const line = candidate.line.replace(/[\r\n]+/g, ' ');
@@ -210,6 +232,42 @@ export function composeMessage(fresh: readonly Candidate[], carried: readonly Ca
   });
   if (fresh.length > carried.length) lines.push(`• …and ${fresh.length - carried.length} more`);
   return [head, ...lines].join('\n');
+}
+
+function discordMessage(candidates: readonly Candidate[]): DiscordMessage {
+  const alerts = candidates.filter(candidate => candidate.subject !== 'mediavine-revenue');
+  const revenue = candidates.filter(candidate => candidate.subject === 'mediavine-revenue');
+  if (revenue.length === 0) return { content: composeMessage(alerts) };
+  return {
+    content: alerts.length > 0 ? composeMessage(alerts) : '**NoticeOS · Mediavine revenue**',
+    embeds: revenue.map(candidate => discordRevenue(candidate.revenue)),
+  };
+}
+
+const wholeDollars = new Intl.NumberFormat('en-US');
+const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' });
+
+function usd(minor: bigint): string {
+  const absolute = minor < 0n ? -minor : minor;
+  return `${minor < 0n ? '-' : ''}$${wholeDollars.format(absolute / 100n)}.${String(absolute % 100n).padStart(2, '0')}`;
+}
+
+function weekOverWeek(amount: bigint, previous: bigint | null): string {
+  if (previous === null) return '⚪ No figure last week';
+  const direction = amount > previous ? '📈' : amount < previous ? '📉' : '➖';
+  if (previous === 0n) return `${direction} $0 last week`;
+  return `${direction} ${percent.format(Number(amount - previous) / Math.abs(Number(previous)))} vs last week`;
+}
+
+function discordRevenue(revenue: MediavineRevenueNotification): NonNullable<DiscordMessage['embeds']>[number] {
+  const { asset, date, collectedAt, amountMinor, previousMinor, monthMinor, projectedMinor } = revenue;
+  const collected = Math.floor(Date.parse(javascriptInstant(collectedAt)) / 1000);
+  const projection = projectedMinor === null ? 'Pending' : usd(projectedMinor);
+  return {
+    title: asset.replace(/[\r\n]+/g, ' ').slice(0, 200),
+    description: `${date} · **${usd(amountMinor)}** · ${weekOverWeek(amountMinor, previousMinor)} · Collected <t:${collected}:f>\n`
+      + `Month to date **${usd(monthMinor)}** · Projected at current pace **${projection}**`,
+  };
 }
 
 /**
@@ -238,7 +296,7 @@ function deliveryCode(result: ProbeResult): string {
  * error body is never reflected back. */
 async function post(
   webhook: string,
-  content: string,
+  message: DiscordMessage,
   fetchImpl: typeof fetch,
 ): Promise<{ ok: true } | { ok: false; reason: string; code: string; retryAfterMs?: number }> {
   let status: number;
@@ -247,7 +305,7 @@ async function post(
     const response = await fetchImpl(webhook, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      body: JSON.stringify({ ...message, allowed_mentions: { parse: [] } }),
       signal: AbortSignal.timeout(POST_TIMEOUT_MS),
     });
     const retrySeconds = Number(response.headers.get('retry-after'));

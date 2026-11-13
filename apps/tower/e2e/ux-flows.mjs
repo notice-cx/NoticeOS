@@ -795,7 +795,7 @@ const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/gro
   `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
   "/health", "/health/operations", "/health/operations/portfolio-brief", "/workflows", "/workflows/watch-windows", "/financials",
-  "/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation", "/wall"];
+  "/settings", "/settings/ai", "/settings/alert-rules", "/settings/notifications", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation", "/wall"];
 
 FLOWS["survey"] = {
   title: "Screen survey: every main screen, populated (statuses and lists)",

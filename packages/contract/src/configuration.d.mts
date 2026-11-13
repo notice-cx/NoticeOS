@@ -122,6 +122,8 @@ export declare function noNightlyReportOpRefusal(op: {
 export declare function noNightlyReportAssets(constants: unknown): string[] | null;
 export declare const PORTFOLIO_REVIEW_FILE = "config/constants.json";
 export declare const PORTFOLIO_REVIEW_POINTER = "/portfolio_brief/asset_ids";
+export declare const DISCORD_MEDIAVINE_REVENUE_KEY = "discord_mediavine_revenue";
+export declare function discordMediavineRevenueEnabled(constants: unknown): boolean;
 export interface PortfolioReviewConfig {
     assetIds: string[] | null;
 }

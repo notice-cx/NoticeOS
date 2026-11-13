@@ -73,6 +73,7 @@ import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 import { NtasksConnection, ntasksProjectColumn } from "@/routes/settings/TaskServicePanel";
 import { useTaskService } from "@/hooks/useTaskService";
 import { ViewPanel } from "@/routes/settings/ViewPanel";
+import { NotificationsPanel } from "@/routes/settings/NotificationsPanel";
 import {
   SETTINGS_TABS,
   SETTINGS_TAB_IDS,
@@ -156,6 +157,8 @@ export function SettingsRoute() {
       <PortfolioReviewPanel settings={data.portfolioReview} />
     ) : tab === 'alert-rules' ? (
       <AlertRulesSection settings={data} />
+    ) : tab === 'notifications' ? (
+      <NotificationsPanel dailyRevenue={data.discordMediavineRevenue} />
     ) : tab === 'data-collection' ? (
       <CollectionSection settings={data} />
     ) : tab === 'tv-dashboard' ? (

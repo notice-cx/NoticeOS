@@ -18,7 +18,10 @@ export type NotifiedCondition =
    * NULL` and a portfolio-shared credential is a statement about no single
    * asset. Worth interrupting for because a stopped collector is silent.
    */
-  | 'source-failing';
+  | 'source-failing'
+  | 'daily-mediavine-revenue';
+
+export const DAILY_MEDIAVINE_REVENUE = 'daily-mediavine-revenue';
 
 export interface NotificationRule {
   id: NotifiedCondition;

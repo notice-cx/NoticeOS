@@ -3,7 +3,7 @@
 import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
-  NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
+  DISCORD_MEDIAVINE_REVENUE_KEY, NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
 export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
@@ -600,6 +600,9 @@ function containerRefusal(match: Pick<RegisterMatch, 'key' | 'register'>, value:
  * or refused naming what it could have been instead.
  */
 function validateSetTarget(at: string, op: FileJsonSetOp): void {
+  if (op.file === 'config/constants.json' && op.pointer === `/${DISCORD_MEDIAVINE_REVENUE_KEY}` && typeof op.value !== 'boolean') {
+    throw new ChangesetError(`${at}: Daily Mediavine revenue must be true or false`);
+  }
   const match = matchRegister(op.file, op.pointer);
   const register = match?.register ?? null;
 
