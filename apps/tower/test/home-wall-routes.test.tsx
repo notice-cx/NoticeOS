@@ -897,9 +897,13 @@ describe("Home — one asset leads with its own numbers", () => {
     expect(hero.closest("[data-home-brief]")).not.toBeNull();
     const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     expect(hero.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    const traffic = within(lead).getByRole("region", { name: "Traffic · last 28 days" });
-    expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
-    expect(traffic.querySelector("[data-hero-chart]")).toHaveTextContent("Active users · daily");
+    const numbers = within(lead).getByRole("region", { name: "The asset's numbers · last 28 days" });
+    fireEvent.click(numbers.querySelector<HTMLButtonElement>('[data-measure="people"]')!);
+    expect(numbers.querySelector('[data-measure="people"]')).toHaveAttribute("aria-pressed", "true");
+    expect(numbers.querySelector('[data-overview-chart="people"]')).not.toBeNull();
+    fireEvent.click(numbers.querySelector<HTMLButtonElement>('[data-measure="search"]')!);
+    expect(numbers.querySelector('[data-measure="search"]')).toHaveAttribute("aria-pressed", "true");
+    expect(numbers.querySelector('[data-overview-chart="search"]')).not.toBeNull();
     expect(within(lead).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
 
     expect(container.querySelector("table")).toBeNull();
@@ -920,10 +924,28 @@ describe("Home — one asset leads with its own numbers", () => {
     detail.data = viewOf(body, "overview");
     const { container } = renderHome();
     const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
-    const revenue = within(lead).getByRole("region", { name: "Daily revenue" });
-    expect(revenue).toHaveTextContent("$10.00");
-    expect(within(revenue).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
-    expect(within(lead).queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
+    const revenue = lead.querySelector<HTMLElement>('[data-measure="money"]')!;
+    expect(revenue.querySelector("[data-stat-figure]")).toHaveTextContent("$10.00");
+    fireEvent.click(revenue);
+    expect(lead.querySelector('[data-overview-chart="money"]')).not.toBeNull();
+    expect(within(lead).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
+  });
+
+  it("keeps the ranking snapshot when the site has no daily series", () => {
+    const body = everyTabPayload();
+    const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
+    body.performance = { ...body.performance, activeUsers: empty, sessions: empty,
+      webSearchClicks: { google: empty, bing: empty }, webSearchImpressions: { google: empty, bing: empty } };
+    body.dailyRevenue = undefined;
+    body.metrics = [];
+    body.ledger = { ...body.ledger, periods: [], recentRows: [], empty: true };
+    detail.data = viewOf(body, "overview");
+    const { container } = renderHome();
+    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
+    const rankings = lead.querySelector('[data-site-lead="rankings"]')!;
+    expect(rankings.querySelector('[data-kpi="Keywords"]')).toHaveTextContent("184");
+    expect(rankings.querySelector('[data-kpi="Top 10"]')).toHaveTextContent("21");
+    expect(lead.querySelector("[data-overview-numbers]")).toBeNull();
   });
 
   it("holds the asset's place, with its state and its link, until its numbers arrive", () => {

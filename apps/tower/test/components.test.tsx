@@ -604,6 +604,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("cancels the pending clear when the row unmounts", async () => {
       vi.useFakeTimers();
+      const scheduled = vi.spyOn(globalThis, "setTimeout");
+      const cancelled = vi.spyOn(globalThis, "clearTimeout");
       const restore = withClipboard(vi.fn().mockResolvedValue(undefined));
       try {
         const { getByRole, unmount } = renderRow();
@@ -611,12 +613,17 @@ describe("QueryVisibilityRankings comparison labels", () => {
           getByRole("button", { name: "Copy Markdown for jarra del buen beber" }),
         );
         await act(async () => {});
-        expect(vi.getTimerCount()).toBe(1);
+        const copyTimerIndex = scheduled.mock.calls.findIndex(([, delay]) => delay === COPY_FLASH_MS);
+        expect(copyTimerIndex).toBeGreaterThanOrEqual(0);
+        const copyTimer = scheduled.mock.results[copyTimerIndex]!.value;
+        expect(cancelled).not.toHaveBeenCalledWith(copyTimer);
 
         unmount();
-        expect(vi.getTimerCount()).toBe(0);
+        expect(cancelled).toHaveBeenCalledWith(copyTimer);
       } finally {
         restore();
+        scheduled.mockRestore();
+        cancelled.mockRestore();
         vi.useRealTimers();
       }
     });
@@ -2236,8 +2243,10 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).toContain("md-4a2");
     // The task to close opens its page.
     expect(within(line as HTMLElement).getByRole("link", { name: "md-4a2" })).toHaveAttribute("href", "/tasks/md-4a2");
-    expect(line.querySelector("[data-panel-review]")!.textContent).toBe("4d");
-    expect(line.textContent).not.toMatch(/pending|overdue|reviewed/i);
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAhead(4));
+    expect(within(line as HTMLElement).getByRole("img")).toHaveAccessibleName(
+      expect.stringContaining(PANEL_DAY),
+    );
   });
 
   it("escalates the whole row when the deadline has passed", () => {
@@ -2246,7 +2255,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.getAttribute("data-panel-review-line")).toBe("overdue");
     expect(line.className).toContain("border-error/40");
     expect(line.textContent).toContain("Jul 2, 2026");
-    expect(line.textContent).not.toMatch(/late|overdue/i);
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAgo(3));
   });
 
   it("stops stating a deadline once the review is done", () => {
@@ -2260,6 +2269,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).not.toContain("due");
     expect(line.textContent).toContain("md-4a2");
     expect(line.className).not.toContain("border-error");
+    expect(line.querySelector("time")).toHaveAttribute("dateTime", daysAgo(1));
   });
 
   it("names the NEWER panel day when a finished review no longer covers it", () => {
@@ -2274,6 +2284,11 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.querySelector("[data-panel-review]")!.getAttribute("title")).toContain(
       "2026-07-08",
     );
+    expect(within(line as HTMLElement).getByRole("img")).toHaveAccessibleName(
+      expect.stringContaining("2026-07-08"),
+    );
+    expect(line.querySelector("time")).toBeNull();
+    expect(line.textContent).not.toContain("Jul 3, 2026");
   });
 
   it("says less rather than inventing a date it does not have", () => {
@@ -2286,6 +2301,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).toContain("SERP panel");
     expect(line.textContent).toContain("md-4a2");
     expect(line.textContent).not.toContain("due");
+    expect(line.querySelector("time")).toBeNull();
   });
 });
 

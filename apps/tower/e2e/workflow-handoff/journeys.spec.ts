@@ -23,6 +23,7 @@ test('workflow handoff copies supported task instructions and files the same evi
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   expect((await request.post('/api/assets', { headers: { origin: baseURL! },
     data: { id: JOURNEY_ASSET, domain: JOURNEY_ASSET, displayName: 'Journey Example' } })).status()).toBe(201);
+  expect((await request.post('/__journey/ntasks')).ok()).toBe(true);
   await page.route(`**/api/assets/${JOURNEY_ASSET}?*`, async route => {
     const { response, headers } = await fetchToRewrite(route);
     const payload = await response.json() as AssetDetailPayload;

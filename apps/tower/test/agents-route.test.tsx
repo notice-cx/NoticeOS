@@ -1,17 +1,31 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readAgentStats, type ModelStats } from '@noticeos/contract/agent-stats';
 import { AgentsRoute } from '@/routes/AgentsRoute';
 import { WorkerRows } from '@/routes/agents/agent-panels';
 
-const state = vi.hoisted(() => ({ read: vi.fn(), view: 'overview' as import('@shared/views').ViewId }));
+const state = vi.hoisted(() => ({ read: vi.fn(), view: 'overview' as import('@shared/views').ViewId, needsNtasks: false }));
 vi.mock('@/hooks/useView', () => ({ useView: () => ({ view: { id: state.view } }) }));
-beforeEach(() => { state.view = 'overview'; });
+beforeEach(() => { state.view = 'overview'; state.needsNtasks = false; });
 vi.mock('@/hooks/useAgentWork', () => ({ useAgentWork: state.read }));
+vi.mock('@/hooks/useTaskService', () => ({ useNeedsNtasks: () => state.needsNtasks }));
 afterEach(cleanup);
 const empty = () => ({ live: true, projects: 2, complete: true, pending: false, broken: [] as string[], failed: false, work: readAgentStats([], Date.parse('2026-10-15T12:00:00Z')) });
 const row = (over: Partial<ModelStats> = {}): ModelStats => ({ id: 'Other', name: 'Other', inHand: 2, blocked: 1, days: [0, 0, 0, 1, 0, 1, 1], week: 3, lastWeek: 0, medianHours: 2, shipped: null, ...over });
+
+it('directs an installation without Ntasks to its task-project settings', () => {
+  state.read.mockReturnValue({ ...empty(), work: null, failed: true });
+  state.needsNtasks = true;
+  function SettingsLocation() { const location = useLocation(); return <output>{location.pathname}{location.search}</output>; }
+  render(<MemoryRouter initialEntries={['/agents']}><Routes>
+    <Route path="/agents" element={<AgentsRoute />} />
+    <Route path="/settings/*" element={<SettingsLocation />} />
+  </Routes></MemoryRouter>);
+  expect(screen.queryByText("Couldn't read any task project")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('link', { name: 'Go to Task projects →' }));
+  expect(screen.getByRole('status')).toHaveTextContent('/settings/task-projects');
+});
 
 it('shows empty activity once and keeps the task action without empty model panels', () => {
   state.read.mockReturnValue(empty());

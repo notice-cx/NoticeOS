@@ -18,11 +18,9 @@ export interface PanelReviewBadgeProps {
 }
 
 /**
- * Has this asset's newest collection been triaged? The glyph carries the state
- * (hourglass pending, clipboard-check done, triangle late), only the late one
- * takes the error tone, and the text is a duration. No collection, no review
- * filed, or an old snapshot renders nothing. The noun comes from the review,
- * so an asset without a SERP panel reads "signal collection".
+ * Shows time remaining, time since review or time overdue in words as well as
+ * glyphs. A finished review of an older collection supplies no deadline for
+ * the new one. The collection day stays available to assistive technology.
  */
 export function PanelReviewBadge({
   review,
@@ -33,7 +31,7 @@ export function PanelReviewBadge({
   const state = panelReviewState(review, latestPanelDate, nowMs);
   if (state === "none" || !review) return null;
 
-  const dueMs = review.dueAt ? Date.parse(review.dueAt) : Number.NaN;
+  const dueMs = review.status === "open" && review.dueAt ? Date.parse(review.dueAt) : Number.NaN;
   const closedMs = review.closedAt ? Date.parse(review.closedAt) : Number.NaN;
   // Shared with `PanelReviewLine`, which states the same day in words.
   const landed = panelDayOf(review, latestPanelDate, state);
@@ -48,37 +46,40 @@ export function PanelReviewBadge({
       ? {
           Icon: TriangleAlert,
           tone: "bg-error-soft text-error",
-          age: formatAge(Number.isNaN(dueMs) ? null : Math.max(0, nowMs - dueMs)),
+          text: `${formatAge(Math.max(0, nowMs - dueMs))} late`,
+          at: review.dueAt,
           label: `${noun.label} review overdue`,
         }
       : state === "reviewed"
         ? {
             Icon: ClipboardCheck,
             tone: "bg-muted text-muted-foreground",
-            age: formatAge(Number.isNaN(closedMs) ? null : Math.max(0, nowMs - closedMs)),
+            text: Number.isNaN(closedMs) ? "Reviewed" : `Reviewed ${formatAge(Math.max(0, nowMs - closedMs))} ago`,
+            at: Number.isNaN(closedMs) ? null : review.closedAt,
             label: `${noun.label} reviewed`,
           }
         : {
             Icon: Hourglass,
             tone: "bg-muted text-muted-foreground",
-            age: formatAge(Number.isNaN(dueMs) ? null : Math.max(0, dueMs - nowMs)),
+            text: Number.isNaN(dueMs) ? "Review pending" : `${formatAge(Math.max(0, dueMs - nowMs))} left`,
+            at: Number.isNaN(dueMs) ? null : review.dueAt,
             label: `${noun.label} review pending`,
           };
 
   return (
     <span
       role="img"
-      aria-label={`${face.label}, ${face.age}`}
+      aria-label={facts(`${face.label}, ${face.text}`)}
       title={facts(face.label)}
       data-panel-review={state}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
+        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
         face.tone,
         className,
       )}
     >
       <face.Icon className="size-3" aria-hidden />
-      {face.age}
+      {face.at ? <time dateTime={face.at}>{face.text}</time> : face.text}
     </span>
   );
 }

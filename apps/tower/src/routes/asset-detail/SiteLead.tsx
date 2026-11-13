@@ -18,8 +18,8 @@ import { timelineAnnotations, watchSpans } from "@/routes/asset-detail/shared";
 
 /**
  * A site's own numbers fused to their chart, led by whatever the site has
- * (`siteLead` owns the order). Drawn on the site's Overview, and on Home when
- * the installation has one site.
+ * (`siteLead` owns the order). Overview and one-site Home use its rolling
+ * session and ranking snapshots when no daily series is available.
  */
 export type SiteLeadData = AssetDetailFor<"overview">;
 

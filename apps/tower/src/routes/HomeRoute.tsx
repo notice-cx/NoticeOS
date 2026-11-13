@@ -55,7 +55,9 @@ import { completeDays } from "@/lib/wall-sites";
 import { type WallIssue } from "@/lib/wall-issues";
 import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
-import { SiteLead } from "@/routes/asset-detail/SiteLead";
+import { OverviewNumbers, useOverviewMeasures } from "@/routes/asset-detail/OverviewNumbers";
+import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
+import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { ClockProposal } from "@/routes/home/ClockProposal";
 import { ChannelsModule } from "@/routes/home/ChannelsModule";
 import { FactoryModule } from "@/routes/home/FactoryModule";
@@ -479,7 +481,10 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
   return (
     <div data-one-site-lead={site.id} className={className}>
       {data && viewCovers(data, "overview") ? (
-        <SiteLead data={data} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} aside={aside} />
+        <>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{aside}</div>
+          <OneSiteNumbers data={data} nowMs={nowMs} />
+        </>
       ) : (
         // Until the site's read arrives: the site itself, in the place its
         // numbers will take, so nothing below jumps when they land.
@@ -489,6 +494,16 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
       )}
     </div>
   );
+}
+
+function OneSiteNumbers({ data, nowMs }: { data: AssetDetailFor<"overview">; nowMs: number }) {
+  const measures = useOverviewMeasures(data, DEFAULT_RANGE_DAYS, nowMs);
+  const report = siteLead(data, DEFAULT_RANGE_DAYS, nowMs);
+  const usesStandaloneChart = report.kind === "clarity" || report.kind === "rankings";
+  return <>
+    {measures.length > 0 || !usesStandaloneChart ? <OverviewNumbers data={data} measures={measures} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
+    {usesStandaloneChart ? <SiteLead data={data} days={DEFAULT_RANGE_DAYS} nowMs={nowMs} /> : null}
+  </>;
 }
 
 /** How old the reading is. The age is the payload's own `generatedAt` rather

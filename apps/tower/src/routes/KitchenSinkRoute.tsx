@@ -4002,8 +4002,8 @@ export function KitchenSinkRoute() {
             </Card>
           </Section>
 
-          {/* Every panel-review state side by side: the three are told apart by
-              glyph and tone alone, and the fourth renders nothing. The pending
+          {/* Every panel-review state side by side: words and glyphs distinguish
+              the direction of each duration, and the fourth renders nothing. The pending
               one buys no panel, so its hover says signal collection. */}
           <Section title="PanelReviewBadge (reviewed / pending, no panel / overdue / nothing to review)">
             <PanelReviewBadge
@@ -7181,7 +7181,7 @@ function SurfaceSections() {
             groups={[
               {
                 key: "calculator",
-                title: "/calculator",
+                title: "/calculator/compare-the-complete-height-and-age-range-for-this-request",
                 count: "3 found",
                 rows: [
                   <ListRow key="speed" tone="error" glyph="△" title="Chrome OS Desktop" caption="Speed · poor" value="744 ms" valueLabel="INP p75" />,

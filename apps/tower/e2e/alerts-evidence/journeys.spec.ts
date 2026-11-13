@@ -5,6 +5,8 @@ import type { AttentionItem } from "../../shared/wall";
 import { test, expect } from "../journey-test";
 import { DESKTOP_ONLY } from "../fixtures";
 import { WALL_FIXTURE_NOW, wallFixturePayload } from "../wall-fixture";
+import { everyTabPayload, viewOf } from "../../test/asset-detail-fixture";
+import { isAssetDetailView } from "../../shared/asset-detail-views";
 
 const longCondition = "The complete condition includes a long explanation of the affected request path and the final qualifier operators need to read. ".repeat(4) + "End of condition.";
 const note = "Stored operator evidence remains available in the expanded row.";
@@ -148,5 +150,31 @@ for (const width of [390, 900, 1440]) {
     await fits(closed.locator(".text-sm.text-foreground"));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await testInfo.attach(`alerts-history-${width}`, { body: await page.screenshot({ fullPage: true, path: testInfo.outputPath(`alerts-history-${width}.png`) }), contentType: "image/png" });
+
+    const body = everyTabPayload();
+    body.asset.id = asset.id;
+    body.asset.displayName = asset.displayName;
+    body.flags.open = [{ ...history.rows[0]!.flag, id: 805, resolvedAt: null, liveness: { state: "live" } }];
+    const change = "The full recorded release change includes its affected request and the final qualifier operators need to read ".repeat(5) + "End of change";
+    body.annotations.items = [{ id: 806, kind: "deploy", at: WALL_FIXTURE_NOW, ref: "fixture-release", note: change }];
+    await page.route(`**/api/assets/${asset.id}?*`, route => {
+      const view = new URL(route.request().url()).searchParams.get("view");
+      return route.fulfill({ json: isAssetDetailView(view) ? viewOf(body, view) : body });
+    });
+    await page.goto(`/assets/${asset.id}/alerts`);
+    const assetAlert = page.getByRole("region", { name: "Open", exact: true }).getByRole("button", { name: /End of condition/ });
+    await expect(assetAlert).toBeVisible();
+    await fits(assetAlert.locator(".text-sm.text-foreground"));
+    await fits(assetAlert.locator(".text-xs.text-muted-foreground").first());
+    await page.goto(`/assets/${asset.id}/activity`);
+    const timeline = page.getByRole("region", { name: "Timeline", exact: true });
+    const changeTitle = timeline.getByText(change, { exact: true });
+    await fits(changeTitle);
+    const changeRow = timeline.getByRole("button", { name: /End of change/ });
+    await fits(changeRow.locator(".text-xs.text-muted-foreground").first());
+    await changeRow.click();
+    await expect(changeRow).toHaveAttribute("aria-expanded", "true");
+    await fits(changeTitle);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   });
 }

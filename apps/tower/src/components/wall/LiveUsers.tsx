@@ -3,6 +3,7 @@ import { Activity, ClockAlert } from "lucide-react";
 import { useState } from "react";
 import { ageMs, formatAge } from "@shared/freshness";
 import { liveTrafficCardIssue, liveTrafficIsRecent } from "@shared/live-traffic-health";
+import { isUnusedSource, NO_READS, sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import type { AssetCard } from "@shared/wall";
 import { MomentumMetric } from "@/components/wall/MetricWidgets";
 import { MinutePulse, type MinutePulseSize } from "@/components/surface/MinutePulse";
@@ -52,6 +53,7 @@ export interface LiveUsersProps {
   snapshot: Ga4RealtimeAsset | undefined;
   reconnecting: boolean;
   nowMs: number;
+  connections?: ConnectionReads;
   /** Off where it is not in the table. */
   cell?: boolean;
   metric?: boolean;
@@ -61,10 +63,10 @@ export interface LiveUsersProps {
   size?: MinutePulseSize;
 }
 
-export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, face = "text-wall-stat", size, metric = false }: LiveUsersProps) {
+export function LiveUsers({ asset, snapshot, reconnecting, nowMs, connections = NO_READS, cell = true, face = "text-wall-stat", size, metric = false }: LiveUsersProps) {
   const role = cell ? "cell" : undefined;
-  const collects = asset.dataSources.some(
-    (source) => source.id === "ga4" && (source.state === "live" || source.state === "degraded"),
+  const collects = sourceReadings(asset.id, asset.dataSources, connections, nowMs).some(
+    (source) => source.id === "ga4" && !isUnusedSource(source.kind),
   );
   const kept = useLastGoodReading(snapshot);
   const shown = collects ? kept : undefined;

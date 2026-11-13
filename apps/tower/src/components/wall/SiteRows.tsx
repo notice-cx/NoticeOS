@@ -6,6 +6,7 @@ import { wallMetricTiles, type WallWidget, type WallMetricTile } from "@shared/w
 import { CADENCE_HOURS } from "@shared/wall";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { ageMs, isAmber } from "@shared/freshness";
+import type { ConnectionReads } from "@shared/connection-status";
 import { currentRealtimeDay, realtimeActivity } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { wallTrafficTone } from "@/lib/wall-traffic-tone";
@@ -31,12 +32,13 @@ export interface SiteRowsProps {
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
   nowMs: number;
+  connections?: ConnectionReads;
   /** Work visibility is separate from an asset's TV visibility. */
   workAssets?: ReadonlySet<string>;
   widget?: WallWidget;
 }
 
-export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError = false, nowMs, workAssets, widget }: SiteRowsProps) {
+export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError = false, nowMs, connections, workAssets, widget }: SiteRowsProps) {
   const tiles = wallMetricTiles(widget ?? { id: "sites", type: "sites", width: 1 });
   const configured = widget?.settings?.metrics !== undefined;
   const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
@@ -48,7 +50,7 @@ export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError =
         const snapshot = ga4Realtime?.assets.find(reading => reading.asset === asset.id);
         const renderTile = (tile: WallMetricTile) => {
           switch (tile.source) {
-            case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />;
+            case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} connections={connections} metric />;
             case "today": return <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} />;
             case "four-weeks": return <TrendMetric asset={asset} />;
             case "asset-work": return !workAssets || workAssets.has(asset.id) ? <AssetWork asset={asset} nowMs={nowMs} /> : null;

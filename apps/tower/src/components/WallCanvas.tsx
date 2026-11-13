@@ -234,6 +234,7 @@ export function WallCanvas({
             workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
             ga4Realtime={ga4Realtime}
             ga4RealtimeError={ga4RealtimeError}
+            connections={connections}
             nowMs={nowMs}
           />
         );

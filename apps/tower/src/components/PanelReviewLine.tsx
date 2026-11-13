@@ -19,9 +19,8 @@ export interface PanelReviewLineProps {
 }
 
 /**
- * The asset page's statement of the obligation `PanelReviewBadge` marks on the
- * Wall, adding which panel day is owed, when triage was due and the task to
- * close. It shares the badge's state and day derivation, so the two never
+ * The asset page's review obligation: which panel day is owed, when triage was
+ * due and the task to close. It shares the badge's state and day derivation, so the two never
  * disagree, and it renders nothing exactly when the badge does.
  */
 export function PanelReviewLine({
@@ -37,7 +36,7 @@ export function PanelReviewLine({
   // Shown only while open. Sliced, not parsed: the panel day beside it is a
   // UTC `report_date`, and a local-time parse could shift one into a
   // neighbouring day.
-  const due = state === "reviewed" ? null : review.dueAt;
+  const due = review.status === "open" ? review.dueAt : null;
 
   return (
     <div

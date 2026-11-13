@@ -201,6 +201,7 @@ function siteRow(page: Page, provider: string, site: string) {
 
 test("findings reflow to their panel width on desktop and phone", desktopOnly("walks desktop, tablet and phone sizes plus narrow panels on a wide desktop"), async ({ page }, testInfo) => {
   await addAssetByApi(page);
+  expect((await page.request.post("/__journey/ntasks")).ok()).toBe(true);
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
   const title = "Move “example nutrition calculator” up from #15";
   const rankingPage = `/calculators/${"nutrition".repeat(16)}/calorie-calculator`;
@@ -3189,7 +3190,7 @@ test("a one-asset install hides redundant comparisons and filters with one choic
   // Home leads with the one site's own strip and chart, never a comparison
   // table of one row.
   await page.goto("/");
-  await expect(main.locator("[data-one-site-lead] [data-hero-chart]")).toBeVisible();
+  await expect(main.locator("[data-one-site-lead] [data-overview-chart]")).toBeVisible();
   await expect(main.locator("table")).toHaveCount(0);
   // Sites is that site's row: nothing to filter, sort or add up.
   await page.goto("/assets");
