@@ -27,7 +27,7 @@ function transport(options: { sites?: readonly typeof SITE[]; revenue?: number |
     if (body.query.includes('unidashSignIn')) return Response.json({ data: { unidashSignIn: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresIn: 3600, twoFactorRequired: false } } });
     if (body.query.includes('unidashRefreshToken')) return Response.json({ data: { unidashRefreshToken: { accessToken: 'rotated-access', refreshToken: 'rotated-refresh', expiresIn: 3600 } } });
     if (body.query.includes('NoticeOSDailyRevenue')) {
-      if (options.status) return new Response('', { status: options.status });
+      if (options.status) return new Response('', { status: options.status, headers: options.retryAfter ? { 'retry-after': options.retryAfter } : undefined });
       const date = reportPeriod(body.variables.date!);
       const earnings = options.revenueOn ? options.revenueOn(date) : options.revenue === undefined ? 1.25 : options.revenue;
       return Response.json({ data: { sitesForUser: { edges: sites.map(node => ({ node: { ...node, daily: { earnings } } })),
@@ -461,6 +461,26 @@ describe('a day Mediavine has not published yet', () => {
   });
 });
 describe('portfolio daily collection', () => {
+  it('honors the portfolio retry deadline for other sites and manual refreshes', async () => {
+    const otherAsset = 'northwind.example';
+    const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
+    const source = transport({ sites: [SITE, otherSite] });
+    await putMediavineCredential(env, { provider: 'mediavine', fields: { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET } });
+    expect((await discoverMediavineSites(env, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    for (const [asset, siteId] of [[ASSET, SITE.id], [otherAsset, otherSite.id]] as const) {
+      expect((await saveMediavineSettings(env, { asset, siteId, enabled: true })).ok).toBe(true);
+    }
+    expect((await syncMediavine(env, { asset: ASSET, start: '2026-09-01', end: '2026-09-07' },
+      { fetchImpl: source, nowMs: NOW - 3_600_000 })).ok).toBe(true);
+    const fetchImpl = transport({ status: 429, retryAfter: '7200' });
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('failed');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(await retryState()).toMatchObject({ next_attempt_at: expect.stringContaining('15:10:00') });
+    expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl, nowMs: NOW + 3_600_000 })).outcome).toBe('skipped');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl: source, nowMs: NOW + 7_200_000 })).outcome).toBe('ran');
+  });
+
   it('uses one request and sends the published projects together, even with another delivery consumer', async () => {
     const otherAsset = 'northwind.example';
     const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };

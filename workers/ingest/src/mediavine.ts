@@ -412,6 +412,11 @@ interface PlannedSite {
 
 type CollectionOutcome = 'ran' | 'waiting' | 'failed' | 'skipped';
 
+function holdsMediavineAccount(error: unknown): error is MediavineError {
+  return error instanceof MediavineError && (error.retryAt !== null || error.kind === 'auth'
+    || (error.kind === 'permission' && error.permissionScope === 'account'));
+}
+
 async function collectDailyRevenue(
   env: IngestEnv, assets: readonly string[], now: number, date: string, options: MediavineOptions,
   log: (asset: string, outcome: CollectionOutcome, message?: string) => void,
@@ -461,7 +466,8 @@ async function collectDailyRevenue(
       for (const target of due) {
         if (stillEnabled(current, target)) await recordFailure(target, error);
       }
-      if (error instanceof MediavineError && (error.kind === 'auth' || (error.kind === 'permission' && error.permissionScope === 'account'))) throw error;
+      // The lease records account-wide backoff before another request can start.
+      if (holdsMediavineAccount(error)) throw error;
       return;
     }
     const current = await register(env);
@@ -526,7 +532,7 @@ export async function runMediavine(env: IngestEnv, options: MediavineOptions = {
     history = await collectDailyRevenue(env, targets.map(([asset]) => asset), now, clock.yesterday, options, log);
   } catch (error) {
     if (error instanceof MediavineError && error.kind === 'busy') return skipped;
-    if (!(error instanceof MediavineError && (error.kind === 'auth' || error.kind === 'permission') && failed > 0)) throw error;
+    if (!holdsMediavineAccount(error) || failed === 0) throw error;
   }
   for (const asset of history) {
     const result = await syncMediavine(env, { asset }, { ...options, automatic: true });
