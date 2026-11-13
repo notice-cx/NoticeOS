@@ -297,7 +297,7 @@ shipping, which only the post-ship outcome checks catch.
   evidence of nothing. Where the shell is root, run the suites as `nobody`
   (`runuser -u nobody -- env HOME=<own> TMPDIR=<own> …`) from a source copy
   `nobody` owns, since vitest and the Tower write caches into the checkout,
-  with a Node 24 it can read and without variables naming root-only files
+  with the Node version in `.node-version` and without variables naming root-only files
   (such as `NODE_EXTRA_CA_CERTS`). Call the runners through `node`: `pnpm` as
   another user first fetches its pinned version, and the few tests that start
   a real Tower need that version where `nobody` can run it.
@@ -443,7 +443,7 @@ none.
 
 ## State (dated facts; an expired entry is unknown, not true)
 
-- Toolchain: Node 24.21.0 LTS and pnpm 12.8.1, declared in `package.json` and CI.
+- Toolchain: Node 26.13.0 (the CI and image version, tracked in `.node-version`) and pnpm 12.8.1.
 - CI: the two lanes above; PostgreSQL 18 server binaries and
   `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory. PostgreSQL 18
   is the only supported major; no other major is installed or qualified.

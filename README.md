@@ -86,7 +86,7 @@ To work on NoticeOS or build its image yourself, the machine needs:
 
 | Requirement | Version or setup |
 | --- | --- |
-| Node.js | 24.21.0 LTS |
+| Node.js | 26.13.0 (`.node-version`) |
 | pnpm | 12.8.1 |
 | Docker | A running local engine with Docker Compose |
 

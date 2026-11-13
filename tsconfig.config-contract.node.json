@@ -66,6 +66,8 @@
     "scripts/worker-config-folder.mts",
     "scripts/test-vite-server.mts",
     "scripts/database-address.mts",
+    "scripts/config-store-client.mts",
+    "scripts/dev-secrets.mts",
     "scripts/postgres-test-copies.mts",
     "scripts/postgres-test-cluster.mts",
     "packages/postgres/src/store.mts",

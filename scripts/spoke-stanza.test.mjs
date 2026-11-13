@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -34,13 +35,43 @@ function canonicalStanza() {
 
 // The installation's task projects with a checkout on this machine. A project
 // whose checkout is elsewhere is skipped: absence is not drift.
-function checkedOutSpokes() {
-  const map = JSON.parse(readFileSync(readablePath('config/beads.json', { root: REPO_ROOT }), 'utf8'));
+// Set NOTICEOS_SPOKE_CHECKOUT_PARENT to the directory holding moved checkouts.
+function checkedOutSpokes(
+  map = JSON.parse(readFileSync(readablePath('config/beads.json', { root: REPO_ROOT }), 'utf8')),
+  root = REPO_ROOT,
+  checkoutParent = process.env.NOTICEOS_SPOKE_CHECKOUT_PARENT,
+) {
   return map.spokes
     .filter((spoke) => spoke?.repo && spoke.repo !== '.')
-    .map((spoke) => ({ asset: spoke.asset, dir: path.resolve(REPO_ROOT, spoke.repo) }))
+    .map((spoke) => {
+      const repo = path.resolve(root, spoke.repo);
+      const dir = checkoutParent && !path.isAbsolute(spoke.repo)
+        ? path.resolve(checkoutParent, path.basename(repo))
+        : repo;
+      return { asset: spoke.asset, dir };
+    })
     .filter(({ dir }) => existsSync(dir));
 }
+
+test('an explicit checkout parent resolves moved relative checkouts and preserves absolute ones', (t) => {
+  const owned = mkdtempSync(path.join(tmpdir(), 'noticeos-spoke-stanza-'));
+  t.after(() => rmSync(owned, { recursive: true, force: true }));
+  const root = path.join(owned, 'nested', 'noticeos');
+  const checkouts = path.join(owned, 'sites');
+  const moved = path.join(checkouts, 'moved');
+  const absolute = path.join(owned, 'absolute');
+  for (const dir of [root, moved, absolute]) mkdirSync(dir, { recursive: true });
+  const map = { spokes: [
+    { asset: 'moved.example', repo: '../moved' },
+    { asset: 'absolute.example', repo: absolute },
+    { asset: 'elsewhere.example', repo: '../elsewhere' },
+    { asset: 'self.example', repo: '.' },
+  ] };
+  assert.deepEqual(checkedOutSpokes(map, root, checkouts), [
+    { asset: 'moved.example', dir: moved },
+    { asset: 'absolute.example', dir: absolute },
+  ]);
+});
 
 test('the contract carries the canonical stanza between its markers', () => {
   assert.ok(canonicalStanza(), 'markers missing or empty in config/beads.README.md');

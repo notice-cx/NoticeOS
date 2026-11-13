@@ -19,6 +19,27 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml');
 const MANIFEST = path.join(REPO_ROOT, 'package.json');
 
+test('CI and the release workflow use the Node version pinned in every image', () => {
+  const version = readFileSync(path.join(REPO_ROOT, '.node-version'), 'utf8').trim();
+  assert.match(version, /^\d+\.\d+\.\d+$/u);
+  for (const name of ['ci.yml', 'release-image.yml']) {
+    const workflow = readFileSync(path.join(REPO_ROOT, '.github', 'workflows', name), 'utf8');
+    const setups = workflow.match(/uses: actions\/setup-node@/gu) ?? [];
+    assert.ok(setups.length > 0, name);
+    assert.equal((workflow.match(/^\s*node-version-file: \.node-version$/gmu) ?? []).length, setups.length, name);
+    assert.doesNotMatch(workflow, /^\s*node-version:/mu, name);
+  }
+  for (const image of ['compose', 'demo', 'codebase-report']) {
+    const dockerfile = readFileSync(path.join(REPO_ROOT, 'deploy', image, 'Dockerfile'), 'utf8');
+    const bases = [...dockerfile.matchAll(/^FROM node:([^\s]+)\b/gmu)].map((match) => match[1]);
+    assert.ok(bases.length > 0, image);
+    for (const base of bases) {
+      assert.equal(base.split('-')[0], version, image);
+      assert.match(base, /@sha256:[0-9a-f]{64}$/u, image);
+    }
+  }
+});
+
 // The step that gives the suites a Postgres server. Without one,
 // scripts/postgres-model.test.mjs and postgres-migrate.test.mjs would skip,
 // and CI would pass without ever running the workspace-isolation proof; so
