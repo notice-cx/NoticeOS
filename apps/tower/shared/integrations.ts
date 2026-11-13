@@ -245,7 +245,7 @@ export function configuredWithoutVerification(cell: IntegrationCellBase, nowMs: 
  * Event-triggered checks (including egress) have no scheduled freshness claim. */
 export function collectionCadenceHours(laneId: string): number | null {
   if (laneId === 'ad-network') return 24;
-  if (laneId === "ga4" || laneId === "gsc") return CADENCE_HOURS.signals;
+  if (laneId === "ga4" || laneId === "gsc") return CADENCE_HOURS.googleSignals;
   if (laneId === "bing-webmaster") return CADENCE_HOURS.bingSignals;
   if (laneId === "dataforseo") return CADENCE_HOURS.dataforseoSignals;
   if (laneId === "posthog") return CADENCE_HOURS.posthogSignals;

@@ -68,8 +68,6 @@ const familyReport = (family: string): string | null => {
  * tie by the newest date.
  */
 const CURRENT_STATE_ARCHIVES = new Set(['bing-webmaster', 'clarity', 'dataforseo']);
-const googleCadenceHours = (integration: 'ga4' | 'gsc') =>
-  integration === 'ga4' ? INTEGRATION_CADENCE_HOURS.ga4Signals : INTEGRATION_CADENCE_HOURS.signals;
 const since = (now: number, hours: number) => new Date(now - hours * REPORT_STALE_MULTIPLIER * 3_600_000).toISOString();
 
 /**
@@ -368,7 +366,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
             await add({ connection, capability: 'ga4-comparison', asset: target.asset, target: target.propertyRef,
               paused: paused || !realtimeSchedule.enabled, nextAttemptAt });
           }
-          await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, googleCadenceHours(target.integration), paused, nextAttemptAt);
+          await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.googleSignals, paused, nextAttemptAt);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
         }
         // A demo connection reads the properties the register maps, as a
@@ -376,7 +374,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         if (connection.demo) for (const integration of ['ga4', 'gsc'] as const) for (const { asset, ref } of registerMappedAssets(integration, register)) {
           const paused = cellDeclined(register.assets[asset]?.[integration]);
           if (integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-comparison']) await add({ connection, capability, asset, target: ref, paused: paused || !realtimeSchedule.enabled });
-          await daily(connection, `${integration}-daily`, asset, ref, integration, googleCadenceHours(integration), paused);
+          await daily(connection, `${integration}-daily`, asset, ref, integration, INTEGRATION_CADENCE_HOURS.googleSignals, paused);
         }
       } else if (provider === 'bing-webmaster') {
         for (const target of await loadBingPortfolioCandidates(env.STORE)) {

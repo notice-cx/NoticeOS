@@ -272,12 +272,12 @@ baselines and must be visible on every affected timeline.
 The implemented Google and Bing collectors record every attempt in
 `signal_runs`, isolate provider/property failures, retain the last successful
 observations, and show the effective source state on each asset card.
-GA4/GSC run every 15 minutes and degrade after two missed cadences (30
-minutes). Bing Webmaster's rank-and-traffic dataset updates daily, so it runs
+The daily GA4 and Search Console series refresh hourly and show as stale
+after two hours without a successful collection. Bing Webmaster's rank-and-traffic dataset updates daily, so it runs
 at 02:30 UTC and degrades after two missed daily cadences (48 hours); polling
 it every 15 minutes would not make the provider data fresher. The broader flag
 and notification job for NoticeOS's own report is still outstanding. GA4 marks
-only today provisional in the chart. GSC also treats today as provisional when
+today and yesterday provisional in the daily chart. GSC also treats today as provisional when
 response metadata is absent and moves the boundary earlier when the provider
 supplies `first_incomplete_date`. Bing is final through the last date it
 returns, and the chart adds no zero values after that date. Dependent anomaly

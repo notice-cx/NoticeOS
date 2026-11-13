@@ -71,6 +71,42 @@ describe('analysis-grade signal dumps', () => {
     expect(dates(await archive(NOW + 3 * day))).toEqual(['2026-07-27', '2026-07-28', '2026-07-30', '2026-07-31']);
   });
 
+  it('reuses Search Console archives, revisits early empty dates and recovers an exact failed date', async () => {
+    const day = 86_400_000;
+    const emptyDate = '2026-07-28';
+    const failedDate = '2026-07-26';
+    const archive = async (nowMs: number) => {
+      const fixture = providerDumpFetch();
+      const requests: string[] = [];
+      const provider: typeof fetch = async (input, init) => {
+        if (String(input).includes('meadow.example/searchAnalytics/query')) {
+          const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+          if (body?.type === 'web' && body.dimensions?.join(',') === 'query') {
+            requests.push(body.startDate);
+            expect(body).toMatchObject({ endDate: body.startDate, dataState: 'final' });
+            if (nowMs === NOW && body.startDate === emptyDate) return Response.json({});
+            if (nowMs === NOW && body.startDate === failedDate) throw new DOMException('deadline elapsed', 'TimeoutError');
+          }
+        }
+        return fixture.fetchImpl(input, init);
+      };
+      const run = await runSignalDumps(env, { nowMs, scheduled: true,
+        fetchImpl: cutUplink(provider, { beaconUp: true, through: () => true }) });
+      const outcomes = run.outcomes.filter(o => o.asset === 'meadow.example' && o.integration === 'gsc' && o.report === 'query');
+      expect(requests.sort()).toEqual(outcomes.map(o => o.reportDate).sort());
+      return outcomes;
+    };
+    expect(await archive(NOW)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reportDate: failedDate, status: 'error', errorCode: 'request_timeout' }),
+      expect.objectContaining({ reportDate: emptyDate, status: 'success', providerRows: 0 }),
+    ]));
+    expect((await archive(NOW + day)).map(o => o.reportDate).sort()).toEqual(['2026-07-26', '2026-07-29']);
+    const recovered = await archive(NOW + 2 * day);
+    expect(recovered.map(o => o.reportDate).sort()).toEqual(['2026-07-27', emptyDate, '2026-07-30']);
+    expect(recovered.find(o => o.reportDate === emptyDate)).toMatchObject({ status: 'success', providerRows: 1 });
+    expect((await archive(NOW + 4 * day)).map(o => o.reportDate).sort()).toEqual([emptyDate, '2026-07-29', '2026-07-31', '2026-08-01']);
+  });
+
   it('retries a timed-out Search Console appearance request once and keeps a persistent failure', async () => {
     const provider = providerDumpFetch();
     const detailCalls = new Map<string, AbortSignal[]>();

@@ -115,10 +115,10 @@ and the operator-facing error body must not vary per route.
 | `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible asset's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, a sitemap outage, or a security header the home page stopped sending (`hygiene-security-headers`, read from the home-page response with no extra request). Six plain HTTPS requests per asset, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each asset's declared light and dark icons from one more GET of its home page and stores one row per asset in `asset_icons`. See [Asset icons](#asset-icons). |
 | `15 4 * * *` (04:15 UTC) | Chrome UX Report page speed | For each asset the hygiene guards read, two `records:queryRecord` calls (phones, desktops) on its origin, and two more on its `www.` host when the bare domain has no data; one `crux-vitals` reading per asset per day in `hygiene_checks` with the LCP, INP and CLS 75th percentiles. No key connected: no request and no row. See [docs/11 § Chrome UX Report](../../docs/11-integrations.md#chrome-ux-report). |
 | `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per asset that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. An asset with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
-| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive the newest GA4 date and the day-four revision, four completed dates of GSC breakdowns, and the BWT report families an asset is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier dates affected by an outage or a GA4 quota refusal. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
+| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive the newest date and the day-four revision for GA4 and Search Console, and the BWT report families an asset is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier dates affected by an outage or a GA4 quota refusal. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
 | `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then seven aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals`, `inp-targets` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run, lists the families it did not ask for, and stores its project retry delay across restarts. Collection sends no requests for that project until the delay expires; an on-demand call returns the retry deadline. Queries filter event names and dates before reading assets. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to seven earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
 | `45 12 * * 1` (Monday 12:45 UTC) | DataForSEO search intelligence | For every launched content asset, archive ranked keywords, backlink stock + 90-day movement, and Google/ChatGPT mention metrics — plus, where `config/serp-panel.json` names tracked head terms, one live result page per term **per device** (phone and desktop) with its AI Overview citation state. Exact report cost is indexed; the portfolio data cap fails closed before a call. |
-| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read asset total cards and pull 97-day Search Console snapshots. The Google step also refreshes daily GA4 metrics once per hour. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
+| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read asset total cards and refresh daily GA4 and Search Console metrics once per hour. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
 
 The handler dispatches on the cron string verbatim: each expression is the
 dispatch key of one job in `scripts/scheduled-jobs.mts`, `src/dispatch.ts`
@@ -1685,9 +1685,8 @@ including a provider that never answers while the beacons do.
 
 ### The dates an outage cost
 
-A run asks for the last four completed dates, so the window's oldest date
-falls out of it the next day, and `events-28d` (and a probing family) only
-ever asks for its newest date. Without a second rule, a date an offline run
+The regular revision window ends four days after the report date. Each
+`events-28d` or probe run requests a single date. Without a second rule, a date an offline run
 failed to collect would never be asked for again and would stay red on the
 Integrations page while every later day collected normally. Two rules close
 it, one per kind of provider:
@@ -2084,11 +2083,10 @@ scope, and reuses it across the mapped targets. The Postgres run record stores
 private key, assertion, or access token.
 
 The Tower renders 90 dates on asset detail and reads seven preceding dates
-for the first prior-week comparison. Search Console requests all 97 dates
-every 15 minutes. Scheduled GA4 collection refreshes seven dates once per
-hour and reads all 97 on first collection, after a gap the seven-day window
-cannot cover, or when the last full read is a week old. A manual GA4 read
-requests all 97 dates.
+for the first prior-week comparison. Scheduled GA4 and Search Console
+collection refreshes seven dates once per hour and reads all 97 on first
+collection, after a gap the seven-day window cannot cover, or when the last
+full read is a week old. A manual refresh requests all 97 dates.
 
 - GA4: `sessions`, `activeUsers`, `screenPageViews`, `eventCount`. Today's
   partial day **and yesterday** are marked provisional: a GA4 day stays
@@ -2234,11 +2232,14 @@ writes chart observations and the Tower never reads its objects directly.
 
 At 12:15 UTC it collects these reports:
 
-- GSC Web Search, for the previous four completed dates: `page-query`, `page`, `query`, `country`, `device`,
+- GSC Web Search includes `page-query`, `page`, `query`, `country`, `device`,
   `page-country`, `page-device`, plus the two-step
   `search-appearance-pages` export required by Search Console. Image
   page×query and Discover page data are separate report families. All use
-  `dataState=final`, 25k-row pages, and a 50k-row/report/day cap.
+  `dataState=final`, 25k-row pages, and a 50k-row/report/day cap. The scheduled
+  job reads the newest completed date and the day-four revision. It reads
+  missing or failed dates and revisits early empty reports on day three.
+  [Google usually publishes complete data after two to three days](https://developers.google.com/webmaster-tools/v1/how-tos/all-your-data).
   `discover-page` runs in [probe mode](#probe-mode-for-an-always-empty-family).
 - GA4: completed-day `pages-screens`, `landing-pages`,
   `traffic-acquisition`, `traffic-sources`, `events`, `page-events`,
@@ -2287,24 +2288,18 @@ raw/dataforseo/dataforseo/<asset>/<report>/<YYYY-MM-DD>/<run>-<hash>.json.gz
 
 ### Probe mode for an always-empty family
 
-An asset that does not participate in a surface at all — an asset Google has
-never put in Discover — answers `discover-page` with an empty body on every one
-of the four revision dates. Re-learning that same nothing four times a day,
-forever, is the whole cost of the family.
-
-A report spec can therefore set `probeWhenAlwaysEmpty`. Before requesting, the
-collector reads that (asset, report)'s own report-run history:
+A report family such as `discover-page` can set `probeWhenAlwaysEmpty` so
+properties with no rows need one request per run. The collector checks saved
+runs for that asset and report before requesting data.
 
 | History for this (asset, report) | Dates requested |
 |---|---|
-| No completed run yet (first-ever run) | the full revision window |
-| Completed runs exist, **all** with `provider_rows = 0` | the newest completed date only |
-| **Any** completed run with `provider_rows > 0` | the full revision window |
+| No completed run yet | the full revision window |
+| Completed runs all have `provider_rows = 0` | one date, four days ago for scheduled Discover and the newest completed date for other probes |
+| Any completed run has `provider_rows > 0` | the regular dates due for that report |
 
-Errors are not evidence of emptiness, so a failed attempt neither arms nor
-disarms the probe. The narrowing is per asset and per report, and it is not
-a latch: one non-empty row anywhere in the history restores the full window, so
-Discover switching on is visible the next day at the cost of one request.
+Probe mode uses successful runs for each asset and report. A non-empty result
+restores the regular schedule on the next run.
 
 Manifest semantics are unchanged — a probe run writes a report-run row
 exactly like any other attempt. A narrowed window is a smaller request, never a

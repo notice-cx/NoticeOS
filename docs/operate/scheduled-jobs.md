@@ -19,7 +19,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | --- | --- | --- |
 | Portfolio briefing | Manual | Reviews saved portfolio evidence and generates guidance with the connected model when the evidence supports an insight |
 | Realtime traffic | every minute | Collects live Google Analytics activity for the Wall |
-| Live traffic and counters | every 15 minutes | Refreshes counters and Search Console. Daily Google Analytics metrics refresh once per hour. |
+| Live traffic and counters | every 15 minutes | Refreshes counters every 15 minutes and daily Google Analytics and Search Console metrics once per hour. |
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
 | Bank balances and activity | 40 past each hour | Records Mercury deposit balances and transactions created in the last 35 days; complete reads remain separate from revenue and costs |
 | Subscription revenue | 20 past each hour | Records each completed UTC day's Stripe sales less refunds for the asset that names the account; asks Stripe only when a day is missing |
