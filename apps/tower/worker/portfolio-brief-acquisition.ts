@@ -49,7 +49,7 @@ export async function loadPortfolioBriefAcquisition(store: WorkspaceStore, { now
     for (const provider of ['google', 'bing', 'ga4'] as const) {
       const search = provider !== 'ga4';
       const series = search ? [set.webSearchClicks[provider], set.webSearchImpressions[provider]] : [set.sessions, set.pageViews];
-      const pair = paired(series, now, search ? 1 : 2, provider === 'bing' ? CADENCE_HOURS.signals : CADENCE_HOURS.googleSignals);
+      const pair = paired(series, now, search ? 1 : 2, provider === 'bing' ? CADENCE_HOURS.bingSignals : CADENCE_HOURS.googleSignals);
       if (!pair) continue;
       const [first, second] = pair.metrics as [MetricComparison, MetricComparison];
       const ratio = (left: number, right: number) => right > 0 ? Math.round(left / right * 100_000) / 100_000 : null;
