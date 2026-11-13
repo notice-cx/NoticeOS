@@ -3,8 +3,8 @@
 //
 // It refuses to start when another runner holds the ingest port, never
 // applies migrations, starts nothing without its
-// Postgres (DATABASE_URL rides in the Tower child's environment and nowhere
-// else), and spawns and supervises one child: the tower (vite), whose workerd
+// Postgres (the Tower and the notification listener share its checked
+// address), and spawns and supervises one child: the tower (vite), whose workerd
 // runtime hosts both Workers and holds the one ingest door. It arms the
 // schedules only after proving its own child holds that door, fires the
 // ingest crons and the host lanes (task service check, task snapshot, review
@@ -18,6 +18,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { syncDevVarsIfPresent } from './dev-secrets.mjs';
+import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { runBackup as backupHost, backupRunOutcome } from './host-backup.mjs';
 import { requestContainerBackup } from './container-backup-channel.mjs';
 import { takeNtasksExport } from './ntasks-backup.mjs';
@@ -522,7 +523,7 @@ async function supervise({ exposeTowerToLan }) {
   const notificationJob = SCHEDULED_JOBS.find(job => job.id === 'notifications');
   try {
     notificationEvents = await startNotificationEvents({
-      connectionString: database.env.DATABASE_URL,
+      connectionString: database.env[LOCAL_CONNECTION_VARIABLE],
       drain: async (trigger, signal) => {
         if (isShuttingDown() || !tower.running || !tower.ready || (await runtimeDoorOwnership(tower)).owns !== true) return false;
         const result = await runJobLane(jobRunName(notificationJob), () => fireScheduledTrigger(
