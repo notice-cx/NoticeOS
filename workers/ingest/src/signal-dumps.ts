@@ -16,6 +16,7 @@ import {
   type GoogleIntegrationId,
   type GooglePropertyTarget,
 } from './google-signals.js';
+import { Ga4CoreDeferred, readGa4CoreReport } from './ga4-core.js';
 import { GOOGLE_SCOPES, googleAccessToken } from './google-auth.js';
 import { resolveGoogleCredential } from './google-oauth.js';
 import {
@@ -61,6 +62,7 @@ import { assetJourneyDefinitions, GA4_JOURNEY_REQUEST_LIMIT, runGa4Journeys, typ
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_REVISION_DAYS = 4;
+const GA4_ARCHIVE_RECOVERY_DAYS = 7;
 const REQUEST_TIMEOUT_MS = 30_000;
 const SEARCH_APPEARANCE_TIMEOUT_RETRIES = 4;
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
@@ -429,9 +431,9 @@ export interface SignalDumpsResult {
   succeeded: number;
   unchanged: number;
   failed: number;
-  /** (property, family) pairs this run did not ask for because the provider
-   * had not refreshed them yet; today only, never a running total. */
+  /** Reports already saved within their revision interval, and snapshots that are not due. */
   skipped: number;
+  deferredByQuota?: number;
   /** Earlier report dates this run asked for again because an outage cost
    * them, already counted in `attempted` and `outcomes`. */
   retried: number;
@@ -446,6 +448,8 @@ export interface SignalDumpsOptions {
   rawConfig?: string;
   bingApiKey?: string;
   revisionDays?: number;
+  /** Routine GA4 archives reuse successful interim revisions. */
+  scheduled?: boolean;
   /** Override the built-in config/ga4-custom-dimensions.json (tests inject their own). */
   ga4CustomDimensions?: Ga4CustomDimensionConfig;
   journeyConfig?: JourneyConfig;
@@ -506,11 +510,12 @@ async function collectTargetJourneys(
   egress: EgressLane,
   budget: { remaining: number },
   monitoring: CollectionMonitoring,
+  clock?: () => number,
 ): Promise<SignalDumpOutcome[]> {
   const requestedAt = new Date(nowMs).toISOString();
   return runGa4Journeys({
     env, target, definitions: assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset), nowMs,
-    accessToken, fetchImpl: egress.transport.fetch, budget,
+    accessToken, fetchImpl: egress.transport.fetch, budget, clock,
     archive: (report, reportDate, collected) => archiveCollectedDump(env, {
       monitoring, provider: 'google', target, report, reportDate, requestedAt,
       dataState: 'revision-window', collected,
@@ -603,6 +608,8 @@ export async function runSignalDumps(
     throw new SignalError('config_invalid', 'Signal dump revisionDays must be between 1 and 14.');
   }
   const reportDates = completedDates(nowMs, revisionDays);
+  const reduceGa4Revisions = options.scheduled && options.revisionDays === undefined;
+  const clock = options.nowMs === undefined ? Date.now : () => nowMs;
   // One gate per run, asked only about a provider call that came back with no
   // status; its beacons use the raw fetcher. Without it one failed token mint
   // would write a `request_failed` manifest for every target x family x date.
@@ -636,13 +643,15 @@ export async function runSignalDumps(
   // this run writes any manifests, so a probe day's zero-row result cannot
   // narrow the same run's window.
   const plans = new Map<GooglePropertyTarget, Map<string, string[]>>();
+  let skippedGa4Revisions = 0;
   for (const target of targets) {
     const byReport = new Map<string, string[]>();
     for (const report of reportsFor(target.integration, target.asset, ga4CustomDimensions)) {
-      byReport.set(
-        report,
-        await resolveReportDates(env.STORE, target, target.integration, report, reportDates),
-      );
+      const dates = await resolveReportDates(env.STORE, target, target.integration, report, reportDates);
+      const due = reduceGa4Revisions && target.integration === 'ga4' && dates.length > 1
+        ? await dueGa4Revisions(env.STORE, target, report, dates, nowMs) : dates;
+      skippedGa4Revisions += dates.filter(date => !due.includes(date)).length;
+      byReport.set(report, due);
     }
     plans.set(target, byReport);
   }
@@ -655,6 +664,7 @@ export async function runSignalDumps(
     options.retryLimit ?? ARCHIVE_RETRY_LIMIT,
   );
   let retried = 0;
+  let deferredByQuota = 0;
 
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     for (const integration of ['ga4', 'gsc'] as const) {
@@ -712,8 +722,10 @@ export async function runSignalDumps(
             accessToken,
             egress,
             timeoutRetries,
+            clock,
             googleMonitoring,
           );
+          if (!outcome) { deferredByQuota++; break; }
           outcomes.push(outcome);
           retried += 1;
           // A connection that is down stops the pass after one ask: the rest
@@ -723,7 +735,8 @@ export async function runSignalDumps(
       }
 
       for (const target of scopedTargets) {
-        for (const [report, dates] of plans.get(target) ?? []) {
+        const planned = plans.get(target) ?? new Map<string, string[]>();
+        reports: for (const [report, dates] of planned) {
           for (const reportDate of dates) {
             const outcome = await collectAndArchive(
               env,
@@ -734,14 +747,16 @@ export async function runSignalDumps(
               accessToken,
               egress,
               timeoutRetries,
+              clock,
               googleMonitoring,
             );
+            if (!outcome) { deferredByQuota++; break reports; }
             if (outcome.egressDown) retry.halt();
             outcomes.push(outcome);
           }
         }
         if (target.integration === 'ga4') {
-          outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, journeyBudget, googleMonitoring));
+          outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, journeyBudget, googleMonitoring, clock));
         }
       }
     }
@@ -805,7 +820,8 @@ export async function runSignalDumps(
     succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
     unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
     failed: outcomes.filter((outcome) => outcome.status === 'error').length,
-    skipped,
+    skipped: skipped + skippedGa4Revisions,
+    deferredByQuota,
     retried,
     outcomes,
     // One `os-egress-down` fact for the whole night — or the retraction of one
@@ -830,6 +846,7 @@ export async function runSignalDumps(
       // Named for its reason, so a smaller `attempted` reads as "nothing new"
       // rather than as lost coverage.
       skippedNotDue: result.skipped,
+      deferredByQuota,
       // Earlier dates asked again, and how many owed ones were left.
       retried: result.retried,
       retryNotAsked: retry.owed - result.retried,
@@ -1020,8 +1037,9 @@ async function collectAndArchive(
   accessToken: string,
   egress: EgressLane,
   timeoutRetries: { remaining: number },
+  clock: () => number,
   monitoring?: CollectionMonitoring,
-): Promise<SignalDumpOutcome> {
+): Promise<SignalDumpOutcome | null> {
   const dataState = dataStateFor(target.integration);
   try {
     const collected =
@@ -1040,11 +1058,13 @@ async function collectAndArchive(
             },
           )
         : await collectGa4Dump(
+            env.STORE,
             target.propertyRef,
             reportSpec(GA4_REPORTS, report),
             reportDate,
             accessToken,
             egress.transport.fetch,
+            clock,
           );
     if (target.integration === 'ga4') {
       // The quota flag is this machine's store too: its failure must not read
@@ -1070,6 +1090,7 @@ async function collectAndArchive(
       collected,
     });
   } catch (error) {
+    if (error instanceof Ga4CoreDeferred) return null;
     // The uplink can also die mid-run, after the token was minted.
     if (await egressExplains(egress.gate, egress.transport, error)) {
       return unmeasuredDumpOutcome(egress.gate, target, report, reportDate);
@@ -1494,11 +1515,13 @@ function gscDimensionValues(pages: DumpPage[], dimension: string): string[] {
 }
 
 async function collectGa4Dump(
+  store: WorkspaceStore,
   propertyId: string,
   spec: Ga4ReportSpec,
   reportDate: string,
   accessToken: string,
   fetchImpl: typeof fetch,
+  clock: () => number,
 ): Promise<CollectedDump> {
   const pages: DumpPage[] = [];
   let providerRows = 0;
@@ -1523,11 +1546,8 @@ async function collectGa4Dump(
       returnPropertyQuota: true,
     };
     if (spec.dimensionFilter) request.dimensionFilter = spec.dimensionFilter;
-    const response = await fetchImpl(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-      googlePost(accessToken, request),
-    );
-    const body = await boundedResponseJson(response, 'Google', RESPONSE_BYTE_LIMIT);
+    const { response, body } = await readGa4CoreReport(store, propertyId, fetchImpl,
+      googlePost(accessToken, request), { lane: 'signal-dumps', clock, maxBytes: RESPONSE_BYTE_LIMIT });
     if (!response.ok) {
       throw (
         unregisteredCustomDimensionError(spec, body) ??
@@ -1734,6 +1754,33 @@ function reportsFor(
   ).map((report) => report.name);
 }
 
+/** Collect yesterday and the final revision. Use stored results for the
+ * intervening dates, and give a missed final revision three extra days to run. */
+async function dueGa4Revisions(store: WorkspaceStore, target: GooglePropertyTarget, report: string,
+  dates: string[], nowMs: number): Promise<string[]> {
+  const candidates = completedDates(nowMs, GA4_ARCHIVE_RECOVERY_DAYS);
+  const [first, finalRevision] = [dates.at(-1)!, dates[0]!];
+  const rows = await store.read(tx => tx.query<{
+    date: string; collectedOn: string; status: DumpStatus; code: string | null; truncated: boolean;
+  }>(`SELECT DISTINCT ON (report_date) report_date::text AS date,
+              (requested_at AT TIME ZONE 'UTC')::date::text AS "collectedOn",
+              status, error_code AS code, provider_truncated AS truncated
+       FROM noticeos.archive_runs
+       WHERE asset_id = $1 AND integration = 'ga4' AND property_ref = $2 AND report = $3 AND report_date >= $4::date
+       ORDER BY report_date, requested_at DESC, run_seq DESC`,
+    [target.asset, target.propertyRef, report, candidates[0]!]));
+  if (rows.length === 0) return dates;
+  const saved = new Map(rows.map(row => [row.date, row]));
+  return candidates.filter(date => {
+    if (date === first || date === finalRevision) return true;
+    const row = saved.get(date);
+    if (date > finalRevision) return !row || row.status === 'error' || row.truncated;
+    if (!row) return rows.some(prior => prior.date <= date);
+    if (row.status === 'error') return archiveFailureIsRetryable('ga4', row.code);
+    return !row.truncated && row.collectedOn < reportDateOffset(date, DEFAULT_REVISION_DAYS);
+  });
+}
+
 function datesForReport(
   integration: GoogleIntegrationId,
   report: string,
@@ -1874,9 +1921,8 @@ interface ArchiveRetryPass {
  * asks for the last four completed dates, so a missed date is usually asked
  * again the next day, but the window's oldest date falls out of it and a
  * `latestOnly` or probing family never comes back to it. Owed: a date whose
- * latest attempt failed for a network reason (`healthFailure`'s `network`), and
- * a date the dead uplink swallowed, which the open `os-egress-down` flag names.
- * Anything the provider answered is its verdict and is never re-asked. Only for
+ * latest attempt failed at the network or hit GA4 quota, or a date the
+ * dead uplink swallowed and the open `os-egress-down` flag names. Only for
  * a property and family this run still collects, on the same Google property,
  * never a date the run's own window asks for, nor one newer than its newest
  * completed date. Oldest first, at most `limit` a run.
@@ -1902,7 +1948,7 @@ async function owedArchiveDates(
     });
   };
 
-  for (const row of await networkFailedArchiveDates(env.STORE, ['ga4', 'gsc'])) {
+  for (const row of await retryableFailedArchiveDates(env.STORE, ['ga4', 'gsc'])) {
     const target = targetFor(row.asset, row.integration);
     if (target?.propertyRef === row.propertyRef) consider(target, row.report, row.reportDate);
   }
@@ -1938,11 +1984,8 @@ async function owedArchiveDates(
   return pass;
 }
 
-/**
- * Report dates of these lanes whose latest attempt failed for a network reason.
- * The ILIKE filter only narrows the scan; `networkFailure` is the rule.
- */
-export async function networkFailedArchiveDates(
+/** Dated reports whose latest attempt was interrupted by transport or GA4 quota. */
+async function retryableFailedArchiveDates(
   store: WorkspaceStore,
   integrations: readonly DumpIntegration[],
 ): Promise<{ asset: string; integration: string; propertyRef: string; report: string; reportDate: string }[]> {
@@ -1962,7 +2005,8 @@ export async function networkFailedArchiveDates(
         WHERE e.integration = ANY($1::text[])
           AND e.status = 'error'
           AND (e.error_code ILIKE '%timeout%' OR e.error_code ILIKE '%network%'
-               OR e.error_code ILIKE '%request_failed%' OR e.error_code ILIKE '%unreachable%')
+               OR e.error_code ILIKE '%request_failed%' OR e.error_code ILIKE '%unreachable%'
+               OR (e.integration = 'ga4' AND e.error_code IN ('ga4_quota_exhausted', 'ga4_dump_http_429')))
           AND NOT EXISTS (
             SELECT 1 FROM noticeos.archive_runs later
              WHERE later.workspace_id = e.workspace_id AND later.asset_id = e.asset_id
@@ -1973,7 +2017,11 @@ export async function networkFailedArchiveDates(
       [[...integrations]],
     ),
   );
-  return rows.filter((row) => networkFailure(row.errorCode));
+  return rows.filter((row) => archiveFailureIsRetryable(row.integration, row.errorCode));
+}
+
+function archiveFailureIsRetryable(integration: string, code: string | null): boolean {
+  return networkFailure(code) || (integration === 'ga4' && (code === GA4_QUOTA_EXHAUSTED_CODE || code === 'ga4_dump_http_429'));
 }
 
 /** A failure the Integrations page shows as `network`: the provider never
@@ -2106,10 +2154,13 @@ function finiteNonNegativeInteger(value: unknown): number | null {
 }
 
 /** Read-only expansion of the same family/date policy used by collection. */
-export async function integrationArchivePlan(store: WorkspaceStore, target: GooglePropertyTarget, nowMs: number, config: Ga4CustomDimensionConfig = GA4_CUSTOM_DIMENSIONS): Promise<{ report: string; date: string; cadenceDays: number }[]> {
+export async function integrationArchivePlan(store: WorkspaceStore, target: GooglePropertyTarget, nowMs: number, config: Ga4CustomDimensionConfig = GA4_CUSTOM_DIMENSIONS): Promise<{ report: string; date: string; cadenceDays: number; staleAfterHours?: number }[]> {
   const dates = completedDates(nowMs, DEFAULT_REVISION_DAYS);
   const entries = await Promise.all(reportsFor(target.integration, target.asset, config).map(async report =>
-    (await resolveReportDates(store, target, target.integration, report, dates)).map(date => ({ report, date, cadenceDays: 1 }))));
+    (await resolveReportDates(store, target, target.integration, report, dates)).map(date => ({
+      report, date, cadenceDays: 1,
+      ...(target.integration === 'ga4' && dates.slice(1, -1).includes(date) ? { staleAfterHours: 72 } : {}),
+    }))));
   return entries.flat();
 }
 export const BING_ARCHIVE_FAMILIES = BING_REPORTS.map(spec => ({ report: spec.name, cadenceDays: spec.cadenceDays ?? 1 }));

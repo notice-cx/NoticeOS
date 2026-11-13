@@ -133,6 +133,28 @@ function googleFetch({
 beforeEach(reset);
 
 describe('Google signal collector', () => {
+  it('refreshes seven days hourly and backfills the full history after a long gap', async () => {
+    const fixture = googleFetch({ ga4TimeZone: 'UTC' });
+    const hour = 3_600_000;
+    const day = 24 * hour;
+    const run = (nowMs: number) => runGoogleSignals(env, { nowMs, scheduled: true, fetchImpl: fixture.fetchImpl, osTimeZone: 'UTC' });
+    const ranges = () => fixture.calls.filter(call => call.url.endsWith(':runReport'))
+      .map(call => JSON.parse(call.body).dateRanges[0]);
+
+    await run(NOW);
+    expect(ranges()).toEqual(Array(2).fill({ startDate: '2026-04-24', endDate: '2026-07-29' }));
+    const skipped = await run(NOW + 15 * 60_000);
+    expect(skipped.deferred.map(entry => entry.reason)).toEqual(['not-due', 'not-due']);
+    expect(ranges()).toHaveLength(2);
+    expect(fixture.calls.filter(call => call.url.includes('/searchAnalytics/query'))).toHaveLength(4);
+    await run(NOW + hour);
+    expect(ranges().slice(2)).toEqual(Array(2).fill({ startDate: '2026-07-23', endDate: '2026-07-29' }));
+    expect((await readPanelTrend(env, 'meadow.example', '2026-07-01'))
+      .find(row => row.integration === 'ga4' && row.date === '2026-07-01' && row.metric === 'sessions')).toMatchObject({ value: 0, provisional: 0 });
+    await run(NOW + 9 * day);
+    expect(ranges().slice(4)).toEqual(Array(2).fill({ startDate: '2026-05-03', endDate: '2026-08-07' }));
+  });
+
   it('resolves a compiled per-account credential binding', () => {
     const encoded = btoa(
       JSON.stringify({
@@ -559,7 +581,7 @@ describe('Google signal collector', () => {
       expect(await errorCode()).toBe('ga4_http_429');
 
       await runGoogleSignals(env, {
-        nowMs: NOW,
+        nowMs: NOW + 5 * 60_000,
         fetchImpl: googleFetch({
           ga4Status: 429,
           ga4Error: {

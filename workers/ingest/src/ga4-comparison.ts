@@ -3,7 +3,7 @@ import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import { cachedGa4Read, ga4CacheScope, type Ga4ReadCache } from './ga4-read-cache.js';
 import { Ga4ReadError, ga4ReadFailure } from './ga4-read-errors.js';
 import { combineGa4Quota, parseGa4PropertyQuota, recordGa4Quota, quotaPressure } from './ga4-quota.js';
-import { responseJson } from './google-auth.js';
+import { GA4_CORE_BACKOFF_CODE, ga4CoreCooldown, readGa4CoreReport } from './ga4-core.js';
 import { normalizeSignalError, SignalError } from './signal-store.js';
 import { arrayField, asRecord, stringField } from './shared.js';
 import { dateInTimeZone, isValidTimeZone, shiftCalendarDate, zonedHourStartMs } from './time-zone.js';
@@ -15,7 +15,9 @@ const ROW_LIMIT = 10_000;
 /** Google pretty-prints a minute row at about 180 bytes, so a report inside its
  * row limit can pass the shared 1 MB bound. */
 const MAX_REPORT_BYTES = ROW_LIMIT * 300;
-type Report = { day: Ga4RealtimeDay; quota: Ga4PropertyQuota | null };
+type Report = { day: Ga4RealtimeDay; quota: Ga4PropertyQuota | null; basis: string };
+type PreviousComparison = { basis: string; minutes: (number | null)[] };
+type ReportRead = { store: WorkspaceStore; clock: () => number; previous: PreviousComparison | null };
 export type SharedComparisons = Map<string, Promise<{ value: Report; observedAt: string }>>;
 type Attempt = { observed_at: string; next_attempt_at: string; error_code: string | null; payload: string | null };
 
@@ -56,15 +58,16 @@ const refused = (check: string) => new SignalError(`ga4_comparison_${check}`, 'G
  * with two, GA4 adds a `dateRange` column and its `rowCount` no longer counts
  * the rows sent, so a complete answer could not be told from a truncated one. */
 async function minuteReport(property: string, accessToken: string, fetchImpl: typeof fetch, nowMs: number,
-  startDate: string, endDate: string): Promise<{ zone: string; rows: unknown[]; quota: Ga4PropertyQuota | null }> {
-  const response = await fetchImpl(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(property)}:runReport`, {
+  startDate: string, endDate: string, read: ReportRead): Promise<{ zone: string; rows: unknown[]; quota: Ga4PropertyQuota | null }> {
+  const init = {
     method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ dimensions: [{ name: 'dateHourMinute' }], metrics: [{ name: 'activeUsers' }], dateRanges: [{ startDate, endDate }],
       orderBys: [{ dimension: { dimensionName: 'dateHourMinute' } }], limit: ROW_LIMIT, returnPropertyQuota: true }),
     signal: AbortSignal.timeout(10_000),
-  });
-  const raw = await responseJson(response, MAX_REPORT_BYTES);
-  if (!response.ok) throw ga4ReadFailure('ga4_comparison', response, raw, nowMs, nowMs);
+  };
+  const { response, body: raw } = await readGa4CoreReport(read.store, property, fetchImpl, init,
+    { lane: 'ga4-comparison', clock: read.clock, maxBytes: MAX_REPORT_BYTES });
+  if (!response.ok) throw ga4ReadFailure('ga4_comparison', response, raw, nowMs, read.clock());
   const record = asRecord(raw), metadata = asRecord(record?.metadata);
   const dimensionHeaders = arrayField(record, 'dimensionHeaders'), metricHeaders = arrayField(record, 'metricHeaders');
   if (dimensionHeaders.length !== 1 || stringField(asRecord(dimensionHeaders[0]), 'name') !== 'dateHourMinute' ||
@@ -83,13 +86,14 @@ async function minuteReport(property: string, accessToken: string, fetchImpl: ty
 /** Reports cover only two bounded calendar ranges, including neighbouring
  * property dates so an installation clock need not match its GA4 property. */
 export async function collectComparison(property: string, accessToken: string, fetchImpl: typeof fetch, nowMs: number,
-  zone: string, changes: readonly TimeZoneChange[] = []): Promise<Report> {
+  zone: string, read: ReportRead, changes: readonly TimeZoneChange[] = []): Promise<Report> {
   const day = emptyComparison(nowMs, zone), priorDate = shiftCalendarDate(day.date, -7);
-  const [current, lastWeek] = await Promise.all([
-    minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(day.date, -1), 'today'),
-    minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(priorDate, -1), shiftCalendarDate(priorDate, 1)),
-  ]);
+  const current = await minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(day.date, -1), 'today', read);
   const propertyZone = current.zone;
+  const basis = comparisonBasis(propertyZone, changes);
+  const saved = read.previous?.basis === basis ? read.previous.minutes : null;
+  const lastWeek = saved?.length === day.minutes.length ? null
+    : await minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(priorDate, -1), shiftCalendarDate(priorDate, 1), read);
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
   const prior = Array<number | null>((priorEnd - priorStart) / MINUTE).fill(0);
@@ -140,27 +144,36 @@ export async function collectComparison(property: string, accessToken: string, f
     }
   }
   const seenLastWeek = new Set<string>();
-  for (const row of lastWeek.rows) {
-    const { at, count } = placed(row, seenLastWeek, lastWeek.zone);
-    const previous = (at - priorStart) / MINUTE;
-    if (previous >= 0 && previous < prior.length) prior[previous] = count;
+  if (lastWeek) {
+    for (const row of lastWeek.rows) {
+      const { at, count } = placed(row, seenLastWeek, lastWeek.zone);
+      const previous = (at - priorStart) / MINUTE;
+      if (previous >= 0 && previous < prior.length) prior[previous] = count;
+    }
   }
   // Explicit/omitted trailing zeros in an intraday report do not prove that
   // GA4 processed those minutes. Keep the newest nonzero minute provisional.
   const edge = Math.min(Math.floor((nowMs - start) / MINUTE), Math.max(-1, ...[...today].filter(([, value]) => value !== null && value > 0).map(([index]) => index)));
   day.minutes = day.minutes.map((_, i) => i < edge ? today.has(i) ? today.get(i)! : 0 : null);
-  day.sameDayLastWeek = alignComparisonMinutes(prior, priorStart, start, day.minutes.length, zone);
-  return { day, quota: combineGa4Quota(current.quota, lastWeek.quota) };
+  day.sameDayLastWeek = lastWeek ? alignComparisonMinutes(prior, priorStart, start, day.minutes.length, zone) : saved;
+  return { day, basis, quota: lastWeek ? combineGa4Quota(current.quota, lastWeek.quota) : current.quota };
+}
+
+function comparisonBasis(propertyZone: string, changes: readonly TimeZoneChange[]): string {
+  return JSON.stringify([propertyZone, changes]);
 }
 
 export type ComparisonObservation = { observedAt: string; nextAttemptAt: string; ok: boolean; code?: string };
 export async function updateComparison(env: IngestEnv, input: { asset: string; property: string; token: string; zone: string; nowMs: number;
-  fetchImpl: typeof fetch; cache: Ga4ReadCache | null; changes?: readonly TimeZoneChange[];
+  fetchImpl: typeof fetch; cache: Ga4ReadCache | null; changes?: readonly TimeZoneChange[]; clock?: () => number;
   shared: SharedComparisons; /** An operator's on-demand read: the stored retry time does not hold it back. */ force?: boolean }): Promise<ComparisonObservation | null> {
   const { asset, property, token, zone, nowMs, fetchImpl, changes = [], shared } = input;
   const date = dateInTimeZone(nowMs, zone);
   const prior = input.force ? null : await comparisonAttempt(env.STORE, asset, property, date, zone);
   if (prior && Date.parse(javascriptInstant(prior.next_attempt_at)) > nowMs) return null;
+  const cooling = await ga4CoreCooldown(env.STORE, property, nowMs);
+  if (cooling) return input.force
+    ? { observedAt: new Date(nowMs).toISOString(), nextAttemptAt: cooling, ok: false, code: GA4_CORE_BACKOFF_CODE } : null;
   let observedAt = new Date(nowMs).toISOString(), nextAttemptAt = new Date(nowMs + HOUR).toISOString();
   let payload: string | null = null, code: string | null = null;
   let quota: Ga4PropertyQuota | null = null;
@@ -168,20 +181,34 @@ export async function updateComparison(env: IngestEnv, input: { asset: string; p
     const key = JSON.stringify([property, date, zone, changes]);
     let read = shared.get(key);
     if (!read) {
-      read = cachedGa4Read(input.cache && { ...input.cache, scope: await ga4CacheScope([input.cache.scope, changes]), version: `comparison-minutes-v1:${date}:${zone}` }, 'comparison', nowMs, HOUR,
-        () => collectComparison(property, token, fetchImpl, nowMs, zone, changes));
+      read = (async () => {
+        const success = input.force ? null : prior?.payload ? prior : await comparisonAttempt(env.STORE, asset, property, date, zone, true);
+        const saved = success?.payload ? JSON.parse(success.payload) as Ga4RealtimeDay & { comparisonBasis?: string } : null;
+        const previous = saved?.comparisonBasis && saved.sameDayLastWeek
+          ? { basis: saved.comparisonBasis, minutes: saved.sameDayLastWeek } : null;
+        return cachedGa4Read(input.cache && { ...input.cache, scope: await ga4CacheScope([input.cache.scope, changes]), version: `comparison-minutes-v2:${date}:${zone}` },
+          'comparison', nowMs, HOUR, () => collectComparison(property, token, fetchImpl, nowMs, zone, {
+            store: env.STORE, clock: input.clock ?? (() => nowMs), previous,
+          }, changes));
+      })();
       shared.set(key, read);
     }
     const result = await read;
     observedAt = result.observedAt;
     nextAttemptAt = new Date(Date.parse(observedAt) + (quotaPressure(result.value.quota).length ? 4 * HOUR : HOUR)).toISOString();
-    payload = JSON.stringify(result.value.day);
+    payload = JSON.stringify({ ...result.value.day, comparisonBasis: result.value.basis });
     quota = result.value.quota;
   } catch (error) {
     const normalized = normalizeSignalError(error, 'The activity comparison is unavailable.');
     if (normalized.code === 'ga4_read_in_progress') return null;
+    if (normalized.code === GA4_CORE_BACKOFF_CODE) {
+      const retry = await ga4CoreCooldown(env.STORE, property, input.clock?.() ?? nowMs);
+      return input.force && retry ? { observedAt, nextAttemptAt: retry, ok: false, code: normalized.code } : null;
+    }
     code = normalized.code;
-    if (error instanceof Ga4ReadError) nextAttemptAt = new Date(Math.max(Date.parse(nextAttemptAt), Date.parse(error.nextAttemptAt))).toISOString();
+    const quotaRetry = await ga4CoreCooldown(env.STORE, property, input.clock?.() ?? nowMs);
+    if (quotaRetry && Date.parse(quotaRetry) > Date.parse(nextAttemptAt)) nextAttemptAt = quotaRetry;
+    if (error instanceof Ga4ReadError && !quotaRetry) nextAttemptAt = new Date(Math.max(Date.parse(nextAttemptAt), Date.parse(error.nextAttemptAt))).toISOString();
     console.warn(JSON.stringify({ event: 'ga4_comparison_refused', asset, propertyRef: property, code }));
   }
   await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.traffic_comparison_reports

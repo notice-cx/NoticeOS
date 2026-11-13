@@ -6,6 +6,7 @@ import {
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import { cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
+import { ga4CoreCooldown } from './ga4-core.js';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
 import { resolveGoogleCredential } from './google-oauth.js';
@@ -67,6 +68,8 @@ const familyReport = (family: string): string | null => {
  * tie by the newest date.
  */
 const CURRENT_STATE_ARCHIVES = new Set(['bing-webmaster', 'clarity', 'dataforseo']);
+const googleCadenceHours = (integration: 'ga4' | 'gsc') =>
+  integration === 'ga4' ? INTEGRATION_CADENCE_HOURS.ga4Signals : INTEGRATION_CADENCE_HOURS.signals;
 const since = (now: number, hours: number) => new Date(now - hours * REPORT_STALE_MULTIPLIER * 3_600_000).toISOString();
 
 /**
@@ -216,10 +219,10 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       failure: failure?.failure ?? null, code: failure?.code ?? null, nextAttemptAt: null };
   };
   const afterEdit = (connection: HealthConnection, at: string) => !connection.changedAt || Date.parse(at) >= Date.parse(connection.changedAt);
-  const daily = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, hours: number, paused: boolean) => {
+  const daily = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, hours: number, paused: boolean, nextAttemptAt?: string | null) => {
     const { runs, success } = await readDailyRuns(env.STORE, asset, lane, target, connection.changedAt ?? null);
     const history = runs.filter(row => afterEdit(connection, row.started_at));
-    await add({ connection, capability, asset, target, detail: lane === 'bing-webmaster' ? target.split('?')[0] : undefined, paused, requiredSince: since(nowMs, hours), lastSuccessAt: success?.finished_at, observations: await Promise.all(history.map(row => fromLegacy(connection, capability, asset, target, '', row))) });
+    await add({ connection, capability, asset, target, detail: lane === 'bing-webmaster' ? target.split('?')[0] : undefined, paused, nextAttemptAt, requiredSince: since(nowMs, hours), lastSuccessAt: success?.finished_at, observations: await Promise.all(history.map(row => fromLegacy(connection, capability, asset, target, '', row))) });
   };
   const archive = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, plan: { report: string; date?: string; cadenceDays: number; staleAfterHours?: number }[], paused: boolean) => {
     // Latest outcome of each exact report/date, plus its last successful attempt.
@@ -359,8 +362,13 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         const targets = connection.demo ? [] : googleTargets(google, google.source, googleCredentialResolver(env), register);
         for (const target of targets) {
           const paused = cellDeclined(register.assets[target.asset]?.[target.integration]);
-          if (target.integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-comparison']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused: paused || !realtimeSchedule.enabled });
-          await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.signals, paused);
+          const nextAttemptAt = target.integration === 'ga4' ? await ga4CoreCooldown(env.STORE, target.propertyRef, nowMs) : null;
+          if (target.integration === 'ga4') {
+            await add({ connection, capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef, paused: paused || !realtimeSchedule.enabled });
+            await add({ connection, capability: 'ga4-comparison', asset: target.asset, target: target.propertyRef,
+              paused: paused || !realtimeSchedule.enabled, nextAttemptAt });
+          }
+          await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, googleCadenceHours(target.integration), paused, nextAttemptAt);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
         }
         // A demo connection reads the properties the register maps, as a
@@ -368,7 +376,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         if (connection.demo) for (const integration of ['ga4', 'gsc'] as const) for (const { asset, ref } of registerMappedAssets(integration, register)) {
           const paused = cellDeclined(register.assets[asset]?.[integration]);
           if (integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-comparison']) await add({ connection, capability, asset, target: ref, paused: paused || !realtimeSchedule.enabled });
-          await daily(connection, `${integration}-daily`, asset, ref, integration, INTEGRATION_CADENCE_HOURS.signals, paused);
+          await daily(connection, `${integration}-daily`, asset, ref, integration, googleCadenceHours(integration), paused);
         }
       } else if (provider === 'bing-webmaster') {
         for (const target of await loadBingPortfolioCandidates(env.STORE)) {

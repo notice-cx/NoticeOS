@@ -115,10 +115,10 @@ and the operator-facing error body must not vary per route.
 | `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible asset's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, a sitemap outage, or a security header the home page stopped sending (`hygiene-security-headers`, read from the home-page response with no extra request). Six plain HTTPS requests per asset, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each asset's declared light and dark icons from one more GET of its home page and stores one row per asset in `asset_icons`. See [Asset icons](#asset-icons). |
 | `15 4 * * *` (04:15 UTC) | Chrome UX Report page speed | For each asset the hygiene guards read, two `records:queryRecord` calls (phones, desktops) on its origin, and two more on its `www.` host when the bare domain has no data; one `crux-vitals` reading per asset per day in `hygiene_checks` with the LCP, INP and CLS 75th percentiles. No key connected: no request and no row. See [docs/11 § Chrome UX Report](../../docs/11-integrations.md#chrome-ux-report). |
 | `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per asset that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. An asset with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
-| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive eight completed-day GA4 families and ten GSC breakdowns for the previous four dates, plus the BWT report families an asset is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier GA4 / Search Console dates an outage cost. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
+| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive the newest GA4 date and the day-four revision, four completed dates of GSC breakdowns, and the BWT report families an asset is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier dates affected by an outage or a GA4 quota refusal. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
 | `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then seven aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals`, `inp-targets` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run, lists the families it did not ask for, and stores its project retry delay across restarts. Collection sends no requests for that project until the delay expires; an on-demand call returns the retry deadline. Queries filter event names and dates before reading assets. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to seven earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
 | `45 12 * * 1` (Monday 12:45 UTC) | DataForSEO search intelligence | For every launched content asset, archive ranked keywords, backlink stock + 90-day movement, and Google/ChatGPT mention metrics — plus, where `config/serp-panel.json` names tracked head terms, one live result page per term **per device** (phone and desktop) with its AI Overview citation state. Exact report cost is indexed; the portfolio data cap fails closed before a call. |
-| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read asset total cards and pull bounded 97-day GA4/GSC daily snapshots: 90 visible asset-detail dates plus seven calculation-only dates. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
+| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read asset total cards and pull 97-day Search Console snapshots. The Google step also refreshes daily GA4 metrics once per hour. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
 
 The handler dispatches on the cron string verbatim: each expression is the
 dispatch key of one job in `scripts/scheduled-jobs.mts`, `src/dispatch.ts`
@@ -2083,9 +2083,12 @@ scope, and reuses it across the mapped targets. The Postgres run record stores
 `example-signals` as a safe `credential_ref`; it never stores the encoded JSON,
 private key, assertion, or access token.
 
-Both providers receive a bounded date-only 97-day request. The Tower renders
-90 dates on asset detail and retains the preceding seven out of view for
-the first visible day's prior-week comparison and rolling-average context:
+The Tower renders 90 dates on asset detail and reads seven preceding dates
+for the first prior-week comparison. Search Console requests all 97 dates
+every 15 minutes. Scheduled GA4 collection refreshes seven dates once per
+hour and reads all 97 on first collection, after a gap the seven-day window
+cannot cover, or when the last full read is a week old. A manual GA4 read
+requests all 97 dates.
 
 - GA4: `sessions`, `activeUsers`, `screenPageViews`, `eventCount`. Today's
   partial day **and yesterday** are marked provisional: a GA4 day stays
@@ -2105,23 +2108,10 @@ the first visible day's prior-week comparison and rolling-average context:
   provisional tail. UTC rollover must never manufacture tomorrow as a
   zero-valued partial day.
 
-Every attempt appends `signal_runs`; successes and errors are equally visible.
-The first success appends the normalized daily values to
-`signal_observations`. A later success appends only new/revised values, so the
-15-minute cadence does not copy an unchanged 97-day snapshot 96 times a day.
-Provider failures are isolated per account/scope/property and never erase the
-last-good chart.
-
-The longer horizon does not change quota consumption: it is still one request
-per provider/property every 15 minutes. The asset-detail API renders up to all
-90 dates; the compact Home/Wall read model applies its own 28-day slice.
-
-At the current cadence each asset makes 96 simple requests/day/provider.
-That is far below GSC's 1,200 queries/min/site limit and GA4's standard
-200,000 tokens/day + 40,000/hour budgets (most requests use fewer than ten
-tokens). Source processing is slower than polling — standard GA4 intraday is
-typically 2–6 hours, and GSC can lag — so multiple successful runs may correctly
-contain zero changed observations.
+Each request records its outcome in `signal_runs`. The first success
+appends daily values to `signal_observations`. Later successes append new
+or revised values. The charts keep the most recent saved values through
+provider failures. The compact Home and Wall charts show 28 days.
 
 ### GA4 realtime RPC
 
@@ -2129,9 +2119,10 @@ The **Realtime traffic** job collects every configured GA4 property once a
 minute, whether a Wall is open or closed. It uses the saved Google connection
 (service account or sign-in), reuses access tokens for at most 50 minutes, and
 makes two `runRealtimeReport` calls: one for the distinct 0–4 and 0–29 minute
-windows, and one for `activeUsers` grouped by `minutesAgo`. Once per hour it
-also reads two bounded Core `dateHourMinute` reports, one for today and one
-for the same weekday last week. Each asks for one date range: with two ranges
+windows, and one for `activeUsers` grouped by `minutesAgo`. The hourly Core
+backfill refreshes today’s `dateHourMinute` report. It also reads last week’s
+comparison once per day or when the reporting clock changes. Each request
+has one date range because with two ranges
 GA4 adds a `dateRange` column and its `rowCount` stops counting the rows sent,
 so truncation could not be detected. All assets sharing a property reuse that
 backfill.
@@ -2198,15 +2189,11 @@ failures and cadence are monitored separately. No browser independently retries 
 
 ## GA4 quota — what the heavy lanes are spending
 
-The Data API meters in **tokens per property**, per day and per hour — never in
-requests, so "how many calls did we make" does not answer "how close are we to
-the ceiling". `src/ga4-quota.ts` is the shared vocabulary; the realtime path
-above, the 12:15 archive, and the 15-minute collector all use it.
-
-Both heavy lanes send `returnPropertyQuota: true` — the archive runs 33 base
-requests per property per day before pagination, the 15-minute lane adds 96
-daily-series runs — so a ceiling hit in either is distinguishable from an
-outage or a bad credential.
+Collectors request quota readings with `returnPropertyQuota: true`.
+`src/ga4-quota.ts` records the reported token balances. Core requests also
+record the quota type and retry time on HTTP 429. The daily series, archives,
+activity comparisons and journey visitor counts share that cooldown for the
+property. Realtime and Funnel use their own quotas.
 
 | Where the answer goes | Lane |
 |---|---|
@@ -2223,16 +2210,13 @@ outage or a bad credential.
   forever — silently retiring the unchanged-detection that keeps the R2 footprint
   honest. The archive is evidence about the asset's data; what the call cost
   us is a different fact, and it travels beside it.
-- **An exhausted budget is not a rate limit.** Both arrive as HTTP 429; only one
-  needs an operator. `RESOURCE_EXHAUSTED` (or an explicit quota/token mention)
-  earns `ga4_quota_exhausted`, everything else stays `ga4_http_429`. Being loud
-  about the wrong one would train an operator to ignore the code.
-- **The flag follows `asset-pull-failed`.** A budget thin since 09:00 is one
-  problem, not the 96 the 15-minute lane would otherwise file: the first
-  observation inserts, later ones rewrite the open flag so the message carries
-  the *current* headroom, and a reading back over the line resolves it. A run
-  that reported no usable quota resolves **nothing** — not asking is never
-  evidence that the pressure lifted.
+- Core retries follow Google’s `Retry-After` when present. Otherwise the
+  cooldown lasts one hour for server errors and unspecified or hourly limits,
+  until midnight PST for daily limits, or five minutes for short rate limits.
+  The collector records the refusal and defers later requests during the
+  cooldown.
+- The first low quota reading opens a flag. Later readings refresh its
+  measured headroom, and a reading above the reserve resolves it.
 
 Warnings show absolute remaining tokens. The response's `consumed` is the
 latest request's cost, not cumulative usage, so adding it to `remaining` does
@@ -2248,9 +2232,9 @@ resolves only after its previously low buckets are measured above their reserves
 reuses the central Google account mapping and shared BWT client, but it never
 writes chart observations and the Tower never reads its objects directly.
 
-At 12:15 UTC it re-fetches the previous four completed dates:
+At 12:15 UTC it collects these reports:
 
-- GSC Web Search: `page-query`, `page`, `query`, `country`, `device`,
+- GSC Web Search, for the previous four completed dates: `page-query`, `page`, `query`, `country`, `device`,
   `page-country`, `page-device`, plus the two-step
   `search-appearance-pages` export required by Search Console. Image
   page×query and Discover page data are separate report families. All use
@@ -2259,8 +2243,9 @@ At 12:15 UTC it re-fetches the previous four completed dates:
 - GA4: completed-day `pages-screens`, `landing-pages`,
   `traffic-acquisition`, `traffic-sources`, `events`, `page-events`,
   `js-errors`, and `landing-page-acquisition`, plus one `events-28d` rolling
-  aggregate ending on the newest completed date. The rolling family is
-  collected once per run, not four times across the revision window. All use
+  aggregate ending on the newest completed date. Standard reports read the
+  newest date and the day-four revision, with additional requests for missing
+  dates and failed collections. The rolling aggregate runs once. All use
   25k-row pages and a 250k-row/report/day cap. `js-errors` runs in
   [probe mode](#probe-mode-for-an-always-empty-family) and needs
   [registered custom dimensions](#ga4-event-parameters-need-operator-registration).

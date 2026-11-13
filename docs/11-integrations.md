@@ -16,7 +16,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | Integration | Provides | Consumed by | Access | Cost model | Quota / limits in practice | On failure |
 |---|---|---|---|---|---|---|
 | **GSC API** | live collector: daily Google-search clicks, impressions, CTR, average position; daily archive: ten report families ([doc 02](02-signal-contract.md#central-signals)) | Sense (S2), Attribute | service account; Full-user grant per property; read-only API scope | Free | live total query runs 96/day/site; the archive adds 40 base requests/day/property (ten report families × four dates), search-appearance expansion, and pagination. Search Analytics exposes at most 50k rows/day/search type and does not guarantee every row, so an archive is analysis-grade evidence, not a complete log | retain last good snapshot/archive, record the failed report manifest, suppress dependent flags |
-| **GA4 Data API** | daily active users, sessions, page views and events; scheduled realtime distinct users in trailing 30- and 5-minute windows and retained per-minute activity; daily report archives ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account or Google sign-in; Viewer grant per property; read-only API scope | Free tier, separate token quotas per property and request category | daily-series query runs 96/day/property; realtime makes two requests/property/minute independently of open displays and slows when quota is low; browser reads use saved data; one shared Core minute-history backfill (two requests: today and last week)/property/hour for the Wall; archives add 33 base requests/day/property plus pagination | retain successful readings; failed or missing collection leaves gaps; show Core and Realtime quota warnings separately in remaining tokens; no sum of minute counts becomes a daily unique-user total |
+| **GA4 Data API** | daily active users, sessions, page views and events; scheduled realtime distinct users in trailing 30- and 5-minute windows and retained per-minute activity; daily report archives ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account or Google sign-in; Viewer grant per property; read-only API scope | Free tier, separate token quotas per property and request category | daily-series queries run up to 24/day/property; realtime makes two requests/property/minute independently of open displays and slows when quota is low; browser reads use saved data; the Wall refreshes today’s Core minute history hourly and reuses last week’s comparison for the rest of the day; archives collect the newest completed date and a later revision | retain successful readings; failed or missing collection leaves gaps; show Core and Realtime quota warnings separately in remaining tokens; no sum of minute counts becomes a daily unique-user total |
 | **Bing Webmaster Tools API** | live: asset-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per asset (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings stay valid; can also block NoticeOS's own probes) | optional data source — degrade without an error, flag staleness |
 | **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; seven bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run and stores a project retry delay; missing rows are not zeros |
@@ -558,17 +558,16 @@ bearer token.
 
 ## Central Google signal collector
 
-What the 15-minute GA4 and GSC collector gathers is defined in the
+What the GA4 and GSC collector gathers is defined in the
 [signal contract](02-signal-contract.md#central-signals); how it is built
 (the account map, token reuse, provisional days, append-only runs) is in
 [the ingest README](../workers/ingest/README.md#google-signals-ga4--gsc).
 
-**What it costs.** One GA4 and one GSC request per property every 15 minutes,
-96 a day per provider, whatever the date range: the 97-day window adds no
-requests. That is far below GSC's 1,200 queries/min/site and GA4's
-200,000 tokens/day and 40,000/hour per property (most of these requests cost
-fewer than ten tokens). Every request also requests GA4's quota state, so spend
-is measured rather than inferred
+**What it costs.** Scheduled GA4 collection makes up to 24 daily-series
+requests per property per day. It normally requests seven dates and reads 97
+dates for initial collection, gap recovery, and weekly reconciliation.
+Search Console requests 97 dates every 15 minutes. GA4 requests include the
+provider’s quota readings
 ([GA4 quota](../workers/ingest/README.md#ga4-quota--what-the-heavy-lanes-are-spending)).
 
 **How it fails.** The Tower never calls Google; it reads the latest run for
@@ -585,8 +584,9 @@ on: rows under the old label stay as historical evidence.
 The **Realtime traffic** schedule collects two Realtime reports per property
 per minute: the exact 5- and 30-minute distinct-user counts, and users per
 minute. Saved observations supply every display and retain today's chart
-with an hourly Core minute-history backfill for today and the same weekday
-last week. The backfill supplies the comparison immediately. The collector runs with either service-account
+with an hourly Core minute-history backfill for today. The first successful
+backfill of the day also reads the same weekday last week. Later backfills
+reuse that comparison while the property and reporting clocks match. The collector runs with either service-account
 or Google sign-in authentication. More displays add no provider calls.
 
 Quota is measured from Google's responses. Core and Realtime use separate
@@ -620,12 +620,11 @@ from the panel files is [doc 20](20-signal-panels.md).
   dates), plus the search-appearance expansion and pagination. Discover runs in
   probe mode, so a property Google never shows in Discover costs one request a
   day rather than four.
-- **GA4:** 33 base requests a day per property (eight daily families × four
-  dates, plus one rolling 28-day aggregate), plus pagination; `js-errors` runs
-  in probe mode too, so a property whose pages never throw costs one request a
-  day for it. The archive keeps each collection's quota beside the pages, never
-  inside the hashed bytes, and a bucket under 20% raises `ga4-quota-pressure`
-  before the failures start.
+- **GA4:** Daily report families read the newest completed date and a final
+  revision on day four. Missing or failed dates can add recovery requests.
+  The rolling 28-day aggregate runs once per day. Pagination adds requests
+  when the response spans multiple pages. Custom-dimension reports depend
+  on the property’s registrations.
 - **Bing Webmaster:** one shared site-list request, then four requests per
   verified asset a day, six on the asset's own seventh day, because the
   top-query and top-page reports are weekly snapshots.

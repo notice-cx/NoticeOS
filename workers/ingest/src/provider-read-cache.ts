@@ -26,6 +26,7 @@ export interface ProviderReadPolicy {
   leaseMs: number;
   allowEarlyRead: boolean;
   failureRetryMs: number;
+  refreshAt?: (startedAt: number) => number;
 }
 export class ProviderReadCacheError extends Error {
   constructor(readonly code: 'cache_unavailable' | 'coordination_unavailable' | 'in_progress', readonly observedAt: string, readonly nextAttemptAt: string) {
@@ -101,7 +102,7 @@ export async function cachedProviderRead<T, Failure extends ProviderReadFailure>
     try {
       nowMs = clock();
       at = new Date(nowMs).toISOString();
-      entry = { ok: true, value: await read(), observedAt: at, refreshAt: new Date(nowMs + ttlMs).toISOString() };
+      entry = { ok: true, value: await read(), observedAt: at, refreshAt: new Date(policy.refreshAt?.(nowMs) ?? nowMs + ttlMs).toISOString() };
     } catch (error) {
       entry = failedRead(error, at, new Date(nowMs + policy.failureRetryMs).toISOString());
     }

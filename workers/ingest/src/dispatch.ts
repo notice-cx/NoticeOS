@@ -65,6 +65,7 @@ import { recordManualRun, type JobRunOutcome } from './job-runs.js';
 interface RunConfig {
   journeyConfig: JourneyConfig | undefined;
   notificationRecovery?: boolean;
+  scheduled?: boolean;
   pullEntries: PullAssetConfig[] | undefined;
   counters: CountersConfig | undefined;
   laneRegister: LaneRegister | undefined;
@@ -193,6 +194,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
           journeyConfig: cfg.journeyConfig,
           osTimeZone: cfg.osTimeZone,
           configSources: cfg.configSources,
+          scheduled: cfg.scheduled,
         }),
       'search-recovery': (env, cfg) =>
         cfg.dataForSeoPaused
@@ -235,6 +237,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
           laneRegister: cfg.laneRegister,
           osTimeZone: cfg.osTimeZone,
           configSources: cfg.configSources,
+          scheduled: cfg.scheduled,
         }),
     },
   },
@@ -266,7 +269,7 @@ export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowReco
     capture.output({ sources: configs.sources });
     return configs;
   }, undefined, { cron, trigger, operation: 'config' }) : await readCollectorConfigs(env);
-  const cfg = { ...runConfig(loaded), notificationRecovery: trigger !== 'event' };
+  const cfg = { ...runConfig(loaded), notificationRecovery: trigger !== 'event', scheduled: trigger !== 'manual' };
   if (trigger === 'manual' && job && !job.manualOnly && schedulePaused(cfg.constants, job.id)) return { outcome: 'skipped', detail: 'Workflow is paused' };
   const answers: Record<string, unknown> = {};
   await settleWorkflowSteps(Object.entries(lanes.steps).map(([id, lane]) =>
@@ -494,13 +497,17 @@ export async function runCollectNow(
     sites = [];
     for (const asset of assets) {
       const outcomes = run.outcomes.filter((outcome) => outcome.asset === asset);
-      if (outcomes.length === 0) continue;
+      const deferred = run.deferred.find((entry) => entry.asset === asset);
+      if (outcomes.length === 0) {
+        if (deferred) sites.push({ asset, outcome: 'skipped', code: deferred.reason });
+        continue;
+      }
       const unmeasured = outcomes.every((outcome) => outcome.egressDown === true);
       const failed = outcomes.find((outcome) => outcome.status === 'error');
       sites.push({
         asset,
         outcome: unmeasured ? 'unmeasured' : outcomes.some((outcome) => outcome.status === 'success') ? 'collected' : 'failed',
-        code: failed?.errorCode ?? null,
+        code: failed?.errorCode ?? deferred?.reason ?? null,
       });
     }
   } else if (plan.step.step === 'revenue') {

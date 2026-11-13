@@ -8,6 +8,7 @@ import { asRecord, sha256Hex } from './shared.js';
 import { dateInTimeZone, isValidTimeZone, shiftCalendarDate } from './time-zone.js';
 import { previousTimeZone } from './time-zone-change.js';
 import { GA4_QUOTA_RESERVE, isQuotaExhausted, parseGa4PropertyQuota } from './ga4-quota.js';
+import { ga4CoreCooldown, readGa4CoreReport } from './ga4-core.js';
 import { signalObjectScope } from './signal-objects.js';
 import { redactLogText } from '../../../scripts/os-log.mjs';
 
@@ -206,12 +207,14 @@ async function cachedVisitorsComplete(env: IngestEnv, cached: CachedJourney): Pr
 export async function runGa4Journeys(input: {
   env: IngestEnv; target: GooglePropertyTarget; definitions: readonly JourneyDefinition[]; nowMs: number;
   accessToken: string | (() => Promise<string>); fetchImpl: typeof fetch; budget: JourneyBudget;
+  clock?: () => number;
   archive: (report: string, end: string, collected: CollectedDump) => Promise<SignalDumpOutcome>;
   reuse: (report: string, end: string, cached: CachedJourney) => Promise<SignalDumpOutcome>;
   failed: (report: string, end: string, error: unknown) => Promise<SignalDumpOutcome>;
   quota: (quota: Ga4PropertyQuota | null) => Promise<void>;
 }): Promise<SignalDumpOutcome[]> {
   const { env, definitions, nowMs, budget } = input;
+  const clock = input.clock ?? (() => nowMs);
   let target = input.target;
   const outcomes: SignalDumpOutcome[] = [];
   const active = definitions.filter((d) => d.kind === 'funnel' && d.status === 'active' && d.source !== 'first-party');
@@ -220,7 +223,8 @@ export async function runGa4Journeys(input: {
   if (observedTimeZone && isValidTimeZone(observedTimeZone)) target = { ...target, timeZone: observedTimeZone, timeZoneAssumed: false };
   const objects = await signalObjectScope(env);
   const visitorCounts = new Map<string, JourneyVisitors>();
-  let visitorQuotaLow = await savedFunnelQuotaLow(env, target, nowMs, 'core');
+  let visitorQuotaLow = Boolean(await ga4CoreCooldown(env.STORE, target.propertyRef, clock())) ||
+    await savedFunnelQuotaLow(env, target, nowMs, 'core');
   let haltCause: unknown = await savedFunnelQuotaLow(env, target, nowMs)
     ? new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted') : null;
   for (const definition of active) {
@@ -272,11 +276,10 @@ export async function runGa4Journeys(input: {
             const visitorRequest = ga4VisitorRequest(period);
             try {
               budget.remaining -= 1;
-              const visitorResponse = await input.fetchImpl(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(target.propertyRef)}:runReport`, {
+              const { response: visitorResponse, body: visitorBody } = await readGa4CoreReport(env.STORE, target.propertyRef, input.fetchImpl, {
                 method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify(visitorRequest), signal: AbortSignal.timeout(30_000),
-              });
-              const visitorBody = await boundedResponseJson(visitorResponse, 'Google visitors', 1024 * 1024);
+              }, { lane: 'ga4-journeys', clock, maxBytes: 1024 * 1024 });
               visitorPage = { request: visitorRequest, response: visitorResponse.ok ? visitorBody : { status: visitorResponse.status } };
               if (!visitorResponse.ok) {
                 visitorQuotaLow = true;

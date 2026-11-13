@@ -222,24 +222,29 @@ GSC, GA4, DataForSEO ranking/SERP/LLM signals, backlinks and CrUX, pulled by
 NoticeOS crons with portfolio credentials, plus the revenue and cost data
 below.
 
-The ingest Worker's 15-minute Sense cron
-pulls rolling 97-day daily windows for GA4 (`active_users`, `sessions`,
-`page_views`, `event_count`) and GSC (`clicks`, `impressions`, `ctr`,
-`position`): 90 visible asset-detail dates plus seven calculation-only dates
-for the first visible day's prior-week comparison. The 02:30 UTC nightly run
+The ingest Worker collects Search Console every 15 minutes and GA4 daily
+metrics once per hour. GA4 collects `active_users`, `sessions`,
+`page_views` and `event_count` for the latest seven dates. It requests all
+97 dates on initial collection, after a gap that extends past the short window
+or when the last full read is a week old. Search Console requests 97 dates of
+`clicks`, `impressions`, `ctr` and `position` each time. Stored history
+supplies 90 visible asset-detail dates plus seven dates for the first
+prior-week comparison.
+The 02:30 UTC nightly run
 lists the non-retired portfolio assets verified under the central Bing
 Webmaster key and pulls their daily `clicks` and `impressions`, including
 read-only collection for Sense-only pre-launch assets. It keeps up to
 the same 97 days of history from the dates Bing actually returns. Every
 attempt appends a run; an observation is appended only when a provider value
 changes.
-The longer request changes neither call cadence nor API request count. Google
+Google
 service-account credentials are stored once and tagged with the properties
 they give access to; one Bing user-level key covers all verified assets.
 
-The separate 12:15 UTC analysis job archives the previous four completed
-Google dates plus the current Bing Webmaster snapshots through operator-owned
-credentials. It preserves bounded provider responses in the private/local
+The separate 12:15 UTC analysis job archives four completed Search Console
+dates, the newest completed GA4 date and its day-four revision, and the
+current Bing Webmaster snapshots through operator-owned credentials.
+The GA4 job also collects missing and failed dates. It preserves bounded provider responses in the private/local
 `RAW_SIGNALS` R2 bucket. The families are below; their request costs and
 ceilings are in [doc 11](11-integrations.md#daily-provider-analysis-archive)
 and the job's mechanics in the

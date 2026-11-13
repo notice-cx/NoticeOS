@@ -25,6 +25,10 @@ export async function saveGa4Reading(store: WorkspaceStore, property: string, re
     reading.quota == null ? null : JSON.stringify(reading.quota)]));
 }
 
+export function nextRealtimeMinute(ms: number): number {
+  return (Math.floor(ms / MINUTE_MS) + 1) * MINUTE_MS;
+}
+
 /** Scarce quota slows the one collector, never each browser independently.
  * Daily buckets reset at midnight PST; hourly buckets refill within an hour. */
 export function realtimeNextReadAt(reading: Reading, nowMs: number): number {
@@ -36,7 +40,7 @@ export function realtimeNextReadAt(reading: Reading, nowMs: number): number {
   const delay = daily != null && daily <= 1_000 || hourly != null && hourly <= 400 ? 3_600_000
     : daily != null && daily <= 10_000 || hourly != null && hourly <= 2_000 ? 15 * MINUTE_MS
       : daily != null && daily <= 40_000 || hourly != null && hourly <= 8_000 ? 5 * MINUTE_MS : MINUTE_MS;
-  return observed + delay;
+  return delay === MINUTE_MS ? nextRealtimeMinute(observed) : observed + delay;
 }
 
 export function realtimeReadDue(reading: Reading, nowMs: number): boolean {
