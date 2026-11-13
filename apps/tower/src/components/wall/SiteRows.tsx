@@ -110,6 +110,7 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
 function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number }) {
   const { binding } = useWallMetricBinding();
   const reference = !binding?.configured || binding.tile.reference !== false;
+  const chartCutoffHidden = binding?.configured && (binding.tile.axes === false || binding.tile.display === "number");
   const daily = todayUserCounts(asset, snapshot, nowMs);
   const retained = currentRealtimeDay(snapshot, nowMs, daily.timeZone ?? undefined);
   const minute = Math.floor(nowMs / 60_000);
@@ -125,15 +126,15 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
   return <SparklineCompareMetric title="Today" icon={TrendingUp} className="wall-metric-today"
     primary={{ value: <span data-site-today-total data-estimated={estimated ? true : undefined} title={totalMeaning} aria-label={total === null ? "Daily active users today unavailable" : `${formatInt(total)} ${estimated ? "estimated" : "daily"} active users today so far`}>{total === null ? <span aria-label="Unavailable">—</span> : formatInt(total)}</span>, unit: <>{estimated ? "estimated users" : "reported users"}{estimate && nowMs - Date.parse(estimate.through) > 3 * 60_000 ? <AgeBadge iso={estimate.through} cadenceHours={1 / 60} nowMs={nowMs} /> : null}</> }}
-    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`${daily.referenceEstimated ? 'Estimated' : 'Reported'} full-day active users on ${daily.referenceDate}, ${daily.timeZone}`}>{formatInt(daily.reference)}</span> }}
+    referenceFact={{ label: `${lastWeekdayLabel(daily.timeZone, nowMs)} full day`, value: daily.reference === null ? null : <span data-site-today-reference title={`${daily.referenceEstimated ? 'Estimated' : 'Reported'} full-day active users on ${daily.referenceDate}, ${daily.timeZone}`}>{formatInt(daily.reference)}</span> }}
     secondary={
     <span data-site-today>
-      {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
+      {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} showCutoff={chartCutoffHidden} /> : <span className="wall-metric-note">Comparison unavailable</span>}
     </span>} chart={<>
     <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)}>
       {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" reference={reference} /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} reference={reference} /> : null}
     </div>
-    <div className="wall-site-axis"><span>{retained ? "avg users/min" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
+    <div className="wall-site-axis"><span>{retained ? "avg users/min" : pace?.paceChange != null ? "Hourly activity" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
   </>} />;
 }
 
@@ -160,16 +161,19 @@ function lastWeekdayLabel(zone: string | null, nowMs: number): string {
 
 
 
-function PaceFigure({ pace }: { pace: IntradayUsersPace }) {
+function PaceFigure({ pace, showCutoff }: { pace: IntradayUsersPace; showCutoff?: boolean }) {
   if (pace.paceChange === null) return <span className="wall-metric-note">Gathering pace</span>;
   return (
-    <DeltaChip
-      value={pace.paceChange}
-      render={(value) => `${formatPercent(value)}%`}
-      tone={wallTrafficTone(pace.paceChange)}
-      meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
-      className="whitespace-nowrap"
-    />
+    <span className="inline-flex flex-col items-end">
+      <DeltaChip
+        value={pace.paceChange}
+        render={(value) => `${formatPercent(value)}%`}
+        tone={wallTrafficTone(pace.paceChange)}
+        meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
+        className="whitespace-nowrap"
+      />
+      {showCutoff && <span className="text-wall-micro text-muted-foreground">Hourly activity {paceWindowLabel(pace)}</span>}
+    </span>
   );
 }
 
@@ -214,7 +218,7 @@ function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
   return activity.change !== null ? (
     <span className="inline-flex flex-col items-end" title={meaning}>
       <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} />
-      <span className="text-wall-micro text-muted-foreground">day so far</span>
+      <span className="text-wall-micro text-muted-foreground">Minute activity{through && ` to ${through}`}</span>
     </span>
   ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
 }

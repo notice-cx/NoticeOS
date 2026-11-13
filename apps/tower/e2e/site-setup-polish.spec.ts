@@ -125,7 +125,8 @@ test.beforeEach(async ({ request, page }, info) => {
     await syntheticSite(page);
     // Ring + link, warning + button, neutral dot without action, and closed.
     await page.goto("/dev/kitchen-sink");
-    const gallery = page.getByRole("heading", { name: "StatusBanner — only while its state is open", exact: true }).locator("..");
+    const gallery = page.locator("#status-banner-examples");
+    await gallery.waitFor({ state: "attached" });
     const variants = gallery.locator("[role=status]");
     await expect(variants).toHaveCount(3);
     const others = [];

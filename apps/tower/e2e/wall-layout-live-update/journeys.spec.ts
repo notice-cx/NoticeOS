@@ -143,9 +143,13 @@ test("tile transparency previews its bounds without fading figures or charts", {
   const slider = page.getByRole("slider", { name: "Tile transparency" });
   const preview = page.locator("[data-wall-preview]");
   await expect(slider).toHaveValue("0");
-  const tile = preview.locator('[data-wall-metric="today"]').first();
+  const tile = preview.locator('[data-wall-metric="today"][data-wall-asset="mosaic.example"]');
+  const figure = tile.locator("[data-site-today-total]");
   const chart = tile.locator("svg[role=img]");
   await expect(chart).toBeAttached();
+  await expect(figure).toHaveText(/\d/);
+  const total = (await figure.innerText()).trim();
+  const figureColor = await figure.evaluate(element => getComputedStyle(element).color);
   const before = await tile.evaluate(element => ({ color: getComputedStyle(element).color, text: element.querySelector("h3")!.textContent, chart: element.querySelector("svg[role=img]")!.innerHTML }));
   const chartColor = await chart.evaluate(element => getComputedStyle(element).color);
   for (const value of [0, 50, 100]) {
@@ -170,6 +174,9 @@ test("tile transparency previews its bounds without fading figures or charts", {
     expect(separator.separatorAlpha).toBeCloseTo(backgroundAlpha * .6, 2);
     await expect(chart).toHaveCSS("opacity", "1");
     await expect(chart).toHaveCSS("color", chartColor);
+    await expect(figure).toHaveCSS("opacity", "1");
+    await expect(figure).toHaveCSS("color", figureColor);
+    await expect(figure).toHaveText(total);
     expect(await tile.evaluate(element => ({ color: getComputedStyle(element).color, text: element.querySelector("h3")!.textContent, chart: element.querySelector("svg[role=img]")!.innerHTML }))).toEqual(before);
     await page.screenshot({ path: testInfo.outputPath(`wall-transparency-${value}.png`), fullPage: true });
   }

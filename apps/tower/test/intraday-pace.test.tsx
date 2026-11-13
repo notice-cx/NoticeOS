@@ -6,6 +6,7 @@
 import { render } from "./render";
 import { describe, expect, it } from "vitest";
 import type { Ga4HourlyActiveUsers, Ga4RealtimePayload } from "@noticeos/contract";
+import type { WallWidget } from "@shared/wall-layout";
 import { SiteRows } from "@/components/wall/SiteRows";
 import {
   PACE_VERDICT_MINIMUM,
@@ -80,7 +81,7 @@ describe("intradayUsersPace: no percent until the hours can carry one", () => {
   });
 });
 
-function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number) {
+function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number, widget?: WallWidget) {
   const realtime = wallFixtureRealtime();
   const payload: Ga4RealtimePayload = {
     ...realtime,
@@ -88,7 +89,7 @@ function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number) {
   };
   const assets = wallFixturePayload().assets;
   const container = render(
-    <SiteRows assets={assets} ga4Realtime={payload} nowMs={nowMs} />,
+    <SiteRows assets={assets} ga4Realtime={payload} nowMs={nowMs} widget={widget} />,
   ).container;
   return container.querySelector(`[data-site-row="${asset.id}"] [data-site-today]`)!.closest(".wall-metric")!;
 }
@@ -109,7 +110,8 @@ describe("the Wall's today cell", () => {
 
   it("once they do: the percent over the chart with its cutoff below", () => {
     const today = drawRow(SIX_HOURS, LATE_MORNING);
-    expect(today.querySelector('[data-site-today]')?.textContent).toBe("10%");
+    expect(today.querySelector('[data-site-today]')).toHaveTextContent("10%");
+    expect(today.querySelector(".wall-site-axis")).toHaveTextContent("Hourly activity");
     expect(today.querySelector('[data-pace-window="shown"]')?.textContent).toBe("to 6 AM");
     expect(today.querySelector('[data-site-today] [aria-label]')?.getAttribute("aria-label"))
       .toMatch(/^10% behind; completed hours today vs /u);
@@ -117,6 +119,18 @@ describe("the Wall's today cell", () => {
     const tones = [...today.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"));
     expect(tones).toEqual(["wall-traffic-decline", "wall-traffic-decline"]);
   });
+
+  it.each([{ display: "number" }, { display: "compare", axes: false }] as const)(
+    "keeps the hourly cutoff with the percentage when the chart axis is unavailable (%o)",
+    options => {
+      const today = drawRow(SIX_HOURS, LATE_MORNING, {
+        id: "sites", type: "sites", width: 1,
+        settings: { metrics: [{ id: "today", source: "today", size: "standard", ...options }] },
+      });
+      const pace = today.querySelector("[data-site-today]");
+      expect(pace).toHaveTextContent("10%Hourly activity to 6 AM");
+    },
+  );
 
   it("puts the breathing now point at the clock and ends today's line where the data ends", () => {
     const today = drawRow(NIGHT, BREAKFAST);
