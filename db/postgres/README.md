@@ -541,7 +541,7 @@ by column; retention and maintenance privileges are checked separately.
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
 | `mediavine_state` | insert, update, delete | Retry state. |
 | `mercury_readings` | append-only | Append-only complete bank observations, scoped to the connection and its edit time; never booked as revenue or cost. |
-| `notification_events` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | The type, source and payload stay fixed. A delivery updates the same row from pending to sent or cancelled. |
+| `notification_events` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at, legacy_condition | The type, source and payload stay fixed. A delivery updates the same row from pending to sent or cancelled. |
 | `notification_outbox` (view) | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | Previous app versions enqueue and update delivery state through this view. |
 | `notifications` (view) | append-only | Previous app versions read and record successful deliveries through this view. |
 | `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |

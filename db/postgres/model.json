@@ -394,7 +394,8 @@
           "next_attempt_at",
           "lease_id",
           "lease_until",
-          "finished_at"
+          "finished_at",
+          "legacy_condition"
         ],
         "delete": false
       },

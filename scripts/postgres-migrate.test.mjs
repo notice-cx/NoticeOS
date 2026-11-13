@@ -818,7 +818,7 @@ test('notification upgrade preserves workspace history and accepts delivery from
       UPDATE noticeos.notification_outbox q SET lease_id = '0000000d-0000-4000-8000-00000000000d',
         lease_until = '${sentAt}', attempts = attempts + 1 FROM due WHERE q.event_id = due.event_id;
       INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
-      VALUES (:'workspace_id', 'discord', 'mediavine-revenue', '${asset}', '2026-11-10', 'daily-mediavine-revenue', '${sentAt}')
+      VALUES (:'workspace_id', 'discord', 'mediavine-revenue', '${asset}', '2026-11-10', 'legacy-revenue-condition', '${sentAt}')
       ON CONFLICT DO NOTHING;
       UPDATE noticeos.notification_outbox SET state = 'sent', finished_at = '${sentAt}', lease_id = NULL, lease_until = NULL
       WHERE lease_id = '0000000d-0000-4000-8000-00000000000d';
@@ -829,6 +829,23 @@ test('notification upgrade preserves workspace history and accepts delivery from
       notification_type: 'daily-mediavine-revenue', source_ref: asset, state: 'sent',
       amount: '7', month: '49', attempts: '1', lease_id: null,
     });
+    assert.deepEqual(inWorkspace(dev, second, '', { read: `
+      SELECT condition FROM noticeos.notifications WHERE occurrence = '2026-11-10'`
+    }), [{ condition: 'legacy-revenue-condition' }]);
+    assert.throws(() => inWorkspace(dev, first, `UPDATE noticeos.notification_events
+      SET state = 'sent' WHERE source_kind = 'alert' AND source_ref = '1'`), /finished notification events cannot change/iu);
+    inWorkspace(dev, first, `
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'alert', '1', '', 'late-legacy-receipt', '${sentAt}')
+      ON CONFLICT DO NOTHING;
+      INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES (:'workspace_id', 'discord', 'alert', '1', '', 'duplicate-receipt', '${at}')
+      ON CONFLICT DO NOTHING;
+    `);
+    assert.deepEqual(inWorkspace(dev, first, '', { read: `
+      SELECT condition, sent_at = '${sentAt}'::timestamptz AS time_kept
+      FROM noticeos.notifications WHERE subject = 'alert' AND subject_ref = '1'`
+    }), [{ condition: 'late-legacy-receipt', time_kept: 't' }]);
     assert.throws(() => inWorkspace(dev, second, `
       INSERT INTO noticeos.notification_events
         (workspace_id, notification_type, source_kind, source_ref, occurrence, occurred_at)

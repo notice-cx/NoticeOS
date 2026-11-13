@@ -52,7 +52,7 @@ CREATE POLICY workspace_isolation ON noticeos.notification_events
   USING (workspace_id = noticeos.current_workspace_id())
   WITH CHECK (workspace_id = noticeos.current_workspace_id());
 GRANT SELECT, INSERT ON noticeos.notification_events TO noticeos_app;
-GRANT UPDATE (state, attempts, next_attempt_at, lease_id, lease_until, finished_at)
+GRANT UPDATE (state, attempts, next_attempt_at, lease_id, lease_until, finished_at, legacy_condition)
   ON noticeos.notification_events TO noticeos_app;
 GRANT SELECT ON noticeos.notification_events TO noticeos_maint;
 
@@ -149,6 +149,13 @@ CREATE FUNCTION noticeos.guard_finished_notification() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog
 AS $$
 BEGIN
+  -- The previous app can receive a Discord confirmation after its event was cancelled.
+  IF OLD.state = 'cancelled' AND NEW.state = 'sent' AND OLD.legacy_condition IS NULL
+      AND coalesce(NEW.legacy_condition, '') <> ''
+      AND (to_jsonb(OLD) - ARRAY['state', 'finished_at', 'legacy_condition'])
+        = (to_jsonb(NEW) - ARRAY['state', 'finished_at', 'legacy_condition']) THEN
+    RETURN NEW;
+  END IF;
   RAISE EXCEPTION 'finished notification events cannot change' USING ERRCODE = '23514';
 END
 $$;
@@ -213,8 +220,11 @@ GRANT SELECT, INSERT ON noticeos.notifications TO noticeos_app;
 GRANT SELECT ON noticeos.notifications TO noticeos_maint;
 
 CREATE FUNCTION noticeos.insert_legacy_notification_receipt() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, noticeos AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
+  IF NEW.condition IS NULL OR NEW.condition = '' THEN
+    RAISE EXCEPTION 'notification receipt requires a condition' USING ERRCODE = '23514';
+  END IF;
   INSERT INTO noticeos.notification_events (
     workspace_id, channel, notification_type, source_kind, source_ref, occurrence,
     occurred_at, created_at, state, next_attempt_at, finished_at, legacy_condition
@@ -223,12 +233,14 @@ BEGIN
     noticeos.legacy_notification_source_kind(NEW.subject), NEW.subject_ref,
     NEW.occurrence, NEW.sent_at, NEW.sent_at, 'sent', NEW.sent_at, NEW.sent_at, NEW.condition
   ) ON CONFLICT (workspace_id, channel, notification_type, source_kind, source_ref, occurrence) DO UPDATE
-    SET state = 'sent', finished_at = EXCLUDED.finished_at, lease_id = NULL, lease_until = NULL
-    WHERE notification_events.state = 'pending';
+    SET state = 'sent', finished_at = EXCLUDED.finished_at, lease_id = NULL, lease_until = NULL,
+        legacy_condition = EXCLUDED.legacy_condition
+    WHERE notification_events.state IN ('pending', 'cancelled');
   IF NOT FOUND THEN RETURN NULL; END IF;
   RETURN NEW;
 END
 $$;
+REVOKE EXECUTE ON FUNCTION noticeos.insert_legacy_notification_receipt() FROM PUBLIC;
 CREATE TRIGGER insert_notification_receipt INSTEAD OF INSERT ON noticeos.notifications
   FOR EACH ROW EXECUTE FUNCTION noticeos.insert_legacy_notification_receipt();
 
