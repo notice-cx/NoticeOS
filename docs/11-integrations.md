@@ -31,7 +31,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per asset → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the asset that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
 | **Uptime** | up/down per asset, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each asset's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per asset per hour; an asset read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no asset is marked down (the egress gate) and the row shows Not checked |
-| **Discord webhooks** | operator notifications — a **new open error alert** and a **data source that stops working**, and nothing else; the list is declared once in `packages/contract` (`NOTIFIED_CONDITIONS`) so the card and the sender always use the same list | ingest → operator | one webhook url, connected on `/integrations` ([below](#how-to-connect-one)) | Free | keep channels few — alert fatigue is a documented failure mode, which is why the list is two lines rather than a digest | fall back to email |
+| **Discord webhooks** | new open error alerts, data source failures, and daily Mediavine revenue when enabled | ingest → operator | one HTTPS webhook URL, connected on `/integrations` ([below](#how-to-connect-one)) | Free | one channel per workspace | fall back to email |
 | **Web search API** | grounded scouting (categories 1–4, [doc 13](13-opportunity-scouting.md)) | Scout sweeps | API key | Metered, cheap per query | budgeted per category; results cached in the store | the category skips that cycle |
 | **Deep-research runs** | bounded multi-source investigations for high-stakes scout finds | Scout (categories 1/3/5) | via model gateway | **The most expensive item** — per-run cap mandatory | few runs/month; each run must name the find it investigates | skip; never substitute a shallow guess |
 | **Google Trends** | demand timing/seasonality for scout finds | Scout, Decide sizing | public/unofficial API | Free | rate-limited; directional only | omit trend dimension |
@@ -319,9 +319,17 @@ no call.
 
 ### What the notification channel carries
 
-- **Two conditions.** `NOTIFIED_CONDITIONS` in `packages/contract` is both what
-  the notifier sends and what the card lists: a new open **error** alert,
-  and a data source that changes to **Failing**. Nothing else.
+- **Alerts and failures.** The Discord integration lists the two notifications
+  it sends by default, a new open **error** alert and a data source that changes
+  to **Failing**.
+- **Daily Mediavine revenue.** Turn on **Daily Mediavine revenue** under
+  **Settings → Notifications**. The first saved figure for each asset and
+  reporting date includes the amount, collection time and change from the same
+  weekday seven days earlier. Each card shows Mediavine revenue for the
+  reporting month through that date. The projected total extends the average
+  daily pace to the end of that month once every day through the reporting
+  date has a figure. Rechecks and revised figures do not create another
+  notification for the same asset and date.
 - **Event-triggered delivery.** Source transactions save notification intent in
   `notification_outbox`. The standalone runner listens for committed wake-ups,
   groups events for one second, and sends up to ten events per message.
@@ -339,10 +347,10 @@ no call.
 - **At least once.** A crash after Discord accepts a message but before its
   receipt commits can cause a duplicate. Leases prevent concurrent consumers
   from sending the same claimed batch.
-- **Operator-controlled migration.** An existing installation needs migration
-  `0021_notification_outbox.sql` before updating the application. Startup does
-  not apply it. The schema change is additive and retains the existing receipt
-  table. Without the required queue or receipt store, no message is sent.
+- **Operator-controlled migrations.** The notification queue starts with
+  `0021_notification_outbox.sql`. Daily revenue notifications also require
+  `0029_mediavine_revenue_notifications.sql`. Apply pending migrations before
+  updating an existing installation. [Database migrations](../scripts/README.md#database-migrations)
 
 ### Clarity: the one per-asset credential
 

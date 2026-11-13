@@ -391,6 +391,11 @@ describe('a day Mediavine has not published yet', () => {
 
   it('stores the days before it, keeps it unknown, and asks again each hour until its figure arrives', async () => {
     await connect();
+    expect(await applyConfigOps(env, { actor: 'operator', ops: [{
+      kind: 'file-json-set', file: 'config/constants.json', pointer: '/discord_mediavine_revenue', expect: false, value: true,
+    }] })).toMatchObject({ ok: true });
+    const queuedYesterday = () => storedCount(
+      "SELECT count(*)::int AS n FROM noticeos.notification_outbox WHERE subject = 'mediavine-revenue' AND occurrence = '2026-09-08'");
     let published = false;
     const fetchImpl = transport({ revenueOn: (date) => (date === YESTERDAY && !published ? 0 : 1.25) });
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW })).outcome).toBe('ran');
@@ -405,9 +410,11 @@ describe('a day Mediavine has not published yet', () => {
     expect(JSON.parse(String(log.mock.lastCall?.[0]))).toMatchObject({ event: 'mediavine_sync', asset: ASSET, outcome: 'waiting' });
     expect(reports(fetchImpl)).toBe(2);
     expect(await storedDays()).toHaveLength(7);
+    expect(await queuedYesterday()).toBe(0);
     published = true;
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 2 * HOUR })).outcome).toBe('ran');
     expect(await storedDays()).toContainEqual([YESTERDAY, 125]);
+    expect(await queuedYesterday()).toBe(1);
     await runMediavine(env, { fetchImpl, nowMs: NOW + 3 * HOUR });
     expect(reports(fetchImpl)).toBe(3);
   });

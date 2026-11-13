@@ -47,6 +47,7 @@ import { NTASKS_APP_CLIENT_ID, NTASKS_URL, ntasksOrigin } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
+import { DISCORD_WEBHOOK_FIELD, discordWebhookUrl } from './discord-webhook.js';
 
 /** Only the server's standalone profile may resolve legacy provider bindings. */
 export function usesLegacyCredentialBindings(env: IngestEnv): boolean {
@@ -802,7 +803,9 @@ export function validateCredentialFields(
       );
       continue;
     }
-    if (provider.id === 'local-model' && field.name === LOCAL_MODEL_OUTPUT_TOKENS) {
+    if (provider.id === 'discord' && field.name === DISCORD_WEBHOOK_FIELD) {
+      if (discordWebhookUrl(value) === null) issues.push(issue(field.name, 'invalid_url', 'Enter an HTTPS webhook URL.'));
+    } else if (provider.id === 'local-model' && field.name === LOCAL_MODEL_OUTPUT_TOKENS) {
       if (parseLocalModelOutputTokens(value) === null) issues.push(issue(field.name, 'invalid', `Enter a whole number from ${MIN_LOCAL_MODEL_OUTPUT_TOKENS} to ${MAX_LOCAL_MODEL_OUTPUT_TOKENS}.`));
     } else issues.push(...validateFieldShape(field, value));
   }
@@ -816,8 +819,7 @@ function validateFieldShape(field: IntegrationField, value: string): ValidationI
       : [];
   }
 
-  // A url that is itself the credential (a Discord webhook): checked like one
-  // entry of a `url-list`, refused by field name, never echoed.
+  // A URL credential is refused by field name and never echoed.
   if (field.kind === 'url') {
     const trimmed = value.trim();
     if (trimmed === '') return [issue(field.name, 'blank', `${field.label} is blank.`)];

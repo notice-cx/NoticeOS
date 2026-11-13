@@ -35,6 +35,7 @@ export type KnobControl =
       offValue: JsonValue;
       onLabel: string;
       offLabel: string;
+      groupLabel?: string;
       onTone?: StateTone;
       offTone?: StateTone;
     };
@@ -56,7 +57,7 @@ export interface KnobEditorProps {
    * than one pointer (moving an asset between entities' lists); all land in
    * one changeset and each is inverted for Undo. An empty array is a no-op.
    */
-  makeOp: (value: JsonValue) => SettingOp | SettingOp[];
+  makeOp: (value: JsonValue, current: JsonValue) => SettingOp | SettingOp[];
   control: KnobControl;
   /** The changeset slug (and commit subject) for a file-owned knob. */
   slug?: string;
@@ -126,13 +127,13 @@ export function KnobEditor({
 
   // `every` rather than `[0]`: a setting whose current value writes no op
   // still needs the configuration store.
-  const isFileKnob = opsOf(makeOp(current)).every((op) => op.kind === "file-json-set");
+  const isFileKnob = opsOf(makeOp(shown, shown)).every((op) => op.kind === "file-json-set");
   // Asset columns have their own write lane; documents need a ready config store.
   const readOnly = isFileKnob && !writable;
 
   /** The one write, or the gallery's fake writer, whose way back is the
    * previous value handed to the same writer and whose throw is a refusal. */
-  async function write(ops: SettingOp[], from: JsonValue): Promise<FieldSaveOutcome> {
+  async function write(ops: SettingOp[], from: JsonValue, to: JsonValue): Promise<FieldSaveOutcome> {
     if (!onSave) return saveField({ ops, slug, label });
     try {
       for (const op of ops) await onSave(op);
@@ -142,7 +143,7 @@ export function KnobEditor({
     return {
       saved: true,
       undo: async () => {
-        for (const op of opsOf(makeOp(from))) await onSave(op);
+        for (const op of opsOf(makeOp(from, to))) await onSave(op);
         return { undone: true };
       },
     };
@@ -153,7 +154,7 @@ export function KnobEditor({
     setOutcome(null);
     try {
       const from = shown;
-      const result = await write(opsOf(makeOp(value)), from);
+      const result = await write(opsOf(makeOp(value, from)), from, value);
       if (!result.saved) {
         setOutcome({ kind: "refused", refusal: result.refusal });
         return false;
@@ -372,6 +373,7 @@ function ChoiceInput({
     <div className="flex flex-wrap items-center gap-2">
       {control.type === "toggle" ? (
         <Segmented
+          label={control.groupLabel}
           options={[
             { value: control.onValue, label: control.onLabel, tone: control.onTone },
             { value: control.offValue, label: control.offLabel, tone: control.offTone },
@@ -414,18 +416,20 @@ function ChoiceInput({
 
 /** A two-state segmented control, the sole state display for a boolean knob. */
 function Segmented({
+  label,
   options,
   value,
   disabled,
   onChange,
 }: {
+  label?: string;
   options: { value: JsonValue; label: string; tone?: StateTone }[];
   value: JsonValue;
   disabled: boolean;
   onChange: (v: JsonValue) => void;
 }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-border">
+    <div className="inline-flex overflow-hidden rounded-md border border-border" role={label ? "group" : undefined} aria-label={label}>
       {options.map((o, i) => {
         const active = o.value === value;
         const tone = o.tone ? STATE_TONE[o.tone] : null;

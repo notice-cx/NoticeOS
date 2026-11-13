@@ -21,6 +21,7 @@ most of it in place.
 | `os_time_zone` | The operator's clock — the IANA zone intraday charts, revenue days and the open month are read in | both Workers, store first, on every request or run (`savedOsTimeZone` in `packages/contract/src/time-zone-setting.ts`) | yes, **General → Clock** |
 | `schedules` | Optional local job schedule overrides, keyed by stable job id | the local scheduler (`scripts/scheduled-job-runner.mts`); see [scheduled job configuration](../scripts/README.md#scheduled-job-configuration) | from the Workflows page, **Edit schedule** |
 | `operator_rate_usd_per_min` | What a minute of operator time costs the ledger | the Tower's settings and financials payloads | yes, **General → Budget** |
+| `discord_mediavine_revenue` | Send a Discord notification when an asset's daily Mediavine revenue is first recorded. Default off | Mediavine collection and Discord delivery | yes, **Notifications → Discord** |
 | `explore_sleeve` | Share of effort reserved for exploration | reference value; no code reads it | no |
 | `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
 | `flag_defaults.alpha` | Anomaly sensitivity, allocated across candidate prediction windows and tails; not a portfolio false-alarm guarantee | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |

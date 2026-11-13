@@ -22,7 +22,7 @@ import type { IntegrationsConfig } from "../shared/integrations";
 import { logicalTaskProjects, type TaskProjectsConfig } from "../shared/settings";
 import { type DashboardConfig, readDashboardConfig } from "../shared/dashboard";
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
-import { portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
+import { discordMediavineRevenueEnabled, portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
 import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 
@@ -72,6 +72,7 @@ export interface TowerConfigFallbacks {
 }
 
 export interface TowerConfig extends TowerConfigFallbacks {
+  discordMediavineRevenue: boolean;
   /** Always answered once resolved: the saved list, or null for none. */
   noNightlyReport: string[] | null;
   /** Always answered once resolved: the saved schedules, or null for none. */
@@ -265,6 +266,7 @@ export async function resolveTowerConfig(
 
   return {
     monthlyCaps,
+    discordMediavineRevenue: discordMediavineRevenueEnabled(constants),
     portfolioReviewAssetIds: constants === undefined ? fallbacks.portfolioReviewAssetIds ?? null : portfolioReviewAssetIds(constants),
     flagDefaults,
     operatorRateUsdPerMin,

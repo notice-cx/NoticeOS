@@ -10,6 +10,7 @@ import { credentialSummary, deleteCredential, putCredential, recordCredentialOut
 import { javascriptInstant } from '@noticeos/postgres';
 import { MEDIAVINE_LEASE, mediavineClient, mediavineMessage, withMediavineLease, type MediavineOptions } from './mediavine-connection.js';
 import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
+import { enqueueMediavineNotifications } from './mediavine-notifications.js';
 
 interface Lane { mediavineSiteId?: string; mediavineEnabled?: boolean; status?: string; revenueHolidayCalendar?: MediavineSettings['holidayCalendar'] }
 interface Register { assets?: Record<string, Record<string, Lane>> }
@@ -225,6 +226,10 @@ export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string
   // day in the report's order, so a repeated day reads the figure the report
   // wrote before it.
   await env.STORE.write(async (tx) => {
+    // Serialize first-observation checks even when a report is written outside the collector lease.
+    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+      `noticeos.mediavine-revenue:${tx.workspaceId}:${asset}`,
+    ]);
     await tx.execute(
       'INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING',
       [tx.workspaceId, report.site.id, asset]);
@@ -244,6 +249,7 @@ export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string
                                AND revenue_date = $5::date AND item_ref IS NULL AND amount_minor = $6::bigint)`,
         [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, day.date, day.amountMinor, runId, report.fetchedAt]);
     }
+    await enqueueMediavineNotifications(tx, asset, runId, report);
   });
   return runId;
 }

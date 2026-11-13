@@ -94,6 +94,7 @@ export async function handleStoredRead(request: Request, {
     if (views[0] === 'preferences') return Response.json({ clock, operatorRateUsdPerMin: cfg.operatorRateUsdPerMin }, { headers: JSON_HEADERS });
     const payload = buildSettingsPayload({
       now: new Date(),
+      discordMediavineRevenue: cfg.discordMediavineRevenue,
       osTimeZone: cfg.osTimeZone,
       timeZoneChosen: clock.chosen,
       monthlyCaps: cfg.monthlyCaps,

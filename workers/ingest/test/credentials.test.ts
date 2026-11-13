@@ -488,7 +488,7 @@ describe('validation — the same rules whichever door the write came through', 
     ).toEqual([]);
   });
 
-  it('holds a single url field to the same standard as one feed entry', () => {
+  it('accepts a complete HTTPS Discord webhook and refuses invalid addresses without echoing them', () => {
     // The commonest Discord mistake is pasting the webhook ID rather than the
     // whole address, so it is refused by field rather than stored as a string
     // nobody can post to.
@@ -501,6 +501,10 @@ describe('validation — the same rules whichever door the write came through', 
     expect(
       validateCredentialFields(discord, { DISCORD_WEBHOOK_URL: 'file:///etc/passwd' })[0]!.code,
     ).toBe('invalid_url');
+    const httpWebhook = DISCORD_WEBHOOK.replace(/^https:/, 'http:');
+    const http = validateCredentialFields(discord, { DISCORD_WEBHOOK_URL: httpWebhook });
+    expect(http).toMatchObject([{ path: 'DISCORD_WEBHOOK_URL', code: 'invalid_url' }]);
+    expect(JSON.stringify(http)).not.toContain(httpWebhook);
   });
 
   it('refuses a whole write when any field is invalid', async () => {
@@ -779,6 +783,23 @@ describe('probes — one cheap real call, credential outcomes recorded, no secre
     // Discord's own body is provider-controlled text and is never reflected.
     expect(probe.message).not.toContain('Unknown Webhook');
     expect(probe.message).not.toContain(DISCORD_WEBHOOK);
+  });
+
+  it('reports a redirect as a failed Discord connection test without following it', async () => {
+    await putCredential(env, {
+      provider: 'discord',
+      fields: { DISCORD_WEBHOOK_URL: DISCORD_WEBHOOK },
+    });
+    const redirect = 'http://discord.test/redirect';
+    const probe = await probeCredential(env, 'discord', {
+      nowMs: NOW,
+      fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) =>
+        init?.redirect === 'manual'
+          ? new Response(null, { status: 307, headers: { Location: redirect } })
+          : new Response(null, { status: 204 })) as typeof fetch,
+    });
+    expect(probe).toMatchObject({ ok: false, result: { outcome: 'unreachable', status: 307 } });
+    expect(JSON.stringify(probe)).not.toContain(redirect);
   });
 
   it('answers for Clarity without calling Clarity, and stamps no verdict it did not earn', async () => {
