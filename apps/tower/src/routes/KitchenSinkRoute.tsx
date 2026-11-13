@@ -2868,19 +2868,20 @@ const demoYesterday = (amountMinor: number | null): DailyRevenueSummary => ({
 /** June so far: $560 of the ledger's forecast, two sites paced to $850, both
  * sites' reports for yesterday in. */
 const revenueOnPace = [
-  { revenueProjection: demoMonthProjection(60_000, 40_000, 50_000), dailyRevenue: demoYesterday(2_118) },
-  { revenueProjection: demoMonthProjection(25_000, 16_000, 18_000), dailyRevenue: demoYesterday(804) },
+  { ...cardLive, revenueProjection: demoMonthProjection(60_000, 40_000, 50_000), dailyRevenue: demoYesterday(2_118) },
+  { ...cardWarn, revenueProjection: demoMonthProjection(25_000, 16_000, 18_000), dailyRevenue: demoYesterday(804) },
 ];
 /** The same month against a smaller May: passed on a reported day; one of the
  * two sites' reports for yesterday is not in yet. */
 const revenuePassed = [
-  { revenueProjection: demoMonthProjection(60_000, 40_000, 30_000), dailyRevenue: demoYesterday(2_118) },
-  { revenueProjection: demoMonthProjection(25_000, 16_000, 10_000), dailyRevenue: demoYesterday(null) },
+  { ...cardLive, revenueProjection: demoMonthProjection(60_000, 40_000, 30_000), dailyRevenue: demoYesterday(2_118) },
+  { ...cardWarn, revenueProjection: demoMonthProjection(25_000, 16_000, 10_000), dailyRevenue: demoYesterday(null) },
 ];
-const revenueLearning: { revenueProjection: RevenueProjection; dailyRevenue: DailyRevenueSummary }[] = [
+const revenueLearning = [
   {
+    ...cardLive,
     revenueProjection: {
-      ...demoMonthProjection(0, 0, null), status: "insufficient-history", reason: "Learning from traffic and revenue · 12/21 days.",
+      ...demoMonthProjection(0, 0, null), status: "insufficient-history" as const, reason: "Learning from traffic and revenue · 12/21 days.",
       earnedMinor: null, projectedMinor: null, dailyPaceMinor: null, points: [],
     },
     dailyRevenue: demoYesterday(1_530),
@@ -5808,17 +5809,17 @@ export function KitchenSinkRoute() {
 
           <Section title="WallWork (counted / partial inbox / nothing read)">
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
-              <WallWork assets={wallFixture.assets} operator={wallFixture.operator} nowMs={NOW} />
+              <WallWork projects={wallFixture.assets.map(asset => asset.work)} operator={wallFixture.operator} nowMs={NOW} />
             </div>
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallWork
-                assets={wallFixture.assets}
+                projects={wallFixture.assets.map(asset => asset.work)}
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 3, urgentMeasuredProjects: 3, projectCount: 6, capturedAt: iso(0) }}
                 nowMs={NOW}
               />
             </div>
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
-              <WallWork assets={[]} operator={null} nowMs={NOW} />
+              <WallWork projects={[]} operator={null} nowMs={NOW} />
             </div>
           </Section>
 

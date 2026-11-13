@@ -1,7 +1,7 @@
 import { CircleDollarSign } from "lucide-react";
-import type { WordLevel } from "@shared/views";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import { wallMetricTiles, type WallWidget } from "@shared/wall-layout";
+import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { WallMetricBinding } from "./WallMetricEditing";
 import { CumulativeCompareMetric, type CumulativeCompareMetricProps, type MetricComparisonChartProps, type MetricMovement } from "@/components/wall/MetricWidgets";
 import {
@@ -12,7 +12,7 @@ import {
   formatUsd,
   formatSeriesDate,
 } from "@/lib/format";
-import { monthRevenue, yesterdayTotal, type MonthPace, type YesterdayTotal } from "@/lib/wall-revenue";
+import { monthRevenue, yesterdayTotal, type MonthPace } from "@/lib/wall-revenue";
 
 // The Wall's revenue widget: the month so far, where it lands, yesterday's
 // money, and the month as a line against last month's total. The arithmetic
@@ -20,21 +20,19 @@ import { monthRevenue, yesterdayTotal, type MonthPace, type YesterdayTotal } fro
 //
 // The shared comparison tile keeps the month's facts beside a contained chart.
 
+type RevenueAsset = Pick<AssetCard, "id" | "displayName" | "icons" | "revenueProjection" | "dailyRevenue">;
+
 export interface RevenueHeroProps {
   portfolio: PortfolioBand;
-  assets: readonly Pick<AssetCard, "revenueProjection" | "dailyRevenue">[];
+  assets: readonly RevenueAsset[];
   /** The Wall's clock, which "yesterday" is asked on; this render's own when
    * absent. */
   nowMs?: number;
   timeZone?: string;
-  /** The words of the view the TV is drawn for: "business" calls an estimate
-   * "so far", as Home's money does; the other levels say "est.". */
-  wordLevel?: WordLevel;
   widget?: WallWidget;
 }
 
-export function RevenueHero({ portfolio, assets, nowMs, timeZone, wordLevel = "operational", widget }: RevenueHeroProps) {
-  const business = wordLevel === "business";
+export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: RevenueHeroProps) {
   const model = monthRevenue(portfolio, assets);
   const yesterday = yesterdayTotal(assets, nowMs ?? Date.now(), timeZone);
 
@@ -73,27 +71,24 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, wordLevel = "o
     current: actual.map(point), forecast: forecast.map(point),
     previousTotal: pace.previousTotal === null ? undefined : { value: pace.previousTotal, label: `${formatPeriodMonth(pace.previousPeriod)} total ${formatUsd(pace.previousTotal)}` },
     domain: { start: first.date, end: last.date },
-    startLabel: `${formatPeriodMonth(model.period)} ${first.day}`,
-    endLabel: `${formatPeriodMonth(model.period)} ${last.day}`,
+    showLabels: false,
     tone: "revenue",
   } : undefined;
   const secondary: CumulativeCompareMetricProps["secondary"] = [
     ...(pace ? [{ label: "Projected month", value: <span data-revenue-pace>{formatUsd(pace.projected)}</span>, labelPosition: "below" as const }] : []),
-    ...(yesterday ? [yesterdayFact(yesterday, business)] : []),
-    ...(pace ? [{ label: pace.daysLeft === 1 ? "day left" : "days left", value: pace.daysLeft, size: "detail" as const, labelPosition: "below" as const }] : []),
+    ...(yesterday ? [yesterdayFact(yesterday)] : []),
   ];
   const note = model.waiting || model.revenue === null && model.previousMonth ? <>
     {model.waiting ? <span data-revenue-waiting>{model.waiting}</span> : null}
     {model.revenue === null && model.previousMonth ? <span data-revenue-previous-month>
-    {formatPeriodMonthYear(model.previousMonth.period)} {formatUsd(model.previousMonth.revenue)} est.{model.previousMonth.reported < model.previousMonth.sites ? <> · {model.previousMonth.reported} of {model.previousMonth.sites} assets</> : null}
+    {formatPeriodMonthYear(model.previousMonth.period)} {formatUsd(model.previousMonth.revenue)}{model.previousMonth.reported < model.previousMonth.sites ? <> · {model.previousMonth.reported} of {model.previousMonth.sites} assets</> : null}
   </span> : null}</> : undefined;
   return <section aria-label="Revenue this month" data-metrics-configured={widget?.settings?.metrics !== undefined || undefined} data-wall-revenue={model.revenue === null ? "waiting" : pace ? "pace" : "figure"}>
     {wallMetricTiles(widget ?? { id: "revenue", type: "revenue", width: 1 }).map(tile => <WallMetricBinding key={tile.id} tile={tile} configured={widget?.settings?.metrics !== undefined}>
     <CumulativeCompareMetric
       title={model.periodIsCurrent ? "Revenue this month" : `${month} revenue`}
-      icon={CircleDollarSign} expanded context="USD"
+      icon={CircleDollarSign} expanded className="wall-revenue-metric"
       value={model.revenue === null ? null : <span data-revenue-figure>{formatUsd(model.revenue)}</span>}
-      valueNote={`${month}${model.revenue !== null && model.state === "forecast" ? business ? " · so far" : " · estimated" : ""}`}
       movement={movement} secondary={secondary} note={note}
       chartProps={chartProps} chartUnavailable={model.waiting ?? "No projection available"}
     />
@@ -101,16 +96,22 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, wordLevel = "o
   </section>;
 }
 
-/** Provider reporting dates and coverage stay with the amount they qualify. */
-function yesterdayFact(total: YesterdayTotal, business: boolean): NonNullable<CumulativeCompareMetricProps["secondary"]>[number] {
-  const basis = total.basis ? `${formatSeriesDate(total.basis.date)} · ${total.basis.label ?? total.basis.timeZone}` : "provider days";
-  if (total.amount === null) return {
-    label: "Yesterday", dividerBefore: true, size: "detail",
-    value: <span data-revenue-yesterday="none">Not reported yet</span>, note: basis,
-  };
+function yesterdayFact(total: NonNullable<ReturnType<typeof yesterdayTotal<RevenueAsset>>>): NonNullable<CumulativeCompareMetricProps["secondary"]>[number] {
+  const basis = total.basis && `${formatSeriesDate(total.basis.date)} · ${total.basis.label ?? total.basis.timeZone}`;
   return {
     label: "Yesterday", dividerBefore: true,
-    value: <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"}><span data-revenue-yesterday-figure>{formatUsd(total.amount, { cents: true })}</span></span>,
-    note: `${basis} · ${business ? "so far" : "est."}${total.reported < total.sites ? ` · ${total.reported} of ${total.sites} assets` : ""}`,
+    value: total.amount === null
+      ? <span data-revenue-yesterday="none" className="wall-revenue-unreported">Not reported yet</span>
+      : <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"}>
+        <span data-revenue-yesterday-figure>{formatUsd(total.amount, { cents: true })}</span>
+      </span>,
+    note: <span className="wall-revenue-sites" role="group" aria-label={basis ? `Reports for ${basis}` : "Yesterday’s reports"}>
+      {total.coverage.map(({ asset, reported }) => {
+        const status = `${asset.displayName} · ${reported ? "Reported" : "Waiting for report"}`;
+        return <span key={asset.id} role="img" aria-label={status} title={status} data-revenue-site={reported ? "reported" : "waiting"}>
+          <PropertyFavicon domain={asset.id} displayName={asset.displayName} icons={asset.icons} scheme="dark" />
+        </span>;
+      })}
+    </span>,
   };
 }

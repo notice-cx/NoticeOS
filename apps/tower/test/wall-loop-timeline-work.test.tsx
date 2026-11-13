@@ -104,7 +104,7 @@ describe("the loop", () => {
 
 describe("the work chart", () => {
   it("is one quiet line when nothing was read at all, never a chart of unknowns", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", null)]} operator={null} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[null]} operator={null} nowMs={NOW} />);
     expect(container.querySelector("[data-wall-work]")).toHaveAttribute("data-wall-work", "none");
     expect(container.querySelector("[data-wall-work]")).toHaveTextContent("Tasks unknown");
     expect(container.querySelector("[data-work-flow]")).toBeNull();
@@ -112,16 +112,15 @@ describe("the work chart", () => {
 
   it("keeps queue counts and throughput unknown when only the inbox was counted", () => {
     const operator = { waiting: 1, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 1, capturedAt: at(0) };
-    const { container } = render(<WallWork assets={[asset("a.example", null)]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[null]} operator={operator} nowMs={NOW} />);
     expect(container.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(4);
-    expect(container).toHaveTextContent("Comparison unavailable");
     expect(container.querySelector('[role="table"]')).toBeNull();
     expect(container.querySelector("a, button")).toBeNull();
   });
 
   it("keeps project rows in the portfolio and shows the observed totals", () => {
     const operator = { waiting: 2, urgent: 0, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: at(0) };
-    const { container } = render(<WallWork assets={[asset("a.example", WORK), asset("b.example", WORK)]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[WORK, WORK]} operator={operator} nowMs={NOW} />);
     expect(container.querySelector("[data-work-row]")).toBeNull();
     expect(container.querySelector('[aria-label="Your decisions"] .wall-metric-value')).toHaveTextContent("2");
   });

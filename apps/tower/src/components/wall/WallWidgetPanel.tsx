@@ -303,7 +303,7 @@ export function WallWidgetPanel({
 
         {widget.type === "sites" ? <WallRowAppearance settings={widget.settings} disabled={disabled} onSettings={settings => onSettings(widget.id, settings)} /> : null}
 
-        {spec.settings.includes("assets") ? (
+        {widget.type !== "work" && spec.settings.includes("assets") ? (
           <AssetFilter
             assets={assets}
             offBy={(asset) => siteOffWords(asset, display, widget.type)}
@@ -348,13 +348,11 @@ export function WallWidgetPanel({
 }
 
 /** Why a site cannot be ticked for this widget, in the words the list shows,
- * or null when it can: off the TV by its own setting, or, for Work, off Work
- * this week by its own. */
+ * or null when it can be selected. */
 function siteOffWords(asset: AssetCard, display: SiteDisplay | undefined, type: string): string | null {
   if (type === "needs") return null;
   const shown = siteShownOn(asset, display);
   if (!shown.tv) return "Off on the TV by its own setting";
-  if (type === "work" && !shown.work) return "Off in Work this week by its own setting";
   return null;
 }
 

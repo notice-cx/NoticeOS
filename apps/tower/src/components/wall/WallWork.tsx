@@ -1,20 +1,19 @@
 import { CircleCheck, Hand, LoaderCircle, Ban, ListTodo, ChartBar } from "lucide-react";
-import type { AssetCard, OperatorPosture } from "@shared/wall";
+import type { OperatorPosture, WorkSummary } from "@shared/wall";
 import { wallMetricTiles, type WallWidget, type WallMetricSource } from "@shared/wall-layout";
 import type { CSSProperties, ReactNode } from "react";
-import { WallMetricBinding } from "./WallMetricEditing";
+import { WallMetricBinding, useWallMetricBinding } from "./WallMetricEditing";
 import { sumWorkWeeks, weekMove, WORK_POLL_CADENCE_HOURS, type WeekMove } from "@shared/work";
 import { isAmber } from "@shared/freshness";
 import { operatorWaiting } from "@/lib/operator-posture";
-import { shiftRevenueDate } from "@shared/revenue-projection";
 import { formatInt } from "@/lib/format";
-import { CumulativeCompareMetric, MetricTile, NumberMetric, type MetricMovement } from "./MetricWidgets";
+import { MetricTile, NumberMetric, type MetricMovement } from "./MetricWidgets";
 import { WorkStatus } from "./WorkStatus";
 import "./WallWork.css";
 import "./WallRowHeading.css";
 
 export interface WallWorkProps {
-  assets: readonly AssetCard[];
+  projects: readonly (WorkSummary | null)[];
   operator: OperatorPosture | null | undefined;
   nowMs: number;
   widget?: WallWidget;
@@ -24,9 +23,35 @@ function movement(move: WeekMove | null | undefined): MetricMovement | undefined
   return move ? { label: formatInt(Math.abs(move.by)), basis: "vs a week ago", direction: move.direction, tone: move.verdict === "good" ? "positive" : move.verdict === "bad" ? "negative" : "neutral" } : undefined;
 }
 
-export function WallWork({ assets, operator, nowMs, widget }: WallWorkProps) {
-  const observed = assets.flatMap(asset => asset.work ?? []);
-  const partial = observed.length < assets.length;
+function WeeklyCompletions({ done, before, partial, complete }: { done: number | null; before: number | null; partial: boolean; complete: boolean }) {
+  const { binding } = useWallMetricBinding();
+  const config = binding?.configured ? binding.tile : undefined;
+  const value = done === null || (partial && done === 0) ? null : formatInt(done);
+  const qualifier = value !== null && partial ? "At least" : undefined;
+  if (config?.display === "number") return <NumberMetric title="Done this week" icon={CircleCheck} value={value} qualifier={qualifier} />;
+  const comparable = complete && config?.reference !== false && done !== null && before !== null;
+  const max = Math.max(1, done ?? 0, before ?? 0);
+  return <MetricTile icon={CircleCheck} title="Done this week" size="wide" className="wall-weekly-completions">
+    <div className="wall-weekly-comparison">
+      <div className="wall-weekly-count">
+        {qualifier ? <span className="wall-metric-note wall-metric-qualifier">{qualifier}</span> : null}
+        <strong className="wall-metric-value" data-metric-value>{value ?? <span aria-label="Unavailable">—</span>}</strong>
+        {done === null ? <span className="wall-metric-note">History unavailable</span> : null}
+      </div>
+      {comparable ? <div className="wall-weekly-benchmark" data-week-comparison>
+        <div className="wall-weekly-bars" role="img" aria-label={`${formatInt(done)} completed this week. ${formatInt(before)} by the same time last week.`}>
+          <span data-week-bar="current" style={{ "--week-bar-fill": `${done / max * 100}%` } as CSSProperties} />
+          <span data-week-bar="previous" style={{ "--week-bar-fill": `${before / max * 100}%` } as CSSProperties} />
+        </div>
+        <div className="wall-weekly-reference"><strong>{formatInt(before)}</strong> by this time last week</div>
+      </div> : null}
+    </div>
+  </MetricTile>;
+}
+
+export function WallWork({ projects, operator, nowMs, widget }: WallWorkProps) {
+  const observed = projects.filter((work): work is WorkSummary => work !== null);
+  const partial = observed.length < projects.length;
   const weeks = sumWorkWeeks(observed.map(work => work.weeks));
   const waiting = operatorWaiting(operator, nowMs);
   const waitingValue = waiting && (waiting.count > 0 || (!waiting.partial && !waiting.stale)) ? formatInt(waiting.count) : null;
@@ -44,7 +69,6 @@ export function WallWork({ assets, operator, nowMs, widget }: WallWorkProps) {
   const qualifier = (value: number | null) => partial && value !== null && value > 0 ? "At least" : undefined;
   const stale = observed.some(work => isAmber(nowMs, work.capturedAt, WORK_POLL_CADENCE_HOURS));
   const complete = !partial && !stale;
-  const doneMovement = complete ? movement(weeks?.done.move) : undefined;
   const inProgressHistory = history(!partial && !stale && weeks?.inProgress.now === inProgress ? weeks?.inProgress.history : undefined);
   const blockedHistory = history(!partial && !stale && weeks?.blocked.now === blocked ? weeks?.blocked.history : undefined);
   if (!observed.length && waiting === null) return <section aria-label="Work this week" data-wall-work="none" data-material-condition="human-gates" className="flex items-center gap-3 text-wall-body text-muted-foreground"><ListTodo className="size-5 shrink-0" aria-hidden />Tasks unknown</section>;
@@ -52,10 +76,10 @@ export function WallWork({ assets, operator, nowMs, widget }: WallWorkProps) {
     "decisions": <div data-material-condition="human-gates" data-wall-decisions={waiting && waiting.count > 0 ? "waiting" : undefined}>
       <NumberMetric icon={Hand} title="Your decisions" context="All projects" value={waitingValue} qualifier={waitingValue !== null && waiting?.partial ? "At least" : undefined} note={waitingNote || undefined} />
     </div>,
-    "task-status": <MetricTile icon={ChartBar} title="Task status" context="Selected assets"><WorkStatus counts={counts} partial={partial} /></MetricTile>,
+    "task-status": <MetricTile icon={ChartBar} title="Task status"><WorkStatus counts={counts} partial={partial} /></MetricTile>,
     "in-progress": <NumberMetric icon={LoaderCircle} title="In progress" value={availableCount(inProgress)} qualifier={qualifier(inProgress)} movement={!partial && !stale ? movement(weekMove("inProgress", inProgress, weeks?.inProgress.before ?? null)) : undefined} history={inProgressHistory} note={!partial && !inProgressHistory ? "History unavailable" : undefined} />,
     "blocked": <NumberMetric icon={Ban} title="Blocked" value={availableCount(blocked)} qualifier={qualifier(blocked)} movement={!partial && !stale ? movement(weekMove("blocked", blocked, weeks?.blocked.before ?? null)) : undefined} history={blockedHistory} note={!partial && !blockedHistory ? "History unavailable" : undefined} />,
-    "done": <CumulativeCompareMetric icon={CircleCheck} title="Done this week" context="Selected assets" value={availableCount(weeks?.done.now ?? null)} qualifier={qualifier(weeks?.done.now ?? null)} movement={doneMovement ? { ...doneMovement, basis: "vs last week by today" } : undefined} chartProps={complete ? { variant: "daily-bars-line", current: weeks?.done.history ?? [], domain: weeks ? { start: weeks.weekStart, end: shiftRevenueDate(weeks.weekStart, 6) } : undefined, previousTotal: weeks?.done.lastWeek != null ? { value: weeks.done.lastWeek, label: `Last week total · ${formatInt(weeks.done.lastWeek)}` } : undefined, startLabel: "Monday", endLabel: "Sunday", tone: "positive" } : undefined} chartUnavailable={complete ? undefined : "Comparison unavailable"} />,
+    "done": <WeeklyCompletions done={weeks?.done.now ?? null} before={weeks?.done.before ?? null} partial={partial} complete={complete} />,
   };
   const tiles = wallMetricTiles(widget ?? { id: "work", type: "work", width: 1 });
   const configured = widget?.settings?.metrics !== undefined;

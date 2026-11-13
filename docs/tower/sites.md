@@ -80,7 +80,7 @@ A fact with no reading shows **Not measured yet** with a link: **Connect a data 
 - **Add an asset** opens the same dialog Home uses.
 - The legend of the bar that splits the assets by status is the **Health** filter: press **2 at risk** to show only those assets, press it again to show them all.
 - **Order** puts the assets in **Your order** (the saved order Home and the TV use), **Needs attention** first, by **Money** this month, by **People** or **A–Z**. The stage list narrows to one lifecycle stage. On a phone both are behind **Order & stage**.
-- **Arrange**, beside the stage list, lists every asset in **Your order**, hidden ones included. Drag an asset by its grip to a new place: a line and a label such as **Above Northwind** show where it lands before you let go. **Move Northwind up** and **Move Northwind down** on each row make the same move with a keyboard or on a phone. Each row has the asset's three switches, **Home and Portfolio**, **TV** and **Work this week**. A move and a switch save at once, each with **Undo** in its message: **Asset order saved**, **Saved — Northwind hidden on the TV**. **Done** returns to the list in the order you chose, with the hidden assets left out and counted. **2 hidden** beside the count also opens Arrange, and so does **Arrange the assets** in the command palette.
+- **Arrange**, beside the stage list, lists every asset in **Your order**, hidden ones included. Drag an asset by its grip to a new place: a line and a label such as **Above Northwind** show where it lands before you let go. **Move Northwind up** and **Move Northwind down** on each row make the same move with a keyboard or on a phone. Each row has the asset's three switches, **Home and Portfolio**, **TV** and **Portfolio Work tile**. A move and a switch save at once, each with **Undo** in its message: **Asset order saved**, **Saved — Northwind hidden on the TV**. **Done** returns to the list in the order you chose, with the hidden assets left out and counted. **2 hidden** beside the count also opens Arrange, and so does **Arrange the assets** in the command palette.
 - A filtered list shows how many assets it includes, with **Clear**. Every choice is in the address, so a link includes it.
 - An asset's name opens its page; the domain link on that page opens the asset itself.
 - Press a figure on the Overview to draw it on the chart; arrow keys step through its days.
@@ -101,7 +101,7 @@ Each asset has three switches:
 |---|---|
 | **Home and Portfolio** | as a row on Home (the data sources grid, the assets and the last 24 hours) and on the Portfolio page |
 | **TV** | in asset rows and counts on the TV |
-| **Work this week** | as a project row in the TV's **Work this week**, while its **TV** switch is on too |
+| **Portfolio Work tile** | as a Work tile in the asset’s TV Portfolio row, when its **TV** switch is on |
 
 The switches are on every row of **Arrange** on the Portfolio page, on the **Assets** card of **Settings** > **TV dashboard**, and on the asset's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
 

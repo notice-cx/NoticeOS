@@ -121,7 +121,7 @@ describe("configured Wall metrics", () => {
       { id: "done", source: "done", display: "number", size: "narrow", title: "Completed" },
       { id: "blocked", source: "blocked", display: "number", size: "wide" },
     ] } };
-    const { container } = render(<WallWork assets={payload.assets} operator={payload.operator} nowMs={nowMs} widget={widget} />);
+    const { container } = render(<WallWork projects={payload.assets.map(asset => asset.work)} operator={payload.operator} nowMs={nowMs} widget={widget} />);
     expect([...container.querySelectorAll("[data-wall-metric]")].map(tile => tile.getAttribute("data-wall-metric"))).toEqual(["done", "blocked"]);
     expect(container.querySelector('[data-wall-metric="done"]')).toHaveAccessibleName("Completed");
     expect(container.querySelector(".wall-metric-plot")).toBeNull();

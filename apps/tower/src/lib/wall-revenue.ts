@@ -232,23 +232,24 @@ export interface YesterdayTotal {
 
 /** Yesterday on the selected display calendar. Fresh provider reports and
  * their stored history supply estimates for shifted daily boundaries. */
-export function yesterdayTotal(
-  assets: readonly Pick<AssetCard, "revenueProjection" | "dailyRevenue">[],
+export function yesterdayTotal<T extends Pick<AssetCard, "revenueProjection" | "dailyRevenue">>(
+  assets: readonly T[],
   nowMs: number,
   timeZone?: string,
-): YesterdayTotal | null {
+): (YesterdayTotal & { coverage: { asset: T; reported: boolean }[] }) | null {
   const sources = assets.filter(hasRevenueSource);
   if (sources.length === 0) return null;
+  const coverage = sources.map(asset => ({ asset, reported: false }));
   const displayZone = timeZone ?? sources.find(source => source.dailyRevenue)?.dailyRevenue?.timeZone;
-  if (!displayZone) return { amount: null, reported: 0, sites: sources.length, basis: null };
-  const date = yesterdayOn(displayZone, nowMs);
-  if (!date) return { amount: null, reported: 0, sites: sources.length, basis: null };
+  const date = displayZone && yesterdayOn(displayZone, nowMs);
+  if (!date || !displayZone) return { amount: null, reported: 0, sites: sources.length, basis: null, coverage };
   let amountMinor = 0;
   let reported = 0;
   let estimated = false;
   const label = sources.find(source => source.dailyRevenue?.timeZone === displayZone)?.dailyRevenue?.timeZoneLabel;
   const basis = { date, timeZone: displayZone, ...(label ? { label } : {}) };
-  for (const { dailyRevenue: summary, revenueProjection } of sources) {
+  for (const entry of coverage) {
+    const { dailyRevenue: summary, revenueProjection } = entry.asset;
     if (!summary || summary.amountMinor === null || summary.date !== yesterdayOn(summary.timeZone, nowMs)) continue;
     if (summary.timeZone === displayZone) {
       amountMinor += summary.amountMinor;
@@ -267,9 +268,10 @@ export function yesterdayTotal(
       amountMinor += value;
       estimated = true;
     }
+    entry.reported = true;
     reported += 1;
   }
-  return { amount: reported > 0 ? amountMinor / 100 : null, reported, sites: sources.length, basis, ...(estimated ? { estimated: true as const } : {}) };
+  return { amount: reported > 0 ? amountMinor / 100 : null, reported, sites: sources.length, basis, coverage, ...(estimated ? { estimated: true as const } : {}) };
 }
 
 /** Yesterday's date at `nowMs` on the clock a summary was dated on; `null` for

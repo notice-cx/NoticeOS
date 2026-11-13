@@ -39,7 +39,7 @@ Under the schedules are the search panels' history window (**Each pass requests*
 
 ### TV dashboard
 
-**TV layout** with **Edit layout**, which opens the Wall editor. Under it, **Assets**: the same list as **Arrange** on the Portfolio page, every asset in your order with its grip, **Move up** and **Move down**, and its three switches, **Home and Portfolio**, **TV** and **Work this week** (see [Where each asset shows](/tower/sites#where-each-asset-shows)). Each move and each switch saves at once with **Undo**. Then the countdown the top strip can show, with **Set a countdown** or its three fields.
+**TV layout** with **Edit layout**, which opens the Wall editor. Under it, **Assets**: the same list as **Arrange** on the Portfolio page, every asset in your order with its grip, **Move up** and **Move down**, and its three switches, **Home and Portfolio**, **TV** and **Portfolio Work tile** (see [Where each asset shows](/tower/sites#where-each-asset-shows)). Each move and each switch saves at once with **Undo**. Then the countdown the top strip can show, with **Set a countdown** or its three fields.
 
 ### Ownership
 

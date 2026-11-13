@@ -2440,6 +2440,8 @@ describe("buildWallPayload — the card's work slice", () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject(),
       workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
+      workProject({ asset: "internal.example", prefix: "int", counts: workCounts({ open: 17 }) }),
+      workProject({ asset: "unread.example", prefix: "un", ok: false }),
     ]);
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
@@ -2455,6 +2457,12 @@ describe("buildWallPayload — the card's work slice", () => {
     });
     expect(card("northwind.example").work).toMatchObject({ open: 1, highPriority: 0 });
     expect(card("pebble.example").work).toBeNull();
+    expect(wall.workProjects).toEqual([
+      expect.objectContaining({ open: 12 }),
+      expect.objectContaining({ open: 1 }),
+      expect.objectContaining({ open: 17 }),
+      null,
+    ]);
   });
 
   it("carries the counts verbatim, never re-derived from the truncated lists", async () => {

@@ -22,14 +22,12 @@ describe("the revenue widget", () => {
     expect(section).not.toBeNull();
     expect(section.querySelector('[data-metric-expanded]')).toHaveAttribute('data-metric-expanded', 'true');
     expect(section.querySelector(".wall-metric-plot [role='img']")).not.toBeNull();
-    expect(within(section as HTMLElement).getByRole("heading").textContent).toContain("USD");
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
     // Plume Studio $1,310 + Mosaic Finder $385, the two ready projections.
     expect(section.querySelector("[data-revenue-pace]")?.textContent).toBe("$1,695");
     // Yesterday in place of the month's daily average: Plume Studio $43.18
     // + Mosaic Finder $12.07, both reports in.
-    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25Sep 21 · Pacific · est.");
-    expect(section.querySelector('[data-metric-fact="days left"]')?.textContent).toBe("days left9");
+    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25");
     expect(section.textContent).not.toContain("a day");
     expect(section.querySelector("[data-revenue-yesterday]")?.getAttribute("data-revenue-yesterday")).toBe("all");
     // Forecast comparisons name their basis alongside the performance color.
@@ -87,7 +85,7 @@ describe("the revenue widget", () => {
     expect(container.querySelector("[data-revenue-figure]")?.textContent).toBe("$924");
     expect(container.querySelector("[data-revenue-pace]")?.textContent).toBe("$1,310");
     // One site's yesterday is never "1 of 1".
-    expect(container.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$43.18Sep 21 · Pacific · est.");
+    expect(container.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$43.18");
     expect(container.querySelector(".wall-metric-plot [role='img']")).toHaveAccessibleName(expect.stringContaining("forecast"));
   });
 
@@ -118,12 +116,18 @@ describe("yesterday on the revenue widget", () => {
     };
   };
 
-  it("shows what is in and how many revenue assets it covers when a report is missing", () => {
-    const { container } = render(<RevenueHero {...withYesterday([4_318, null])} nowMs={NOW} />);
+  it("shows which revenue assets have contributed and which are waiting", () => {
+    const data = withYesterday([4_318, null]);
+    const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
+    const [reported, waiting] = data.assets.filter(asset => asset.dailyRevenue);
+    const icons = within(container).getByRole('group', { name: 'Reports for Sep 21 · Pacific' });
+    expect(within(icons).getAllByRole('img')).toHaveLength(2);
+    expect(within(icons).getByRole('img', { name: `${reported!.displayName} · Reported` })).toHaveAttribute('data-revenue-site', 'reported');
+    expect(within(icons).getByRole('img', { name: `${waiting!.displayName} · Waiting for report` })).toHaveAttribute('data-revenue-site', 'waiting');
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("some");
     // Two of the six sites have a revenue source; the other four are not owed.
-    expect(container.querySelector("[data-wall-revenue]")?.textContent).toContain("Yesterday$43.18Sep 21 · Pacific · est. · 1 of 2 assets");
+    expect(container.querySelector("[data-wall-revenue]")?.textContent).toContain("Yesterday$43.18");
     // The figure is drawn as a figure; the words around it stay quiet.
     const figure = yesterday.querySelector("[data-revenue-yesterday-figure]")!;
     expect(figure.textContent).toBe("$43.18");
@@ -137,7 +141,7 @@ describe("yesterday on the revenue widget", () => {
     const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("all");
-    expect(yesterday.closest('[data-metric-fact="Yesterday"]')?.textContent).toContain('Sep 21 · Pacific · est.');
+    expect(within(yesterday.closest('[data-metric-fact="Yesterday"]') as HTMLElement).getByRole('group')).toHaveAccessibleName('Reports for Sep 21 · Pacific');
     expect(yesterday.querySelector("[data-revenue-yesterday-figure]")).not.toBeNull();
     expect(yesterday.textContent).not.toContain("not reported");
   });
@@ -149,20 +153,21 @@ describe("yesterday on the revenue widget", () => {
     const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("some");
-    expect(yesterday.closest('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$43.18Sep 21 · Pacific · est. · 1 of 2 assets");
+    expect(yesterday.closest('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$43.18");
   });
 
   it("says so in words, with no number, before any report is in", () => {
     const { container } = render(<RevenueHero {...withYesterday([null, null])} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("none");
-    expect(container.querySelector("[data-wall-revenue]")?.textContent).toContain("YesterdayNot reported yetSep 21 · Pacific");
+    expect(container.querySelector("[data-wall-revenue]")?.textContent).toContain("YesterdayNot reported yet");
     expect(yesterday.textContent).not.toMatch(/\$/);
   });
 
   it("states a recorded $0 as $0", () => {
     const { container } = render(<RevenueHero {...withYesterday([0, 0])} nowMs={NOW} />);
-    expect(container.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$0.00Sep 21 · Pacific · est.");
+    expect(container.querySelector('[data-revenue-yesterday-figure]')).toHaveTextContent("$0.00");
+    expect(container.querySelectorAll('[data-revenue-site="reported"]')).toHaveLength(2);
   });
 
   it("still shows yesterday under the reason while the month has no pace yet", () => {
@@ -185,7 +190,7 @@ describe("yesterday on the revenue widget", () => {
     const { container } = render(<RevenueHero portfolio={data.portfolio} assets={assets} nowMs={NOW} />);
     expect(container.querySelector("[data-wall-revenue]")?.getAttribute("data-wall-revenue")).toBe("figure");
     expect(container.querySelector("[data-revenue-waiting]")?.textContent).toBe("Learning from traffic and revenue · 12/21 days.");
-    expect(container.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25Sep 21 · Pacific · est.");
+    expect(container.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25");
     expect(container.querySelector(".wall-metric-plot svg")).toBeNull();
   });
 });
@@ -223,11 +228,10 @@ describe("the revenue widget before the month has a pace or a ledger row", () =>
     expect(section.getAttribute("data-wall-revenue")).toBe("figure");
     expect(section).not.toHaveClass("isolate");
     expect(section.textContent).not.toContain("No revenue source");
-    expect(within(section as HTMLElement).getByRole("heading").textContent).toContain("USD");
     // Plume Studio $924 + Mosaic Finder $261 reported so far.
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
     expect(section.querySelector("[data-revenue-waiting]")?.textContent).toBe("Learning from traffic and revenue · 12/21 days.");
-    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25Sep 21 · Pacific · est.");
+    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25");
     expect(section.querySelector(".wall-metric-plot svg")).toBeNull();
   });
 
@@ -238,7 +242,7 @@ describe("the revenue widget before the month has a pace or a ledger row", () =>
     expect(section).not.toHaveClass("isolate");
     expect(section.querySelector("[data-revenue-figure]")).toBeNull();
     expect(section.querySelector("[data-revenue-waiting]")?.textContent).toBe("Waiting for complete revenue reports.");
-    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25Sep 21 · Pacific · est.");
+    expect(section.querySelector('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday$55.25");
     expect(section.textContent).not.toContain("No revenue source");
   });
 });
@@ -251,7 +255,7 @@ it('shows unknown current revenue with dated estimated history instead of a cost
   expect(section).not.toBeNull();
   expect(section.querySelector('[data-revenue-figure]')).toBeNull();
   expect(section.querySelector('[data-revenue-waiting]')).toHaveTextContent("Waiting for revenue reports.");
-  expect(section.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $1,458 est.');
+  expect(section.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $1,458');
   expect(section.querySelector('[data-revenue-pace]')).toHaveTextContent('$');
 });
 
@@ -261,7 +265,7 @@ it('names partial dated previous-month coverage without calling it a portfolio t
   const assets = sources.map((asset, index) => ({ ...asset, revenueProjection: { ...asset.revenueProjection!, earnedMinor: null, previousMonthMinor: index === 0 ? 30000 : null } }));
   const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, revenueRecorded: { booked: false, forecast: false }, forecast: { currency: 'USD', revenue: 0, cost: 35, net: -35 }, booked: ZERO }} assets={assets} nowMs={NOW} />);
   expect(container.querySelector('[data-revenue-figure]')).toBeNull();
-  expect(container.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $300 est. · 1 of 2 assets');
+  expect(container.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $300 · 1 of 2 assets');
   expect(container.querySelector('[data-metric-movement]')).toBeNull();
 });
 
@@ -359,9 +363,9 @@ describe("the Wall draws both from a layout", () => {
     const data: WallPayload = wallFixturePayload();
     const yesterday = (nowMs: number) =>
       render(<WallCanvas layout={layout} data={data} nowMs={nowMs} />).container.querySelector('[data-metric-fact="Yesterday"]')?.textContent;
-    expect(yesterday(NOW)).toBe("Yesterday$55.25Sep 21 · Pacific · est.");
+    expect(yesterday(NOW)).toBe("Yesterday$55.25");
     // A day later on the Wall's clock the held reports describe the day
     // before yesterday, so none of them is yesterday's.
-    expect(yesterday(NOW + 86_400_000)).toBe("YesterdayNot reported yetSep 22 · Pacific");
+    expect(yesterday(NOW + 86_400_000)).toBe("YesterdayNot reported yet");
   });
 });

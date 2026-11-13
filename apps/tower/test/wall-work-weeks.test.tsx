@@ -3,7 +3,7 @@
 
 import { render, within } from "./render";
 import { describe, expect, it } from "vitest";
-import type { AssetCard, WorkSummary } from "@shared/wall";
+import type { WorkSummary } from "@shared/wall";
 import type { WorkWeeks } from "@shared/work";
 import { WallWork } from "@/components/wall/WallWork";
 import { WorkWeekChip } from "@/components/viz/WorkFlow";
@@ -29,35 +29,25 @@ function work(week: WorkWeeks | undefined, closedRecent = 9): WorkSummary {
   return { open: 4, highPriority: 1, inProgress: 2, blocked: 1, closedRecent, priorities: [0, 1, 2, 1, 0], capturedAt: at(0), ...(week ? { weeks: week } : {}) };
 }
 
-function asset(id: string, summary: WorkSummary | null): AssetCard {
-  return {
-    netByMonthCurrency: "USD", id, displayName: id, status: "live", senseOnly: false, worstSeverity: null, openError: 0, openWarn: 0,
-    booked: { currency: "USD", revenue: 0, cost: 0, net: 0 }, forecast: { currency: "USD", revenue: 0, cost: 0, net: 0 },
-    netPeriod: "2026-09", pulseReceivedAt: at(1), firstReportAt: null, dataSources: [],
-    activeUsers: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] }, work: summary, panelReview: null,
-    searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] }, netByMonth: [], netByMonthProvisionalFrom: null, latestPanelDate: null,
-  };
-}
-
 const operator = { waiting: 4, urgent: 0, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: at(0) };
 
 describe("the Wall's metric work tile", () => {
-  it("marks totals as lower bounds when another selected asset has no task counts", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", null)]} operator={operator} nowMs={NOW} />);
+  it("marks totals as lower bounds when another project has no task counts", () => {
+    const { container } = render(<WallWork projects={[work(weeks()), null]} operator={operator} nowMs={NOW} />);
     const status = within(container).getByRole("region", { name: "Task status" });
     expect(status.querySelector('[data-task-status="open"]')).toHaveTextContent("≥4");
     expect(status.querySelector('[data-task-status="in-progress"]')).toHaveTextContent("≥2");
     expect(status.querySelector('[data-task-status="blocked"]')).toHaveTextContent("≥1");
     const done = within(container).getByRole("region", { name: "Done this week" });
     expect(done).toHaveTextContent("At least");
-    expect(done.querySelector("[data-metric-movement], svg[role=img]")).toBeNull();
+    expect(done.querySelector("[data-week-comparison]")).toBeNull();
   });
 
   it("does not turn a partial observed zero into an empty aggregate queue", () => {
     const w = weeks();
     w.done.now = 0;
     const summary = { ...work(w), open: 0, inProgress: 0, blocked: 0 };
-    const { container } = render(<WallWork assets={[asset("a.example", summary), asset("b.example", null)]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[summary, null]} operator={operator} nowMs={NOW} />);
     const status = within(container).getByRole("region", { name: "Task status" });
     expect(status.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(3);
     expect(status.querySelector(".wall-task-status-track")).toBeNull();
@@ -66,14 +56,11 @@ describe("the Wall's metric work tile", () => {
     expect(done).not.toHaveTextContent("At least");
   });
 
-  it("sums only selected assets for task status and keeps decisions workspace-wide", () => {
-    const assets = [asset("a.example", work(weeks())), asset("b.example", work(weeks()))];
-    const { container } = render(<WallWork assets={assets.slice(0, 1)} operator={operator} nowMs={NOW} />);
+  it("sums task status across projects and uses the workspace inbox count", () => {
+    const { container } = render(<WallWork projects={[work(weeks()), work(weeks())]} operator={operator} nowMs={NOW} />);
     const status = within(container).getByRole("region", { name: "Task status" });
-    expect(status).toHaveTextContent("Selected assets");
-    expect(status.querySelector('[data-task-status="open"]')).toHaveTextContent("4");
+    expect(status.querySelector('[data-task-status="open"]')).toHaveTextContent("8");
     const decisions = within(container).getByRole("region", { name: "Your decisions" });
-    expect(decisions).toHaveTextContent("All projects");
     expect(decisions.querySelector(".wall-metric-value")).toHaveTextContent("4");
   });
 
@@ -81,7 +68,7 @@ describe("the Wall's metric work tile", () => {
     const w = weeks();
     w.blocked.history = [{ t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 1 }];
     const summary = { ...work(w), blocked: 4 };
-    const { container } = render(<WallWork assets={[asset("a.example", summary)]} operator={operator} nowMs={NOW}
+    const { container } = render(<WallWork projects={[summary]} operator={operator} nowMs={NOW}
       widget={{ id: "work", type: "work", width: 1, settings: { metrics: [{ id: "blocked", source: "blocked", display: "number", size: "standard" }] } }} />);
     const blocked = within(container).getByRole("region", { name: "Blocked" });
     expect(blocked.querySelector(".wall-metric-value")).toHaveTextContent("4");
@@ -91,37 +78,32 @@ describe("the Wall's metric work tile", () => {
 
   it("shows stale source counts with a stale label and no state comparison", () => {
     const summary = { ...work(weeks()), capturedAt: at(48) };
-    const { container } = render(<WallWork assets={[asset("a.example", summary)]} operator={null} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[summary]} operator={null} nowMs={NOW} />);
     expect(container).toHaveTextContent("Snapshot stale");
     const done = within(container).getByRole("region", { name: "Done this week" });
-    expect(done.querySelector(".wall-metric-movement, svg[role=img]")).toBeNull();
+    expect(done.querySelector("[data-week-comparison]")).toBeNull();
     const status = within(container).getByRole("region", { name: "Task status" });
     expect(status.querySelector('[data-task-status="blocked"]')).toHaveTextContent("1");
   });
 
-  it("uses daily closes under a cumulative line and last week's total without project bars", () => {
-    const w = weeks();
-    w.done.history = [{ t: "2026-09-21", v: 2 }, { t: "2026-09-22", v: 6 }];
-    const { container } = render(<WallWork assets={[asset("a.example", work(w)), asset("b.example", work(w))]} operator={operator} nowMs={NOW} />);
+  it("scales the weekly comparison to the same elapsed time in each week", () => {
+    const { container } = render(<WallWork projects={[work(weeks()), work(weeks())]} operator={operator} nowMs={NOW} />);
     const done = within(container).getByRole("region", { name: "Done this week" });
-    expect(done).toHaveTextContent("12");
-    expect(done).toHaveTextContent("Last week total · 30");
-    expect(Array.from(done.querySelectorAll("[data-metric-daily-bar]"), bar => bar.getAttribute("data-value"))).toEqual(["4", "8"]);
-    expect(done.querySelector("[data-chart-line='solid']")).not.toBeNull();
-    expect(done.querySelector("[data-chart-line='projection']")).toBeNull();
-    expect(done.querySelector("[data-metric-previous-total]")).not.toBeNull();
-    expect(container.querySelector("[data-pace-bar], [data-work-row]")).toBeNull();
+    const bars = within(done).getByRole("img", { name: "12 completed this week. 8 by the same time last week." });
+    const width = (kind: string) => (bars.querySelector<HTMLElement>(`[data-week-bar="${kind}"]`)!).style.getPropertyValue("--week-bar-fill");
+    expect(width("current")).toBe("100%");
+    expect(Number.parseFloat(width("previous"))).toBeCloseTo(100 * 8 / 12);
   });
 
   it("keeps trailing closes out of this week's total when history is absent", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(undefined, 99))]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[work(undefined, 99)]} operator={operator} nowMs={NOW} />);
     const done = within(container).getByRole("region", { name: "Done this week" });
     expect(done).toHaveTextContent("History unavailable");
     expect(done).not.toHaveTextContent("99");
   });
 
   it("preserves partial and stale inbox counts and withholds their comparisons", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks()))]} operator={{ ...operator, waiting: 3, measuredProjects: 1 }} nowMs={NOW} />);
+    const { container } = render(<WallWork projects={[work(weeks())]} operator={{ ...operator, waiting: 3, measuredProjects: 1 }} nowMs={NOW} />);
     const decisions = within(container).getByRole("region", { name: "Your decisions" });
     expect(decisions.querySelector('.wall-metric-qualifier')).toHaveTextContent("At least");
     expect(decisions.querySelector('.wall-metric-value')).toHaveTextContent("3");
@@ -131,7 +113,7 @@ describe("the Wall's metric work tile", () => {
   });
 
   it("uses each state's improvement direction and keeps in progress neutral", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW}
+    const { container } = render(<WallWork projects={[work(weeks()), work(weeks())]} operator={operator} nowMs={NOW}
       widget={{ id: "work", type: "work", width: 1, settings: { metrics: [
         { id: "in-progress", source: "in-progress", display: "number", size: "standard" },
         { id: "blocked", source: "blocked", display: "number", size: "standard" },

@@ -242,17 +242,17 @@ describe("material current-state fixtures", () => {
   it("puts human gates on the Wall's work chart, and never a zero it did not count", () => {
     expect(MATERIALITY["human-gates"].wall).toMatchObject({ placement: "fixed-horizon", component: "WallWork" });
     const operator = { waiting: 2, urgent: 1, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: RECENT };
-    const counted = renderUi(<WallWork assets={[]} operator={operator} nowMs={NOW} />);
+    const counted = renderUi(<WallWork projects={[]} operator={operator} nowMs={NOW} />);
     expectVisual(counted.container, "human-gates");
     const countedGates = counted.container.querySelector('[data-material-condition~="human-gates"]')!;
     expect(countedGates.querySelector(".wall-metric-value")).toHaveTextContent(/^2$/);
     expect(countedGates).toHaveTextContent("1 urgent");
     counted.unmount();
-    const partial = renderUi(<WallWork assets={[]} operator={{ ...operator, waiting: 0, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
+    const partial = renderUi(<WallWork projects={[]} operator={{ ...operator, waiting: 0, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
     expect(partial.container.querySelector('[data-material-condition~="human-gates"] [aria-label="Unavailable"]')).not.toBeNull();
     expect(partial.container.querySelector(".wall-metric-value")).not.toHaveTextContent(/^0$/);
     partial.unmount();
-    const unread = renderUi(<WallWork assets={[]} operator={null} nowMs={NOW} />);
+    const unread = renderUi(<WallWork projects={[]} operator={null} nowMs={NOW} />);
     expect(unread.container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("Tasks unknown");
     expectVisual(unread.container, "human-gates");
   });

@@ -1094,6 +1094,8 @@ export interface WallPayload {
   /** Actionable human-labelled tasks plus open human approvals, across the
    * core hub. A legacy null is an unread inbox. */
   operator: OperatorPosture | null;
+  /** All active task projects in the newest snapshot. Null entries are unread projects. */
+  workProjects?: (WorkSummary | null)[];
   /** Who did the work, for the Agents widget. Absent from an older Worker;
    * null when no snapshot names an agent. */
   agents?: WallAgents | null;

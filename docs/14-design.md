@@ -756,18 +756,17 @@ figure is the reported daily count for the same weekday last week. The
 separate pace percentage and hourly chart compare matching observed minutes;
 minute activity is never added into daily unique users.
 
-Revenue uses the expanded cumulative comparison: facts on the left and the
-month chart on the right. Each daily bar shows the cumulative total reached
-by that date, rather than that day's increment. Filled bars are observed;
-outlined bars are projected. Last month's total is a dashed horizontal
-reference. Work this week places its title and week progress in a slim heading above the tiles. Wide-screen Work tiles are 132 px high. It uses the standard cumulative comparison for Done
-this week, after counts for operator decisions, work in progress and blocked
-tasks. Its bars show daily closes and a solid line shows the cumulative total. The bars, line and last-week reference share one count scale from zero. Missing daily counts have no
-bar. History contains observed readings only; two available snapshots remain
-two observations. The
-weekly chart retains the full Monday-to-Sunday date domain even when the
-latest observation is earlier. Project bars remain on the Tower's work
-pages.
+Revenue puts the main figures next to the cumulative bars. Filled bars show
+recorded totals, outlined bars show forecasts, and a dashed line marks last
+month’s total. Site icons below yesterday’s amount show which reports arrived.
+The chart extends left into the space below the figures on wide tiles and
+stacks below them on narrow tiles.
+
+Work this week reads the task snapshot across active projects. Wide-screen
+tiles are 132 px high. Done this week shows the current count beside a
+horizontal comparison with the count at the same time last week. The
+comparison requires fresh, complete data. Project details appear on the Tasks
+page.
 
 The TV background is pure black so unused pixels emit no light; nothing on it
 needs a pointer; state is never colour-only; a failed poll keeps last-good
