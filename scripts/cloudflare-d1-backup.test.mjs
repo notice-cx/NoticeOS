@@ -7,7 +7,7 @@ import http from 'node:http';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
-import { createCloudflareD1BackupClient, copyCloudflareD1, cloudflareD1InventoryKey } from './cloudflare-d1-backup.mjs';
+import { createCloudflareD1BackupClient, copyCloudflareD1, cloudflareD1FailureCause, cloudflareD1InventoryKey } from './cloudflare-d1-backup.mjs';
 
 const accountId = 'a'.repeat(32), databaseId = '11111111-1111-4111-8111-111111111111';
 const target = { databaseId, asset: 'example.com' };
@@ -206,6 +206,20 @@ test('a stalled SQL stream with stuck cancellation respects its deadline plus bo
   assert.ok(elapsed < 10_000, `cleanup still waiting after ${elapsed} ms`);
   assert.equal(cancelled, true); assert.equal(opened.fd, -1);
   await assert.rejects(fs.stat(path.join(output, 'receipt.json')), { code: 'ENOENT' });
+});
+test('a response body that outlasts the backup deadline records a timeout even with HTTP 200', async t => {
+  const deadline = setTimeout(() => {}, 1000);
+  t.after(() => clearTimeout(deadline));
+  for (const action of ['inventory', 'exportTarget']) {
+    let cancelled = false;
+    const app = client(async () => new Response(new ReadableStream({
+      pull() { return new Promise(() => {}); },
+      cancel() { cancelled = true; },
+    })), { requestMs: 10 });
+    const work = action === 'inventory' ? app.inventory() : app.exportTarget(selection, target);
+    await assert.rejects(work, error => cloudflareD1FailureCause(error) === 'd1_timeout');
+    assert.equal(cancelled, true);
+  }
 });
 test('inventory comparison ignores ordering but catches changed assets and removed targets', () => {
   const other = { databaseId: randomUUID(), asset: 'other.example' };

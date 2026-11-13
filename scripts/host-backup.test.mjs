@@ -11,6 +11,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir, assertOffsiteBackupDestination } from './host-backup.mjs';
+import { createCloudflareD1BackupClient } from './cloudflare-d1-backup.mjs';
+import { jobRunPostBody } from './job-runs.mjs';
 import { runJobLane } from './runner/job-record.mjs';
 import { createWorkflowRecorder } from './workflow-trace.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
@@ -730,6 +732,19 @@ async function recordedRun(f, adapters) {
   return { result, record, output };
 }
 
+test('a backup refusal records the first safe cause without writing private diagnostics to job or workflow evidence', async t => {
+  const f = await fixture(t);
+  const cloudflareD1 = createCloudflareD1BackupClient({ repoRoot: f.repoRoot, env: {},
+    readBootstrap: () => ({ OPERATOR_TOKEN: 'synthetic' }),
+    fetchImpl: async () => new Response('synthetic private response text', { status: 404 }) });
+  const { result, record, output } = await recordedRun(f, { cloudflareD1 });
+  const failure = { stage: 'assets', cause: 'd1_http_404' };
+  assert.equal(result.ok, false);
+  assert.deepEqual({ stage: result.stage, cause: result.cause }, failure);
+  assert.equal(jobRunPostBody([record]).runs[0].detail, 'backup-failure:assets:d1_http_404');
+  assert.doesNotMatch(JSON.stringify({ record, output }), /synthetic private response text/u);
+});
+
 test('a complete operation copies all physical stores, instructions and handoff, and records success', async (t) => {
   const f = await fixture(t);
   const { result, record } = await recordedRun(f);
@@ -843,7 +858,7 @@ test('a partial R2 blob copy is counted, removed and reported through the job re
   assert.equal(result.stages.r2.status, 'failed');
   assert.equal(result.stages.taskHub.status, 'not_configured');
   assert.equal(record.outcome, 'failed');
-  assert.match(record.detail, /R2: failed/);
+  assert.equal(record.detail, 'backup-failure:r2:stage_failed');
   await absent(path.join(f.destination, 'r2/blobs/archive'));
 });
 

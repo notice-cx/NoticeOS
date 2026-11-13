@@ -10,6 +10,7 @@ import {
 import { INTEGRATION_CADENCE_HOURS } from "@noticeos/contract/integration-health";
 import type { JobSchedule } from "./scheduled-jobs";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
+import type { BackupFailure } from "../../../packages/contract/src/backup-evidence.mjs";
 import type { AnnotationItem } from "./annotations";
 import type { FlagReading } from "./alert-language";
 import type { CollectionVerification } from "./integrations";
@@ -147,6 +148,7 @@ export type ScheduledLaneOutcome = "ran" | "skipped" | "failed";
 /** Latest store-backed scheduled firing for one local-runner lane, and its
  * failures since the lane last ran (`LATEST_JOB_RUNS_SQL`). */
 export interface ScheduledLane {
+  backupFailure?: BackupFailure;
   job: string;
   outcome: ScheduledLaneOutcome;
   startedAt: string;

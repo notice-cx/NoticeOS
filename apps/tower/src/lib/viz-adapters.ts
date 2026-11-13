@@ -11,7 +11,7 @@ import type { TimelineEvent, TimelineEventKind, TimelineLane, TimelineSpan } fro
 import { healthStateOf, type HealthCell, type HealthColumn, type HealthRow } from "@/components/viz/HealthGrid";
 import type { Incident } from "@/components/viz/IncidentList";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
-import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
+import { backupFailureLine, backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
 import { taskPath } from "@/lib/task-path";
 import { sourceProblemSince, type WallIssue } from "@/lib/wall-issues";
 
@@ -91,7 +91,7 @@ export function systemHealthRow(system: SystemBand, nowMs: number, href = "/heal
       : failedJobs.length > 0
         ? { column: "jobs", state: "failing", since: latest(failedJobs), detail: failedJobs.map(laneLabel).join(", "), href }
         : { column: "jobs", state: "working", href },
-    { column: "backups", state: BACKUP_CELL[backups.state], label: backups.state === "off" ? "Off" : undefined, since: backups.failingSince, detail: lastGoodCopy(backups, nowMs), href },
+    { column: "backups", state: BACKUP_CELL[backups.state], label: backups.state === "off" ? "Off" : undefined, since: backups.failingSince, detail: backupFailureLine(system.scheduledLanes, backups) ?? lastGoodCopy(backups, nowMs), href },
     {
       column: "spend",
       state: system.dailyCapUsd > 0 && system.spendTodayUsd > system.dailyCapUsd ? "overdue" : "working",

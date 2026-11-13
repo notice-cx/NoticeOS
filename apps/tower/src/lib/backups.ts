@@ -3,6 +3,8 @@ import { Cron } from "croner";
 import { ageMs, formatAge } from "@shared/freshness";
 import { scheduleTimezone, type JobSchedule } from "@shared/scheduled-jobs";
 import type { ScheduledLane } from "@shared/wall";
+import { D1_FAILURE_LABELS } from "@noticeos/contract/cloudflare-d1";
+import { isBackupFailure, type BackupFailure } from "../../../../packages/contract/src/backup-evidence.mjs";
 
 /** Missed scheduled opportunities before backups count as failing. */
 export const BACKUP_FAILING_RUNS = 2;
@@ -66,4 +68,27 @@ export function backupStatus(lanes: readonly ScheduledLane[], nowMs: number, sch
 export function lastGoodCopy(status: Pick<BackupStatus, "lastGoodAt">, nowMs: number): string {
   const age = ageMs(nowMs, status.lastGoodAt);
   return age === null ? "no good copy yet" : `last good copy ${formatAge(age)} ago`;
+}
+
+const FAILED_PARTS: Record<BackupFailure["stage"], string> = {
+  preparation: "Backup preparation", postgres: "Operational database", r2: "Stored files", taskHub: "Tasks",
+  assets: "Asset databases", history: "Analytical history", recovery: "Recovery credentials",
+  instructions: "Restore instructions", publication: "Save to this installation", offsite: "Offsite copy",
+  retention: "Backup retention", cleanup: "Backup cleanup",
+};
+
+export function backupFailureLine(lanes: readonly ScheduledLane[], status: BackupStatus): string | undefined {
+  if (status.state !== "missed" && status.state !== "failing") return;
+  const latest = lanes.filter(isBackupLane).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+  if (latest?.outcome !== "failed" || status.lastGoodAt !== null && status.lastGoodAt >= latest.startedAt
+    || !isBackupFailure(latest.backupFailure)) return;
+  const { stage, cause } = latest.backupFailure;
+  if (cause === "stage_failed") return `${FAILED_PARTS[stage]} failed`;
+  if (cause === "worker_unavailable") return "Backup worker unavailable";
+  if (cause === "worker_busy") return "A previous backup is still in progress";
+  if (cause === "worker_timeout") return "Backup worker did not finish in time";
+  if (cause.startsWith("d1_http_")) return `Cloudflare check returned HTTP ${cause.slice(8)}`;
+  if (cause === "d1_unreachable") return "Cloudflare backup check could not reach NoticeOS";
+  const token = cause.slice(3) as keyof typeof D1_FAILURE_LABELS;
+  return `Cloudflare database backup · ${D1_FAILURE_LABELS[token]}`;
 }

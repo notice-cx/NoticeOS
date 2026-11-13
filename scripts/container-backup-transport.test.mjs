@@ -38,7 +38,7 @@ test('recovery custody keeps the bootstrap, credentials and declarations and rej
   assert.equal(fs.statSync(f.map(path.join(f.output, 'bootstrap.json'))).mode & 0o777, 0o600);
   await verifyContainerRecovery(f.output, options);
   f.write('/state/installation/beads.json', { version: 1, projects: [{ asset: 'changed' }] });
-  await assert.rejects(verifyContainerRecovery(f.output, options), /no complete backup/u);
+  await assert.rejects(verifyContainerRecovery(f.output, options), { message: 'beads.json: file changed during backup.' });
 });
 
 test('task projects the Tower exported readable by others are kept, and only as a private copy', async t => {
@@ -46,7 +46,33 @@ test('task projects the Tower exported readable by others are kept, and only as 
   fs.chmodSync(f.map('/state/installation/beads.json'), 0o644);
   await copyContainerRecovery(f.output, options);
   assert.equal(fs.statSync(f.map(path.join(f.output, 'beads.json'))).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(f.map('/state/installation/beads.json')).mode & 0o777, 0o644);
   await verifyContainerRecovery(f.output, options);
+});
+
+test('a refused recovery file names its entry and cause without leaking its contents or mount path', async t => {
+  const f = fixture(t);
+  const options = { fs: f.io, fsSync: f.sync };
+  const file = '/run/backup-worker/host-backup.json';
+  const source = f.map(file);
+  f.write(file, 'synthetic-credential');
+  const alias = f.map('/other-name');
+  let attempt = 0;
+  const assertRefused = reason => assert.rejects(copyContainerRecovery(`${f.output}-${++attempt}`, options), { message: `host-backup.json: ${reason}.` });
+  fs.chmodSync(source, 0o644);
+  await assertRefused('file grants access to other users');
+  fs.chmodSync(source, 0o600);
+  fs.linkSync(source, alias);
+  await assertRefused('file has a hard link');
+  fs.rmSync(alias);
+  f.write(file, 'synthetic-credential'.repeat(4096));
+  await assertRefused('file exceeds 64 KiB');
+  fs.rmSync(source);
+  fs.mkdirSync(source);
+  await assertRefused('entry is not a regular file');
+  fs.rmdirSync(source);
+  fs.symlinkSync(f.map(BACKUP_PATHS.profile), source);
+  await assertRefused('file is a symbolic link');
 });
 
 test('an installation that has exported no task projects still keeps a complete recovery set', async t => {

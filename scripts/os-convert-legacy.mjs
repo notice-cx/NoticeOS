@@ -43,6 +43,7 @@ import { folderRefusal } from './os-setup.mjs';
 import { developStack } from './stack-development.mjs';
 import { recordApplied } from './stack-apply.mjs';
 import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs';
+import { URLS as POSTGRES_CREDENTIALS } from './postgres-secrets.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
@@ -59,6 +60,22 @@ const sha = (file) => createHash('sha256').update(fs.readFileSync(file)).digest(
 const json = (value) => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
   ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
 const inside = (child, parent) => { const relative = path.relative(parent, child); return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)); };
+
+function reportBackupFileModes(copies, say) {
+  const entries = {
+    state: ['backup-client.json', 'workers/ingest/.dev.secrets.json'],
+    postgresSecrets: Object.keys(POSTGRES_CREDENTIALS),
+    backupProfile: ['profile.json', 'host-backup.json'],
+  };
+  for (const { what, key, from } of copies) {
+    for (const name of entries[key] ?? []) {
+      const stat = fs.lstatSync(path.join(from, name), { throwIfNoEntry: false });
+      if (stat?.isFile() && (stat.mode & 0o077)) {
+        say(`  ${what}, ${name}: mode ${(stat.mode & 0o777).toString(8)} grants other users access. Set mode 600 before converting.`);
+      }
+    }
+  }
+}
 
 /** Each mount of a resolved service, by its target. */
 const mountsOf = (service) => new Map((service?.volumes ?? []).map((mount) => [mount.target, mount]));
@@ -377,6 +394,7 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
   if (live) say('The app runs this checkout\'s live source: it returns to its prepared image for the move, then follows the checkout again from the new folder.');
   say('Copied into the folder:');
   for (const copy of found.copies) say(`  ${copy.what}: ${copy.from}`);
+  if (found.backup) reportBackupFileModes(found.copies, say);
   const keptRows = Object.entries(found.kept);
   if (keptRows.length) {
     say('Kept where they are:');

@@ -3,11 +3,11 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
+import { isBackupFailure, isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
 
 const FORMAT = 'noticeos-backup-request-v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
-const failure = detail => ({ ok: false, detail });
+const failure = (detail, cause = 'stage_failed') => ({ ok: false, detail, stage: 'preparation', cause });
 const refusal = () => { throw new Error('The declared backup channel is unavailable.'); };
 const claimFile = (profile, name) => path.join(profile.transportDir, 'request.lock', name);
 /** Where a request that says `tasks: 'ntasks'` keeps the export the runner took from Ntasks for it. */
@@ -104,7 +104,9 @@ async function privateCopy(profile, source, target, io) {
 function resultChecked(value) {
   if (!value || typeof value.ok !== 'boolean' || typeof value.detail !== 'string' || value.detail.length > 4000) refusal();
   if (value.backup !== undefined && !isBackupRunEvidence(value.backup)) refusal();
-  return { ok: value.ok, detail: value.detail, ...(value.backup ? { backup: value.backup } : {}) };
+  const failure = { stage: value.stage, cause: value.cause };
+  if ((failure.stage !== undefined || failure.cause !== undefined) && (value.ok || !isBackupFailure(failure))) refusal();
+  return { ok: value.ok, detail: value.detail, ...(failure.stage === undefined ? {} : failure), ...(value.backup ? { backup: value.backup } : {}) };
 }
 
 export async function finishBackupRequest(profile, request, result, options = {}) {
@@ -154,7 +156,7 @@ export async function requestContainerBackup(file, { tasks, tasksExport, fs: io 
   if (tasks !== undefined && tasks !== 'ntasks') return failure('The backup request names an unknown task store.');
   let profile;
   try { profile = await readBackupClient(file, { fs: io }); }
-  catch { return failure('The declared container backup service is not configured or unavailable.'); }
+  catch { return failure('The declared container backup service is not configured or unavailable.', 'worker_unavailable'); }
   const claim = path.join(profile.transportDir, 'request.lock');
   const request = { format: FORMAT, id: randomUUID(), ...(tasks ? { tasks } : {}) };
   try {
@@ -164,7 +166,7 @@ export async function requestContainerBackup(file, { tasks, tasksExport, fs: io 
       await privateClaim(profile, io);
       const previous = await privateJson(path.join(claim, 'owner.json'), io);
       if (!UUID.test(previous.value.id ?? '') || !await completedBackupRequest(profile, previous.value.id, { fs: io })) {
-        return failure('Backup already in progress. If the worker stopped, review its request before retrying.');
+        return failure('Backup already in progress. If the worker stopped, review its request before retrying.', 'worker_busy');
       }
       await retireCompleted(profile, previous.value.id, io);
       await io.mkdir(claim, { mode: 0o700 });
@@ -185,8 +187,8 @@ export async function requestContainerBackup(file, { tasks, tasksExport, fs: io 
       };
       void check();
     });
-    if (!result) return failure('Backup timed out. Its request was preserved for review.');
+    if (!result) return failure('Backup timed out. Its request was preserved for review.', 'worker_timeout');
     await retireCompleted(profile, request.id, io);
     return result;
-  } catch { return failure('Backup could not finish. Its request was preserved for review.'); }
+  } catch { return failure('Backup could not finish. Its request was preserved for review.', 'worker_unavailable'); }
 }

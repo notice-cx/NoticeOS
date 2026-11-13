@@ -25,6 +25,7 @@ export const LATEST_JOB_RUNS_SQL = `WITH good AS (
     SELECT job, max(started_at) AS last_ran_at FROM noticeos.job_runs WHERE outcome = 'ran' GROUP BY job
   )
 SELECT DISTINCT ON (r.job) r.job, r.outcome, r.started_at, g.last_ran_at,
+       CASE WHEN r.job = 'backup' AND r.outcome = 'failed' THEN r.detail END AS backup_failure_detail,
        min(r.started_at) FILTER (WHERE r.outcome = 'failed' AND r.started_at > coalesce(g.last_ran_at, '-infinity')) OVER (PARTITION BY r.job) AS failing_since,
        (count(*) FILTER (WHERE r.outcome = 'failed' AND r.started_at > coalesce(g.last_ran_at, '-infinity')) OVER (PARTITION BY r.job))::int AS failed_runs
   FROM noticeos.job_runs r LEFT JOIN good g ON g.job = r.job

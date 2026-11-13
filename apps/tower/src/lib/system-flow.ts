@@ -10,7 +10,7 @@ import type { IntegrationHealthItem } from "@noticeos/contract/integration-healt
 import { connectionStatus, type ConnectionKind } from "@shared/connection-status";
 import type { SystemBand } from "@shared/wall";
 import { scheduledLanePosture } from "@/components/ScheduledLanes";
-import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
+import { backupFailureLine, backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
 import type { FlowEdge, FlowNode, FlowState } from "@/components/viz/FlowGraph";
 import { formatAge } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
@@ -138,7 +138,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
       icon: Archive,
       state: BACKUP_NODE[backups.state],
       since: backups.failingSince,
-      caption: backups.state === "off" ? "Off" : lastGoodCopy(backups, nowMs),
+      caption: backups.state === "off" ? "Off" : backupFailureLine(system?.scheduledLanes ?? [], backups) ?? lastGoodCopy(backups, nowMs),
       href: "/workflows",
     },
   ];

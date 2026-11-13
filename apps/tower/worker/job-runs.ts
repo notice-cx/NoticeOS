@@ -1,5 +1,6 @@
 import { LATEST_JOB_RUNS_SQL } from "@noticeos/contract";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
+import { readBackupFailureDetail } from "../../../packages/contract/src/backup-evidence.mjs";
 import type { ScheduledLane, ScheduledLaneOutcome } from "../shared/wall";
 
 type LatestJobRunRow = {
@@ -9,6 +10,7 @@ type LatestJobRunRow = {
   last_ran_at: string | null;
   failing_since: string | null;
   failed_runs: number;
+  backup_failure_detail: string | null;
 };
 
 function outcomeOf(value: string): ScheduledLaneOutcome {
@@ -21,14 +23,18 @@ function outcomeOf(value: string): ScheduledLaneOutcome {
 export async function readLatestJobRuns(store: WorkspaceStore): Promise<ScheduledLane[]> {
   const rows = await store.read((tx) => tx.query<LatestJobRunRow>(LATEST_JOB_RUNS_SQL));
   return rows
-    .map((row) => ({
-      job: row.job,
-      outcome: outcomeOf(row.outcome),
-      startedAt: javascriptInstant(row.started_at),
-      lastRanAt: row.last_ran_at === null ? null : javascriptInstant(row.last_ran_at),
-      failedRuns: row.failed_runs,
-      failingSince: row.failing_since === null ? null : javascriptInstant(row.failing_since),
-    }))
+    .map((row) => {
+      const backupFailure = readBackupFailureDetail(row.backup_failure_detail);
+      return {
+        job: row.job,
+        outcome: outcomeOf(row.outcome),
+        startedAt: javascriptInstant(row.started_at),
+        lastRanAt: row.last_ran_at === null ? null : javascriptInstant(row.last_ran_at),
+        failedRuns: row.failed_runs,
+        failingSince: row.failing_since === null ? null : javascriptInstant(row.failing_since),
+        ...(backupFailure ? { backupFailure } : {}),
+      };
+    })
     .sort((a, b) => a.job.localeCompare(b.job));
 }
 

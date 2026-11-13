@@ -14,15 +14,34 @@ export const BACKUP_PATHS = Object.freeze({
 export const BACKUP_APP_ORIGIN = 'http://noticeos:5173';
 const refusal = () => { throw new Error('The declared backup worker is not prepared; no complete backup was published.'); };
 
-export function privateBackupFile(file, io = fs, privateMode = true) {
-  const stat = io.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || (privateMode && (stat.mode & 0o077)) || stat.size > 65536) refusal();
-  return { text: io.readFileSync(file, 'utf8'), uid: stat.uid, gid: stat.gid };
+class BackupFileRefused extends Error {}
+
+export function privateBackupFile(file, io = fs, privateMode = true, entry) {
+  const reject = (reason, code) => {
+    if (entry) throw Object.assign(new BackupFileRefused(`${entry}: ${reason}.`), code === undefined ? {} : { code });
+    refusal();
+  };
+  let stat;
+  try { stat = io.lstatSync(file); }
+  catch (error) {
+    if (!entry) throw error;
+    reject(error?.code === 'ENOENT' ? 'file is missing' : 'file could not be checked', error?.code);
+  }
+  if (stat.isSymbolicLink()) reject('file is a symbolic link');
+  if (!stat.isFile()) reject('entry is not a regular file');
+  if (stat.nlink !== 1) reject('file has a hard link');
+  if (privateMode && (stat.mode & 0o077)) reject('file grants access to other users');
+  if (stat.size > 65536) reject('file exceeds 64 KiB');
+  let text;
+  try { text = io.readFileSync(file, 'utf8'); }
+  catch (error) { if (!entry) throw error; reject('file could not be read'); }
+  return { text, uid: stat.uid, gid: stat.gid };
 }
 
-export function readBackupWorker({ fs: io = fs } = {}) {
+export function readBackupWorker({ fs: io = fs, reportFiles = false } = {}) {
+  const read = (file, entry, privateMode = true) => privateBackupFile(file, io, privateMode, reportFiles ? entry : undefined);
   try {
-    const file = privateBackupFile(BACKUP_PATHS.profile, io);
+    const file = read(BACKUP_PATHS.profile, 'worker-profile.json');
     const profileDir = io.lstatSync(path.dirname(BACKUP_PATHS.profile));
     if (!profileDir.isDirectory() || profileDir.isSymbolicLink() || (profileDir.mode & 0o077) || profileDir.uid !== file.uid) refusal();
     const value = JSON.parse(file.text);
@@ -33,7 +52,7 @@ export function readBackupWorker({ fs: io = fs } = {}) {
       const stat = io.lstatSync(BACKUP_PATHS[name]);
       if (!stat.isDirectory() || stat.isSymbolicLink()) refusal();
     }
-    const client = privateBackupFile(BACKUP_PATHS.client, io);
+    const client = read(BACKUP_PATHS.client, 'backup-client.json');
     // Exporters run as the client inside the operator's private backup tree.
     // This profile supports one identity, so every protected parent is usable.
     if (client.uid !== file.uid || client.gid !== file.gid) refusal();
@@ -42,7 +61,7 @@ export function readBackupWorker({ fs: io = fs } = {}) {
       Object.keys(declaration).sort().join() !== 'format,transportDir') refusal();
     const channel = io.lstatSync(BACKUP_PATHS.transport);
     if ((channel.mode & 0o077) || channel.uid !== client.uid) refusal();
-    const bootstrap = privateBackupFile('/state/workers/ingest/.dev.secrets.json', io);
+    const bootstrap = read('/state/workers/ingest/.dev.secrets.json', 'bootstrap.json');
     const bindings = JSON.parse(bootstrap.text);
     const database = new URL(bindings.DATABASE_URL);
     if (!['postgres:', 'postgresql:'].includes(database.protocol) || database.hostname !== 'postgres' ||
@@ -52,17 +71,20 @@ export function readBackupWorker({ fs: io = fs } = {}) {
     const pgDirectory = io.lstatSync(BACKUP_PATHS.postgresSecrets);
     if (pgDirectory.mode & 0o077) refusal();
     for (const name of VERIFIERS) {
-      const credential = privateBackupFile(path.join(BACKUP_PATHS.postgresSecrets, name), io, false);
+      const credential = read(path.join(BACKUP_PATHS.postgresSecrets, name), `postgres/${name}`, false);
       if (!/^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+\n?$/u.test(credential.text)) refusal();
     }
     for (const name of Object.keys(URLS)) {
-      const credential = privateBackupFile(path.join(BACKUP_PATHS.postgresSecrets, name), io);
+      const credential = read(path.join(BACKUP_PATHS.postgresSecrets, name), `postgres/${name}`);
       const address = new URL(credential.text.trim());
       if (!['postgres:', 'postgresql:'].includes(address.protocol) || !address.password || address.pathname !== '/noticeos') refusal();
     }
     return { format: value.format, retentionDays: value.retentionDays, clientUid: client.uid, clientGid: client.gid,
       operatorUid: file.uid, operatorGid: file.gid };
-  } catch { refusal(); }
+  } catch (error) {
+    if (reportFiles && error instanceof BackupFileRefused) throw error;
+    refusal();
+  }
 }
 
 export function backupWorkerEnvironment(env = process.env) {

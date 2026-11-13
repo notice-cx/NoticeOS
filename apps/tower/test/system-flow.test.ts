@@ -4,6 +4,7 @@ import type { CredentialSummary } from "@noticeos/contract/integrations";
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import type { ScheduledLane, SystemBand } from "@shared/wall";
 import { systemFlow } from "@/lib/system-flow";
+import { systemHealthRow } from "@/lib/viz-adapters";
 import { backupLane, backupNight, pressedBackupLane } from "./backup-lanes";
 
 const NOW = Date.parse("2026-10-11T20:00:00.000Z");
@@ -69,6 +70,17 @@ describe("the system map", () => {
 
     it("reads no good copy yet when none was ever made", () => {
       expect(backups(backupLane(NOW, 2, null)).node).toMatchObject({ state: "error", since: backupNight(NOW, 1), caption: "no good copy yet" });
+    });
+
+    it("shows one bounded failure reason on both health surfaces and clears it after a newer copy", () => {
+      const failure: ScheduledLane = { ...backupLane(NOW, 1, backupNight(NOW, 1)), backupFailure: { stage: "assets", cause: "d1_http_404" } };
+      const band = system([failure]);
+      const line = "Cloudflare check returned HTTP 404";
+      const detail = (system: SystemBand) => systemHealthRow(system, NOW).cells.find((cell) => cell.column === "backups")?.detail;
+      expect(backups(failure).node?.caption).toBe(line);
+      expect(detail(band)).toBe(line);
+      expect(detail({ ...band, backupLastGoodAt: at(1) })).toBe("last good copy 1h ago");
+      expect(backups({ ...failure, backupFailure: { stage: "assets", cause: "synthetic/private/error" } }).node?.caption).toBe("last good copy 1d ago");
     });
   });
 

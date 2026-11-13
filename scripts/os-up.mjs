@@ -300,7 +300,7 @@ export async function runBackup({ service = runnerTaskService(), container = req
   const taskHub = await backupTaskHub(service);
   if (taskHub === 'unknown') {
     emit('ERROR', `backup: ${BACKUP_TASKS_UNKNOWN}`);
-    return { ok: false, detail: BACKUP_TASKS_UNKNOWN };
+    return { ok: false, stage: 'taskHub', cause: 'stage_failed' };
   }
   // While tasks live in Ntasks the set keeps Ntasks's own export, taken now.
   const exported = taskHub ? await exportTasks(service, path.join(HOME_ROOT, '.local', 'task-export')) : null;
@@ -317,7 +317,10 @@ export async function runBackup({ service = runnerTaskService(), container = req
     // The worker sees only that no export came; the reason is the runner's.
     if (exported?.error && typeof result?.detail === 'string') result = { ...result, detail: `${result.detail} Ntasks export: ${exported.error}` };
     emit(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
-    return result;
+    // Workflow recording captures the return value. Keep report text, source
+    // paths and diagnostics out while preserving the existing run evidence.
+    const { ok, stage, cause, backup, outcomes } = result;
+    return { ok, ...(stage ? { stage, cause } : {}), ...(backup ? { backup } : {}), ...(outcomes ? { outcomes } : {}) };
   } finally {
     if (exported?.dir) await fs.rm(exported.dir, { recursive: true, force: true });
   }
