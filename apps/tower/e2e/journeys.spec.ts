@@ -592,21 +592,24 @@ test('Mediavine signs in in the panel, its asset is matched by domain and synced
   await page.keyboard.press('Escape');
   await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   // Ad revenue is a row of More sources, open on arrival.
-  await page.getByRole('region', { name: 'More sources', exact: true }).getByRole('button', { name: /^Ad revenue/ }).click();
-  await expect(page.getByRole('button', { name: /^Ad revenue/ })).toContainText('Working');
+  await page.getByRole('region', { name: 'More sources', exact: true }).getByRole('button', { name: /^Ad revenue(?! details)/ }).click();
+  await expect(page.getByRole('button', { name: /^Ad revenue(?! details)/ })).toContainText('Working');
   const revenue = page.getByRole('region', { name: 'Mediavine revenue', exact: true });
-  // No site picker, no Load my sites and no on/off switch are left on the row:
-  // the panel picks the site, and Not using stops it.
-  await expect(revenue.getByRole('button', { name: 'Load my assets' })).toHaveCount(0);
-  await expect(revenue.getByRole('button', { name: /automatic sync/ })).toHaveCount(0);
+  await expect(revenue).toHaveCount(0);
+  await page.getByRole('link', { name: 'Revenue controls' }).click();
+  await expect(page).toHaveURL(/financials#mediavine$/);
+  await expect(revenue.getByRole('button', { name: 'Refresh revenue' })).toBeEnabled();
+  await revenue.getByText('Backfill or recheck dates', { exact: true }).click();
+  await expect(revenue.getByRole('button', { name: 'Fetch dates' })).toBeEnabled();
   await expect(revenue).toContainText('2026-09-04');
   // Mediavine's two totals for the same days, as one labelled figure.
   await expect(revenue.locator('[data-mediavine-difference]')).toContainText('off by $0.02');
+  await revenue.getByText('Forecast settings', { exact: true }).click();
   await revenue.getByLabel('Forecast holiday calendar').selectOption('US');
   await revenue.getByRole('button', { name: 'Save forecast calendar' }).click();
   await expect(revenue.getByRole('button', { name: 'Save forecast calendar' })).toBeDisabled();
   await assertNoPageOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath('mediavine-sources-after.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('mediavine-money-controls.png'), fullPage: true });
   await page.goto('/financials?period=2026-09');
   // Money's answer states the month in whole dollars; the cents are the site
   // Overview's, checked below.
@@ -2609,6 +2612,27 @@ test("PostHog connects with one key: the region found, the project matched by do
   expect(saved.funnels.map((funnel: { id: string }) => funnel.id)).toEqual(["signup", "checkout"]);
   expect(saved.funnels[1].steps[0]).toEqual({ event: "$pageview", path: "/pricing" });
   expect(state.requests.filter((request: { method: string; path: string }) => request.method === "GET" && request.path === "/api/integrations/posthog/sites")).toHaveLength(1);
+  await panel.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Manage PostHog" }).click();
+  const project = panel.getByRole("combobox", { name: "PostHog project for Journey Example" });
+  await expect(project).toHaveValue("us:424242");
+  const mapping = panel.locator('[data-provider-mapping="posthog"]');
+  await mapping.locator("summary").filter({ hasText: /^Funnels/ }).click();
+  await mapping.getByRole("button", { name: "Remove funnel Checkout", exact: true }).click();
+  await expect(mapping.locator('[data-funnel="checkout"]')).toHaveCount(0);
+  await mapping.locator("[data-funnel-pick]").selectOption("checkout");
+  await expect(mapping.locator('[data-funnel="checkout"]')).toBeVisible();
+  await project.selectOption("us:424243");
+  await mapping.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(mapping.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  const updated = await (await page.request.get("/__journey/status")).json();
+  expect(updated.documents["config/integrations.json"].assets[JOURNEY_ASSET].posthog)
+    .toMatchObject({ host: "us", projectId: "424243", funnels: [] });
+  const undo = mapping.locator(':scope > [data-save-state="saved"]');
+  await undo.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(project).toHaveValue("us:424242");
+  const reverted = await (await page.request.get("/__journey/status")).json();
+  expect(reverted.documents["config/integrations.json"].assets[JOURNEY_ASSET].posthog.funnels).toHaveLength(2);
   expect(pageErrors).toEqual([]);
 });
 
@@ -2663,6 +2687,42 @@ test("Google connects in the panel: the client file dropped, signed in, GA4 and 
   const assets = state.documents["config/integrations.json"].assets[JOURNEY_ASSET];
   expect(assets.ga4).toMatchObject({ propertyId: "123456789" });
   expect(assets.gsc).toMatchObject({ siteUrl: `sc-domain:${JOURNEY_ASSET}` });
+  await back.getByRole("button", { name: "Close", exact: true }).click();
+  await page.locator('[data-integration-tile="google"]').getByRole("button", { name: "Manage Google" }).click();
+  const ga4 = back.getByRole("combobox", { name: "GA4 property for Journey Example" });
+  const gsc = back.getByRole("combobox", { name: "Search Console site for Journey Example" });
+  await expect(ga4).toHaveValue("123456789");
+  await expect(gsc).toHaveValue(`sc-domain:${JOURNEY_ASSET}`);
+  await ga4.selectOption("987654321");
+  await back.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(ga4).toHaveValue("987654321");
+  await expect(back.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await gsc.selectOption("");
+  await back.getByRole("button", { name: "Remove mapping" }).click();
+  await expect(back.getByRole("button", { name: "Remove mapping" })).toHaveCount(0);
+  const updated = await (await page.request.get("/__journey/status")).json();
+  expect(updated.documents["config/integrations.json"].assets[JOURNEY_ASSET]).toMatchObject({
+    ga4: { propertyId: "987654321" }, gsc: { status: "skipped" },
+  });
+  expect(updated.documents["config/integrations.json"].assets[JOURNEY_ASSET].gsc.siteUrl).toBeUndefined();
+  const searchMapping = back.locator('[data-provider-mapping="gsc"]');
+  await searchMapping.getByText("Enter manually", { exact: true }).click();
+  await searchMapping.getByRole("textbox").fill("invalid-url");
+  await searchMapping.getByRole("button", { name: "Save manual mapping" }).click();
+  await expect(searchMapping.locator('[data-save-state="refused"]')).toBeVisible();
+  await searchMapping.getByRole("textbox").fill("sc-domain:example.com");
+  await searchMapping.getByRole("button", { name: "Save manual mapping" }).click();
+  await expect(searchMapping.locator(':scope > [data-save-state="saved"]')).toBeVisible();
+  await expect(gsc).toHaveValue("held");
+  await back.getByRole("button", { name: "Choose what to collect" }).click();
+  await expect(back.locator("[data-sites-start]")).toHaveText(/Collect now/);
+  await expect(back.locator("[data-site-detail]")).toContainText("sc-domain:example.com");
+  const resumed = await (await page.request.get("/__journey/status")).json();
+  expect(resumed.documents["config/integrations.json"].assets[JOURNEY_ASSET].gsc).toMatchObject({
+    status: "needs-setup", siteUrl: "sc-domain:example.com",
+  });
+  await assertNoPageOverflow(page);
+
   expect(pageErrors).toEqual([]);
 });
 
@@ -2715,40 +2775,11 @@ test("a revoked Google sign-in shows the stored refusal on Integrations", async 
   await testInfo.attach("google-revoked-verdict", { body: await page.screenshot(), contentType: "image/png" });
 });
 
-test("a refused property id shows the format to enter", async ({ page }, testInfo) => {
-  expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
-  await addAssetByApi(page);
-  await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
-  const sources = page.getByRole("region", { name: "Data sources", exact: true });
-  await sources.getByRole("button", { name: /^Google Analytics/ }).click();
-  const mapping = page.locator('[data-lane-config="ga4"]');
-  const input = mapping.getByLabel("GA4 property id", { exact: true });
-  await input.fill("G-123");
-  await mapping.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(input).toHaveAttribute("aria-invalid", "true");
-  await input.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: testInfo.outputPath("refused-property-id.png") });
-  await expect(mapping.getByText("GA4 property id: digits only, e.g. 123456789", { exact: true })).toBeVisible();
-  await assertNoPageOverflow(page);
-  const state = await (await page.request.get("/__journey/status")).json();
-  expect(state.documents["config/integrations.json"].assets[JOURNEY_ASSET].ga4.propertyId).not.toBe("G-123");
-});
-
 test("every Sources row opens on a phone without widening the page, and long references wrap", async ({ page }, testInfo) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   await addAssetByApi(page);
-  // External boundary: what a connected Google account lists. Synthetic, and as
-  // long as real property names get.
-  await page.route("**/api/integrations/google/properties", (route) => route.fulfill({ json: {
-    ok: true, message: "The synthetic account listed its properties.", checkedAt: "2026-09-06T12:00:00.000Z",
-    account: "journey-operator@example.test", auth: "oauth",
-    properties: [
-      { lane: "ga4", ref: "123456789", label: "Journey Example — production web stream (all traffic)", detail: "Journey Example Holdings International" },
-      { lane: "gsc", ref: "sc-domain:journey-example-with-a-long-subdomain.example", label: "sc-domain:journey-example-with-a-long-subdomain.example", detail: "siteFullUser" },
-    ],
-  } }));
   await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   const sources = page.getByRole("region", { name: "Data sources", exact: true });
   await expect(sources).toBeVisible();
@@ -2756,7 +2787,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   // Written through the real config lane as the operator's own words on Not
   // using, and shown once, as the row's caption.
   const longId = "BING_WEBMASTER_API_KEY_JOURNEY_EXAMPLE_WITH_A_LONG_SUBDOMAIN_PRODUCTION";
-  await sources.getByRole("button", { name: /^Bing Webmaster Tools/ }).click();
+  await sources.getByRole("button", { name: /^Bing Webmaster Tools(?! details)/ }).click();
   await page.locator('[data-lane-decline="bing-webmaster"]').click();
   const reasons = page.locator("[data-decline-reasons]");
   await reasons.locator('[data-decline-reason="other"]').click();
@@ -2783,7 +2814,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   while (await closedDetails.count()) await closedDetails.first().click();
   // A source with something to map opens on it; one with nothing to map
   // (Clarity) has no settings to open.
-  for (const lane of ["gsc", "bing-webmaster", "ga4", "posthog", "dataforseo"]) {
+  for (const lane of ["bing-webmaster", "dataforseo"]) {
     await expect(page.locator(`[data-lane-config="${lane}"]`)).toBeVisible();
   }
   await expect(page.locator('[data-lane-config="clarity"]')).toHaveCount(0);
@@ -2795,11 +2826,10 @@ test("every Sources row opens on a phone without widening the page, and long ref
   // revenue section is drawn under it.
   await expect(page.locator('[data-source-connect="ad-network"]')).toBeVisible();
   await expect(page.getByRole("region", { name: "Mediavine revenue", exact: true })).toHaveCount(0);
-  await expect(page.locator('[data-lane-picker="ga4"][data-lane-picker-state="ready"]')).toBeVisible();
-  await page.locator('[data-lane-config="posthog"]').getByRole("button", { name: "Add funnel", exact: true }).click();
-  await expect(page.locator('[data-lane-config="posthog"] [data-funnel-step]')).toHaveCount(2);
-
-  await assertSourcesFit(page, "with every row, disclosure and a new funnel open");
+  for (const lane of ["ga4", "gsc", "posthog"]) {
+    await expect(page.locator(`[data-lane-config="${lane}"]`)).toHaveCount(0);
+  }
+  await assertSourcesFit(page, "with every source and disclosure open");
   expect(await rowEscapes(page)).toEqual([]);
 
   const mobile = testInfo.project.name === "mobile";

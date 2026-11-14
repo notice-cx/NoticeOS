@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { MediavineStatus, RevenueHolidayCalendar } from '@noticeos/contract';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { Meter } from '@/components/Meter';
 import { StateChip } from '@/components/StateChip';
 import { useBrowserRuntime, useTowerApi } from '@/lib/browser-context';
@@ -21,13 +22,7 @@ function yearBefore(date: string): string {
   d.setUTCDate(d.getUTCDate() - 364);
   return d.toISOString().slice(0, 10);
 }
-/**
- * A site's Mediavine revenue, once it is collected: how far it reaches, a
- * refresh, a backfill, the forecast calendar and the saved days. Which
- * Mediavine site this is, and starting the sync, is the connect panel's;
- * stopping is the row's own Not using. Nothing shows until a site is mapped.
- * The row's chip is the one status; this adds none.
- */
+/** Refresh or backfill a mapped asset’s revenue from its Money tab. */
 export function MediavineSettings({ asset }: { asset: string }) {
   const { writable } = useConfigWritable();
   const api = useTowerApi();
@@ -67,11 +62,14 @@ export function MediavineSettings({ asset }: { asset: string }) {
   const days = status?.daily.length ?? 0;
   // Nothing mapped, or no login: the row's Connect is the one action.
   if (status && (!status.connected || status.siteId === null)) return null;
-  return <section aria-label="Mediavine revenue" className="flex min-w-0 flex-col gap-3 border-t border-border pt-3">
-    {/* The schedule is a chip, not a sentence: the sync collects yesterday,
-        once a day. */}
+  return <section id="mediavine" aria-label="Mediavine revenue" className="flex min-w-0 scroll-mt-6 flex-col gap-3 rounded-xl border border-border bg-card p-4">
     <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-foreground">Mediavine revenue</h3>
-      <StateChip label="Daily · 6:10 a.m. PT" tone="neutral" dot="hollow" subject={`revenue:${asset}`} />
+      {status ? <InfoTooltip label="Mediavine sync details">
+        <span>Daily · 6:10 a.m. PT</span>
+        <span>Last successful sync · {stamp(status.lastSuccessAt)}</span>
+        <span>Last attempt · {stamp(status.lastAttemptAt)}</span>
+        {status.nextAttemptAt ? <span>Next retry · {stamp(status.nextAttemptAt)}</span> : null}
+      </InfoTooltip> : null}
       {status?.enabled ? <Button size="sm" variant="outline" className="ms-auto" disabled={busy || !writable} onClick={() => void action(() => api.syncMediavine({ asset }))}>{busy ? 'Working…' : 'Refresh revenue'}</Button> : null}
     </div>
     {message ? <p role="alert" className="m-0 text-foreground">{message}</p> : null}
@@ -80,9 +78,6 @@ export function MediavineSettings({ asset }: { asset: string }) {
         {/* Saved figures are Mediavine's estimates until a payment reconciles
             them: a chip on the figure, not a sentence above the card. */}
         <div><dt className="text-muted-foreground">Reported through</dt><dd className="m-0 flex flex-wrap items-center gap-2 font-medium text-foreground">{status.reportedThrough ?? 'No revenue collected yet'}{status.reportedThrough ? <StateChip label="Estimates" tone="na" subject={`revenue:${asset}`} /> : null}</dd></div>
-        <div><dt className="text-muted-foreground">Last successful sync</dt><dd className="m-0">{stamp(status.lastSuccessAt)}</dd></div>
-        <div><dt className="text-muted-foreground">Last attempt</dt><dd className="m-0">{stamp(status.lastAttemptAt)}</dd></div>
-        {status.nextAttemptAt ? <div><dt>Next retry</dt><dd className="m-0">{stamp(status.nextAttemptAt)}</dd></div> : null}
         {/* Mediavine's own two totals for the same days, when they disagree:
             one labelled figure rather than a sentence. */}
         {status.differenceMinor !== null && status.differenceMinor !== 0 ? <div data-mediavine-difference><dt className="text-muted-foreground">Summary vs daily rows · {status.comparisonStart}–{status.comparisonEnd}</dt><dd className="m-0 tabular-nums">{money(status.summaryMinor!)} vs {money(status.dailyMinor!)} · off by {money(status.differenceMinor)}</dd></div> : null}
@@ -95,22 +90,24 @@ export function MediavineSettings({ asset }: { asset: string }) {
           <Button type="submit" disabled={busy || !writable || !status.enabled}>Fetch dates</Button>
         </form>
       </details>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex min-w-0 flex-col gap-1">Forecast holiday calendar
-          <select className="min-h-11 rounded-md border border-input bg-background px-3 pe-9 text-foreground" value={holidayCalendar} disabled={busy || !writable} onChange={event => setHolidayCalendar(event.target.value as RevenueHolidayCalendar)}>
-            <option value="none">Weekday patterns only</option><option value="US">United States</option><option value="CA">Canada</option><option value="US,CA">United States and Canada</option>
-          </select>
-        </label>
-        <Button disabled={busy || !writable || !siteId || holidayCalendar === (status.holidayCalendar ?? 'none')} onClick={() => void action(() => api.saveMediavineSettings({ asset, siteId, enabled: status.enabled, holidayCalendar }))}>Save forecast calendar</Button>
-        <div className="flex w-full flex-col gap-1" data-forecast-history>
-          <span className="flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">Forecast history</span>
-            {days >= FORECAST_DAYS
-              ? <StateChip label="Enough to forecast" tone="affirmative" glyph={<Check className="size-3" aria-hidden />} subject={`revenue:${asset}`} />
-              : <span className="tabular-nums text-foreground">{days} of {FORECAST_DAYS} days</span>}
-          </span>
-          {days >= FORECAST_DAYS ? null : <Meter value={days} max={FORECAST_DAYS} ariaLabel={`${days} of ${FORECAST_DAYS} days of daily revenue saved`} />}
+      <details><summary className="min-h-11 cursor-pointer py-3 font-medium">Forecast settings</summary>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex min-w-0 flex-col gap-1">Forecast holiday calendar
+            <select className="min-h-11 rounded-md border border-input bg-background px-3 pe-9 text-foreground" value={holidayCalendar} disabled={busy || !writable} onChange={event => setHolidayCalendar(event.target.value as RevenueHolidayCalendar)}>
+              <option value="none">Weekday patterns only</option><option value="US">United States</option><option value="CA">Canada</option><option value="US,CA">United States and Canada</option>
+            </select>
+          </label>
+          <Button disabled={busy || !writable || !siteId || holidayCalendar === (status.holidayCalendar ?? 'none')} onClick={() => void action(() => api.saveMediavineSettings({ asset, siteId, enabled: status.enabled, holidayCalendar }))}>Save forecast calendar</Button>
+          <div className="flex w-full flex-col gap-1" data-forecast-history>
+            <span className="flex items-center justify-between gap-2 text-xs"><span className="text-muted-foreground">Forecast history</span>
+              {days >= FORECAST_DAYS
+                ? <StateChip label="Enough to forecast" tone="affirmative" glyph={<Check className="size-3" aria-hidden />} subject={`revenue:${asset}`} />
+                : <span className="tabular-nums text-foreground">{days} of {FORECAST_DAYS} days</span>}
+            </span>
+            {days >= FORECAST_DAYS ? null : <Meter value={days} max={FORECAST_DAYS} ariaLabel={`${days} of ${FORECAST_DAYS} days of daily revenue saved`} />}
+          </div>
         </div>
-      </div>
+      </details>
       {status.daily.length ? <details><summary className="min-h-11 cursor-pointer py-3 font-medium">Saved daily revenue · {status.daily.length} days</summary>
         <div className="max-h-80 overflow-auto"><table className="w-full text-sm"><caption className="sr-only">Mediavine daily revenue estimates in USD</caption><thead><tr><th className="text-left">Report date</th><th className="text-right">Estimated revenue</th></tr></thead><tbody>{status.daily.map(day => <tr key={day.date}><td className="py-2">{day.date}</td><td className="text-right tabular-nums">{money(day.amountMinor)}</td></tr>)}</tbody></table></div>
       </details> : null}

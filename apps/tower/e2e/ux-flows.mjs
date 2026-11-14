@@ -99,7 +99,9 @@ async function seedPopulated(page, fixture) {
   await page.goto(`/assets/${ASSET}/sources`);
   await settle(page);
   await page.locator("#integrations").getByRole("button", { name: /^Bing Webmaster/ }).first().click();
-  const site = page.locator('[data-lane-config="bing-webmaster"]').getByLabel("Provider site", { exact: true });
+  const config = page.locator('[data-lane-config="bing-webmaster"]');
+  if ((await config.getAttribute("open")) === null) await config.locator("summary").click();
+  const site = config.getByLabel("Provider site", { exact: true });
   await site.fill(SITE);
   await site.locator('xpath=following::button[normalize-space(.)="Save"][1]').click();
   await page.locator(SAVED).first().waitFor({ state: "visible", timeout: 15_000 });
@@ -226,12 +228,9 @@ async function seedPosthogWithOneFunnel(page) {
   await panel.getByRole("button", { name: "Connect", exact: true }).click();
   await panel.locator("[data-sites-start]").click();
   await panel.locator('[data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 });
-  await page.goto(`/assets/${ASSET}/sources`);
-  await settle(page);
-  const row = page.locator("#integrations").getByRole("button", { name: /^PostHog/ }).first();
-  if ((await row.getAttribute("aria-expanded")) !== "true") await row.click();
-  const config = page.locator('[data-lane-config="posthog"]');
-  if ((await config.getAttribute("open")) === null) await config.locator("summary").first().click();
+  await page.goto(`/integrations?connect=posthog&asset=${ASSET}`);
+  const config = page.locator(`[data-mapping-asset="${ASSET}"]`);
+  await config.locator("summary").filter({ hasText: /^Funnels/ }).click();
   await config.getByRole("button", { name: "Remove funnel Checkout", exact: true }).click();
   await config.locator('[data-save-state="saved"]').waitFor({ timeout: 15_000 });
   // The flow starts where the operator looks at the site: its own page.
@@ -239,18 +238,16 @@ async function seedPosthogWithOneFunnel(page) {
   await settle(page);
 }
 
-/** Change a site's PostHog funnels on its own row: from the site's page, Data
- * sources → PostHog → Mapping → Add funnel picks one of the project's saved
- * funnels, saved at once with Undo beside it; no event name typed, no Save. */
+/** Change an asset's PostHog funnels from its mapping in Integrations. */
 FLOWS["change-posthog-funnel"] = {
-  title: "Change an asset's PostHog funnels (pick one of the project's saved funnels on the asset's row, saved on the pick)",
+  title: "Change an asset's PostHog funnels (pick one of the project's saved funnels in Integrations, saved on the pick)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await seedPosthogWithOneFunnel(page); },
   async run(w) {
     w.know("Which of the project's saved PostHog funnels the asset should report");
-    await assetTab(w, "Data sources");
-    await openSourceRow(w, "PostHog");
-    const config = w.page.locator('[data-lane-config="posthog"]');
-    if ((await config.getAttribute("open")) === null) await w.click(config.locator("summary").first(), "Mapping", { role: "reveal" });
+    await nav(w, "Integrations");
+    await w.click(w.page.getByRole("button", { name: "Manage PostHog" }), "Manage PostHog", { role: "nav" });
+    const config = w.page.locator(`[data-mapping-asset="${ASSET}"]`);
+    await w.click(config.locator("summary").filter({ hasText: /^Funnels/ }), "Funnels", { role: "reveal" });
     const pick = config.locator("[data-funnel-pick]");
     await w.waitFor("Mapping → the project's saved funnels", () => pick.waitFor({ timeout: 15_000 }));
     await w.select(pick, "checkout", "Add funnel");
@@ -452,7 +449,9 @@ FLOWS["configure-sources"] = {
     // The market is picked by name and saved on the pick, never DataForSEO's
     // numeric location code typed and saved.
     await openSourceRow(w, "DataForSEO");
-    const market = w.page.locator('[data-lane-mapping="dataforseo"]').getByLabel("Market", { exact: true });
+    const marketConfig = w.page.locator('[data-lane-config="dataforseo"]');
+    if ((await marketConfig.getAttribute("open")) === null) await w.click(marketConfig.locator("summary"), "Market", { role: "reveal" });
+    const market = marketConfig.getByLabel("Market", { exact: true });
     await w.select(market, "2826:en", "Market");
     await w.waitFor("Market → Saved", () => w.page.locator('[data-lane-market] [data-save-state="saved"]').waitFor({ state: "visible", timeout: 15_000 }));
     await w.end("configured");

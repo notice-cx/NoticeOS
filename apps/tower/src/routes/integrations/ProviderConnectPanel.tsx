@@ -34,6 +34,7 @@ import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { useInlineConfigSave } from "@/hooks/useConfigSave";
 import { useConfigSaveDelay } from "@/hooks/config-backed-queries";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
+import { ProviderMappings } from "./ProviderMappings";
 import { CloudflareD1Panel } from './CloudflareD1Panel';
 
 
@@ -54,6 +55,7 @@ export interface ProviderConnectPanelProps {
   opened: ProviderPanelOpening;
   /** The site the panel was opened for: it leads the site list. */
   asset: string | null;
+  googleSetup?: boolean;
   /** False while this install cannot store a credential yet. */
   canConnect: boolean;
   /** Why not, said in the panel; passed only where the page behind has no
@@ -77,7 +79,7 @@ export interface ProviderConnectPanelProps {
  * is one. Route wiring, not a component: it binds the registered pieces to
  * the API.
  */
-export function ProviderConnectPanel({ status, opened, asset, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
+export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
   const queryClient = useQueryClient();
   const googleStart = useGoogleOAuthStart();
@@ -134,7 +136,7 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
         <WhatLands connected={state !== "not-connected"} />
       ) : undefined}
       // When the collections this connection feeds run.
-      schedule={stripe && schedule ? (
+      schedule={(stripe || provider.id === "google" || provider.id === "posthog" || provider.id === "mediavine") && schedule ? (
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground">Collection schedule</summary>
           <div className="mt-2">{schedule}</div>
@@ -175,10 +177,12 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
         <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
       ) : stripe ? (_answer, close) => (
         <StripeProductAssignments status={status} onClose={close} />
-      ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
+      ) : provider.connect?.sites === false ? undefined : (answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
       ) : (
-        <ProviderSites provider={provider} preselect={asset} onClose={close} onStarted={() => setStarted(true)} onCollected={onChanged} />
+        <ProviderSites provider={provider} preselect={asset} onClose={close} onStarted={() => setStarted(true)} onCollected={onChanged}
+          managing={answer === null && opened === "sites" && (provider.id !== "google" || !googleSetup)}
+          googleFallbacks={credential.propertyMap?.answersFor} />
       )}
     />
   );
@@ -245,31 +249,39 @@ function ProviderSites({
   onClose,
   onStarted,
   onCollected,
+  managing,
+  googleFallbacks,
 }: {
   provider: IntegrationProvider;
   preselect: string | null;
   onClose: () => void;
   onStarted: () => void;
   onCollected: () => Promise<void>;
+  managing: boolean;
+  googleFallbacks?: readonly { asset: string; id: string }[];
 }) {
   const toast = useOwnerToast();
+  const [mode, setMode] = useState(managing ? "edit" : "setup");
+  const editing = mode === "edit";
+  const savedOnly = mode === "collect";
+  const legacyMappings = googleFallbacks
+    ? new Set(googleFallbacks.map(({ asset, id }) => `${asset}/${id}`))
+    : undefined;
   const { fetchProviderSites, collectProviderSites } = useTowerApi();
   // The Data sources tab's own write (`PUT /api/config`, audited in
   // `config_changes`), confirmed by the rows' statuses rather than a toast
   // that would cover the panel's footer; a refusal still says so.
   const save = useInlineConfigSave();
   const saveDelayMs = useConfigSaveDelay();
-  // Read once for the panel; nothing refetches it behind the operator's back.
-  // One key per panel session: a panel opened again reads the account again,
-  // and nothing within one session reads it twice (StrictMode's second mount
-  // included, which a zero cache time would break).
+  // Keep the first-collection list stable while it is staged. Saved mapping
+  // edits refresh the list through the same invalidation as other settings.
   const [session] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const sites = useQuery({
     queryKey: ["integration-sites", provider.id, session],
     // No abort signal: a read cancelled by StrictMode's rehearsal unmount would
     // be asked again on the remount — the provider asked twice.
     queryFn: () => fetchProviderSites(provider.id),
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: mode === "setup" ? "static" : Number.POSITIVE_INFINITY,
     gcTime: 60_000,
     retry: 0,
     refetchOnWindowFocus: false,
@@ -302,6 +314,17 @@ function ProviderSites({
     return result;
   }
 
+  const supportsMapping = provider.id === "google" || provider.id === "posthog";
+  if (editing && supportsMapping) {
+    return <ProviderMappings
+      provider={provider.id === "google" ? "google" : "posthog"}
+      googleFallbacks={legacyMappings}
+      payload={sites.data} preselect={preselect} loading={sites.isFetching}
+      onClose={onClose} onCollect={() => setMode("collect")}
+      onRetry={() => void sites.refetch({ cancelRefetch: false })}
+    />;
+  }
+
   return (
     <SitePicker
       provider={provider}
@@ -318,6 +341,8 @@ function ProviderSites({
         return site ? { kind: site.kind, site } : null;
       }}
       onClose={onClose}
+      onEditMappings={supportsMapping ? () => setMode("edit") : undefined}
+      collection={savedOnly ? { googleFallbacks: legacyMappings } : undefined}
     />
   );
 }

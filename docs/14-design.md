@@ -792,8 +792,8 @@ from its starting point to its result:
   projects matched, saved funnels imported, collecting.
 - **Connect Microsoft Clarity** — Integrations: a token pasted on each asset's
   row, saved on paste; Run now spends one of the day's calls.
-- **Change an asset's PostHog funnels** — the asset's Data sources tab: pick one
-  of the project's saved funnels on the row, saved on the pick.
+- **Change an asset's PostHog funnels** — Integrations → Manage PostHog →
+  Funnels: pick one of the project's saved funnels to save it.
 - **Connect Mediavine** — Integrations → Connect: sign-in tested before it is
   saved, assets found and matched, synced.
 - **Connect Google, self-hosted** — Integrations: console steps deep-linked,

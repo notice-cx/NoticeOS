@@ -13,7 +13,7 @@ The Integrations page shows what you are connected with, and what else you can c
 
 The page starts with a one-line summary: **Nothing connected yet · 8 integrations to choose from**, **5 of 8 integrations connected**, or, when something is wrong, **Bing Webmaster Tools needs attention** with the reason beside it. A connection that is failing or overdue is sorted to the top of its group.
 
-Four groups follow, in the order a founder looks for them: **Traffic & search** (Google, Bing Webmaster Tools, DataForSEO, PostHog, Microsoft Clarity), **Revenue** (Mediavine), **Coordination** (calendar feeds, Discord) and **Other**.
+The catalog groups integrations by what they provide. **Traffic & search** includes Google, Bing Webmaster Tools, DataForSEO, PostHog and Microsoft Clarity. **Revenue** includes Mediavine and Stripe. Mercury is in **Banking**. Calendar feeds and Discord are in **Coordination**. The remaining integrations are in **Other**.
 
 Each row is the provider's logo, its name, its one status, and one button. A provider that does not connect in the panel opens its own page instead, with **All integrations** to go back.
 
@@ -27,7 +27,7 @@ The button is the row's only control:
 
 - **Connect**, when nothing is connected, opens the connect panel: paste the credential, select **Connect**, tick the assets, select **Start collecting**.
 - **Reconnect**, when the key is failing, opens the key field again.
-- **Manage**, when it is connected, opens the connection: its assets and how each is doing, its schedule, **Replace API key** (tested before it is saved) and **Disconnect** (one confirmation that names what stops).
+- **Manage** opens the connection and its available settings. Edit Google and PostHog **Asset mappings** here, assign Mediavine assets or map Stripe products. **Collection schedule** shows when collection runs. **Replace API key** tests a key before saving it. **Disconnect** shows what stops before deleting the credential.
 - **Import from this machine**, on a card marked **Legacy env**, moves the whole secrets file into the store.
 
 ## States and labels

@@ -184,9 +184,9 @@ edit from any door. `id` is the join key every asset entry and every collector
 names the source by — a row with no collector behind its id never collects.
 The register stays declared so a product update can insert or retire a
 catalog row by changeset. What an operator sets about a source lives where it
-is used: the credential on **Integrations**, an asset's mapping and "Not using"
-on its **Data sources** tab, when each collection runs on **Settings → Data
-collection**.
+is used. **Integrations** holds credentials and Google, PostHog and Mediavine
+asset mappings. The asset’s **Data sources** tab shows health, the **Not using**
+action, Bing’s mapping and DataForSEO’s market.
 
 **A row nothing connects yet is not offered.** The affiliate rows,
 `deploy-annotations` and `github-app` have no provider card (`laneProvider`
@@ -195,10 +195,10 @@ for it unless something already arrived for it. **`uptime` needs no
 connection**: the OS checks each asset's home page itself every hour, and the
 cell reads that check unless the file says `skipped` or `not-applicable`.
 
-## An asset's own lanes: the Data sources tab
+## An asset's own data sources
 
-The `assets` half is the `asset-lane` register, edited on the asset's own
-Data sources tab, one section per lane card. It carries the posture (only
+The `assets` half is the `asset-lane` register, edited through **Integrations**
+and the asset’s **Data sources** tab. It carries the posture (only
 `needs-setup` and `skipped` are offered; the rest are derived), the setup
 steps (derived on every read, never tickable), and the mapping fields,
 validated against the declaration before they are sent and again when they
@@ -234,12 +234,10 @@ US/English baseline (2840, `en`). Each run records which answered
 while at least one asset the blob names is unmapped here, and the Google card
 on `/integrations` says which state holds.
 
-**Timing.** Once seeded, the ingest resolves this document store-first on
-every cron fire (`workers/ingest/src/config-store.ts`), so a value saved on
-the Data sources tab is what the next run asks for — no restart, no deploy. Before
-seeding, both Workers read the compiled copy and a hand-edited file waits for
-a restart; the Data sources tab derives which sentence it prints from
-`GET /api/config`'s `sources` entry (`laneMappingTiming`).
+**Timing.** Once seeded, the ingest reads the stored document on every cron
+fire (`workers/ingest/src/config-store.ts`). The next run uses the latest saved
+mapping. Before seeding, both Workers read the compiled copy, and a file edit
+takes effect after a restart.
 
 ## Validation
 

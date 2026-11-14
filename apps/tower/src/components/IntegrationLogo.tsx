@@ -1,4 +1,4 @@
-import { CalendarDays, ListTodo, Plug } from "lucide-react";
+import { CalendarDays, Cloud, ListTodo, MessageSquare, Plug } from "lucide-react";
 import { TASK_SNAPSHOTS } from "@shared/task-source";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,9 @@ const PROVIDER_LOGOS: Readonly<Record<string, string>> = {
   posthog: "/integrations/posthog.svg",
   mediavine: "/integrations/mediavine.webp",
   stripe: "/integrations/stripe.svg",
+  crux: "/integrations/crux.png",
+  mercury: "/integrations/mercury.svg",
+  ntasks: "/integrations/ntasks.svg",
   discord: "/integrations/discord.svg",
 };
 
@@ -31,7 +34,11 @@ export function IntegrationLogo({
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const showLogo = source !== undefined && source !== failedSource;
   // The task hub wears the Tasks glyph the sidebar uses.
-  const Icon = provider === "calendar" ? CalendarDays : provider === TASK_SNAPSHOTS ? ListTodo : Plug;
+  const Icon = provider === "calendar" ? CalendarDays
+    : provider === TASK_SNAPSHOTS || provider === "ntasks" ? ListTodo
+    : provider === "cloudflare" ? Cloud
+    : provider === "local-model" ? MessageSquare
+    : Plug;
   return (
     <span
       aria-hidden

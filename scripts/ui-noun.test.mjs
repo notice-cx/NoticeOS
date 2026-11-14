@@ -78,7 +78,6 @@ const ALLOWED_PHRASES = [
   // The react-query key for the connected Google account's own property list.
   // It names the provider's object and never reaches a person: it is a cache
   // key, and the two cards that share it share it BY this string.
-  '"google-properties"',
   '"sites", "properties"', // Search aliases, never rendered.
 ];
 

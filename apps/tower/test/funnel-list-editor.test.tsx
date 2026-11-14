@@ -153,7 +153,8 @@ describe("FunnelListEditor", () => {
       // Nothing to type: no event, path, name or id field, and no Save.
       expect(document.querySelectorAll("input")).toHaveLength(0);
       expect(document.querySelector("[data-funnel-save]")).toBeNull();
-      expect(screen.getByText("$pageview /calculator → form_start → calculation_complete")).toBeTruthy();
+      fireEvent.focus(screen.getByRole("button", { name: "Steps for Calculator" }));
+      expect(screen.getByRole("tooltip")).toHaveTextContent("$pageview /calculator → form_start → calculation_complete");
       const pick = screen.getByLabelText("Add funnel") as HTMLSelectElement;
       expect([...pick.options].map((option) => option.textContent)).toEqual(["Add funnel", "Signup"]);
       fireEvent.change(pick, { target: { value: "signup" } });

@@ -74,11 +74,12 @@ export function IntegrationsRoute() {
   const now = useNow();
   const monitoring = useIntegrationHealth();
   const [params, setParams] = useSearchParams();
+  const [returnedFromGoogle] = useState(() => params.get(GOOGLE_OAUTH_RESULT_PARAM) === "connected");
   // The open panel: which provider, whether it opened on the key form, its
   // sites or Replace, and the site it was opened for. A site's Data sources
   // row opens the same panel over that site's page; a link here with ?asset=
   // still lands on it.
-  const [connecting, setConnecting] = useState<{ id: string; opened: ProviderPanelOpening; asset: string | null } | null>(null);
+  const [connecting, setConnecting] = useState<{ id: string; opened: ProviderPanelOpening; asset: string | null; googleSetup?: boolean } | null>(null);
   // The sites' own names, from the list the sidebar already reads.
   const wall = useWall();
   const siteNames = new Map((wall.data?.assets ?? []).map((asset) => [asset.id, asset.displayName]));
@@ -170,15 +171,16 @@ export function IntegrationsRoute() {
     const status = cards.find((card) => card.provider.id === id);
     if (!status || !connectsInPanel(status.provider)) return null;
     const state = connectionState(status.credential);
-    return state === "not-connected" || (connectedToo && (state !== "failing" || id === "stripe")) ? status : null;
+    return state === "not-connected" || connectedToo ? status : null;
   };
   // `?setup=page` keeps a provider's own page (Google's service-account path).
   const providerParam = params.get("provider");
   const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
   useEffect(() => {
     if (!linked) return;
-    const opened = connectionState(linked.credential) === "failing" ? "form" : providerPanelOpening(linked);
-    setConnecting({ id: linked.provider.id, opened, asset: params.get("asset") });
+    const opened = linked.provider.connect?.kind !== "site-tokens" && connectionState(linked.credential) === "failing"
+      ? "form" : providerPanelOpening(linked);
+    setConnecting({ id: linked.provider.id, opened, asset: params.get("asset"), googleSetup: linked.provider.id === "google" && returnedFromGoogle });
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -331,6 +333,7 @@ export function IntegrationsRoute() {
               status={panel}
               opened={connecting.opened}
               asset={connecting.asset}
+              googleSetup={connecting.googleSetup}
               canConnect={blockers.length === 0}
               items={monitoring.status.items}
               names={siteNames}

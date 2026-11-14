@@ -14,6 +14,7 @@ export const CONFIG_BACKED_QUERIES = [
   "financials",
   "integrations",
   "integration-providers",
+  "integration-sites",
   "task-source",
   "task-service",
   "work",
@@ -29,7 +30,7 @@ type ConfigQueryFamily = (typeof CONFIG_BACKED_QUERIES)[number];
 const DOCUMENT_QUERIES: Partial<Record<FileOp["file"], readonly ConfigQueryFamily[]>> = {
   "config/constants.json": ["wall", "asset-detail", "settings", "workflows", "financials", "integrations", "integration-providers", "work", "wall-feed"],
   "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
-  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
+  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers", "integration-sites"],
   "config/counters.json": ["wall", "asset-detail"],
   "config/tower.json": ["wall", "settings", "asset-detail"],
   "config/serp-panel.json": ["wall", "asset-detail", "integrations"],

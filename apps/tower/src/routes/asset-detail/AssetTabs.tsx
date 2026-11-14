@@ -108,6 +108,7 @@ export const HASH_TAB: Record<string, AssetTab> = {
   "#alert-history": "alerts",
   "#tasks": "tasks",
   "#timeline": "activity",
+  "#mediavine": "financials",
   "#pnl": "financials",
   "#ledger": "financials",
   "#details": "sources",

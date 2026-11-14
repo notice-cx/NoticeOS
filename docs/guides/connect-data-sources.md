@@ -54,14 +54,14 @@ Each asset's row moves from **Collecting** to **Working** when its first result 
 
 A skipped source is never requested or billed for that asset. **Use again** puts it back.
 
-Some rows also have a **Mapping** or **Market** section: the Search Console site, the GA4 property, the PostHog project and its saved funnels, or DataForSEO's market. Each choice is saved on its own with **Undo** beside it.
+Use **Integrations** → **Manage** to edit Google properties or PostHog projects and funnels. **Data sources** shows health and links to the integration with the current asset first. Bing's **Mapping** and DataForSEO's **Market** stay on the asset.
 
 ## Change how often data is collected
 
 A collection that uses a connection is scheduled on that connection's **Manage** panel.
 
 1. Open **Integrations** and select **Manage** on the row.
-2. On the job's row, select **Paused**, **Every few minutes**, **Hourly**, **Daily** or **Weekly**, then the time. The jobs are **Ad revenue** (Mediavine), **Traffic and search archives** (Google and Bing), **Product analytics archives** (PostHog), **Search rankings and backlinks** (DataForSEO, weekly) and **Clarity recordings summary**. Each choice is saved with **Undo** beside it.
+2. Open **Collection schedule** when it is collapsed. On the job's row, select **Paused**, **Every few minutes**, **Hourly**, **Daily** or **Weekly**, then the time. The jobs are **Ad revenue** (Mediavine), **Traffic and search archives** (Google and Bing), **Product analytics archives** (PostHog), **Search rankings and backlinks** (DataForSEO, weekly) and **Clarity recordings summary**. Each choice is saved with **Undo** beside it.
 
 Collections that use no connection, such as **Nightly reports** and **Live traffic and counters**, are scheduled on **Settings** > **Data collection**.
 

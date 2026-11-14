@@ -14,6 +14,9 @@ or provider websites to render an integration.
 | Mediavine | [Mediavine](https://www.mediavine.com/), its published 320px asset icon |
 | Discord | [Discord brand assets](https://discord.com/branding), the original blurple Clyde symbol |
 | Stripe | [Stripe Newsroom](https://stripe.com/newsroom/information), its published SVG icon |
+| Mercury | [Mercury](https://mercury.com/contact), its published SVG icon |
+| Chrome UX Report | [Chrome for Developers](https://developer.chrome.com/docs/crux), its published Chrome touch icon |
+| Ntasks | [Ntasks](https://github.com/notice-cx/Ntasks), its application icon |
 | PostHog | [PostHog brand assets](https://posthog.com/handbook/company/brand-assets), the published `posthog-logomark.svg` |
 
 Exact download URLs and SHA-256 hashes are in [sources.json](sources.json).
@@ -26,6 +29,6 @@ for service identification, without claiming endorsement or an open-source
 license for the marks. Vendor brand/trademark terms continue to apply; they
 are not relicensed under any NoticeOS source-code license.
 
-Calendar feeds are a generic protocol, so `IntegrationLogo` uses Lucide's
-existing `CalendarDays` icon. Unknown providers and failed image loads use
-the existing `Plug` icon, with the visible provider name retained.
+Calendar feeds, model connections and Cloudflare D1 backups use Lucide
+glyphs. The generic task-source status uses the Tasks glyph. Unknown providers
+and failed image loads use a plug glyph beside the provider name.

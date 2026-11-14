@@ -46,5 +46,23 @@
     "reference": "https://stripe.com/newsroom/information",
     "retrieved": "2026-11-14",
     "sha256": "7253e3eb4657773723a696a1f4ad9c8f62794191b9f09c1359db74a51d2d3ae5"
+  },
+  "mercury.svg": {
+    "source": "https://mercury.com/icon.svg?icon.2sq_8nnp61c03.svg",
+    "reference": "https://mercury.com/contact",
+    "retrieved": "2026-11-14",
+    "sha256": "2ed16fb63cf3b3035130b87e94ab07f6b507a6499c17968bc1a9f07090a9a9ef"
+  },
+  "crux.png": {
+    "source": "https://www.gstatic.com/devrel-devsite/prod/v579d635a54d6e1f40caad46ce407560c5106c8915e5ff7e6341f5b13eb245c5a/chrome/images/touchicon-180.png",
+    "reference": "https://developer.chrome.com/docs/crux",
+    "retrieved": "2026-11-14",
+    "sha256": "9eea8621e2dc7aa1985ad9124b3f16d301d2e891e3c849166a3119c8ef30a64c"
+  },
+  "ntasks.svg": {
+    "source": "https://raw.githubusercontent.com/notice-cx/Ntasks/b801a64f298ed38bf6d6555a9027dc1203b7e0a7/apps/web/public/brand/notice-icon.svg",
+    "reference": "https://github.com/notice-cx/Ntasks",
+    "retrieved": "2026-11-14",
+    "sha256": "f719f99db7b5d65b7d822d4ee27af1b21b6f27b11ffce266fa60196c01d02505"
   }
 }

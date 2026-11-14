@@ -41,8 +41,8 @@ const COLLECT_MAX_ASSETS = 100;
 /**
  * The portfolio's assets as the panel matches them: every non-OS asset that is
  * not retired, with its saved cell for each of the provider's lanes. A missing
- * cell is `null` — the register has no entry, so there is nothing the Data
- * sources tab could write there either. In site-list order.
+ * cell is `null` so a mapping editor can insert it instead of editing its fields.
+ * In site-list order.
  *
  * `fieldsOf` names the mapping fields read from each cell: the lane's
  * `LANE_MAPPING` fields, plus whatever the account's sites write there — so a
@@ -63,6 +63,7 @@ export async function loadSitesAssets(
     label: row.label,
     domain: row.domain,
     status: row.status,
+    hasIntegrationEntry: Object.hasOwn(config.assets, row.id),
     cells: Object.fromEntries(lanes.map((lane) => {
       const cell = config.assets?.[row.id]?.[lane];
       if (!cell) return [lane, null];
@@ -118,6 +119,7 @@ export async function handleSitesRequest(
     const listed = discovery.ok ? discovery.sites : [];
     const fieldsOf = (lane: string) => [...new Set([
       ...(LANE_MAPPING[lane]?.fields ?? []),
+      ...(lane === "ad-network" ? ["mediavineSiteId"] : []),
       ...listed.filter((site) => site.lane === lane).flatMap((site) => Object.keys(site.mapping)),
     ])];
     const payload: SitesPayload = {

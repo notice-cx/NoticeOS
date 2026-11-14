@@ -335,7 +335,7 @@ export function readPosthogAssetSettings(entry: unknown): PosthogAssetSettingsRe
     return {
       ok: false,
       reason: 'mapping_missing',
-      detail: `PostHog ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not set on this asset's Sources tab.`,
+      detail: `PostHog ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not set in PostHog’s asset mappings.`,
     };
   }
   if (typeof host !== 'string' || !(POSTHOG_HOSTS as readonly string[]).includes(host)) {

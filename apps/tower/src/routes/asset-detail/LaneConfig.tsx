@@ -1,28 +1,15 @@
-import { Check } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { AssetGa4Config } from "@shared/asset-detail";
 import { integrationLabel, type AssetIntegrationLane } from "@shared/integrations";
 import { DATAFORSEO_BASELINE, DATAFORSEO_MARKETS, marketLabel } from "@shared/site-markets";
 import { InlineSaveState, type InlineSave } from "@/components/InlineSaveState";
 import { fieldClass } from "@/components/ui/field";
-import type { GoogleDiscoveredProperty } from "@shared/integrations-page";
-import { googleListingGrant } from "@shared/connect-panel";
-import type { DiscoveredSite, PosthogFunnel } from "@noticeos/contract";
-import {
-  LANE_FALLBACK_LABEL,
-  LANE_MAPPED_LABEL,
-  LANE_MAPPING,
-  LANE_MAPPING_TIMING_LABEL,
-  fieldOf,
-  fieldRefusal,
-  laneMappingTiming,
-} from "@shared/config-registers";
-import { changesetSlug, type JsonValue } from "@shared/changeset";
+import { fieldOf } from "@shared/config-registers";
+import { changesetSlug } from "@shared/changeset";
 import { LANE_REGISTER, laneFieldOp, laneFieldUnsetOp } from "@shared/lane-mapping-ops";
-import { declineOps, declineReason, resumeOps, undeclineOps } from "@shared/lane-decline";
+import { declineOps, resumeOps, undeclineOps } from "@shared/lane-decline";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { DeclineReasons } from "@/components/DeclineReasons";
-import { FunnelListEditor } from "@/components/FunnelListEditor";
 import { IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { StateChip } from "@/components/StateChip";
 import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
@@ -30,147 +17,28 @@ import { type FieldUndoOutcome, useConfigSave, useFieldConfigSave } from "@/hook
 import { Button } from "@/components/ui/button";
 import { validateRegisterField } from "@/lib/knob-validators";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
-import { useAccountSites } from "@/hooks/useAccountSites";
-import { useGoogleProperties } from "@/hooks/useGoogleProperties";
 import { cn } from "@/lib/utils";
-
-// --- one lane's own configuration -----------------------------------------
-// The editable half of the Sources tab: what a lane is mapped to on this asset,
-// what posture it is in, and the two GA4 declarations.
 
 /** The GA4 lane's own id in `config/integrations.json`'s catalog. */
 export const GA4_LANE_ID = "ga4";
 
-/**
- * This asset's entry for one data source, editable in place: what is still
- * owed (derived on every read, never tickable, because a saved mapping does
- * not prove the provider account still grants access), the mapping, and what
- * blocks it. There is no health toggle: the observed chip is untouched.
- */
 export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset: string }) {
-  const { cell, mapping, mappingSource } = lane;
-  // When configuration saves are unavailable this renders no control rather
-  // than four disabled ones; the refusal is said once on the tab by SavesPaused.
-  const { writable, sources } = useConfigWritable();
-  // When a save here takes effect, derived from the same field the payload
-  // was built from, so the promise and the behaviour cannot disagree. Null
-  // until the deployment says where it read the file.
-  const mappingTiming = laneMappingTiming(sources["config/integrations.json"]);
-  const fallback = LANE_MAPPING[cell.laneId]?.fallback ?? null;
-  // What the connected Google account can see, asked only where it could be
-  // used. Both Google cards share one query key, so a tab showing both makes
-  // one round trip.
-  const pickerLane = GOOGLE_PICKER_LANES[cell.laneId];
-  const discovery = useGoogleProperties(
-    writable && pickerLane !== undefined && mapping.length > 0,
-  );
-  const picker = pickerLane === undefined ? null : lanePicker(pickerLane, discovery);
-  // What the connected PostHog account holds: its projects and their saved
-  // funnels, so this row picks them as the connect panel did.
-  const posthog = cell.laneId === POSTHOG_LANE_ID;
-  const account = useAccountSites(POSTHOG_LANE_ID, writable && posthog);
-  const projects = posthog ? posthogProjects(account) : null;
-  const inactive = cell.effective === "skipped" || cell.effective === "not-applicable";
-  const lists = lane.mappingLists ?? [];
-  // What blocks it, as the file says. A declined source's reason is its row's
-  // caption, so it is not said again here; a decline reason left on a source
-  // in use again is history, not a blocker (`declineReason`).
-  const blocker = cell.declared !== "skipped" && cell.note !== null && cell.note.trim() !== "" && declineReason(cell.note) === null ? cell.note : null;
-  // A source with nothing mapped and nothing blocking has nothing to open.
-  if (mapping.length === 0 && lists.length === 0 && blocker === null) return null;
-  const wantsAttention =
-    !inactive && (
-      cell.effective === "needs-setup" ||
-      cell.effective === "degraded" ||
-      mapping.some((f) => f.value === null || f.value === "")
-    );
+  const { cell, mapping } = lane;
+  const { writable } = useConfigWritable();
+  if (mapping.length === 0 || !writable) return null;
   const market = cell.laneId === DATAFORSEO_LANE_ID;
+  const open = cell.effective !== "skipped" && cell.effective !== "not-applicable"
+    && (cell.effective === "needs-setup" || mapping.some(({ value }) => value === null || value === ""));
   return (
-    <details
-      className="rounded-md border border-dashed border-border px-3 py-2"
-      data-lane-config={cell.laneId}
-      open={wantsAttention}
-    >
-      <summary className="cursor-pointer text-xs font-medium text-foreground marker:text-muted-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">
+    <details className="rounded-md border border-dashed border-border px-3 py-2" data-lane-config={cell.laneId} open={open}>
+      <summary className="cursor-pointer text-xs font-medium text-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">
         {market ? "Market" : "Mapping"}
       </summary>
-
-      {mapping.length > 0 || lists.length > 0 ? (
-        <div className="mt-2" data-lane-mapping={cell.laneId}>
-          {/* Said once above the fields, as two states: what the collector
-              reads for this asset right now, and when a save reaches it. */}
-          <div
-            className="flex flex-wrap items-center gap-1.5 pb-1"
-            data-lane-mapping-state={mappingSource}
-          >
-            {mappingSource === "register" ? (
-              <StateChip
-                tone="affirmative"
-                glyph={<Check className="size-3" aria-hidden />}
-                label={LANE_MAPPED_LABEL}
-                subject={`source:${asset}:${cell.laneId}`}
-              />
-            ) : fallback !== null ? (
-              <StateChip
-                tone={fallback === "none" ? "caution" : "neutral"}
-                dot={fallback === "none" ? "solid" : "hollow"}
-                label={LANE_FALLBACK_LABEL[fallback]}
-                subject={`source:${asset}:${cell.laneId}`}
-              />
-            ) : null}
-            {writable && mappingTiming !== null ? (
-              <StateChip
-                tone={mappingTiming === "after-restart" ? "caution" : "neutral"}
-                label={LANE_MAPPING_TIMING_LABEL[mappingTiming]}
-                subject={`source:${asset}:${cell.laneId}`}
-              />
-            ) : null}
-          </div>
-          {market && writable ? (
-            // One market, picked: a place and its language, never numeric
-            // codes typed by hand.
-            <DataForSeoMarketField asset={asset} mapping={mapping} />
-          ) : writable && projects !== null && projects.state !== "unavailable" ? (
-            // One project, picked from the account; the typed fields below
-            // only when the account cannot be read.
-            <PosthogProjectField asset={asset} mapping={mapping} projects={projects} />
-          ) : writable
-            ? mapping.map((field) => (
-                <LaneMappingField
-                  key={field.name}
-                  asset={asset}
-                  laneId={cell.laneId}
-                  name={field.name}
-                  value={field.value}
-                  picker={picker}
-                />
-              ))
-            : mapping.map((field) => (
-                <p key={field.name} className="mt-1 text-xs text-foreground">
-                  <span className="text-muted-foreground">
-                    {fieldOf(LANE_REGISTER, field.name)?.label ?? field.name}
-                  </span>{" "}
-                  <span className="font-mono">{field.value === null ? "not set" : field.value}</span>
-                </p>
-              ))}
-          {lists.map((list) => (
-            <LaneMappingList
-              key={list.name}
-              asset={asset}
-              laneId={cell.laneId}
-              name={list.name}
-              value={list.value}
-              saved={projects === null || projects.state === "unavailable" ? undefined : savedFunnels(projects, mapping)}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {blocker !== null ? (
-        <p className="mt-2 break-words border-t border-border pt-2 text-xs text-foreground" data-lane-note>
-          {blocker}
-        </p>
-      ) : null}
+      <div className="mt-2" data-lane-mapping={cell.laneId}>
+        {market ? <DataForSeoMarketField asset={asset} mapping={mapping} /> : mapping.map(({ name, value }) => (
+          <LaneMappingField key={name} asset={asset} laneId={cell.laneId} name={name} value={value} />
+        ))}
+      </div>
     </details>
   );
 }
@@ -178,140 +46,6 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
 /** DataForSEO's lane id in the register. */
 const DATAFORSEO_LANE_ID = "dataforseo";
 
-/** PostHog's lane id in the register, which is also its provider id. */
-const POSTHOG_LANE_ID = "posthog";
-
-/** The connected PostHog account's projects, as a row reads them: still being
- * read, read (each project a discovered site: its name, `host` + `projectId`
- * mapping and saved funnels), or not readable — no account key, refused, no
- * answer — which is when the row's typed fields come back. */
-type PosthogProjects =
-  | { state: "loading" }
-  | { state: "ready"; sites: DiscoveredSite[] }
-  | { state: "unavailable" };
-
-function posthogProjects(query: ReturnType<typeof useAccountSites>): PosthogProjects {
-  if (query.isPending && query.fetchStatus !== "idle") return { state: "loading" };
-  const discovery = query.data?.discovery;
-  if (query.isError || discovery === undefined || !discovery.ok) return { state: "unavailable" };
-  return { state: "ready", sites: discovery.sites.filter((site) => site.lane === POSTHOG_LANE_ID) };
-}
-
-/** One mapping field's held value, as a string (`null` when unmapped). */
-function heldField(mapping: AssetIntegrationLane["mapping"], name: string): string | null {
-  const value = mapping.find((field) => field.name === name)?.value;
-  return value === null || value === undefined || value === "" ? null : String(value);
-}
-
-/** The project this row maps to, among the account's. */
-function heldProject(projects: PosthogProjects, mapping: AssetIntegrationLane["mapping"]): DiscoveredSite | null {
-  if (projects.state !== "ready") return null;
-  const host = heldField(mapping, "host");
-  const projectId = heldField(mapping, "projectId");
-  return projects.sites.find((site) => String(site.mapping.projectId) === projectId && (host === null || site.mapping.host === host)) ?? null;
-}
-
-/** The saved funnels the row's funnel list picks from: the mapped project's,
- * or none while the account is read or the project is not in it. */
-function savedFunnels(projects: PosthogProjects, mapping: AssetIntegrationLane["mapping"]): PosthogFunnel[] {
-  return heldProject(projects, mapping)?.funnels ?? [];
-}
-
-/**
- * A PostHog site's project, picked from the connected account's projects and
- * saved on the pick, region and number in one write, with Undo beside it. A
- * project the account no longer lists stays selected as itself, so opening
- * the list never proposes replacing it.
- */
-function PosthogProjectField({
-  asset,
-  mapping,
-  projects,
-}: {
-  asset: string;
-  mapping: AssetIntegrationLane["mapping"];
-  projects: Exclude<PosthogProjects, { state: "unavailable" }>;
-}) {
-  const saveField = useFieldConfigSave();
-  const [saving, setSaving] = useState(false);
-  const [undoing, setUndoing] = useState(false);
-  const [outcome, setOutcome] = useState<{ kind: "saved"; undo: () => Promise<FieldUndoOutcome> } | { kind: "refused"; refusal: string } | null>(null);
-  const host = heldField(mapping, "host");
-  const projectId = heldField(mapping, "projectId");
-  const key = (h: string | null, id: string | null) => `${h ?? ""}:${id ?? ""}`;
-  const current = key(host, projectId);
-  const sites = projects.state === "ready" ? projects.sites : [];
-  const listed = sites.some((site) => key(String(site.mapping.host), String(site.mapping.projectId)) === current);
-
-  async function pick(value: string) {
-    const site = sites.find((entry) => key(String(entry.mapping.host), String(entry.mapping.projectId)) === value);
-    if (!site || value === current) return;
-    const nextHost = String(site.mapping.host);
-    const nextId = String(site.mapping.projectId);
-    const heldHost = mapping.find((field) => field.name === "host")?.value ?? null;
-    const heldId = mapping.find((field) => field.name === "projectId")?.value ?? null;
-    const ops = [
-      ...(heldHost === nextHost ? [] : [laneFieldOp(asset, POSTHOG_LANE_ID, "host", heldHost, nextHost)]),
-      ...(heldId === nextId ? [] : [laneFieldOp(asset, POSTHOG_LANE_ID, "projectId", heldId, nextId)]),
-    ];
-    if (ops.length === 0) return;
-    setSaving(true);
-    setOutcome(null);
-    try {
-      const result = await saveField({ ops, label: `PostHog project (${site.label})`, slug: changesetSlug(asset, POSTHOG_LANE_ID, "project") });
-      setOutcome(result.saved ? { kind: "saved", undo: result.undo } : { kind: "refused", refusal: result.refusal });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function undo() {
-    if (outcome?.kind !== "saved") return;
-    setUndoing(true);
-    try {
-      const back = await outcome.undo();
-      setOutcome(back.undone ? null : { kind: "refused", refusal: back.refusal });
-    } finally {
-      setUndoing(false);
-    }
-  }
-
-  const save: InlineSave = saving
-    ? { state: "saving" }
-    : outcome?.kind === "saved"
-      ? { state: "saved", undoing, onUndo: () => void undo() }
-      : outcome?.kind === "refused"
-        ? { state: "refused", refusal: outcome.refusal }
-        : { state: "idle" };
-  return (
-    <div className="flex flex-wrap items-center gap-2 py-1" data-lane-project={asset} data-lane-project-state={projects.state}>
-      <select
-        aria-label="PostHog project"
-        className={cn(fieldClass, "h-11 max-w-full sm:h-9")}
-        value={projects.state === "loading" ? "" : current}
-        disabled={projects.state === "loading" || saving || undoing}
-        onChange={(event) => void pick(event.target.value)}
-      >
-        {projects.state === "loading" ? <option value="">Reading PostHog…</option> : null}
-        {projects.state === "ready" && projectId === null ? <option value={current}>Pick a project</option> : null}
-        {projects.state === "ready" && projectId !== null && !listed ? <option value={current}>{projectId} · not in this account</option> : null}
-        {sites.map((site) => (
-          <option key={site.ref} value={key(String(site.mapping.host), String(site.mapping.projectId))}>
-            {site.label} · {site.mapping.projectId} · {String(site.mapping.host).toUpperCase()}
-          </option>
-        ))}
-      </select>
-      <InlineSaveState save={save} subject={`field:posthog-project:${asset}`} />
-    </div>
-  );
-}
-
-/**
- * A DataForSEO site's market, picked: one select of places in their language,
- * saved the moment it is picked, with Undo beside it. The write is two
- * `laneFieldOp`s in one changeset; a pair the list does not name stays
- * selectable as itself.
- */
 function DataForSeoMarketField({ asset, mapping }: { asset: string; mapping: AssetIntegrationLane["mapping"] }) {
   const saveField = useFieldConfigSave();
   const [saving, setSaving] = useState(false);
@@ -381,252 +115,35 @@ function DataForSeoMarketField({ asset, mapping }: { asset: string; mapping: Ass
   );
 }
 
-/** The two lanes the connected Google account can answer for, mapped to the
- * half of `GooglePropertyDiscovery` each reads. Bing and DataForSEO are typed:
- * nothing lists their scopes. */
-const GOOGLE_PICKER_LANES: Record<string, "ga4" | "gsc" | undefined> = {
-  ga4: "ga4",
-  gsc: "gsc",
-};
-
-/** One lane's half of the discovery read, as its field renders it. */
-interface LanePickerState {
-  lane: "ga4" | "gsc";
-  /** The account is still answering. The text box stays usable meanwhile. */
-  loading: boolean;
-  /** What this account can see on this lane, in Google's own order. */
-  options: GoogleDiscoveredProperty[];
-  /** Why there is no list — in Google's own sentence where it had one — or null
-   * when there is one. */
-  unavailable: string | null;
-  /** Whose access the list shows and what makes a missing one appear, or null
-   * while the credential is unknown. */
-  grant: string | null;
-}
-
-/**
- * The discovery read, narrowed to one lane and to the states a field has to
- * draw. A failed read is not an error state here: the field underneath works
- * without it, so the degrade is a sentence and a text box. The payload is
- * defended rather than trusted, because a field that threw on a surprising
- * body would take the whole tab with it.
- */
-function lanePicker(
-  lane: "ga4" | "gsc",
-  query: ReturnType<typeof useGoogleProperties>,
-): LanePickerState {
-  const payload = query.data;
-  const listed = Array.isArray(payload?.properties) ? payload.properties : [];
-  const options = listed.filter((entry) => entry?.lane === lane);
-  const loading = query.isPending || query.isFetching;
-  const label = lane === "ga4" ? "GA4 properties" : "Search Console sites";
-  // Why there is no list, as a state beside the field that still takes a typed
-  // value.
-  const unavailable = loading
-    ? null
-    : query.isError || payload === undefined
-      ? "No response from Google"
-      : payload.ok === false
-        ? (payload.account ? "Google returned no list" : "Google not connected")
-        : options.length === 0
-          ? `No ${label}`
-          : null;
-  const grant = loading || query.isError ? null : googleListingGrant(lane, payload, "reload this page");
-  return { lane, loading, options, unavailable, grant };
-}
-
-/**
- * One mapping field, its rule and words from the `asset-lane` declaration.
- * The text box never goes away, even beside a picker: a service-account
- * install has no sign-in to ask, and a failed discovery must cost nothing.
- * Remove is a `file-json-delete` guarded by the old value, because a field
- * rule reads `""` as a blank string, not as "take this away".
- */
-function LaneMappingField({
-  asset,
-  laneId,
-  name,
-  value,
-  picker = null,
-}: {
+function LaneMappingField({ asset, laneId, name, value }: {
   asset: string;
   laneId: string;
   name: string;
   value: string | number | null;
-  picker?: LanePickerState | null;
 }) {
   const save = useConfigSave();
   const [removing, setRemoving] = useState(false);
   const field = fieldOf(LANE_REGISTER, name);
   if (field === null) return null;
-  // Two readings of one field: `current` is what the control shows (an
-  // unmapped field is an empty box), `value` is what the file holds, where
-  // `null` means the key is not written at all, which is what the op's guard
-  // has to say because a first save is not a stale one.
-  const current: JsonValue = value === null ? "" : value;
-  // The declaration picks the control, the same way it picks the refusal: an
-  // enum is a list to choose from, a number is a number box, everything else is
-  // monospace text because these are identifiers and a proportional font hides
-  // a transposed digit.
   const validate = validateRegisterField(field);
-  const control: KnobControl =
-    field.type === "enum" && field.values
-      ? { type: "select", options: field.values.map((v) => ({ value: v, label: v })) }
-      : field.type === "integer" || field.type === "number"
-        ? { type: "number", validate, step: "1", placeholder: "not set" }
-        : { type: "text", mono: true, validate, placeholder: "not set" };
-  const editor = (label: string, chosen: KnobControl) => (
-    <KnobEditor
-      label={label}
-      assetId={asset}
-      current={current}
-      format={(v) => (v === "" || v === null ? "not set" : String(v))}
-      makeOp={(v) => laneFieldOp(asset, laneId, name, value, v)}
-      control={chosen}
-      slug={changesetSlug(asset, laneId, name)}
-    />
-  );
-
-  // Offered only where there is something to remove, and only for a field the
-  // declaration marks optional: a required field has no absent state to go
-  // back to. No confirm; the toast carries the way back.
-  const removeMapping =
-    value === null || field.required === true
-      ? null
-      : async () => {
+  const control: KnobControl = field.type === "enum" && field.values
+    ? { type: "select", options: field.values.map((entry) => ({ value: entry, label: entry })) }
+    : field.type === "integer" || field.type === "number"
+      ? { type: "number", validate, step: "1", placeholder: "not set" }
+      : { type: "text", mono: true, validate, placeholder: "not set" };
+  const slug = changesetSlug(asset, laneId, name);
+  return (
+    <div>
+      <KnobEditor label={field.label} assetId={asset} current={value ?? ""}
+        format={(entry) => entry === "" || entry === null ? "not set" : String(entry)}
+        control={control} makeOp={(next) => laneFieldOp(asset, laneId, name, value, next)} slug={slug} />
+      {value !== null && !field.required ? <Button type="button" size="sm" variant="ghost" disabled={removing}
+        data-lane-mapping-remove={`${laneId}-${name}`} onClick={() => {
           setRemoving(true);
-          try {
-            await save({
-              ops: [laneFieldUnsetOp(asset, laneId, name, value)],
-              label: `${field.label} (${field.name})`,
-              slug: changesetSlug(asset, laneId, name),
-            });
-          } finally {
-            setRemoving(false);
-          }
-        };
-  const remove =
-    removeMapping === null ? null : (
-      <div className="pb-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          disabled={removing}
-          onClick={() => void removeMapping()}
-          data-lane-mapping-remove={`${laneId}-${name}`}
-        >
-          Remove mapping
-        </Button>
-      </div>
-    );
-
-  // Every lane but the two Google ones, and either of those before the account
-  // has listed anything for it: the field it always was, plus one line saying
-  // why there is no list to pick from.
-  if (picker === null || picker.options.length === 0) {
-    return (
-      <div
-        data-lane-picker={picker === null ? undefined : laneId}
-        data-lane-picker-state={
-          picker === null ? undefined : picker.loading ? "loading" : "unavailable"
-        }
-      >
-        {editor(field.label, control)}
-        {picker === null ? null : (
-          <p className="pb-2 text-[11px] leading-snug text-muted-foreground">
-            {picker.loading ? "Reading Google…" : picker.unavailable}
-          </p>
-        )}
-        {picker === null ? null : <ListingGrant laneId={laneId} grant={picker.grant} />}
-        {remove}
-      </div>
-    );
-  }
-
-  // The value the file holds but the account does not list stays selected and
-  // is labelled for what it is, so opening the picker never quietly proposes
-  // replacing it.
-  const unlisted =
-    current !== "" && !picker.options.some((entry) => entry.ref === current)
-      ? [{ value: String(current), label: `${current} — not in the connected account` }]
-      : [];
-  const options = [
-    ...(current === "" ? [{ value: "", label: "Pick one…" }] : []),
-    ...unlisted,
-    // The ref rides beside the name, because the ref is what gets stored and
-    // what a collector error will name.
-    ...picker.options.map((entry) => ({
-      value: entry.ref,
-      label: entry.detail
-        ? `${entry.label} — ${entry.detail} (${entry.ref})`
-        : `${entry.label} (${entry.ref})`,
-    })),
-  ];
-
-  return (
-    <div data-lane-picker={laneId} data-lane-picker-state="ready">
-      {editor(field.label, { type: "select", options })}
-      <ListingGrant laneId={laneId} grant={picker.grant} />
-      <details className="pb-2">
-        <summary className="cursor-pointer text-[11px] text-muted-foreground marker:text-muted-foreground">
-          Not in the list? Type it instead
-        </summary>
-        <div className="mt-1" data-lane-picker-typed={laneId}>
-          {editor(`${field.label}, typed`, control)}
-        </div>
-      </details>
-      {remove}
+          void save({ ops: [laneFieldUnsetOp(asset, laneId, name, value)], label: field.label, slug })
+            .finally(() => setRemoving(false));
+        }}>Remove mapping</Button> : null}
     </div>
-  );
-}
-
-/** Under a Google picker: whose access the list shows, and the grant that
- * makes a missing one appear (`googleListingGrant`). */
-function ListingGrant({ laneId, grant }: { laneId: string; grant: string | null }) {
-  if (grant === null) return null;
-  return (
-    <p className="break-words pb-2 text-[11px] leading-snug text-muted-foreground" data-lane-picker-grant={laneId}>
-      {grant}
-    </p>
-  );
-}
-
-/**
- * One structured list field of a lane (PostHog's funnels). The whole list is
- * one value at one pointer, so it is written by the same `laneFieldOp` as a
- * scalar field and judged by the same declared rule the write lane runs.
- */
-function LaneMappingList({
-  asset,
-  laneId,
-  name,
-  value,
-  saved,
-}: {
-  asset: string;
-  laneId: string;
-  name: string;
-  value: unknown[] | null;
-  /** The funnels the list picks from, read from the account; absent when it
-   * cannot be read and the list is typed. */
-  saved?: readonly PosthogFunnel[];
-}) {
-  const field = fieldOf(LANE_REGISTER, name);
-  if (field === null || field.type !== "posthog-funnels") return null;
-  return (
-    <FunnelListEditor
-      statesReadOnly={false}
-      label={field.label}
-      explain={field.describe}
-      assetId={asset}
-      current={value as PosthogFunnel[] | null}
-      refusal={(draft) => fieldRefusal(field, draft)}
-      makeOp={(draft) => laneFieldOp(asset, laneId, name, value as JsonValue | null, draft as unknown as JsonValue)}
-      slug={changesetSlug(asset, laneId, name)}
-      saved={saved}
-    />
   );
 }
 
@@ -708,8 +225,6 @@ export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetG
       className="flex flex-col gap-4 border-t border-border pt-3"
       data-ga4-config={asset}
     >
-      {/* This asset's GA4 property mapping belongs here: which property we are
-          talking to comes before what we have said about it. */}
       <CollectionEditor
         register="product-use-stages"
         params={{ asset }}

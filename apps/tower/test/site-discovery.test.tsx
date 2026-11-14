@@ -3,9 +3,10 @@
 // writes exactly the operations the asset's Data sources tab writes
 // (`laneFieldOp`, shared/lane-mapping-ops.ts), and nothing already saved.
 
-import { act, fireEvent, render, screen, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CollectNowResult, DiscoveredSite, SiteDiscovery } from "@noticeos/contract";
 import { integrationProvider } from "@noticeos/contract";
 import { laneFieldOp } from "@shared/lane-mapping-ops";
@@ -24,11 +25,14 @@ import {
 } from "@shared/site-discovery";
 import { marketLabel } from "@shared/site-markets";
 import { SitePicker } from "@/components/SitePicker";
+import { ProviderMappings } from "@/routes/integrations/ProviderMappings";
 import { handleSitesRequest, loadSitesAssets } from "../worker/site-discovery-route";
 import { loadSpendPreview } from "../worker/metered-spend";
 import { createTestStore } from "./postgres-store";
 import { writeArchiveRuns, type TestArchiveRun } from "./provider-reports";
 import { addSites } from "./sites";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const BING = integrationProvider("bing-webmaster")!;
 const DATAFORSEO = integrationProvider("dataforseo")!;
@@ -334,7 +338,7 @@ describe("the assets and collect routes", () => {
     const res = await handleSitesRequest(new Request("http://t/api/integrations/bing-webmaster/sites"), new URL("http://t/api/integrations/bing-webmaster/sites"), d, "bing-webmaster", "sites");
     const body = (await res.json()) as SitesPayload;
     expect(res.status).toBe(200);
-    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "onboarding",
+    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "onboarding", hasIntegrationEntry: true,
       cells: { "bing-webmaster": { status: "needs-setup", note: "", mapping: { siteUrl: "https://journey.example/" } } } }]);
     expect(body.spend).toBeNull();
     expect(body.domainMatch).toEqual(["bing-webmaster"]);
@@ -382,7 +386,7 @@ describe("the assets and collect routes", () => {
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "n.example", domain: null, displayName: "N", status: "pre-launch" }]);
     expect(await loadSitesAssets(ctx.call, { catalog: [], assets: {} }, ["bing-webmaster"])).toEqual([
-      { id: "n.example", label: "N", domain: null, status: "pre-launch", cells: { "bing-webmaster": null } },
+      { id: "n.example", label: "N", domain: null, status: "pre-launch", hasIntegrationEntry: false, cells: { "bing-webmaster": null } },
     ]);
   });
 });
@@ -740,6 +744,21 @@ describe("PostHog's projects in the panel", () => {
     expect(startPlan(empty, initialSelection(empty)).ops.at(-1)).toEqual(laneFieldOp("journey.example", "posthog", "funnels", [], [SIGNUP] as never));
   });
 
+  it("imports saved funnels on the first collection of an existing mapping and preserves an explicit empty list", () => {
+    const mapping = { host: "us", projectId: "424242" };
+    const first = asset("journey.example", { cells: cell({ mapping }) });
+    const cleared = asset("second.example", { cells: cell({ mapping, funnels: [] }) });
+    const plan = planSites(payload([first, cleared]), null, {});
+    expect(startPlan(plan, initialSelection(plan))).toEqual({
+      assets: ["journey.example", "second.example"], declined: [],
+      ops: [
+        laneFieldOp("journey.example", "posthog", "host", "us", "us"),
+        laneFieldOp("journey.example", "posthog", "projectId", "424242", "424242"),
+        laneFieldOp("journey.example", "posthog", "funnels", null, [SIGNUP]),
+      ],
+    });
+  });
+
   it("shows each project by its name and number, the funnels it brings, and the project no asset claims", () => {
     render(
       <MemoryRouter>
@@ -780,6 +799,43 @@ describe("Google's two kinds of asset on one row", () => {
       laneFieldOp("journey.example", "ga4", "propertyId", null, "123456789"),
       laneFieldOp("journey.example", "gsc", "siteUrl", null, "sc-domain:journey.example"),
     ]);
+  });
+
+  it("collects legacy Google mappings without saving a guessed property or resuming a declined source", () => {
+    const plan = planSites(payload(
+      [ga4("123456789", "second.example")],
+      [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() }),
+        asset("declined.example", { cells: { ...cells(), ga4: { status: "skipped", mapping: {} } } })],
+    ), null, { googleFallbacks: new Set(["journey.example/ga4", "declined.example/ga4"]) });
+    expect(startPlan(plan, initialSelection(plan))).toEqual({ assets: ["journey.example"], declined: [], ops: [] });
+  });
+
+  it("stops a legacy Google mapping with a guarded save when the asset has no cell, and can undo it", async () => {
+    const puts: { ops: { kind: string; pointer: string; value?: unknown; expect?: unknown }[] }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        puts.push(JSON.parse(String(init.body)));
+        return Response.json({ applied: 1, archive: null, commit: "abc1234" });
+      }
+      return Response.json({ writable: true, reason: null, sources: { "config/integrations.json": "store" } });
+    }));
+    const listing = payload([], [asset("journey.example", { hasIntegrationEntry: true, cells: { ga4: null, gsc: null } })]);
+    const client = new QueryClient();
+    client.setQueryData(["config-writable"], { writable: true, reason: null, sources: { "config/integrations.json": "store" } });
+    render(<QueryClientProvider client={client}>
+      <ProviderMappings provider="google" payload={listing} preselect={null} loading={false}
+        googleFallbacks={new Set(["journey.example/ga4"])} onClose={vi.fn()} onRetry={vi.fn()} onCollect={vi.fn()} />
+    </QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Stop collecting" }));
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    expect(puts[0]?.ops).toEqual([{
+      kind: "file-json-insert", file: "config/integrations.json", pointer: "/assets/journey.example/ga4",
+      value: { status: "skipped", note: "REASON: Mapping removed", since: expect.any(String) },
+    }]);
+    fireEvent.click(undo);
+    await waitFor(() => expect(puts[1]?.ops).toEqual([{
+      kind: "file-json-delete", file: "config/integrations.json", pointer: "/assets/journey.example/ga4", expect: puts[0]?.ops[0]?.value,
+    }]));
   });
 
   it("reads the row as the property's number and the asset, and names each picker by what it picks", () => {

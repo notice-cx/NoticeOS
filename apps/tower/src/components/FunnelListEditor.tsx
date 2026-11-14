@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { POSTHOG_FUNNEL_LIMITS, type PosthogFunnel } from "@noticeos/contract/configuration";
 import type { SettingOp } from "@shared/changeset";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { InlineSaveState, type InlineSave } from "@/components/InlineSaveState";
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ export interface FunnelListEditorProps {
   refusal: (value: unknown) => string | null;
   /** The op a Save writes for this list (it carries the guard). */
   makeOp: (value: PosthogFunnel[]) => SettingOp;
+  guards?: readonly SettingOp[];
   /** Changeset slug and commit subject. */
   slug?: string;
   /** Write somewhere else — the component gallery passes a fake. */
@@ -91,6 +93,7 @@ export function FunnelListEditor({
   current,
   refusal,
   makeOp,
+  guards = [],
   slug,
   onSave,
   saved: fromAccount,
@@ -125,7 +128,7 @@ export function FunnelListEditor({
     setSaving(true);
     try {
       if (onSave) await onSave(op);
-      else await save({ ops: [op], label, slug });
+      else await save({ ops: [...guards, op], label, slug });
     } finally {
       setSaving(false);
     }
@@ -172,6 +175,7 @@ export function FunnelListEditor({
         saved={fromAccount}
         refusal={refusal}
         makeOp={makeOp}
+        guards={guards}
         slug={slug}
         onSave={onSave}
       />
@@ -397,6 +401,7 @@ function PickedFunnels({
   saved,
   refusal,
   makeOp,
+  guards = [],
   slug,
   onSave,
 }: {
@@ -407,6 +412,7 @@ function PickedFunnels({
   saved: readonly PosthogFunnel[];
   refusal: (value: unknown) => string | null;
   makeOp: (value: PosthogFunnel[]) => SettingOp;
+  guards?: readonly SettingOp[];
   slug?: string;
   onSave?: (op: SettingOp) => Promise<void>;
 }) {
@@ -432,7 +438,7 @@ function PickedFunnels({
         await onSave(op);
         setOutcome({ kind: "saved", undo: async () => ({ undone: true }) });
       } else {
-        const result = await saveField({ ops: [op], label: `${label}: ${what}`, slug });
+        const result = await saveField({ ops: [...guards, op], label: `${label}: ${what}`, slug });
         setOutcome(result.saved ? { kind: "saved", undo: result.undo } : { kind: "refused", refusal: result.refusal });
       }
     } finally {
@@ -476,8 +482,8 @@ function PickedFunnels({
             <li key={funnel.id} className="flex min-h-11 items-center gap-3 border-t border-border px-3 py-1.5 first:border-t-0" data-funnel={funnel.id}>
               <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-3">
                 <span className="truncate text-sm font-medium text-foreground">{funnel.name}</span>
-                <span className="truncate font-mono text-xs text-muted-foreground">{stepLine(funnel)}</span>
               </span>
+              <InfoTooltip label={`Steps for ${funnel.name}`}>{stepLine(funnel)}</InfoTooltip>
               <Button
                 type="button"
                 variant="ghost"

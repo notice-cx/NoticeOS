@@ -45,6 +45,8 @@ export interface SitesAsset {
   domain: string | null;
   /** The lifecycle stage (`assets.status`). */
   status: string;
+  /** Whether the asset already has a configuration entry for data sources. */
+  hasIntegrationEntry?: boolean;
   /** Per lane the provider collects: the register's cell — its posture, its
    * note (null when the key is absent) and the mapping fields it already
    * holds — or null when the asset has no entry. The posture and note are the
@@ -116,6 +118,12 @@ export interface SitePlan {
   rows: SiteRow[];
   /** Account sites no row claims — listed, never dropped. */
   others: DiscoveredSite[];
+  /** Collect existing mappings without changing which account resources they read. */
+  savedOnly?: boolean;
+}
+
+export interface SavedSiteCollection {
+  googleFallbacks?: ReadonlySet<string>;
 }
 
 /** The lanes a provider's rows carry, in its own declared order. */
@@ -134,7 +142,7 @@ function preferred(sites: DiscoveredSite[]): DiscoveredSite | null {
 
 /** Does this saved mapping name that site? Every field the site writes must
  * already hold the site's value. */
-function holds(saved: Record<string, string | number> | null, site: DiscoveredSite): boolean {
+export function holdsSiteMapping(saved: Record<string, string | number> | null, site: DiscoveredSite): boolean {
   const entries = Object.entries(site.mapping);
   return saved !== null && entries.length > 0 && entries.every(([field, value]) => saved[field] === value);
 }
@@ -152,7 +160,8 @@ function exclusionOf(asset: SitesAsset, lanes: string[], kind: SitePlan["kind"],
  * The panel's rows: every portfolio asset, matched to the account's sites.
  * `preselect` is the asset the panel was opened from; it leads the list.
  */
-export function planSites(payload: SitesPayload, preselect: string | null = null): SitePlan {
+export function planSites(payload: SitesPayload, preselect: string | null = null, collection?: SavedSiteCollection): SitePlan {
+  const savedOnly = collection !== undefined;
   const discovery = payload.discovery;
   const sites = discovery.ok ? discovery.sites : [];
   const kind = discovery.ok ? discovery.kind : "account";
@@ -171,7 +180,19 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
         const site = own.find((entry) => entry.lane === lane) ?? null;
         return { lane, saved, site, state: (site ? "listed" : "unlisted") as SiteLaneState };
       }
-      const mapped = ofLane.find((site) => holds(saved, site)) ?? null;
+      const mapped = ofLane.find((site) => holdsSiteMapping(saved, site)) ?? null;
+      if (savedOnly) {
+        if (cell?.status === "skipped" || cell?.status === "not-applicable") return { lane, saved, site: null, state: "unlisted" as const };
+        // A manual mapping still collects when the current account list omits it.
+        const fallback = collection.googleFallbacks?.has(`${asset.id}/${lane}`) === true;
+        const ref = saved?.propertyId || saved?.siteUrl || (saved?.host && saved?.projectId)
+          || (fallback ? `${lane}-account` : null);
+        const site: DiscoveredSite | null = mapped ?? (ref ? {
+          lane, ref: String(ref), label: fallback ? "Saved account mapping" : String(ref),
+          host: null, mapping: saved ?? {}, ready: true,
+        } : null);
+        return { lane, saved, site, state: (site ? "mapped" : "unlisted") as SiteLaneState };
+      }
       const onDomain = host === null ? [] : ofLane.filter((site) => site.host === host);
       const ready = preferred(onDomain.filter((site) => site.ready));
       const site = mapped ?? ready ?? preferred(onDomain);
@@ -185,17 +206,17 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
   const unclaimed = sites.filter((site) => !claimed.has(site));
   const domainMatch = new Set(payload.domainMatch ?? []);
   const rows: SiteRow[] = drafts.map(({ asset, entries, listed }) => {
-    const excluded = exclusionOf(asset, lanes, kind, listed);
+    const excluded = savedOnly && entries.some((entry) => entry.site?.ready) ? null : exclusionOf(asset, lanes, kind, listed);
     const siteLanes: SiteLane[] = entries.map((entry) => ({
       ...entry,
-      choices: kind === "account" ? unclaimed.filter((site) => site.lane === entry.lane && site.ready) : [],
+      choices: kind === "account" && !savedOnly ? unclaimed.filter((site) => site.lane === entry.lane && site.ready) : [],
     }));
     const collectable = excluded === null && siteLanes.some((lane) => lane.site !== null && lane.site.ready);
     const suggested = siteLanes.some((lane) => lane.state === "mapped" || lane.state === "matched" || lane.state === "listed");
     // Collected on schedule with nothing written: a saved mapping, the
     // portfolio's own membership, or a domain match on a lane that falls back
     // to one (a Mediavine or PostHog match is not).
-    const onSchedule = siteLanes.some((lane) => lane.state === "mapped" || lane.state === "listed" || (lane.state === "matched" && domainMatch.has(lane.lane)));
+    const onSchedule = !savedOnly && siteLanes.some((lane) => lane.state === "mapped" || lane.state === "listed" || (lane.state === "matched" && domainMatch.has(lane.lane)));
     const preselected = preselect === asset.id;
     return { asset, lanes: siteLanes, excluded, checked: collectable && (suggested || preselected), scheduled: excluded === null && onSchedule, preselected };
   });
@@ -204,7 +225,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
   // then the rest; the portfolio's own order within each.
   const order = (row: SiteRow) => (row.preselected ? 0 : row.checked ? 1 : row.excluded ? 3 : 2);
   rows.sort((a, b) => order(a) - order(b));
-  return { provider: discovery.provider, kind, rows, others: kind === "account" ? unclaimed : [] };
+  return { provider: discovery.provider, kind, rows, others: kind === "account" && !savedOnly ? unclaimed : [], savedOnly };
 }
 
 /** What the operator has chosen on the list: which rows are ticked, and, for a
@@ -335,15 +356,20 @@ export function startPlan(plan: SitePlan, selection: SiteSelection): StartPlan {
       // the Data sources tab could write either — the lane's own fallback
       // (Bing's domain match) is what collects it.
       if (site === null || lane.saved === null) continue;
-      for (const [field, value] of Object.entries(site.mapping)) {
+      for (const [field, value] of Object.entries(plan.savedOnly ? {} : site.mapping)) {
         const held = lane.saved[field] ?? null;
         if (held === value) continue;
         ops.push(laneFieldOp(row.asset.id, lane.lane, field, held, value));
       }
-      // PostHog's saved funnels, picked up from the project — written only
-      // where the entry holds none, never over a list somebody already chose.
+      // Saved-only runs preserve an explicit list, including an empty one.
+      // Guard the project as well as the list before importing its funnels.
       const held = row.asset.cells[lane.lane]?.funnels;
-      if (site.funnels && site.funnels.length > 0 && (held === undefined || (Array.isArray(held) && held.length === 0))) {
+      if (site.funnels && site.funnels.length > 0 && (held === undefined || (!plan.savedOnly && Array.isArray(held) && held.length === 0))) {
+        if (plan.savedOnly) {
+          for (const [field, value] of Object.entries(site.mapping)) {
+            ops.push(laneFieldOp(row.asset.id, lane.lane, field, value, value));
+          }
+        }
         ops.push(laneFieldOp(row.asset.id, lane.lane, "funnels", held ?? null, site.funnels as unknown as JsonValue));
       }
     }
