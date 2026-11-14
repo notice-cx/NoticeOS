@@ -169,8 +169,13 @@ describe("one source, one status, on every screen", () => {
     if (more) fireEvent.click(more);
     const rows = Object.fromEntries(LANES.map((lane) => [lane,
       document.querySelector(`#integrations [data-status-for="source:${ASSET}:${lane}"][data-connection]`)?.getAttribute("data-connection") ?? null]));
-    const header = marks(document.querySelector("[data-page-header]")!);
+    expect(marks(document.querySelector("[data-page-header]")!)).toEqual({});
     asset.unmount();
+
+    const overview = renderAt(`/assets/${ASSET}/growth`, <AssetDetailRoute />, "/assets/:id/:tab?");
+    await waitFor(() => expect(overview.container.querySelector("[data-page-header] [data-source]")).not.toBeNull());
+    const header = marks(overview.container.querySelector("[data-page-header]")!);
+    overview.unmount();
 
     // Home lists source failures as problems; source status details stay on
     // the site's Data sources tab and Integrations.
