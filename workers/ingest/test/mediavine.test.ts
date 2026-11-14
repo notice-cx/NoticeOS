@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dates, MEDIAVINE_REPORTING_CLOCK, type Period } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { discoverMediavineSites, withMediavineLease } from '../src/mediavine-connection.js';
-import { disconnectMediavine, mediavineStatus, putMediavineCredential, runMediavine, saveMediavineSettings, syncMediavine, UNPUBLISHED_RETRY_MS } from '../src/mediavine.js';
+import { disconnectMediavine, mediavineStatus, persistReport, putMediavineCredential, runMediavine, saveMediavineSettings, syncMediavine, UNPUBLISHED_RETRY_MS } from '../src/mediavine.js';
 import { connectCredential } from '../src/credential-connect.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { runCollectNow } from '../src/dispatch.js';
@@ -278,11 +278,11 @@ describe('Mediavine encrypted connection and controls', () => {
   });
 });
 describe('daily accounting', () => {
-  it('fills earlier holes after the first manual single-day fetch', async () => {
+  it('fills earlier holes on the next day that needs a reading', async () => {
     await connect();
     await syncMediavine(env, { asset: ASSET, start: '2026-09-08', end: '2026-09-08' }, { fetchImpl: transport(), nowMs: NOW });
-    expect((await runMediavine(env, { fetchImpl: transport(), nowMs: NOW + 3_600_000 })).outcome).toBe('ran');
-    expect(await count('revenue_observations')).toBe(8);
+    expect((await runMediavine(env, { fetchImpl: transport(), nowMs: NOW + 86_400_000 })).outcome).toBe('ran');
+    expect(await count('revenue_observations')).toBe(9);
   });
   it('recognizes a payment under another source through its original estimate', async () => {
     await connect();
@@ -398,6 +398,24 @@ describe('a day Mediavine has not published yet', () => {
       'SELECT revenue_date::text AS date, amount_minor AS amount FROM noticeos.current_revenue WHERE asset_id = $1 ORDER BY revenue_date', [ASSET]));
     return rows.map((row) => [row.date, Number(row.amount)]);
   }
+
+  it('skips scheduled requests when yesterday is already stored, even with older gaps', async () => {
+    await connect();
+    await persistReport(env, ASSET, {
+      site: SITE, period: { start: YESTERDAY, end: YESTERDAY }, daily: [{ date: YESTERDAY, revenueMinor: 0 }],
+      summaryMinor: 0, dailyMinor: 0, differenceMinor: 0, complete: true, missingDates: [], unpublishedDates: [],
+      fetchedAt: new Date(NOW).toISOString(),
+    });
+    expect(await storedDays()).toEqual([[YESTERDAY, 0]]);
+
+    const fetchImpl = transport();
+    expect((await runMediavine(env, { fetchImpl, nowMs: NOW + HOUR })).outcome).toBe('skipped');
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    expect((await syncMediavine(env, { asset: ASSET, start: '2026-09-01', end: '2026-09-07' },
+      { fetchImpl, nowMs: NOW + HOUR })).ok).toBe(true);
+    expect(await storedDays()).toHaveLength(8);
+  });
 
   it('stores the days before it, keeps it unknown, and asks again each hour until its figure arrives', async () => {
     await connect();
