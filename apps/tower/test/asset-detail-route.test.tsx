@@ -125,9 +125,9 @@ function renderRoute(id: string, hash = "", tab: AssetTab | "" = "") {
 
 /** Render at a literal URL, for a segment nobody built. The probe lets a
  * redirect be asserted as the address bar, not only as the tab bar. */
-function renderPath(path: string) {
+function renderPath(path: string, client = testClient()) {
   return render(
-    <QueryClientProvider client={testClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route
@@ -5685,6 +5685,34 @@ describe("AssetDetailRoute — failed detail read", () => {
     const attempts = fetchMock.mock.calls.length; // the hook's own retry already ran
     fireEvent.click(retry);
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(attempts));
+  });
+
+  it("keeps data sources visible after a failed refresh and clears the warning after a retry", async () => {
+    const client = testClient();
+    const data = payload();
+    let fail = false;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const isDetail = String(input).startsWith("/api/assets/meadow.example?");
+      return new Response(JSON.stringify(isDetail && fail ? { error: "asset_detail_failed" } : data), {
+        status: isDetail && fail ? 500 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    }));
+    const view = renderPath("/assets/meadow.example/sources", client);
+    const sources = await view.findByRole("region", { name: "Data sources" });
+    const panel = within(view.getByRole("tabpanel"));
+    expect(panel.queryByRole("button", { name: /try again/i })).toBeNull();
+
+    fail = true;
+    void client.invalidateQueries({ queryKey: ["asset-detail", "meadow.example", "sources"] });
+    const retry = await panel.findByRole("button", { name: /try again/i });
+    expect(retry.closest('[role="status"]')).toHaveTextContent("Showing the last successful read.");
+    expect(sources).toBeVisible();
+
+    fail = false;
+    fireEvent.click(retry);
+    await waitFor(() => expect(panel.queryByText("Couldn't refresh data sources")).toBeNull());
+    expect(sources).toBeVisible();
   });
 
   it("keeps the distinct 'no such asset' state for a 404", async () => {

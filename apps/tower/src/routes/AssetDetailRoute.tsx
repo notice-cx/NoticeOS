@@ -5,6 +5,7 @@ import type { WatchSeed } from "@shared/watch-windows";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
 import { RouteLoading } from "@/components/RouteLoading";
+import { StatusBanner } from "@/components/surface/StatusBanner";
 import { TabPanel } from "@/components/Tabs";
 import { RecommendationEvidenceProvider } from "@/components/AnalysisEvidence";
 import { useAssetDetail, usePrefetchAssetDetail } from "@/hooks/useAssetDetail";
@@ -80,8 +81,7 @@ export function AssetDetailRoute() {
   }
 
   const notFound = error instanceof ApiError && error.status === 404;
-  // A failed poll keeps the last-good payload (TanStack Query); the header's
-  // age badge says so rather than letting a held page look current.
+  // A failed poll can leave a previous read on screen.
   const lastGood = Boolean(error) && Boolean(data);
 
   useEffect(() => {
@@ -142,6 +142,17 @@ export function AssetDetailRoute() {
             }}
           />
           <TabPanel id={TAB_PANEL_ID} idBase={TAB_IDS} activeKey={tab}>
+            {tab === "sources" && !leaving && lastGood && viewCovers(data, "sources") ? (
+              <StatusBanner
+                className="mb-3"
+                severity="warn"
+                subject="read:sources"
+                lead="Couldn't refresh data sources"
+                action={isFetching ? undefined : { label: "Try again", onClick: () => void refetch() }}
+              >
+                Showing the last successful read.
+              </StatusBanner>
+            ) : null}
             {/* One boundary for every tab, and never keyed by tab: switching
                 tabs is a router transition, and React keeps an already-drawn
                 boundary on screen through one, so the tab being left stays
