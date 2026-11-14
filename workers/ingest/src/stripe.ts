@@ -406,22 +406,24 @@ async function latestStripeDay(tx: Transaction, account: string): Promise<string
 }
 
 async function resolveProductReceipts(
-  apiKey: string, window: { start: string; end: string }, clock: SourceClock, mapping: StripeProductMapping, fetchImpl: typeof fetch,
+  apiKey: string, window: { start: string; end: string }, clock: SourceClock, products: StripeProductMapping['products'], fetchImpl: typeof fetch,
 ): Promise<ProductReceipt[]> {
   const { gte, lt } = transactionBounds(window);
   const rows = await readTransactions(apiKey, gte, lt, fetchImpl);
   const receipts: ProductReceipt[] = [];
   const payments = new Map<string, string | null>();
+  const hasMappings = Object.keys(products).length > 0;
   const byId = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
     if (!REVENUE_TYPES.has(row.type)) continue;
     const day = clockAt(row.created * 1000, clock.timeZone).date;
     if (day < window.start || day > window.end) continue;
     if (!stripeId(row.id, 'txn_')) throw new StripeFailure('stripe_invalid_response', 'Stripe sent an unreadable balance transaction ID.');
+    if (isSale(row) && !hasMappings) continue;
     const charge = await chargeFor(apiKey, row, fetchImpl);
     if (isSale(row)) {
       const intent = stripeId(charge?.payment_intent, 'pi_');
-      if (intent && !payments.has(intent)) payments.set(intent, await paymentAsset(apiKey, intent, mapping.products, fetchImpl));
+      if (intent && !payments.has(intent)) payments.set(intent, await paymentAsset(apiKey, intent, products, fetchImpl));
       receipts.push({ row, day, asset: intent ? payments.get(intent) ?? null : null, original: null });
     } else {
       const id = stripeId(charge?.balance_transaction, 'txn_');
@@ -440,7 +442,7 @@ async function resolveProductReceipts(
 }
 
 async function writeProductReceipts(
-  env: IngestEnv, mapping: StripeProductMapping, targets: Target[], receipts: ProductReceipt[],
+  env: IngestEnv, mapping: StripeProductMapping, targets: Target[], refundAnchor: string | null, receipts: ProductReceipt[],
   window: { start: string; end: string }, defaultCurrency: string, runId: string, at: string,
 ) {
   return env.STORE.write(async (tx) => {
@@ -496,6 +498,7 @@ async function writeProductReceipts(
         WHERE source = $1 AND account_ref = $2 AND asset_id = ANY($3::text[])`,
       [STRIPE_REVENUE_SOURCE, mapping.accountId, [...assetIds]]);
     const currencies = new Map(targets.map(({ asset }) => [asset, new Set<string>()]));
+    if (refundAnchor) currencies.set(refundAnchor, new Set());
     for (const { asset, currency } of [...knownCurrencies, ...observations]) currencies.get(asset)?.add(currency);
     for (const [asset, collected] of currencies) {
       if (collected.size === 0) collected.add(defaultCurrency);
@@ -528,7 +531,17 @@ async function runStripeProducts(
     `SELECT asset_id AS asset FROM noticeos.assets WHERE status <> 'retired' AND is_os = false`));
   const ids = new Set(eligible.map(({ asset }) => asset));
   const targets = stripeProductTargets(mapping).filter(({ asset }) => ids.has(asset));
-  if (targets.length === 0) return skipped('No Stripe products are mapped to active assets.');
+  // With every mapping cleared, still reconcile refunds for sales already
+  // recorded. One previously credited asset anchors the completed days.
+  const refundAnchor = targets.length > 0 ? null : await env.STORE.read(async (tx) => {
+    const [row] = await tx.query<{ asset: string }>(
+      `SELECT asset_id AS asset FROM noticeos.current_revenue
+        WHERE source = $1 AND account_ref = $2 AND payment_count > 0
+        ORDER BY revenue_date DESC, observation_id DESC LIMIT 1`,
+      [STRIPE_REVENUE_SOURCE, mapping.accountId]);
+    return row?.asset ?? null;
+  });
+  if (targets.length === 0 && refundAnchor === null) return skipped('No Stripe products or collected sales.');
 
   const held = await env.STORE.read((tx) => latestStripeDay(tx, mapping.accountId));
   const window = stripeWindow(end, held);
@@ -552,8 +565,9 @@ async function runStripeProducts(
     const currency = account.currency ?? [...currencies].sort()[0];
     if (!currency) throw new StripeFailure('stripe_currency_config', 'Stripe sent no settlement currency.');
 
-    const receipts = await resolveProductReceipts(apiKey, window, clock, mapping, fetchImpl);
-    const saved = await writeProductReceipts(env, mapping, targets, receipts, window, currency, runId, at);
+    const products = Object.fromEntries(Object.entries(mapping.products).filter(([, asset]) => ids.has(asset)));
+    const receipts = await resolveProductReceipts(apiKey, window, clock, products, fetchImpl);
+    const saved = await writeProductReceipts(env, mapping, targets, refundAnchor, receipts, window, currency, runId, at);
     if (!saved) return skipped('No Stripe day is due.');
     written = saved.days;
     unattributedTransactions = saved.unattributedTransactions;
@@ -640,7 +654,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
     return { outcome: 'failed', detail: 'Stripe product mappings could not be read.', connected: true, outcomes: [] };
   }
   const targets = mapping ? stripeProductTargets(mapping) : stripeTargets(register);
-  if (resolved.source === 'demo' || targets.length === 0) {
+  if (resolved.source === 'demo' || (!mapping && targets.length === 0)) {
     return { outcome: 'skipped', detail: 'No assets are assigned to Stripe.', connected: true, outcomes: [] };
   }
   const [clock] = await env.STORE.read((tx) => tx.query<SourceClock>(

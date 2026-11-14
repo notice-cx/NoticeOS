@@ -741,7 +741,7 @@ NoticeOS uses product IDs on Checkout or invoice line items, including
 one-time contributions paid through Stripe Payment Links. All paid lines
 must map to the same asset before NoticeOS credits the receipt. The job
 reports a count of transactions it could not assign. Refunds follow their
-original receipt, including after a product moves to a different asset.
+original receipt, including after you move or unassign a product.
 The asset’s **Money** tab shows gross sales, refunds, fees, and net receipts.
 
 The **Stripe revenue** job runs at 20 minutes past each hour and checks for

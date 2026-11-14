@@ -419,6 +419,23 @@ describe('Stripe product mappings', () => {
     expect(legacy).toEqual([{ days: 35 }]);
   });
 
+  it('keeps collecting refunds for saved sales after all products are unassigned', async () => {
+    await connect();
+    const tip = productSale('tip', 500);
+    const first = productStripe([tip]);
+    await runStripeRevenue(env, { fetchImpl: first.fetchImpl, nowMs: NOW, laneRegister: productRegister() });
+
+    const next = productStripe([productSale('new_tip', 300, '2026-09-09'), productRefund(tip, 50, '2026-09-09', 'later')]);
+    const options = { nowMs: NOW + DAY_MS, laneRegister: productRegister({}) };
+    expect((await runStripeRevenue(env, { ...options, fetchImpl: next.fetchImpl })).outcome).toBe('ran');
+    expect(next.calls.some(({ path }) => path.startsWith('/v1/checkout/'))).toBe(false);
+    expect((await receiptRows()).at(-1)).toEqual({ asset: ASSET, day: '2026-09-09', item: 'txn_later', net: -50, payment: 0, refund: 1 });
+
+    const retry = productStripe([]);
+    expect((await runStripeRevenue(env, { ...options, fetchImpl: retry.fetchImpl })).outcome).toBe('skipped');
+    expect(retry.calls).toHaveLength(0);
+  });
+
   it('refuses a different account or an incomplete lookup before writing any days', async () => {
     await connect();
     const changed = productStripe([], { account: 'acct_other' });
