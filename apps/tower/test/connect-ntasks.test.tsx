@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { API_VERSION } from "@notice-cx/ntasks-ui";
 import { cleanup, fireEvent, render, screen } from "./render";
+import { render as renderBare } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TaskServiceStatus } from "@shared/tasks";
@@ -33,8 +34,11 @@ import { toast } from "sonner";
 import { deskRoutes } from "@/App";
 import { ApiError } from "@/lib/api";
 import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
+import { BrowserRuntimeProvider } from "@/lib/browser-context";
+import { createBrowserRuntime } from "@/lib/browser-runtime";
 import { heldSentence } from "@/lib/ntasks-sign-in";
 import { NEWER_NTASKS, OLDER_NTASKS, versionProblem } from "@/routes/TasksRoute";
+import { toLiveTask } from "../../../scripts/task-row.mjs";
 
 /** An Ntasks at ORIGIN of the given API version, where nobody is signed in unless a request carries `person-token`. */
 function ntasks(version = API_VERSION) {
@@ -111,6 +115,48 @@ describe("the Ntasks version", () => {
 });
 
 describe("the Ntasks UI inside the Tower", () => {
+  it("opens the demo board and task details as a same-origin visitor", async () => {
+    const workspaceId = "11111111-1111-4111-8111-111111111111";
+    const task = toLiveTask({ id: "md-a1", title: "Review the example project", status: "in_progress" }, new Set());
+    const project = { ...CONNECTED.projects![0]!.project, prefix: "md" };
+    const board = { project: project.logicalKey, prefix: "md", tasks: [task], epics: [], actors: [] };
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      const url = new URL(String(input), window.location.origin);
+      expect(url.origin).toBe(window.location.origin);
+      expect(new Headers(init?.headers).get("authorization")).toBeNull();
+      switch (url.pathname) {
+        case "/api/workspaces": return Response.json({ workspaces: [{ workspaceId, name: "Demo", role: null }] });
+        case "/api/access/me": return Response.json({ kind: "visitor", name: "Visitor", deploymentAdmin: false });
+        case "/api/tasks/projects": return Response.json({ projects: [project] });
+        case "/api/tasks/capabilities": return Response.json({ live: true, writable: false });
+        case "/api/tasks": return Response.json(url.searchParams.has("stage") ? { ...board, tasks: [] } : board);
+        case "/api/changes": return Response.json({ events: [], lastSeq: 0 });
+        case "/api/fields": return Response.json({ fields: [] });
+        case "/api/tasks/md-a1": return Response.json({ ...board, task, comments: [] });
+        default: return Response.json({ error: "not_found" }, { status: 404 });
+      }
+    });
+    vi.stubGlobal("fetch", fetch);
+    const runtime = createBrowserRuntime<(keepalive: boolean) => Promise<void>>(
+      { mode: "demo", workspaceId, clientGeneration: 1 },
+      { origin: window.location.origin, fetch, sendAnswer: async () => {} },
+    );
+    const router = createMemoryRouter(deskRoutes.filter(route => route.path?.startsWith("/tasks")), { initialEntries: ["/tasks"] });
+    const view = renderBare(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: "Demo" }}>
+      <QueryClientProvider client={runtime.queries}><RouterProvider router={router} /></QueryClientProvider>
+    </BrowserRuntimeProvider>);
+    try {
+      const link = await screen.findByRole("link", { name: task.title });
+      expect(screen.getByRole("button", { name: "New task" })).toBeDisabled();
+      fireEvent.click(link);
+      await vi.waitFor(() => expect(fetch.mock.calls.some(([input]) => String(input).startsWith("/api/tasks/md-a1?"))).toBe(true));
+      expect(router.state.location.pathname).toBe("/tasks/md-a1");
+    } finally {
+      view.unmount();
+      runtime.retire();
+    }
+  });
+
   it("asks a signed-out person to sign in before any task request, and starts the Tower's sign-in to that Ntasks", async () => {
     state.service = CONNECTED;
     const fetch = ntasks();

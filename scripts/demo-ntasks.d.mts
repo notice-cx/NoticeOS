@@ -141,8 +141,9 @@ export declare function demoNtasks({ workspaceId, token, origin, fetch }: {
 }): DemoNtasks;
 /** The demo's task routes for its pages: every read answered by its Ntasks as
  * a visitor, and every change refused here, as the demo refuses any other. */
-export declare function createDemoTaskGateway({ ntasks, now }: {
+export declare function createDemoTaskGateway({ ntasks, workspaceId, now }: {
     ntasks: DemoNtasks;
+    workspaceId: string;
     now?: () => number;
 }): (request: Request) => Promise<Response>;
 /** The demo's task routes and its one MCP endpoint, for the demo server:

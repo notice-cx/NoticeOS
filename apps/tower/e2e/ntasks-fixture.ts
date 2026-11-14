@@ -24,7 +24,7 @@ const WORKSPACE_ID = "journey-workspace";
  * the Tower's pinned @notice-cx/ntasks-ui reads (its `API_VERSION`). A
  * package that reads a newer one shows the older-Ntasks sentence here until
  * the fixture answers what that version adds. */
-export const JOURNEY_NTASKS_API_VERSION = 15;
+export const JOURNEY_NTASKS_API_VERSION = 21;
 const WORKSPACE_NAME = "Journey Example";
 const SCOPES = ["tasks:read", "tasks:write", "tasks:decide"];
 const SERVICE_REFUSAL = "Only a person signed in to Ntasks decides; a service credential never does.";

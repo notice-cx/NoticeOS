@@ -193,8 +193,8 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
       '@notice-cx/ntasks-ui':
-        specifier: 0.4.0
-        version: 0.4.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        specifier: 0.5.0
+        version: 0.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
       '@noticeos/contract':
         specifier: workspace:*
         version: link:../../packages/contract
@@ -1559,8 +1559,8 @@ packages:
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
     engines: {node: '>= 20.19.0'}
 
-  '@notice-cx/ntasks-ui@0.4.0':
-    resolution: {integrity: sha512-ScDHytsgOY69VtRwk3Kqz3rQT7OBsDG1NMqz6ysvEs/pvWCUATeK8iJ13tGbxw6m8IJq8/a2/BjoUFDTP8lOZA==}
+  '@notice-cx/ntasks-ui@0.5.0':
+    resolution: {integrity: sha512-zm2Q/4mxWBk9g8DCPKBLSbA8F/sk6Up8hQi0xItwX+AStZTTf5GFm6yb8Yezbs/FNySH9lL6gM9rJHfw3Rx0Fw==}
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -5093,7 +5093,7 @@ snapshots:
 
   '@noble/hashes@2.4.0': {}
 
-  '@notice-cx/ntasks-ui@0.4.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)':
+  '@notice-cx/ntasks-ui@0.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)':
     dependencies:
       '@fontsource-variable/inter': 5.3.0
       '@fontsource-variable/jetbrains-mono': 5.3.0

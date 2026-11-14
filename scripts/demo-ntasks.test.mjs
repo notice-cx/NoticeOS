@@ -32,8 +32,9 @@ const PUBLIC = 'https://demo.example.com';
 describe('the demo task gateway', () => {
   test('refuses every change before asking Ntasks anything', async () => {
     let asked = 0;
-    const gateway = createDemoTaskGateway({ ntasks: { call: async () => { asked++; return { status: 200, body: {} }; }, tool: async () => null } });
-    for (const [method, at] of [['POST', '/api/tasks'], ['PATCH', '/api/tasks/lb-a1b2'], ['POST', '/api/tasks/lb-a1b2/close'], ['POST', '/api/gates/lb-g1/resolve']]) {
+    const gateway = createDemoTaskGateway({ workspaceId, ntasks: { call: async () => { asked++; return { status: 200, body: {} }; }, tool: async () => null } });
+    for (const [method, at] of [['POST', '/api/tasks'], ['PATCH', '/api/tasks/lb-a1b2'], ['POST', '/api/tasks/lb-a1b2/close'],
+      ['POST', '/api/gates/lb-g1/resolve'], ['PATCH', '/api/access/me'], ['POST', '/api/workspaces'], ['POST', '/api/fields']]) {
       const response = await gateway(new Request(PUBLIC + at, { method, body: '{}' }));
       assert.deepEqual([method, at, response.status, (await response.json()).error], [method, at, 403, 'demo_read_only']);
     }
@@ -80,6 +81,12 @@ describe('the demo\'s own Ntasks', { skip }, () => {
 
   test('the demo\'s task pages list the scenario\'s tasks, each closed one with its closer and model', async () => {
     const tasks = pages();
+    const workspaces = await read(tasks, '/api/workspaces');
+    assert.deepEqual(workspaces.body.workspaces.map(row => [row.workspaceId, row.role]), [[workspaceId, null]]);
+    const capabilities = await read(tasks, '/api/tasks/capabilities');
+    assert.deepEqual([capabilities.body.live, capabilities.body.writable], [true, false]);
+    const version = await read(tasks, '/api/version');
+    assert.ok(version.body.version >= 21 && version.body.oldest <= 21);
     const listed = await read(tasks, '/api/tasks/projects');
     assert.deepEqual(listed.body.projects.map(project => project.prefix).sort(), scenario.manifest.taskProjects.map(project => project.prefix).sort());
     for (const project of scenario.manifest.taskProjects) {
@@ -88,6 +95,10 @@ describe('the demo\'s own Ntasks', { skip }, () => {
       assert.deepEqual(board.body.tasks.map(task => task.id).sort(), expected, project.prefix);
     }
     const fact = scenario.tasks.find(task => task.events.at(-1).status === 'closed' && task.model && task.events.at(-1).assignee === 'claude');
+    const fields = await read(tasks, `/api/fields?project=${projects.get(fact.prefix)}`);
+    assert.ok(Array.isArray(fields.body.fields));
+    const changes = await read(tasks, '/api/changes?after=0');
+    assert.ok(Array.isArray(changes.body.events));
     const detail = await read(tasks, `/api/tasks/${fact.id}?project=${projects.get(fact.prefix)}`);
     assert.equal(detail.status, 200);
     assert.deepEqual([detail.body.task.metadata.noticeos_closed_by, detail.body.task.metadata.noticeos_closed_model], ['claude', fact.model]);

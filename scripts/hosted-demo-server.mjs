@@ -199,7 +199,8 @@ const TYPES = Object.freeze({ '.html': 'text/html; charset=utf-8', '.js': 'text/
     '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
     '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.zip': 'application/zip' });
 // Fixed built app routes, including its public legacy aliases (App.tsx).
-const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings(?:\/[^/]+)?|integrations|agents|workflows(?:\/[^/]+)?|tasks(?:\/[^/]+)?|work|(?:assets|properties)(?:\/[^/]+(?:\/[^/]+)?)?|alerts(?:\/[^/]+)?|health(?:\/operations(?:\/[^/]+)?)?)$/u;
+const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings(?:\/[^/]+)?|integrations|agents|workflows(?:\/[^/]+)?|tasks(?:\/[^/]+){0,3}|work|(?:assets|properties)(?:\/[^/]+(?:\/[^/]+)?)?|alerts(?:\/[^/]+)?|health(?:\/operations(?:\/[^/]+)?)?)$/u;
+const NTASKS_UI_PATHS = new Set(['/api/workspaces', '/api/access/me', '/api/fields', '/api/version']);
 function page(pathname) {
     return !/\.(?:m?[jt]sx?|map|json|env|css|html)$/iu.test(pathname) && !pathname.includes('%') && PAGE.test(pathname);
 }
@@ -421,7 +422,7 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
                     const clientRelease = headers.get(RELEASE_HEADER);
                     if (clientRelease !== null && clientRelease !== artifact.release)
                         response = json(409, { error: 'app_release_changed' });
-                    else if (target.pathname === CHANGE_STREAM_PATH) {
+                    else if (target.pathname === CHANGE_STREAM_PATH && !target.searchParams.has('after')) {
                         const selected = headers.get(WORKSPACE_SELECTION_HEADER);
                         if (method !== 'GET' || target.search)
                             response = json(405, { error: 'method_not_allowed' });
@@ -457,6 +458,7 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
                     else if (target.pathname === '/api/calendar/upcoming')
                         response = method === 'GET' && !target.search ? json(200, calendar.read(Date.now())) : json(405, { error: 'method_not_allowed' });
                     else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')
+                        || NTASKS_UI_PATHS.has(target.pathname) || target.pathname === CHANGE_STREAM_PATH
                         || target.pathname === MCP_PATH && !headers.has(READ_MODELS_HEADER))
                         response = await tasks.handle(proof);
                     else
