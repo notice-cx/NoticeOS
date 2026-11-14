@@ -178,7 +178,8 @@ export function IntegrationsRoute() {
   const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
   useEffect(() => {
     if (!linked) return;
-    const opened = connectionState(linked.credential) === "failing" ? "form" : providerPanelOpening(linked);
+    const opened = linked.provider.connect?.kind !== "site-tokens" && connectionState(linked.credential) === "failing"
+      ? "form" : providerPanelOpening(linked);
     setConnecting({ id: linked.provider.id, opened, asset: params.get("asset"), googleSetup: linked.provider.id === "google" && returnedFromGoogle });
     setParams(
       (previous) => {

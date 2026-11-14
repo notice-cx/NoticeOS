@@ -740,6 +740,21 @@ describe("PostHog's projects in the panel", () => {
     expect(startPlan(empty, initialSelection(empty)).ops.at(-1)).toEqual(laneFieldOp("journey.example", "posthog", "funnels", [], [SIGNUP] as never));
   });
 
+  it("imports saved funnels on the first collection of an existing mapping and preserves an explicit empty list", () => {
+    const mapping = { host: "us", projectId: "424242" };
+    const first = asset("journey.example", { cells: cell({ mapping }) });
+    const cleared = asset("second.example", { cells: cell({ mapping, funnels: [] }) });
+    const plan = planSites(payload([first, cleared]), null, {});
+    expect(startPlan(plan, initialSelection(plan))).toEqual({
+      assets: ["journey.example", "second.example"], declined: [],
+      ops: [
+        laneFieldOp("journey.example", "posthog", "host", "us", "us"),
+        laneFieldOp("journey.example", "posthog", "projectId", "424242", "424242"),
+        laneFieldOp("journey.example", "posthog", "funnels", null, [SIGNUP]),
+      ],
+    });
+  });
+
   it("shows each project by its name and number, the funnels it brings, and the project no asset claims", () => {
     render(
       <MemoryRouter>
@@ -780,6 +795,15 @@ describe("Google's two kinds of asset on one row", () => {
       laneFieldOp("journey.example", "ga4", "propertyId", null, "123456789"),
       laneFieldOp("journey.example", "gsc", "siteUrl", null, "sc-domain:journey.example"),
     ]);
+  });
+
+  it("collects legacy Google mappings without saving a guessed property or resuming a declined source", () => {
+    const plan = planSites(payload(
+      [ga4("123456789", "second.example")],
+      [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() }),
+        asset("declined.example", { cells: { ...cells(), ga4: { status: "skipped", mapping: {} } } })],
+    ), null, { googleFallbacks: new Set(["journey.example/ga4", "declined.example/ga4"]) });
+    expect(startPlan(plan, initialSelection(plan))).toEqual({ assets: ["journey.example"], declined: [], ops: [] });
   });
 
   it("reads the row as the property's number and the asset, and names each picker by what it picks", () => {

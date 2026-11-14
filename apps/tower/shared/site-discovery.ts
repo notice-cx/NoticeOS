@@ -118,6 +118,12 @@ export interface SitePlan {
   rows: SiteRow[];
   /** Account sites no row claims — listed, never dropped. */
   others: DiscoveredSite[];
+  /** Collect existing mappings without changing which account resources they read. */
+  savedOnly?: boolean;
+}
+
+export interface SavedSiteCollection {
+  googleFallbacks?: ReadonlySet<string>;
 }
 
 /** The lanes a provider's rows carry, in its own declared order. */
@@ -154,7 +160,8 @@ function exclusionOf(asset: SitesAsset, lanes: string[], kind: SitePlan["kind"],
  * The panel's rows: every portfolio asset, matched to the account's sites.
  * `preselect` is the asset the panel was opened from; it leads the list.
  */
-export function planSites(payload: SitesPayload, preselect: string | null = null, savedOnly = false): SitePlan {
+export function planSites(payload: SitesPayload, preselect: string | null = null, collection?: SavedSiteCollection): SitePlan {
+  const savedOnly = collection !== undefined;
   const discovery = payload.discovery;
   const sites = discovery.ok ? discovery.sites : [];
   const kind = discovery.ok ? discovery.kind : "account";
@@ -177,9 +184,12 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
       if (savedOnly) {
         if (cell?.status === "skipped" || cell?.status === "not-applicable") return { lane, saved, site: null, state: "unlisted" as const };
         // A manual mapping still collects when the current account list omits it.
-        const ref = saved?.propertyId || saved?.siteUrl || (saved?.host && saved?.projectId);
-        const site: DiscoveredSite | null = mapped ?? (ref && saved ? {
-          lane, ref: String(ref), label: String(ref), host: null, mapping: saved, ready: true,
+        const fallback = collection.googleFallbacks?.has(`${asset.id}/${lane}`) === true;
+        const ref = saved?.propertyId || saved?.siteUrl || (saved?.host && saved?.projectId)
+          || (fallback ? `${lane}-account` : null);
+        const site: DiscoveredSite | null = mapped ?? (ref ? {
+          lane, ref: String(ref), label: fallback ? "Saved account mapping" : String(ref),
+          host: null, mapping: saved ?? {}, ready: true,
         } : null);
         return { lane, saved, site, state: (site ? "mapped" : "unlisted") as SiteLaneState };
       }
@@ -196,7 +206,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
   const unclaimed = sites.filter((site) => !claimed.has(site));
   const domainMatch = new Set(payload.domainMatch ?? []);
   const rows: SiteRow[] = drafts.map(({ asset, entries, listed }) => {
-    const excluded = exclusionOf(asset, lanes, kind, listed);
+    const excluded = savedOnly && entries.some((entry) => entry.site?.ready) ? null : exclusionOf(asset, lanes, kind, listed);
     const siteLanes: SiteLane[] = entries.map((entry) => ({
       ...entry,
       choices: kind === "account" && !savedOnly ? unclaimed.filter((site) => site.lane === entry.lane && site.ready) : [],
@@ -215,7 +225,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
   // then the rest; the portfolio's own order within each.
   const order = (row: SiteRow) => (row.preselected ? 0 : row.checked ? 1 : row.excluded ? 3 : 2);
   rows.sort((a, b) => order(a) - order(b));
-  return { provider: discovery.provider, kind, rows, others: kind === "account" && !savedOnly ? unclaimed : [] };
+  return { provider: discovery.provider, kind, rows, others: kind === "account" && !savedOnly ? unclaimed : [], savedOnly };
 }
 
 /** What the operator has chosen on the list: which rows are ticked, and, for a
@@ -346,15 +356,20 @@ export function startPlan(plan: SitePlan, selection: SiteSelection): StartPlan {
       // the Data sources tab could write either — the lane's own fallback
       // (Bing's domain match) is what collects it.
       if (site === null || lane.saved === null) continue;
-      for (const [field, value] of Object.entries(site.mapping)) {
+      for (const [field, value] of Object.entries(plan.savedOnly ? {} : site.mapping)) {
         const held = lane.saved[field] ?? null;
         if (held === value) continue;
         ops.push(laneFieldOp(row.asset.id, lane.lane, field, held, value));
       }
-      // PostHog's saved funnels, picked up from the project — written only
-      // where the entry holds none, never over a list somebody already chose.
+      // Saved-only runs preserve an explicit list, including an empty one.
+      // Guard the project as well as the list before importing its funnels.
       const held = row.asset.cells[lane.lane]?.funnels;
-      if (site.funnels && site.funnels.length > 0 && (held === undefined || (Array.isArray(held) && held.length === 0))) {
+      if (site.funnels && site.funnels.length > 0 && (held === undefined || (!plan.savedOnly && Array.isArray(held) && held.length === 0))) {
+        if (plan.savedOnly) {
+          for (const [field, value] of Object.entries(site.mapping)) {
+            ops.push(laneFieldOp(row.asset.id, lane.lane, field, value, value));
+          }
+        }
         ops.push(laneFieldOp(row.asset.id, lane.lane, "funnels", held ?? null, site.funnels as unknown as JsonValue));
       }
     }

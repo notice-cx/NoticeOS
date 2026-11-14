@@ -38,6 +38,8 @@ export function ProviderMappings({ provider, googleFallbacks, payload, preselect
   loading: boolean;
 }) {
   const { writable, reason } = useConfigWritable();
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const onSaving = (saving: boolean) => setPendingSaves((count) => count + (saving ? 1 : -1));
   if (!payload) {
     return loading
       ? <p role="status" data-status-for={`integration:${provider}`} className="text-sm text-muted-foreground">Loading mappings…</p>
@@ -74,7 +76,7 @@ export function ProviderMappings({ provider, googleFallbacks, payload, preselect
                   <MappingField key={lane} asset={row.asset} lane={lane} sites={sites.filter((site) => site.lane === lane)}
                     suggested={row.lanes.find((entry) => entry.lane === lane && entry.state === "matched" &&
                       sites.filter((site) => site.lane === lane && site.host === entry.site?.host && site.ready).length === 1)?.site ?? null}
-                    accountListed={discovery.ok} googleFallback={googleFallbacks?.has(`${row.asset.id}/${lane}`) === true} loading={loading} />
+                    accountListed={discovery.ok} googleFallback={googleFallbacks?.has(`${row.asset.id}/${lane}`) === true} loading={loading} onSaving={onSaving} />
                 ))}
               </div>
             </li>
@@ -83,13 +85,13 @@ export function ProviderMappings({ provider, googleFallbacks, payload, preselect
       )}
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" onClick={onClose}>Done</Button>
-        {discovery.ok && rows.length > 0 ? <Button type="button" variant="ghost" onClick={onCollect}>Choose what to collect</Button> : null}
+        {discovery.ok && rows.length > 0 ? <Button type="button" variant="ghost" onClick={onCollect} disabled={pendingSaves > 0 || loading}>Choose what to collect</Button> : null}
       </div>
     </section>
   );
 }
 
-function MappingField({ asset, lane, sites, suggested, accountListed, googleFallback, loading }: {
+function MappingField({ asset, lane, sites, suggested, accountListed, googleFallback, loading, onSaving }: {
   asset: SitesAsset;
   lane: MappingLane;
   sites: DiscoveredSite[];
@@ -97,6 +99,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
   accountListed: boolean;
   googleFallback: boolean;
   loading: boolean;
+  onSaving: (saving: boolean) => void;
 }) {
   const field = FIELDS[lane];
   const cell = asset.cells[lane] ?? null;
@@ -124,6 +127,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
 
   async function undo() {
     if (!outcome?.saved || disabled) return;
+    onSaving(true);
     setSaving(true);
     try {
       const result = await outcome.undo();
@@ -131,6 +135,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
       setOutcome(result.undone ? null : { saved: false, refusal: result.refusal });
     } finally {
       setSaving(false);
+      onSaving(false);
     }
   }
 
@@ -148,6 +153,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
     } else if (!cell) return;
 
     setOutcome(null);
+    onSaving(true);
     setSaving(true);
     try {
       const label = `${field.label} for ${asset.label}`;
@@ -186,9 +192,11 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         }
         if (lane === "posthog" && ops.length > 0) {
           const before = cell.funnels ?? null;
-          ops.push(laneFieldOp(asset.id, lane, "funnels", before, []));
-          undo.push(before === null ? laneFieldUnsetOp(asset.id, lane, "funnels", [])
-            : laneFieldOp(asset.id, lane, "funnels", [], before));
+          const after = values ? sites.find((site) => holdsSiteMapping(values, site))?.funnels ?? [] : [];
+          const next = after as unknown as JsonValue;
+          ops.push(laneFieldOp(asset.id, lane, "funnels", before, next));
+          undo.push(before === null ? laneFieldUnsetOp(asset.id, lane, "funnels", next)
+            : laneFieldOp(asset.id, lane, "funnels", next, before));
         }
         if (values && cell.status === "skipped") {
           ops.push(...resumeOps(asset.id, lane, cell.status));
@@ -210,6 +218,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
       setOutcome(result);
     } finally {
       setSaving(false);
+      onSaving(false);
     }
   }
 
@@ -232,7 +241,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         {needsSave ? <Button type="button" size="sm" disabled={disabled || (!chosen && selected !== "")}
           onClick={() => void commit(chosen?.mapping ?? null)}>{selected === "" ? "Remove mapping" : "Save"}</Button> : null}
       </div>
-      {changesProject ? <p className="text-xs text-muted-foreground">This change clears the selected funnels.</p> : null}
+      {changesProject ? <p className="text-xs text-muted-foreground">This change replaces the selected funnels.</p> : null}
       {!heldLabel && !needsSave && suggested && cell?.status !== "skipped" && cell?.status !== "not-applicable" ? (
         <Button type="button" variant="ghost" size="sm" className="h-auto w-fit max-w-full whitespace-normal text-start"
           disabled={disabled} onClick={() => setSelection(suggested.ref)}>Use {suggested.label}</Button>

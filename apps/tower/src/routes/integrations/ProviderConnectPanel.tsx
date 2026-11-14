@@ -263,6 +263,10 @@ function ProviderSites({
   const toast = useOwnerToast();
   const [mode, setMode] = useState(managing ? "edit" : "setup");
   const editing = mode === "edit";
+  const savedOnly = mode === "collect";
+  const legacyMappings = googleFallbacks
+    ? new Set(googleFallbacks.map(({ asset, id }) => `${asset}/${id}`))
+    : undefined;
   const { fetchProviderSites, collectProviderSites } = useTowerApi();
   // The Data sources tab's own write (`PUT /api/config`, audited in
   // `config_changes`), confirmed by the rows' statuses rather than a toast
@@ -277,7 +281,7 @@ function ProviderSites({
     // No abort signal: a read cancelled by StrictMode's rehearsal unmount would
     // be asked again on the remount — the provider asked twice.
     queryFn: () => fetchProviderSites(provider.id),
-    staleTime: editing ? Number.POSITIVE_INFINITY : "static",
+    staleTime: mode === "setup" ? "static" : Number.POSITIVE_INFINITY,
     gcTime: 60_000,
     retry: 0,
     refetchOnWindowFocus: false,
@@ -314,7 +318,7 @@ function ProviderSites({
   if (editing && supportsMapping) {
     return <ProviderMappings
       provider={provider.id === "google" ? "google" : "posthog"}
-      googleFallbacks={new Set(googleFallbacks?.map(({ asset, id }) => `${asset}/${id}`))}
+      googleFallbacks={legacyMappings}
       payload={sites.data} preselect={preselect} loading={sites.isFetching}
       onClose={onClose} onCollect={() => setMode("collect")}
       onRetry={() => void sites.refetch({ cancelRefetch: false })}
@@ -338,7 +342,7 @@ function ProviderSites({
       }}
       onClose={onClose}
       onEditMappings={supportsMapping ? () => setMode("edit") : undefined}
-      savedOnly={mode === "collect"}
+      collection={savedOnly ? { googleFallbacks: legacyMappings } : undefined}
     />
   );
 }

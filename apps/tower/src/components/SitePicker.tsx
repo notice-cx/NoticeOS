@@ -22,6 +22,7 @@ import {
   type SiteLane,
   type SiteRow,
   type SitePlan,
+  type SavedSiteCollection,
   type SiteSelection,
   type SiteChoices,
   type SitesPayload,
@@ -42,7 +43,7 @@ import { cn } from "@/lib/utils";
 
 export interface SitePickerProps {
   onEditMappings?: () => void;
-  savedOnly?: boolean;
+  collection?: SavedSiteCollection;
   provider: IntegrationProvider;
   /** `GET …/sites`; undefined while it is read. */
   payload: SitesPayload | undefined;
@@ -103,7 +104,7 @@ export function SitePicker(props: SitePickerProps) {
 function SitePickerSession({
   provider,
   onEditMappings,
-  savedOnly = false,
+  collection,
   payload,
   failed = false,
   onRetry,
@@ -114,7 +115,8 @@ function SitePickerSession({
   onStarted,
   onClose,
 }: SitePickerProps) {
-  const plan = useMemo(() => (payload?.discovery.ok ? planSites(payload, preselect, savedOnly) : null), [payload, preselect, savedOnly]);
+  const savedOnly = collection !== undefined;
+  const plan = useMemo(() => (payload?.discovery.ok ? planSites(payload, preselect, collection) : null), [payload, preselect, collection]);
   const iconsOf = useSiteIcons();
   // Reconcile in the same render so Start never uses a previous reading's
   // options or guards. The component's lifetime bounds the unsaved choices.
@@ -288,7 +290,7 @@ function SitePickerSession({
     if (next.assets.length === 0 && next.declined.length === 0) return;
     setPhase({ phase: "starting", assets: next.assets, declined: next.declined });
     onStarted?.();
-    const result = await onStart(savedOnly ? { ...next, ops: [] } : next).catch(() => null);
+    const result = await onStart(next).catch(() => null);
     if (result === null) {
       setPhase({ phase: "choosing" });
       return;
@@ -353,7 +355,7 @@ function SitePickerSession({
       {/* Every site the weekly job will bill: the ticked ones, and the
           unticked ones nobody has declined yet. */}
       {metered ? <SpendPreview spend={metered} sites={confirmed.length + undecided} /> : null}
-      <Button ref={keep} type="button" className="mt-auto w-full tabular-nums" disabled={confirmed.length === 0 && notUsing === 0} onClick={() => void start()} data-sites-start>
+      <Button ref={keep} type="button" className="mt-auto w-full tabular-nums" disabled={(savedOnly && reading) || (confirmed.length === 0 && notUsing === 0)} onClick={() => void start()} data-sites-start>
         {label}
       </Button>
     </div>

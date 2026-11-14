@@ -1502,6 +1502,21 @@ describe("connecting in the panel", () => {
     expect(api.connect).not.toHaveBeenCalled();
   });
 
+  it("replaces the affected Clarity token from a failing connection link", async () => {
+    api.siteToken.mockResolvedValue(undefined);
+    const tokens = field({ name: "CLARITY_TOKENS", kind: "asset-map", label: "Project tokens" });
+    renderPage(page([status("clarity", [tokens], {
+      source: "store", lastUsedAt: new Date(NOW).toISOString(), lastError: "Rejected",
+    }, [{ id: "journey.example", lanes: ["clarity"] }], { scope: "per-asset", connect: { kind: "site-tokens", credential: "api-key" } })]),
+    "/integrations?connect=clarity&asset=journey.example");
+    const dialog = screen.getByRole("dialog", { name: "clarity" });
+    await act(async () => {
+      fireEvent.change(dialog.querySelector('[data-site-token-input="journey.example"]')!, { target: { value: "SEKRIT-clarity-token-0123456789" } });
+    });
+    expect(api.siteToken).toHaveBeenCalledWith("clarity", "journey.example", "SEKRIT-clarity-token-0123456789");
+    expect(api.connect).not.toHaveBeenCalled();
+  });
+
   it("replaces a panel provider's key from its own page in the panel, tested", () => {
     renderPage(page([working()]), "/integrations?provider=bing-webmaster");
     expect(document.querySelector('[data-provider-card="bing-webmaster"]')).not.toBeNull();
