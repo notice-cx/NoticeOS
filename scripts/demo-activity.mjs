@@ -127,19 +127,27 @@ export const DEMO_NIGHTLY_HOUR = (() => {
 })();
 const HOME_WORDS = ['plan', 'week', 'guide', 'notes', 'list', 'ideas', 'today', 'saved', 'simple', 'steps', 'season',
     'start', 'collection', 'favourites', 'quick', 'fresh', 'tips', 'browse', 'popular', 'new'];
-/** Each site's two alternating weekly cycles: a review, then a ship whose
- * close records a change and registers its comparison. */
 const WORK = {
-    lb: [['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
-        ['Ship the grouped brief library', 'Group the synthetic brief library by project and record the shipped routes.']],
-    pw: [['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
-        ['Ship the revised collection labels', 'Apply the synthetic label revision and record the shipped collections.']],
-    wp: [['Check printed recipe card margins', 'Print the synthetic recipe cards and check their margins.'],
-        ['Ship the seasonal recipe updates', 'Publish the synthetic seasonal recipe updates and record the shipped pages.']],
-    tn: [['Check trail access notes', 'Compare the synthetic access notes with their trail pages.'],
-        ['Ship the refreshed trail guides', 'Publish the synthetic trail guide refresh and record the shipped routes.']],
-    fr: [['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
-        ['Ship the CSV input checklist', 'Publish the synthetic CSV input checklist and record the shipped help route.']],
+    lb: [['Check exported brief headings', 'Exported briefs should retain the headings customers see in the preview.',
+            'Compare the heading text and order in the preview and export.', 'The review records any heading that changes during export.'],
+        ['Ship the grouped brief library', 'Grouping briefs by project helps teams find older work.',
+            'Group briefs under their projects and record the library routes.', 'Each tested project group opens its briefs from the library.']],
+    pw: [['Review saved-source labels', 'Customers use saved titles and source links to find their references again.',
+            'Open the saved sources and compare their titles and links with the originals.', 'The review records any changed titles or broken links.'],
+        ['Ship the collection label refresh', 'A consistent set of labels makes collections easier to scan.',
+            'Apply the week’s label updates and record the collections they affect.', 'The updated labels appear on the collections listed in the change.']],
+    wp: [['Check printed recipe card margins', 'Readers need ingredients and directions to fit on the printed card.',
+            'Print the example recipe cards and check where the content meets the margins.', 'The review identifies any card with text clipped at the margins.'],
+        ['Ship the seasonal recipe updates', 'Seasonal searches send readers to recipes that need current instructions and photos.',
+            'Publish the updated recipes and record the affected pages.', 'Each page in the change list shows its updated recipe.']],
+    tn: [['Check trail access notes', 'Hikers rely on access notes to plan how to reach the trail.',
+            'Compare the latest access notes with the affected trail pages.', 'The review lists any trail page with outdated access details.'],
+        ['Ship the refreshed trail guides', 'Current access and parking details help hikers plan their visits.',
+            'Publish the refreshed trail guides and record the affected routes.', 'Each guide in the change list shows its updated access and parking notes.']],
+    fr: [['Verify repeated-row warnings', 'People checking CSV files need to know which rows repeat.',
+            'Run the repeated-row examples and check the row numbers in the warnings.', 'The review records which examples report the expected repeated rows.'],
+        ['Ship the CSV input checklist', 'People need examples of input the CSV checker accepts.',
+            'Publish the checklist with sample inputs on the help page.', 'The help page lists the supported inputs and each example runs in the checker.']],
 };
 const round1 = (value) => Math.round(value * 10) / 10;
 /** Pinwell's GA4 skips a day every 29 after the anchor; the report and the
@@ -532,14 +540,12 @@ export function createDemoActivity(input) {
             if (phase !== 0 && phase !== 2 && phase !== 4)
                 return;
             const ship = cycle % 2 === 1;
-            const copy = WORK[asset.prefix][ship ? 1 : 0];
+            const [title, why, fix, criterion] = WORK[asset.prefix][ship ? 1 : 0];
             const cycleStart = shiftDemoDay(referenceDate, firstMonday - anchor + cycle * 7 + index);
             const taskKey = `demo-v2-${hash.slice(0, 12)}-${asset.prefix}-${cycleStart}`;
             tasks.push({ asset: asset.id, key: taskKey, phase: phase === 0 ? 'create' : phase === 2 ? 'start' : 'complete',
-                title: copy[0], description: `${copy[1]} This is a simulated ${ship ? 'change' : 'review'} of fictional data.`,
-                acceptance: ship
-                    ? 'Record the synthetic change and its registered comparison; do not claim a live deployment or business improvement.'
-                    : 'Record the synthetic review result; do not claim a live deployment or business improvement.',
+                title, description: `${title} using the demo’s sample data.\n\n## Why\n\n${why}\n\n## Fix\n\n${fix}\n\n## Where\n\n[${asset.name} in NoticeOS](/assets/${asset.id})`,
+                acceptance: `- [ ] ${criterion}${ship ? '\n- [ ] The synthetic change has a registered 28-day comparison.' : ''}`,
                 closeReason: ship
                     ? 'Synthetic change recorded with a 28-day comparison. No live deployment or measured business improvement.'
                     : 'Synthetic review completed. No live deployment or measured business improvement.',
@@ -547,10 +553,10 @@ export function createDemoActivity(input) {
                 model: !ship ? 'GPT-5-Codex' : draw(seed, `${taskKey}/model`) < 3 / 7 ? 'Sonnet 5.5' : 'Opus 5.5' });
             if (ship && phase === 4) {
                 changes.push({ asset: asset.id, at: `${date}T15:00:00.000Z`, kind: 'deploy', ref: taskKey,
-                    note: `Synthetic change: ${copy[0].replace(/^Ship /u, '')}. No live deployment.`,
+                    note: `Synthetic change: ${title.replace(/^Ship /u, '')}. No live deployment.`,
                     watch: { metricIntegration: 'ga4', metric: 'sessions', baselineStart: shiftDemoDay(date, -28), baselineEnd: shiftDemoDay(date, -1), checkOffsets: [28],
                         thresholds: { ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } },
-                        note: betName(copy[0]) } });
+                        note: betName(title) } });
             }
         });
         // Every Monday, each site's search report: this week's queries against

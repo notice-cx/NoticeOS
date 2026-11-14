@@ -113,6 +113,10 @@ curl --fail --header 'Host: demo.example.com' http://127.0.0.1:16448/__noticeos_
 A successful health response is `{ "ok": true }`. Connect through the HTTPS
 proxy to explore Portfolio, Money, Tasks, Workflows and Settings. The demo banner
 marks the data as synthetic and shows its latest successfully completed generation.
+Under Tasks, **Waiting for you** includes three decisions, one budget approval,
+and two checklists. One checklist confirms Pinwell’s collection labels and
+the other selects the Weeknight Pantry recipes ready to schedule. Visitors
+can read every step. Only a signed-in workspace owner can mark steps in Ntasks.
 Its three view choices (**I run the business**, **I build the product**,
 **Everything**) redraw every page and the Wall in that view and are kept only
 in the visitor's browser.

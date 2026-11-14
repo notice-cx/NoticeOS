@@ -218,7 +218,6 @@ test('each asset runs its own weekly cycle, reviews and ships alternating, witho
     // A site's cycle closes four days after it starts, so the last two sites close the next week.
     assert.deepEqual(own.map(task => task.phase), sites.indexOf(site) >= 3 ? ['create', 'start'] : ['create', 'start', 'complete']);
     assert.equal(new Set(own.map(task => task.key)).size, 1);
-    assert.match(own[0].description, /simulated review of fictional data/u);
     // The verifier reviews, naming its model on every step of the cycle.
     assert.ok(own.every(task => task.agent === 'codex' && task.model === 'GPT-5-Codex'));
   }

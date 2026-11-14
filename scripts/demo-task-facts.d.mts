@@ -16,7 +16,7 @@ export interface DemoTaskFact {
     title: string;
     description: string;
     acceptance: string;
-    issueType: 'task' | 'epic' | 'gate';
+    issueType: 'task' | 'bug' | 'decision' | 'epic' | 'gate';
     priority: number;
     events: DemoTaskEvent[];
     parent?: string;
@@ -36,6 +36,9 @@ export interface DemoTaskFact {
     };
     /** Filed with the question it offers options for. */
     choices?: TaskChoices;
+    steps?: readonly {
+        text: string;
+    }[];
     comments: {
         author: string;
         text: string;
