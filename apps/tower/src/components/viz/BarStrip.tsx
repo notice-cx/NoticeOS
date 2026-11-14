@@ -1,3 +1,4 @@
+import { stackRanges } from "@/lib/chart-path";
 import { useState, type CSSProperties } from "react";
 import { formatInt, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -7,14 +8,14 @@ import { cn } from "@/lib/utils";
 // level) across them. The eye reads "where does today sit in its recent
 // history" before it reads a number. A day still being counted is hatched, a
 // day nobody reported is an empty slot, and a measured zero is a stub, so none
-// of the three can pass for another. Asset contributions, when supplied,
+// of the three can pass for another. Contributions, when supplied,
 // split every bar into named identity colours.
 
 export interface BarStripPoint {
   t: string;
   /** null: nobody reported this day. */
   v: number | null;
-  /** Reported values by asset; absent keys are missing readings, never zero. */
+  /** Reported values by contributor; absent keys are missing readings, never zero. */
   contributions?: Readonly<Record<string, number>>;
 }
 
@@ -29,7 +30,7 @@ export interface BarStripProps {
   /** The series' identity ink for the highlighted bar: `text-financial-revenue`,
    * `text-traffic`. The other bars are neutral. */
   tone: string;
-  /** Stack every day by asset, with the same identity colours in its legend. */
+  /** Stack every day by contributor, with the same identity colours in its legend. */
   contributors?: readonly BarStripContributor[];
   /** Which bar is "now": the newest settled day by default. */
   highlight?: string;
@@ -65,8 +66,16 @@ export function BarStrip({
   const [hover, setHover] = useState<number | null>(null);
   const settled = data.filter((point) => point.v !== null && (provisionalFrom === null || point.t < provisionalFrom));
   const now = highlight ?? settled.at(-1)?.t ?? null;
-  const values = data.map((point) => point.v ?? 0);
+  const ranges = data.map(point => stackRanges(contributors.map(source => point.contributions?.[source.id] ?? null)));
+  const values = [...data.map(point => point.v ?? 0), ...ranges.flatMap(day => day.flatMap(range => range ? [range.to] : []))];
   const top = Math.max(...values, baseline?.value ?? 0, max, 1);
+  const bottom = Math.min(0, baseline?.value ?? 0, ...values);
+  const at = (value: number) => (value - bottom) / (top - bottom) * 100;
+  const barStyle = (from: number, to: number, index: number) => ({
+    bottom: `${at(Math.min(from, to))}%`,
+    height: from === to ? "2px" : `${Math.abs(at(to) - at(from))}%`,
+    "--viz-i": index,
+  }) as CSSProperties;
   const shown = hover === null ? null : data[hover] ?? null;
   const nowPoint = data.find((point) => point.t === now) ?? null;
   const partialDays = new Set(partial);
@@ -87,7 +96,8 @@ export function BarStrip({
             const provisional = provisionalFrom !== null && point.t >= provisionalFrom;
             const incomplete = !provisional && point.v !== null && partialDays.has(point.t);
             const isNow = point.t === now;
-            const height = point.v === null ? 100 : Math.max(0, (point.v / top) * 100);
+            const segments = ranges[index] ?? [];
+            const stacked = segments.some(segment => segment && segment.from !== segment.to);
             return (
               <span
                 key={point.t}
@@ -101,42 +111,37 @@ export function BarStrip({
                   point.v === null && "rounded-xs text-muted-foreground/60 viz-hatch",
                 )}
               >
-                {point.v === null ? null : (
-                  <span
+                {point.v === null ? null : stacked
+                  ? contributors.map((source, sourceIndex) => {
+                    const range = segments[sourceIndex];
+                    if (!range || range.from === range.to) return null;
+                    return <span key={source.id} data-contributor={source.id}
+                      className={cn("absolute inset-x-0 bg-current", source.tone,
+                        provisional && "chart-bar-provisional bg-current/20",
+                        incomplete && "outline-1 -outline-offset-1 outline-dashed outline-warn/80")}
+                      style={barStyle(range.from, range.to, index)} />;
+                  })
+                  : <span
                     className={cn(
-                      "viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs",
-                      // A measured zero is a stub on the floor, never an empty slot.
-                      point.v === 0 ? "h-0.5 bg-muted-foreground/50" : undefined,
-                      contributors.length > 0 ? undefined : isNow ? tone : "text-spark",
-                      provisional ? "chart-bar-provisional bg-current/20" : point.v === 0 || contributors.length > 0 ? undefined : isNow ? "bg-current viz-glow" : "bg-current/30",
-                      contributors.length === 0 && hover === index && !isNow && "bg-current/60",
+                      "absolute inset-x-0 rounded-t-xs",
+                      isNow ? tone : "text-spark",
+                      provisional ? "chart-bar-provisional bg-current/20" : point.v === 0 ? "bg-muted-foreground/50"
+                        : isNow ? "bg-current viz-glow" : hover === index ? "bg-current/60" : "bg-current/30",
                       incomplete && "outline-1 -outline-offset-1 outline-dashed outline-warn/80",
                     )}
-                    style={point.v === 0 ? ({ "--viz-i": index } as CSSProperties) : ({ height: `${height}%`, "--viz-i": index } as CSSProperties)}
-                  >
-                    {contributors.map((source) => {
-                      const value = point.contributions?.[source.id];
-                      if (value === undefined || value <= 0 || !point.v) return null;
-                      return (
-                        <span
-                          key={source.id}
-                          data-contributor={source.id}
-                          className={cn("block w-full shrink-0 bg-current", source.tone, provisional && "opacity-30")}
-                          style={{ height: `${(value / point.v) * 100}%` }}
-                        />
-                      );
-                    })}
-                  </span>
-                )}
+                    style={barStyle(0, point.v, index)}
+                  />}
               </span>
             );
           })}
+          {bottom < 0 ? <span aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-border"
+            style={{ bottom: `${at(0)}%` }} /> : null}
           {baseline ? (
             <span
               aria-hidden
               data-bar-baseline=""
               className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/70"
-              style={{ bottom: `${(baseline.value / top) * 100}%` }}
+              style={{ bottom: `${at(baseline.value)}%` }}
             />
           ) : null}
         </div>

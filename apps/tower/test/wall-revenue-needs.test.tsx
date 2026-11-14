@@ -42,6 +42,29 @@ describe("the revenue widget", () => {
     expect(section.textContent).toContain('Aug $1,458');
   });
 
+  it("keeps the latest observed source totals in the forecast bars", () => {
+    const data = wallFixturePayload();
+    const asset = data.assets.find(asset => asset.revenueProjection?.status === "ready")!;
+    const point = asset.revenueProjection!.points.find(point => !point.projected && point.cumulativeMinor > 0)!;
+    const { container } = render(<RevenueHero portfolio={data.portfolio} assets={[{
+      ...asset,
+      revenueProjectionSources: [
+        { source: "mediavine-journey", displayName: "Mediavine Journey", days: [{ date: point.date, amountMinor: point.cumulativeMinor - 50 }] },
+        { source: "stripe", displayName: "Stripe", days: [{ date: point.date, amountMinor: 50 }] },
+      ],
+    }]} nowMs={NOW} />);
+    const observed = container.querySelector(`[data-metric-cumulative-bar="current"][data-date="${point.date}"]`)!;
+    const ad = observed.querySelector('[data-revenue-source="mediavine-journey"]')!;
+    const stripe = observed.querySelector('[data-revenue-source="stripe"]')!;
+    expect(ad.getAttribute("class")).not.toEqual(stripe.getAttribute("class"));
+    expect(stripe).toHaveAttribute("data-source-value", "0.5");
+    const projected = container.querySelector('[data-metric-cumulative-bar="forecast"]')!;
+    expect(projected.querySelector('[data-revenue-source="stripe"]')).toHaveAttribute("data-source-value", "0.5");
+    const forecast = projected.querySelector('[data-metric-cumulative-segment="forecast"]')!;
+    expect(Number(forecast.getAttribute("data-source-value")) + point.cumulativeMinor / 100)
+      .toBeCloseTo(Number(projected.getAttribute("data-value")));
+  });
+
   it.each([
     [2, "50% below Aug"],
     [0.5, "100% above Aug"],

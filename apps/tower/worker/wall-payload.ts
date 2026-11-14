@@ -786,6 +786,17 @@ export async function buildWallPayload(
     // `PANEL_LANDING_WINDOW_DAYS` is what makes the marker appear, so an asset
     // whose collection stopped sheds its marker.
     const latestPanelDate = panelLandingByAsset.get(a.id) ?? null;
+    const history = revenueOf(a.id);
+    const projection = projectRevenue(now, revenueClockOf(a.id), completeRevenueDays(history), revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
+        revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar,
+          Number(revenueCalendarDate(now, revenueClockOf(a.id).timeZone).slice(0, 4))));
+    const observed = new Set(projection.points.filter(point => !point.projected).map(point => point.date));
+    const revenueProjectionSources = history.bySource.flatMap(source => {
+      if (source.currency !== "USD") return [];
+      const days = source.days.filter(day => observed.has(day.date))
+        .map(({ date, amountMinor }) => ({ date, amountMinor }));
+      return days.length ? [{ source: source.source, displayName: source.displayName, days }] : [];
+    });
     return {
       id: a.id,
       assetType: assetTypeOf(dashboard.sites?.[a.id]),
@@ -812,12 +823,10 @@ export async function buildWallPayload(
         declaredNoReport: declaredNoReport.has(a.id),
       }),
       activeUsers: signalTrends.activeUsers,
-      dailyRevenue: { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(revenueOf(a.id))),
+      dailyRevenue: { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(history)),
         timeZoneLabel: revenueClockOf(a.id).label },
-      // Holidays for the year the projected month is in, on the same clock.
-      revenueProjection: projectRevenue(now, revenueClockOf(a.id), completeRevenueDays(revenueOf(a.id)), revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
-        revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar,
-          Number(revenueCalendarDate(now, revenueClockOf(a.id).timeZone).slice(0, 4)))),
+      revenueProjection: projection,
+      ...(revenueProjectionSources.length ? { revenueProjectionSources } : {}),
       // Two providers, one measurement, one column; the merge is `shared/wall.ts`'s.
       searchClicks: mergeSignalTrends([
         signalTrends.webSearchClicks.google,

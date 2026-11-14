@@ -23,6 +23,10 @@ export function moneyLine(value: unknown): boolean {
   return fields(value, { amount: number, currency: isSupportedCurrency });
 }
 
+const sourceLines = list(item => moneyLine(item) && fields(item, {
+  kind: oneOf(['revenue', 'cost']), family: string, source: nullable(string), label: nullable(string),
+}));
+
 /** Stored provider estimates use signed USD minor units; zero is an observation. */
 export function dailyRevenueHistory(value: unknown): boolean {
   return fields(value, { from: day, to: day, reportedThrough: nullable(day),
@@ -91,7 +95,7 @@ export function decodeFinancials(value: unknown, requestedPeriod?: string | null
   const periodFigure = (item: unknown) => fields(item, { period: month, figure: nullable(moneyFigureValue) });
   if (!fields(value, {
     generatedAt: instant, period: month, periods: list(month), periodIsCurrent: boolean, currentPeriod: month, empty: boolean,
-    months: list(item => fields(item, { period: month, booked: moneyFigureValue, estimated: moneyFigureValue, total: moneyFigureValue })),
+    months: list(item => fields(item, { period: month, booked: moneyFigureValue, estimated: moneyFigureValue, total: moneyFigureValue }, { sourceLines })),
     properties: list(item => fields(item, { asset: string, displayName: string, isOs: boolean, figure: moneyFigureValue,
       months: list(periodFigure), revenueReported: boolean })),
     overhead: moneyFigureValue,
@@ -125,7 +129,11 @@ export function decodeWallMoney(value: unknown): WallPayload {
     assets: list(item => fields(item, { id: string, booked: moneyFigureValue, forecast: moneyFigureValue, netPeriod: month,
       netByMonth: list(point => fields(point, { t: month, v: nullable(number) })),
       netByMonthCurrency: currency, netByMonthProvisionalFrom: nullable(month),
-    }, { dailyRevenue: dailyRevenueSummary, revenueProjection })
+    }, { dailyRevenue: dailyRevenueSummary, revenueProjection,
+      revenueProjectionSources: list(source => fields(source, { source: string, displayName: string,
+        days: list(observed => fields(observed, { date: day, amountMinor: minor })),
+      })),
+    })
       && trend(item.netByMonth, item.netByMonthCurrency, month)),
     ledgerRecordedAt: nullable(instant),
   }) || !Array.isArray(value.assets) || !unique(value.assets, 'id')) invalidResponse('Portfolio money');
@@ -136,7 +144,7 @@ function ledger(value: unknown): boolean {
   const rollup = (item: unknown) => fields(item, { figure: moneyFigureValue,
     revenueByFamily: list(line => moneyLine(line) && fields(line, { family: string })),
     costByFamily: list(line => moneyLine(line) && fields(line, { family: string })),
-  });
+  }, { sourceLines });
   return fields(value, { currency, empty: boolean,
     periods: list(item => fields(item, { period: month, booked: rollup, forecast: rollup })),
     recentRows: list(item => moneyLine(item) && fields(item, { id: id => minor(id) && id !== 0,

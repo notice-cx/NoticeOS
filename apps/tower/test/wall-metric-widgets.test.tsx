@@ -67,7 +67,7 @@ describe("Wall metric widgets", () => {
       expect(view.container.querySelector('[data-chart-line="solid"]')).toBeNull();
       const actual = view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-21"]')!;
       const lastSlot = 4 + 6.5 * 192 / 7;
-      expect(Number(actual.getAttribute("x"))).toBeLessThan(lastSlot);
+      expect(Number(actual.querySelector("rect")!.getAttribute("x"))).toBeLessThan(lastSlot);
       expect(view.container.querySelector(".wall-metric-axis")).toHaveTextContent("MonSun");
     };
     verify();

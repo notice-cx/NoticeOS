@@ -111,3 +111,17 @@ export function readingRuns<T>(values: readonly (T | null)[]): { index: number; 
   if (run.length > 0) runs.push(run);
   return runs;
 }
+
+/** Each sign stacks away from zero on its own side of the axis. */
+export function stackRanges(values: readonly (number | null)[]) {
+  let positive = 0;
+  let negative = 0;
+  return values.map(value => {
+    if (value === null) return null;
+    const from = value < 0 ? negative : positive;
+    const to = from + value;
+    if (value < 0) negative = to;
+    else positive = to;
+    return { from, to };
+  });
+}

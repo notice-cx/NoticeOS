@@ -3,8 +3,8 @@
 // came from, and each site ranked by what it earned with its change. A day no
 // source reported is a hole, never a zero; a cost nobody wrote down is "none
 // recorded", never $0.
-import { moneyCurrency } from "@noticeos/contract/money";
-import type { BarStripPoint } from "@/components/viz/BarStrip";
+import { minorToMajorUnits, moneyCurrency } from "@noticeos/contract/money";
+import type { BarStripContributor, BarStripPoint } from "@/components/viz/BarStrip";
 import type { PortfolioDailyRevenue } from "@shared/daily-revenue";
 import type { FinancialMonth, FinancialProperty, FinancialsPayload, MoneyFigure } from "@shared/financials";
 import type { RevenueProjection } from "@shared/revenue-projection";
@@ -71,6 +71,8 @@ export function lastMonthRevenue(months: readonly FinancialMonth[], period: stri
 export interface MonthDays {
   /** Every day of the window, null where no source reported. */
   days: BarStripPoint[];
+  contributors?: BarStripContributor[];
+  currency?: string;
   /** Days some owed source did not report: their bars are short of the day. */
   partial: string[];
   /** The mean of the complete days, or null with fewer than three. */
@@ -79,12 +81,12 @@ export interface MonthDays {
   short: { asset: string; name: string; reported: number; owed: number }[];
 }
 
-export function monthDays(history: PortfolioDailyRevenue): MonthDays {
-  const amounts = new Map(history.days.map((day) => [day.date, day.amountMinor / 100]));
+export function monthDays(history: PortfolioDailyRevenue, currency = "USD"): MonthDays {
+  const amounts = new Map(history.days.map((day) => [day.date, minorToMajorUnits(day.amountMinor, currency)]));
   const partial = history.coverage.filter((day) => day.reported > 0 && day.missingAssets.length > 0).map((day) => day.date);
   const days = history.coverage.length > 0
     ? history.coverage.map((day) => ({ t: day.date, v: amounts.get(day.date) ?? null }))
-    : history.days.map((day) => ({ t: day.date, v: day.amountMinor / 100 }));
+    : [...amounts].map(([t, v]) => ({ t, v }));
   const complete = days.filter((day) => day.v !== null && !partial.includes(day.t)).map((day) => day.v!);
   const short = history.sources.flatMap((source) => {
     const owed = history.coverage.filter((day) => day.date >= source.since);

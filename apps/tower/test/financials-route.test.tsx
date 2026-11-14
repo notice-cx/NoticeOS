@@ -743,21 +743,32 @@ describe("/financials — the first screen answers the whole question", () => {
     expect(container.querySelector("[data-cost-composition]")).toBeNull();
   });
 
-  it("gives each financial series one key with a distinct color and line pattern", () => {
-    const { container } = renderPage(threeMonths());
-    const chart = container.querySelector("[data-money-months] [data-hero-chart]")! as HTMLElement;
-    for (const [name, tone, pattern] of [
-      ["Revenue", "text-financial-revenue", null],
-      ["Cost", "text-financial-cost", "8 5"],
-      ["Net", "text-foreground", "2 5"],
-    ] as const) {
-      expect(within(chart).getAllByText(name)).toHaveLength(1);
-      const line = chart.querySelector(`[data-hero-line="${name}"]`)!;
-      expect(line.parentElement).toHaveClass(tone);
-      expect(line.getAttribute("stroke-dasharray")).toBe(pattern);
-      const key = within(chart).getByRole("button", { name }).querySelector("line")!;
-      expect(key.getAttribute("stroke-dasharray")).toBe(pattern);
-    }
+  it("stacks revenue sources, draws costs below zero and lets a reader hide a source", () => {
+    const data = threeMonths();
+    const august = data.months.at(-1)!;
+    august.sourceLines = [
+      { kind: "revenue", family: "ads", source: "mediavine-journey", label: "Mediavine Journey", currency: "USD", amount: 300 },
+      { kind: "revenue", family: "subs", source: "stripe", label: "Stripe", currency: "USD", amount: 140.94 },
+      { kind: "cost", family: "hosting", source: "Hosting", label: null, currency: "USD", amount: 200 },
+    ];
+    const { container } = renderPage(data);
+    const chart = container.querySelector<HTMLElement>("[data-money-months] [data-hero-chart]")!;
+    const bar = (name: string) => chart.querySelector(`[data-date="2026-08"][data-hero-bar="${name}"]`)!;
+    const ads = bar("Mediavine Journey");
+    const stripe = bar("Stripe");
+    const cost = bar("Hosting");
+    expect(ads.getAttribute("x")).toEqual(stripe.getAttribute("x"));
+    expect(ads.getAttribute("x")).toEqual(cost.getAttribute("x"));
+    expect(ads.parentElement?.getAttribute("class")).not.toEqual(stripe.parentElement?.getAttribute("class"));
+    const end = (rect: Element) => Number(rect.getAttribute("y")) + Number(rect.getAttribute("height"));
+    expect(end(stripe)).toBeCloseTo(Number(ads.getAttribute("y")));
+    expect(end(ads)).toBeCloseTo(Number(cost.getAttribute("y")));
+    expect(chart.querySelector('[data-date="2026-08"][data-hero-marker="Net"]')).toHaveAttribute("data-value", "240.94");
+    expect(chart.querySelector("[data-hero-line]")).toBeNull();
+
+    fireEvent.click(within(chart).getByRole("button", { name: "Stripe" }));
+    expect(bar("Stripe")).toBeNull();
+    expect(bar("Mediavine Journey")).toHaveAttribute("data-value", "300");
   });
 
   it("preserves cents in chart point details and data while keeping the axis compact", async () => {
@@ -765,13 +776,15 @@ describe("/financials — the first screen answers the whole question", () => {
     const chart = container.querySelector("[data-money-months] [data-hero-chart]")! as HTMLElement;
     const axisLabels = [...chart.querySelectorAll("[data-hero-gutter] > span")]
       .map((label) => label.textContent);
-    expect(axisLabels).toEqual(["-$400", "-$200", "$0", "$200", "$400", "$600"]);
+    expect(axisLabels).toContain("$0");
+    expect(axisLabels.some(label => label?.startsWith("-$"))).toBe(true);
+    expect(axisLabels.every(label => !label?.includes("."))).toBe(true);
 
     fireEvent.focus(within(chart).getByRole("group", {
-      name: "Explore Revenue and Cost and Net values",
+      name: /^Explore .* values$/,
     }));
     const details = within(chart).getByRole("status");
-    for (const value of ["$440.94", "$200.00", "$240.94"]) {
+    for (const value of ["$440.94", "-$200.00", "$240.94"]) {
       expect(within(details).getByText(value)).toBeInTheDocument();
     }
     expect(within(details).queryByText("$441")).toBeNull();
@@ -779,11 +792,11 @@ describe("/financials — the first screen answers the whole question", () => {
     fireEvent.click(within(chart).getByText("View data · 3 months"));
     const table = await within(chart).findByRole("table");
     const august = within(table).getByRole("rowheader", { name: "Aug '26" }).closest("tr")!;
-    for (const value of ["$440.94", "$200.00", "$240.94"]) {
+    for (const value of ["$440.94", "-$200.00", "$240.94"]) {
       expect(within(august).getByText(value)).toBeInTheDocument();
     }
     const june = within(table).getByRole("rowheader", { name: "Jun '26" }).closest("tr")!;
-    expect(within(june).getByText("-$224.42")).toBeInTheDocument();
+    expect(within(june).getAllByRole("cell").slice(0, 3).map(cell => cell.textContent)).toEqual(["-$224.42", "$0.00", "-$224.42"]);
   });
 
   /** The open month is capped with a hollow point and the strip withholds the

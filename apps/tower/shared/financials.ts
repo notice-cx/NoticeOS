@@ -9,6 +9,15 @@
 export type { MoneyFigure } from '@noticeos/contract/money';
 import type { MoneyFigure } from '@noticeos/contract/money';
 
+export interface MoneySourceLine {
+  kind: "revenue" | "cost";
+  family: string;
+  source: string | null;
+  label: string | null;
+  currency: string;
+  amount: number;
+}
+
 /** One accounting period, split by what has actually settled. */
 export interface FinancialMonth {
   /** `YYYY-MM`. */
@@ -17,6 +26,7 @@ export interface FinancialMonth {
   estimated: MoneyFigure;
   /** Every current row, whatever its booking state — the shape of the month. */
   total: MoneyFigure;
+  sourceLines?: MoneySourceLine[];
 }
 
 /** One asset's own month, in the ledger's monthly grain: the same arithmetic

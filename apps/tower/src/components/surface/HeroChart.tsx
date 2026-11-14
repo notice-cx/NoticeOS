@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SERIES_TONE_CLASS, type SeriesTone } from "@/components/surface/Sparkline";
 import { ChartDot } from "@/components/surface/ChartMarks";
 import { FitLabel } from "@/components/viz/FitLabel";
+import { stackRanges } from "@/lib/chart-path";
 import { cn } from "@/lib/utils";
 import { ChartEventMarkers } from "@/components/ChartEventMarkers";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -35,6 +36,8 @@ import { useChartLabelVisibility } from "@/hooks/useChartLabelVisibility";
 export interface HeroSeries {
   /** What the legend and the toggle say. */
   name: string;
+  id?: string;
+  colorClass?: string;
   points: readonly SeriesPoint[];
   tone?: SeriesTone;
   /** Identity, not confidence: use the same pattern in the line and its key. */
@@ -59,8 +62,10 @@ const WEIGHT = {
 } as const;
 type Weight = keyof typeof WEIGHT;
 
-function SeriesKey({ tone, lineStyle = "solid", weight = "lead", bars = false, outlined = false }: {
+function SeriesKey({ tone, colorClass, marker, lineStyle = "solid", weight = "lead", bars = false, outlined = false }: {
   tone: SeriesTone;
+  colorClass?: string;
+  marker?: boolean;
   lineStyle?: HeroSeries["lineStyle"];
   weight?: Weight;
   bars?: boolean;
@@ -69,8 +74,8 @@ function SeriesKey({ tone, lineStyle = "solid", weight = "lead", bars = false, o
   outlined?: boolean;
 }) {
   return (
-    <svg aria-hidden className={cn("h-3 w-6 shrink-0", SERIES_TONE_CLASS[tone])} viewBox="0 0 24 12">
-      {bars ? <path d="M3 11V6H7V11ZM10 11V1H14V11ZM17 11V4H21V11Z" fill={outlined ? "none" : "currentColor"}
+    <svg aria-hidden className={cn("h-3 w-6 shrink-0", colorClass ?? SERIES_TONE_CLASS[tone])} viewBox="0 0 24 12">
+      {marker ? <circle cx={12} cy={6} r={3.5} className="fill-current" /> : bars ? <path d="M3 11V6H7V11ZM10 11V1H14V11ZM17 11V4H21V11Z" fill={outlined ? "none" : "currentColor"}
         stroke={outlined ? "currentColor" : undefined} strokeWidth={outlined ? 1.2 : undefined} /> : <line x1="1.5" x2="22.5" y1="6" y2="6" stroke="currentColor"
         strokeWidth={WEIGHT[weight].width} strokeOpacity={WEIGHT[weight].opacity}
         strokeDasharray={LINE_DASH[lineStyle]} strokeLinecap="round" />}
@@ -116,6 +121,8 @@ export interface HeroChartProps {
   partialDates?: readonly string[];
   height?: number;
   variant?: HeroVariant;
+  /** Stack signed bars. Reference series are shown as markers. */
+  stacked?: boolean;
   /** Bold trailing average over the faint raw line. `line` only. */
   average?: boolean;
   averageWindow?: number;
@@ -315,6 +322,7 @@ export function HeroChart({
   partialDates = [],
   height = 240,
   variant = "line",
+  stacked = false,
   average,
   averageWindow = 7,
   area = true,
@@ -371,6 +379,8 @@ export function HeroChart({
         .map((point) => [point.t, point.v]));
       return {
         name: one.name,
+        id: one.id ?? one.name,
+        colorClass: one.colorClass,
         smooth,
         reference,
         weight: (reference ? "reference" : "lead") as Weight,
@@ -409,13 +419,17 @@ export function HeroChart({
   }
 
   const { domain, lanes } = plot;
-  const visible = lanes.filter((lane) => !hidden.includes(lane.name));
+  const visible = lanes.filter((lane) => !hidden.includes(lane.id));
   const shown = visible.length > 0 ? visible : lanes;
   const grain = seriesGrain(domain.map((t) => ({ t, v: 0 })));
 
+  const stackedBars = variant === "bars" && stacked;
+  const stacks = stackedBars ? domain.map((_, index) =>
+    stackRanges(shown.map(lane => lane.reference ? null : lane.raw[index] ?? null))) : [];
   const observed = shown
     .flatMap((lane) => [...lane.raw, ...lane.average])
     .filter((value): value is number => value !== null);
+  for (const ranges of stacks) for (const range of ranges) if (range) observed.push(range.to);
   // Lines and monthly lines fit a range far from zero; bars and steps cannot.
   const fitted = variant === "line" || variant === "monthly"
     ? fittedScale(Math.min(...observed), Math.max(...observed), format)
@@ -558,13 +572,13 @@ export function HeroChart({
         <ul aria-label="Chart key" data-hero-key=""
           className="m-0 flex list-none flex-wrap items-center gap-x-3.5 gap-y-1 p-0 text-xs">
           {lanes.map((lane) => {
-            const on = !hidden.includes(lane.name);
+            const on = !hidden.includes(lane.id);
             const label = lane.name === foldInto ? `${lane.name} · ${averageName}` : lane.name;
-            const key = <SeriesKey tone={lane.tone} lineStyle={lane.lineStyle} weight={lane.weight} bars={variant === "bars"} />;
+            const key = <SeriesKey tone={lane.tone} colorClass={lane.colorClass} marker={stackedBars && lane.reference} lineStyle={lane.lineStyle} weight={lane.weight} bars={variant === "bars"} />;
             return (
-              <li key={lane.name} data-hero-key-series={lane.name} className="flex items-center">
+              <li key={lane.id} data-hero-key-series={lane.name} className="flex items-center">
                 {showToggles ? (
-                  <button type="button" aria-pressed={on} onClick={() => toggle(lane.name)}
+                  <button type="button" aria-pressed={on} onClick={() => toggle(lane.id)}
                     className={cn(keyToggleClass, on ? "text-foreground" : "text-muted-foreground line-through")}>
                     <span className={cn("inline-flex", !on && "opacity-35")}>{key}</span>
                     {label}
@@ -577,7 +591,7 @@ export function HeroChart({
           })}
           {partialShown > 0 && shown[0] ? (
             <li className={cn(keyItemClass, "text-muted-foreground")} data-legend-partial="">
-              <SeriesKey tone={shown[0].tone} bars outlined />
+              <SeriesKey tone={shown[0].tone} colorClass={shown[0].colorClass} bars outlined />
               {partialShown} partial {partialShown === 1 ? "day" : "days"}
             </li>
           ) : null}
@@ -735,17 +749,30 @@ export function HeroChart({
             {shown.map((lane, laneIndex) => {
               if (variant === "bars") {
                 const slot = VIEW_WIDTH / domain.length;
-                const width = slot * 0.76 / shown.length;
-                return <g key={lane.name} className={SERIES_TONE_CLASS[lane.tone]}>
-                  {lane.raw.map((value, index) => value === null ? null : <rect
-                    key={domain[index]} data-hero-bar={lane.name} data-date={domain[index]} data-value={value}
-                    x={xOf(index) - slot * 0.38 + laneIndex * width}
-                    y={value === 0 ? yOf(0) - 1.5 : Math.min(yOf(value), yOf(0))}
-                    width={width * 0.9} height={Math.max(1.5, Math.abs(yOf(value) - yOf(0)))}
-                    data-partial={partialDates.includes(domain[index]!) ? '' : undefined}
-                    rx={1} strokeWidth={1.5} vectorEffect="non-scaling-stroke"
-                    className={cn(partialDates.includes(domain[index]!) ? "fill-none stroke-current" : "fill-current", active >= 0 && active !== index ? "opacity-45" : "opacity-90")}
-                  />)}
+                const width = slot * 0.76 / (stackedBars ? 1 : shown.length);
+                return <g key={lane.id} className={lane.colorClass ?? SERIES_TONE_CLASS[lane.tone]}>
+                  {lane.raw.map((value, index) => {
+                    if (value === null) return null;
+                    const date = domain[index]!;
+                    const provisional = lane.provisionalAt >= 0 && index >= lane.provisionalAt;
+                    const partial = partialDates.includes(date);
+                    const opacity = active >= 0 && active !== index ? "opacity-45" : "opacity-90";
+                    if (stackedBars && lane.reference) return <ChartDot key={date} data-hero-marker={lane.name} data-date={date}
+                      data-value={value} data-hero-provisional={provisional ? lane.name : undefined}
+                      at={{ x: xOf(index), y: yOf(value) }}
+                      size="sm" hollow={provisional} surface="stroke-card" className={opacity} />;
+                    const ranges = stacks[index];
+                    if (ranges && value === 0 && (ranges.some(range => range && range.from !== range.to)
+                      || ranges.findIndex(range => range !== null) !== laneIndex)) return null;
+                    const { from, to } = ranges?.[laneIndex] ?? { from: 0, to: value };
+                    return <rect key={date} data-hero-bar={lane.name} data-date={date} data-value={value}
+                      x={xOf(index) - (stackedBars ? width * 0.45 : slot * 0.38 - laneIndex * width)}
+                      y={value === 0 ? yOf(0) - 1.5 : Math.min(yOf(from), yOf(to))}
+                      width={width * 0.9} height={value === 0 ? 1.5 : Math.abs(yOf(from) - yOf(to))}
+                      data-partial={partial ? '' : undefined} data-hero-provisional={provisional ? lane.name : undefined}
+                      rx={stackedBars ? 0 : 1} strokeWidth={1} vectorEffect="non-scaling-stroke"
+                      className={cn(partial || provisional ? "fill-current/15 stroke-current [stroke-dasharray:2_2]" : "fill-current", opacity)} />;
+                  })}
                 </g>;
               }
               const stepped = variant === "step";
@@ -753,7 +780,7 @@ export function HeroChart({
               const filled = !lane.reference && (variant !== "line" || (area && shown.length === 1));
               const leadValues = variant === "line" && lane.smooth ? lane.average : lane.raw;
               return (
-                <g key={lane.name} className={SERIES_TONE_CLASS[lane.tone]}>
+                <g key={lane.id} className={lane.colorClass ?? SERIES_TONE_CLASS[lane.tone]}>
                   {filled ? (
                     <path d={areaOf(leadValues, stepped)} className="fill-current opacity-10" />
                   ) : null}
@@ -841,9 +868,9 @@ export function HeroChart({
                 {formatSeriesDate(domain[active]!)}
               </span>
               {shown.map((lane) => (
-                <span key={lane.name} className="grid gap-0.5">
+                <span key={lane.id} className="grid gap-0.5">
                   <span className="flex items-center gap-2">
-                    <SeriesKey tone={lane.tone} lineStyle={lane.lineStyle} weight={lane.weight} bars={variant === "bars"} />
+                    <SeriesKey tone={lane.tone} colorClass={lane.colorClass} marker={stackedBars && lane.reference} lineStyle={lane.lineStyle} weight={lane.weight} bars={variant === "bars"} />
                     <span className="font-semibold text-foreground">{lane.name}</span>
                   </span>
                   {lane.smooth ? <span>{averageLabel}: <span className="font-semibold text-foreground">
@@ -911,7 +938,7 @@ export function HeroChart({
               <TableHeader>
                 <TableRow>
                   <TableHead scope="col">{grain === "monthly" ? "Month" : "Date"}</TableHead>
-                  {shown.map((lane) => <TableHead key={lane.name} scope="col" className="text-right">{lane.name}</TableHead>)}
+                  {shown.map((lane) => <TableHead key={lane.id} scope="col" className="text-right">{lane.name}</TableHead>)}
                   <TableHead scope="col">Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -922,7 +949,7 @@ export function HeroChart({
                       <time dateTime={date}>{grain === "monthly" ? formatSeriesDate(date) : formatCalendarDate(date)}</time>
                     </TableHead>
                     {shown.map((lane) => (
-                      <TableCell key={lane.name} className="text-right tabular-nums">
+                      <TableCell key={lane.id} className="text-right tabular-nums">
                         {lane.raw[index] === null ? "Not reported" : formatValue(lane.raw[index]!)}
                         {lane.raw[index] !== null && lane.provisionalAt >= 0 && index >= lane.provisionalAt ? " · still counting" : null}
                         {lane.smooth && lane.average[index] !== null ? <span className="block text-xs text-muted-foreground">

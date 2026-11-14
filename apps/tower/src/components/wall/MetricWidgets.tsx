@@ -1,3 +1,6 @@
+import { formatInt } from "@/lib/format";
+import { stackRanges } from "@/lib/chart-path";
+import type { MoneyChartSource } from "@/lib/money-chart";
 import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { SeriesPointOrGap } from "@shared/surface";
@@ -113,6 +116,11 @@ export interface MetricComparisonChartProps {
   current: readonly SeriesPointOrGap[];
   reference?: readonly SeriesPointOrGap[];
   forecast?: readonly SeriesPointOrGap[];
+  breakdown?: {
+    format: (value: number) => string;
+    sources: readonly MoneyChartSource[];
+    contributions: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  };
   previousTotal?: { value: number; label: string };
   /** Full comparison period, including dates no current observation reaches yet. */
   domain?: { start: string; end: string };
@@ -125,7 +133,7 @@ export interface MetricComparisonChartProps {
 }
 
 /** All series share dates and scale; unavailable days stay gaps. */
-export function MetricComparisonChart({ current, reference = [], forecast = [], previousTotal, domain, startLabel, endLabel, label, showLabels = true, tone = "neutral", className, variant = "line", center }: MetricComparisonChartProps & { center?: ReactNode }) {
+export function MetricComparisonChart({ current, reference = [], forecast = [], previousTotal, domain, startLabel, endLabel, label, showLabels = true, tone = "neutral", className, variant = "line", center, breakdown }: MetricComparisonChartProps & { center?: ReactNode }) {
   const { binding } = useWallMetricBinding();
   if (binding?.configured) label = binding.tile.title ?? label;
   if (binding?.configured && binding.tile.reference === false) { reference = []; previousTotal = undefined; }
@@ -136,6 +144,24 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
   }
   const values = [...current, ...reference, ...forecast].flatMap(p => p.v !== null && Number.isFinite(p.v) ? [p.v] : []);
   if (previousTotal && Number.isFinite(previousTotal.value)) values.push(previousTotal.value);
+  const currentByDay = new Map(current.map(point => [point.t.slice(0, 10), point.v]));
+  const forecastByDay = new Map(forecast.map(point => [point.t.slice(0, 10), point.v]));
+  const sources = variant === "cumulative-bars" ? breakdown?.sources ?? [] : [];
+  const readings = dates.map(date => {
+    const observed = currentByDay.get(date);
+    const projected = forecastByDay.get(date);
+    const known = observed != null && Number.isFinite(observed);
+    const value = known ? observed : projected != null && Number.isFinite(projected) ? projected : null;
+    const contributions = breakdown?.contributions.get(date);
+    const pieces = sources.map(source => contributions?.get(source.id) ?? 0);
+    // The forecast and any observed total without source detail use the residual.
+    const residual = value === null ? null : sources.length
+      ? Math.round((value - pieces.reduce((sum, amount) => sum + amount, 0)) * 100) / 100
+      : value;
+    const ranges = value === null ? [] : stackRanges([...pieces, residual]);
+    for (const range of ranges) if (range) values.push(range.to);
+    return { date, known, value, ranges };
+  });
   const low = Math.min(0, ...values), high = Math.max(1, ...values);
   const y = (value: number) => 44 - (value - low) / (high - low) * 40;
   const domainStart = Date.parse(domain?.start ?? dates[0] ?? "");
@@ -149,23 +175,36 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
   };
   const currentRuns = runs(current), endpoint = currentRuns.at(-1)?.at(-1);
   const hasReadings = [...current, ...reference, ...forecast].some(p => p.v !== null && Number.isFinite(p.v));
-  const currentByDay = new Map(current.map(point => [point.t.slice(0, 10), point.v]));
-  const forecastByDay = new Map(forecast.map(point => [point.t.slice(0, 10), point.v]));
-  const bars = variant === "cumulative-bars" ? dates.map((date, index) => {
-    const observed = currentByDay.get(date);
-    const projected = forecastByDay.get(date);
-    const known = observed != null && Number.isFinite(observed);
-    const value = known ? observed : projected != null && Number.isFinite(projected) ? projected : null;
-    if (value === null) return <g key={date} data-metric-cumulative-day="missing" data-date={date}><title>{date}: unavailable; no bar</title></g>;
+  const bars = variant === "cumulative-bars" ? readings.map(({ date, known, value, ranges }, index) => {
+    if (value === null) return <g key={date} data-metric-cumulative-day="missing" data-date={date}><title>{date} · unavailable</title></g>;
     const width = 192 / Math.max(1, dates.length) * .72;
-    return <rect key={date} x={x(index) - width / 2} y={Math.min(y(0), y(value)) - (value === 0 ? .5 : 0)} width={width} height={Math.max(.5, Math.abs(y(0) - y(value)))} rx={Math.min(.8, width / 4)} data-metric-cumulative-bar={known ? "current" : "forecast"} data-date={date} data-value={value}><title>{date}: {value} cumulative{known ? " observed" : " forecast"}</title></rect>;
+    const segments = ranges.flatMap((range, segment) => range && range.from !== range.to
+      ? [{ ...range, source: sources[segment] }] : []);
+    if (!segments.length) segments.push({ from: 0, to: 0, source: undefined });
+    const format = breakdown?.format ?? formatInt;
+    return <g key={date} data-metric-cumulative-bar={known ? "current" : "forecast"} data-date={date} data-value={value}>
+      {segments.map(({ from, to, source }) => <rect key={source?.id ?? "unassigned"} x={x(index) - width / 2}
+        y={Math.min(y(from), y(to)) - (from === to ? .5 : 0)} width={width}
+        height={from === to ? .5 : Math.abs(y(from) - y(to))}
+        className={source?.tone ?? (sources.length ? "text-muted-foreground" : undefined)}
+        data-metric-cumulative-segment={source || known ? "current" : "forecast"} data-revenue-source={source?.id}
+        data-source-value={to - from}>
+        <title>{date} · {source?.name ?? (known ? "Observed" : "Forecast")} · {format(to - from)}</title>
+      </rect>)}
+    </g>;
   }) : null;
   const description = variant === "cumulative-bars" ? `Daily cumulative bars: total reached by each day. Filled: observed.${forecast.length ? " Outlined: forecast." : ""} Missing days have no bar.${reference.length || previousTotal ? " Dashed: reference." : ""}` : `Solid: current.${reference.length || previousTotal ? " Dashed: reference." : ""}${forecast.length ? " Dashed in series colour: forecast." : ""}`;
-  return <div className={cn("wall-metric-chart", SERIES_TONE_CLASS[tone], className)} data-metric-chart={variant}>{previousTotal ? <div className="wall-metric-reference">{previousTotal.label}</div> : null}{hasReadings ? <svg viewBox="0 0 200 48" preserveAspectRatio="none" role="img" aria-label={`${label}. ${description}`}>
+  return <><div className={cn("wall-metric-chart", SERIES_TONE_CLASS[tone], className)} data-metric-chart={variant}>{previousTotal ? <div className="wall-metric-reference">{previousTotal.label}</div> : null}{hasReadings ? <svg viewBox="0 0 200 48" preserveAspectRatio="none" role="img" aria-label={`${label}. ${description}`}>
     {variant === "cumulative-bars" ? bars : <><ChartLine runs={currentRuns} /><ChartLine runs={runs(forecast)} kind="projection" />{currentRuns.filter(run => run.length === 1 && run[0] !== endpoint).map((run, index) => <ChartDot key={index} at={run[0]!} size="sm" halo={false} />)}{endpoint ? <ChartDot at={endpoint} size="sm" halo={false} /> : null}</>}
     <ChartLine runs={runs(reference)} kind="ghost" />
     {previousTotal ? <g data-metric-previous-total><line x1="4" x2="196" y1={y(previousTotal.value)} y2={y(previousTotal.value)} /><title>{previousTotal.label}: {previousTotal.value}</title></g> : null}
-  </svg> : <span className="wall-metric-empty">History unavailable</span>}{center}{showLabels ? <div className="wall-metric-axis"><span>{startLabel}</span><span>{endLabel}</span></div> : null}{showLabels && forecast.length ? <div className="wall-metric-series-key" data-metric-series-key><span>Current</span><span>Projected</span></div> : null}</div>;
+  </svg> : <span className="wall-metric-empty">History unavailable</span>}{center}
+    {showLabels ? <div className="wall-metric-axis"><span>{startLabel}</span><span>{endLabel}</span></div> : null}{showLabels && forecast.length ? <div className="wall-metric-series-key" data-metric-series-key><span>Current</span><span>Projected</span></div> : null}</div>
+    {sources.length ? <ul className="wall-metric-source-key" aria-label="Revenue sources">
+      {sources.map(source => <li key={source.id}><i aria-hidden className={source.tone} />{source.name}</li>)}
+      {forecast.length ? <li><i aria-hidden className="wall-metric-source-forecast" />Forecast</li> : null}
+    </ul> : null}
+  </>;
 }
 
 export interface SparklineCompareMetricProps extends TileProps, Omit<MetricComparisonChartProps, "label" | "className" | "current" | "startLabel" | "endLabel"> {

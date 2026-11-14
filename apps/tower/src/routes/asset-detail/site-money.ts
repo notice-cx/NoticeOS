@@ -1,3 +1,4 @@
+import { dailyChartSources } from "@/lib/money-chart";
 import type { LedgerSlice } from "@shared/asset-detail";
 import type { DailyRevenueHistory } from "@shared/daily-revenue";
 import { shiftRevenueDate } from "@shared/revenue-projection";
@@ -60,14 +61,27 @@ export function siteMonthDays(history: DailyRevenueHistory | undefined, period: 
   if (to < from) return null;
   const reported = new Set(history.days.map((day) => day.date));
   const since = [...reported].sort()[0]!;
+  const partial = new Set(history.partialDates);
   const coverage: { date: string; reported: number; missingAssets: string[] }[] = [];
   for (let date = from; date <= to; date = shiftRevenueDate(date, 1)) {
     const has = reported.has(date);
-    coverage.push({ date, reported: has ? 1 : 0, missingAssets: has || date < since ? [] : [asset] });
+    coverage.push({ date, reported: has ? 1 : 0, missingAssets: (has && !partial.has(date)) || date < since ? [] : [asset] });
   }
   const days = history.days.filter((day) => day.date >= from && day.date <= to);
+  const sources = dailyChartSources(history, from, to);
+  const currency = sources.length ? history.bySource?.[0]?.currency ?? "USD" : "USD";
+  const strip = monthDays({ from, to, days, reportedThrough: history.reportedThrough, sources: [{ asset, displayName: name, since }], coverage }, currency);
+  const amounts = new Map<string, Record<string, number>>();
+  for (const source of sources) for (const point of source.points) {
+    const day = amounts.get(point.t) ?? Object.create(null) as Record<string, number>;
+    day[source.id] = point.v;
+    amounts.set(point.t, day);
+  }
   return {
-    ...monthDays({ from, to, days, reportedThrough: history.reportedThrough, sources: [{ asset, displayName: name, since }], coverage }),
+    ...strip,
+    days: strip.days.map(point => ({ ...point, contributions: amounts.get(point.t) })),
+    contributors: sources,
+    currency,
     short: [],
   };
 }
@@ -90,8 +104,9 @@ export interface EstimatePace {
  * each side is stated only when every one of its days reported.
  */
 export function siteEstimatePace(history: DailyRevenueHistory | undefined, period: string, through: string): EstimatePace | null {
-  if (!history) return null;
-  const amounts = new Map(history.days.map((day) => [day.date, day.amountMinor / 100]));
+  if (!history || history.bySource?.some(source => source.currency !== "USD")) return null;
+  const partial = new Set(history.partialDates);
+  const amounts = new Map(history.days.filter(day => !partial.has(day.date)).map(day => [day.date, day.amountMinor / 100]));
   const sum = (from: string, to: string): number | null => {
     if (to < from) return null;
     let total = 0;

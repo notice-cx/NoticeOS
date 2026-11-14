@@ -52,7 +52,7 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
         <PageAnswer key="month" answer="No money recorded yet" marks={{ "data-surface-hero": "", "data-site-money-answer": "none" }} />
       )}
       {/* The month's figures are the hero's; the panel draws the range. */}
-      <DailyRevenuePanel key="daily" history={history} range={days} totals={false} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
+      <DailyRevenuePanel key="daily" history={history} range={days} totals={false} splitSources partialDates={history.partialDates?.filter(date => date >= history.from && date <= history.to)} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
       {hasMediavine ? <MediavineSettings key="mediavine" asset={data.asset.id} /> : null}
       <StripeReport key="stripe" report={data.stripeSubscriptions} history={history} days={days} nowMs={nowMs} />
       <div key="ledger" id="pnl"><div id="ledger">
@@ -100,7 +100,7 @@ function SiteMonth({
   const id = useId();
   const reported = days?.days.filter((day) => day.v !== null).length ?? 0;
   const dollars = (value: number) => formatMoney(value, "USD");
-  const cents = (value: number) => formatMoney(value, "USD", { cents: true });
+  const dailyAmount = (value: number) => formatMoney(value, days?.currency ?? "USD", { cents: true });
   const ledger = (value: number) => formatMoney(value, equation.currency);
   const estimates = pace !== null && (pace.previousTotal !== null || pace.previousAtSameDay !== null);
   const months = money.series.slice(-6);
@@ -132,10 +132,11 @@ function SiteMonth({
             <span className="text-xs font-medium text-muted-foreground">{noun} a day · estimates</span>
             <BarStrip
               data={days.days}
+              contributors={days.contributors}
               partial={days.partial}
               tone="text-financial-revenue"
-              baseline={days.usualDay !== null ? { value: days.usualDay, label: `usual ${cents(days.usualDay)} a day` } : null}
-              format={cents}
+              baseline={days.usualDay !== null ? { value: days.usualDay, label: `usual ${dailyAmount(days.usualDay)} a day` } : null}
+              format={dailyAmount}
               ariaLabel={`${noun} a day, ${formatPeriodMonthLong(days.days[0]!.t.slice(0, 7))}`}
               className="h-20"
             />

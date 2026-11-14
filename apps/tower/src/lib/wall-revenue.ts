@@ -1,3 +1,4 @@
+import { chartSources, revenueChartSource, type MoneyChartSource } from "@/lib/money-chart";
 // The month's revenue as the Wall's revenue widget states it.
 //
 // The figure is the ledger's, the pace is the projections'. The large number
@@ -153,6 +154,34 @@ export function monthRevenue(
     pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
     waiting,
   };
+}
+
+/** Split only the provider observations that the existing forecast used. */
+export function cumulativeRevenueSources(
+  assets: readonly Pick<AssetCard, "revenueProjection" | "revenueProjectionSources">[],
+  period: string,
+  points: readonly MonthRevenuePoint[],
+): { sources: MoneyChartSource[]; contributions: ReadonlyMap<string, ReadonlyMap<string, number>> } {
+  const ready = assets.filter(asset => asset.revenueProjection?.period === period && isReady(asset.revenueProjection));
+  const byDay = new Map<string, Map<string, number>>();
+  const sources = chartSources(ready.flatMap(asset => (asset.revenueProjectionSources ?? [])
+    .map(source => revenueChartSource(source.source, source.displayName))));
+  for (const asset of ready) {
+    for (const source of asset.revenueProjectionSources ?? []) {
+      for (const day of source.days) {
+        const values = byDay.get(day.date) ?? new Map<string, number>();
+        values.set(source.source, (values.get(source.source) ?? 0) + day.amountMinor);
+        byDay.set(day.date, values);
+      }
+    }
+  }
+  const contributions = new Map<string, ReadonlyMap<string, number>>();
+  const running = new Map<string, number>();
+  for (const point of points) {
+    for (const [id, amount] of byDay.get(point.date) ?? []) running.set(id, (running.get(id) ?? 0) + amount);
+    if (running.size) contributions.set(point.date, new Map([...running].map(([id, amount]) => [id, amount / 100])));
+  }
+  return { sources, contributions };
 }
 
 function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, previousTotal: number | null): MonthPace {

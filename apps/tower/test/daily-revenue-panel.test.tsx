@@ -39,6 +39,25 @@ describe('daily revenue bars', () => {
     fireEvent.click(screen.getByRole('button', { name: 'About the reporting day' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent('Days end at midnight UTC time');
   });
+  it('shows the observed providers and draws a refund on the negative side', () => {
+    const date = '2026-09-08';
+    const clock = { timeZone: 'UTC', label: 'UTC', readyAfterMinute: 0 };
+    const { container } = render(<DailyRevenuePanel splitSources totals={false} range={2} history={{
+      from: date, to: '2026-09-09', reportedThrough: date, days: [{ date, amountMinor: 800 }],
+      bySource: [
+        { source: 'mediavine-journey', provider: 'mediavine', displayName: 'Mediavine Journey', family: 'ads',
+          clock, currency: 'USD', since: date, reportedThrough: date, days: [{ date, amountMinor: 1000 }] },
+        { source: 'stripe', provider: 'stripe', displayName: 'Stripe', family: 'subs',
+          clock, currency: 'USD', since: date, reportedThrough: date, days: [{ date, amountMinor: -200 }] },
+      ],
+    }} />);
+    const ads = container.querySelector('[data-hero-bar="Mediavine Journey"]')!;
+    const stripe = container.querySelector('[data-hero-bar="Stripe"]')!;
+    expect(stripe.getAttribute('x')).toBe(ads.getAttribute('x'));
+    expect(stripe.getAttribute('y')).toBe(container.querySelector('[data-hero-zero]')!.getAttribute('y1'));
+    expect(stripe).toHaveAttribute('data-value', '-2');
+    expect(container.querySelector('[data-hero-bar][data-date="2026-09-09"]')).toBeNull();
+  });
   it('keeps zero, gaps and the missing final date distinct for keyboard and table readers', async () => {
     const { container } = render(<DailyRevenuePanel range={4} history={{ from: '2026-09-06', to: '2026-09-09', reportedThrough: '2026-09-08', days: [
       { date: '2026-09-06', amountMinor: 4321 }, { date: '2026-09-08', amountMinor: 0 },

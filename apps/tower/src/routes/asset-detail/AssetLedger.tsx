@@ -1,22 +1,39 @@
+import { stackRanges } from "@/lib/chart-path";
 import { ChevronRight } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import type { LedgerPeriod, LedgerSlice } from "@shared/asset-detail";
+import type { LedgerPeriod, LedgerRollup, LedgerSlice } from "@shared/asset-detail";
 import { figureHasMoney } from "@shared/wall";
 import { BookingChip, bookingChipState } from "@/components/BookingChip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatMoney, formatPeriodMonthYear, formatSignedMoney } from "@/lib/format";
+import { chartSources, ledgerChartSource, totalSources, type MoneyChartSource } from "@/lib/money-chart";
+import { costSourceLabel } from "@/routes/financials/cost-comparison";
 import { cn } from "@/lib/utils";
 import { Panel } from "./shared";
 
 // --- P&L (booked revenue and cost) -----------------------------------------
-/**
- * The site's accounting months, newest first, one ruled row each on one
- * ruler: what it earned as a cyan bar and what it cost as a violet one, the
- * booked net at the row's end. A month's estimate is a dashed run after its
- * booked bar and a figure of its own beside the net, never added into it.
- */
+type AccountingBar = ReturnType<typeof accountingBar>;
+
+function accountingBar(period: LedgerPeriod, kind: "revenue" | "cost", currency: string | null) {
+  const parts = (rollup: LedgerRollup, forecast: boolean) => {
+    if (currency === null || !figureHasMoney(rollup.figure) || rollup.figure.currency !== currency) return [];
+    if (!rollup.sourceLines) return [{ source: totalSources[kind], amount: rollup.figure[kind] ?? 0, forecast }];
+    const bySource = new Map<string, { source: MoneyChartSource; amount: number; forecast: boolean }>();
+    for (const line of rollup.sourceLines) {
+      if (line.kind !== kind || line.currency !== currency) continue;
+      const source = ledgerChartSource(line, kind === "cost" ? costSourceLabel(line.source, []) : null);
+      bySource.set(source.id, { source, amount: (bySource.get(source.id)?.amount ?? 0) + line.amount, forecast });
+    }
+    return [...bySource.values()].sort((a, b) => a.source.id.localeCompare(b.source.id));
+  };
+  const readings = [...parts(period.booked, false), ...parts(period.forecast, true)];
+  return stackRanges(readings.map(reading => reading.amount)).flatMap((range, index) => (
+    range && range.from !== range.to ? [{ ...range, ...readings[index]! }] : []
+  ));
+}
+
 export function AssetLedger({
   ledger,
 }: {
@@ -26,13 +43,17 @@ export function AssetLedger({
   nowMs?: number;
 }) {
   const months = ledger.periods.slice(0, 6);
-  const top = Math.max(
-    1,
-    ...months.flatMap((period) => [
-      (period.booked.figure.revenue ?? 0) + Math.max(0, period.forecast.figure.revenue ?? 0),
-      (period.booked.figure.cost ?? 0) + Math.max(0, period.forecast.figure.cost ?? 0),
-    ]),
-  );
+  const bars = months.map(period => ({
+    revenue: accountingBar(period, "revenue", ledger.currency),
+    cost: accountingBar(period, "cost", ledger.currency),
+  }));
+  const segments = bars.flatMap(bar => [...bar.revenue, ...bar.cost]);
+  const sources = chartSources(segments.map(segment => segment.source));
+  const sourceById = new Map(sources.map(source => [source.id, source]));
+  const values = segments.map(segment => segment.to);
+  const top = Math.max(1, ...values);
+  const bottom = Math.min(0, ...values);
+  const at = (value: number) => (value - bottom) / (top - bottom) * 100;
   return (
     <Panel
       title="Monthly accounting"
@@ -56,15 +77,22 @@ export function AssetLedger({
         </span>
       ) : (
         <div className="@container flex flex-col gap-4">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-micro text-muted-foreground" aria-hidden>
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-financial-revenue" />revenue</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full bg-financial-cost" />cost</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full border border-dashed border-muted-foreground/70" />forecast</span>
-          </div>
+          {sources.length ? <div className="flex flex-wrap gap-x-4 gap-y-1 text-micro text-muted-foreground" aria-label="Accounting chart key">
+            {sources.map(source => <span key={source.id} className="inline-flex items-center gap-1.5">
+              <span aria-hidden className={cn("h-1.5 w-3 rounded-full bg-current", source.tone)} />{source.name}
+            </span>)}
+            {segments.some(segment => segment.forecast) ? <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-1.5 w-3 rounded-full border border-dashed border-muted-foreground/70" />forecast
+            </span> : null}
+          </div> : null}
           <ul className="m-0 flex list-none flex-col p-0" aria-label="Accounting months">
-            {months.map((period, index) => (
-              <MonthRow key={period.period} period={period} top={top} index={index} />
-            ))}
+            {months.map((period, index) => {
+              const month = bars[index]!;
+              return <MonthRow key={period.period} period={period} index={index} bars={ledger.currency === null ? null : <>
+                <Bar kind="Revenue" currency={ledger.currency} segments={month.revenue} sourceById={sourceById} at={at} />
+                <Bar kind="Cost" currency={ledger.currency} segments={month.cost} sourceById={sourceById} at={at} />
+              </>} />;
+            })}
           </ul>
 
           {/* The months are the answer; the rows behind them are the audit
@@ -132,7 +160,7 @@ export function AssetLedger({
  * be read as part of the net. `figureHasMoney` is the same rule the Wall
  * uses, because three zeroes are not a figure.
  */
-function MonthRow({ period, top, index }: { period: LedgerPeriod; top: number; index: number }) {
+function MonthRow({ period, bars, index }: { period: LedgerPeriod; bars: React.ReactNode; index: number }) {
   const booked = period.booked.figure;
   const forecast = period.forecast.figure;
   const hasBooked = figureHasMoney(booked);
@@ -144,9 +172,8 @@ function MonthRow({ period, top, index }: { period: LedgerPeriod; top: number; i
       data-ledger-month={period.period}
     >
       <span className="text-sm font-medium text-foreground">{formatPeriodMonthYear(period.period)}</span>
-      <span aria-hidden className="col-span-2 row-start-2 flex min-w-0 flex-col gap-1 @2xl:col-span-1 @2xl:row-start-auto">
-        <Bar booked={hasBooked ? booked.revenue ?? 0 : 0} forecast={hasForecast ? Math.max(0, forecast.revenue ?? 0) : 0} top={top} fill="bg-financial-revenue" index={index} />
-        <Bar booked={hasBooked ? booked.cost ?? 0 : 0} forecast={hasForecast ? Math.max(0, forecast.cost ?? 0) : 0} top={top} fill="bg-financial-cost" index={index} />
+      <span className="col-span-2 row-start-2 flex min-w-0 flex-col gap-1 @2xl:col-span-1 @2xl:row-start-auto">
+        {bars}
       </span>
       <span className="col-start-2 row-start-1 flex flex-col items-end gap-0.5 text-end tabular-nums @2xl:col-start-auto @2xl:row-start-auto">
         <span className={cn("text-figure-sm", hasBooked && (booked.net ?? 0) < 0 ? "text-muted-foreground" : "text-foreground")}>
@@ -175,21 +202,35 @@ function MonthRow({ period, top, index }: { period: LedgerPeriod; top: number; i
   );
 }
 
-/** A booked amount as a solid bar and its month's estimate as a dashed run
- * after it, both on the panel's ruler; nothing at all draws an empty track. */
-function Bar({ booked, forecast, top, fill, index }: { booked: number; forecast: number; top: number; fill: string; index: number }) {
-  const at = (amount: number) => `${Math.min(100, (Math.max(0, amount) / top) * 100)}%`;
-  return (
-    <span className="relative block h-2 rounded-full bg-viz-track">
-      {booked > 0 ? <span className={cn("viz-grow-x absolute inset-y-0 start-0 rounded-full", fill)} style={{ width: at(booked), "--viz-i": index } as CSSProperties} /> : null}
-      {forecast > 0 ? (
-        <span
-          className="absolute inset-y-0 rounded-e-full border border-dashed border-muted-foreground/70"
-          style={{ insetInlineStart: at(booked), width: at(forecast) }}
-        />
-      ) : null}
-    </span>
-  );
+function Bar({ kind, currency, segments, sourceById, at }: {
+  kind: string;
+  currency: string;
+  segments: AccountingBar;
+  sourceById: ReadonlyMap<string, MoneyChartSource>;
+  at: (value: number) => number;
+}) {
+  const describe = (segment: AccountingBar[number]) => {
+    const name = sourceById.get(segment.source.id)?.name ?? segment.source.name;
+    return `${name} ${formatMoney(segment.amount, currency, { cents: true })}${segment.forecast ? " forecast" : ""}`;
+  };
+  return <span
+    role={segments.length ? "img" : undefined}
+    aria-label={segments.length ? [kind, ...segments.map(describe)].join(" · ") : undefined}
+    aria-hidden={!segments.length || undefined}
+    className="relative block h-2 rounded-full bg-viz-track">
+    {segments.map(segment => (
+      <span
+        key={`${segment.source.id}-${segment.forecast}`}
+        data-ledger-source={segment.source.id}
+        title={describe(segment)}
+        className={cn("absolute inset-y-0 rounded-xs",
+          sourceById.get(segment.source.id)?.tone, segment.forecast ? "border border-dashed border-current bg-current/20" : "bg-current")}
+        style={{ insetInlineStart: `${at(Math.min(segment.from, segment.to))}%`, width: `${Math.abs(at(segment.to) - at(segment.from))}%` }}
+      />
+    ))}
+    {at(0) > 0 ? <span aria-hidden className="pointer-events-none absolute inset-y-0 border-s border-muted-foreground"
+      style={{ insetInlineStart: `${at(0)}%` }} /> : null}
+  </span>;
 }
 
 /** What a booked net is made of, in one line: the families that actually carry

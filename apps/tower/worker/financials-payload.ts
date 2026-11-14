@@ -15,6 +15,7 @@ import type {
   FinancialRevenueLine,
   FinancialsPayload,
   MoneyFigure,
+  MoneySourceLine,
   RecurringCost,
 } from "../shared/financials";
 import type { WorkspaceStore } from "@noticeos/postgres";
@@ -85,32 +86,54 @@ export async function buildFinancialsPayload(
    * chosen period is the open one — never, by itself, which period is shown. */
   const currentPeriod = revenueCalendarDate(now, osTimeZone).slice(0, 7);
 
-  // --- month by month, split by booking state ------------------------------
-  const monthRows = await store.read((tx) =>
-    tx.query<{ period: string; state: string; currency: string; revenueMinor: bigint; costMinor: bigint }>(
-      `SELECT to_char(period_month, 'YYYY-MM') AS period,
-              booking_state AS state, currency,
-              COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE 0 END), 0)::bigint AS "revenueMinor",
-              COALESCE(SUM(CASE WHEN kind='cost'    THEN amount_minor ELSE 0 END), 0)::bigint AS "costMinor"
-         FROM noticeos.financial_ledger
-        GROUP BY period_month, booking_state, currency
-        ORDER BY period_month ASC`,
-    ),
-  );
+  type SourceRow = {
+    period: string;
+    state: string;
+    kind: MoneySourceLine["kind"];
+    family: string;
+    source: string | null;
+    label: string | null;
+    currency: string;
+    amountMinor: bigint;
+    rows: number;
+  };
+  const monthRows = await store.read((tx) => tx.query<SourceRow>(
+    `SELECT to_char(l.period_month, 'YYYY-MM') AS period,
+            l.booking_state AS state, l.kind, l.family, l.source,
+            s.display_name AS label, l.currency,
+            SUM(l.amount_minor)::bigint AS "amountMinor", count(*)::int AS rows
+       FROM noticeos.financial_ledger l
+       LEFT JOIN noticeos_ref.revenue_sources s ON l.kind = 'revenue' AND s.source = l.source
+      GROUP BY l.period_month, l.booking_state, l.kind, l.family, l.source, s.display_name, l.currency`,
+  ));
 
-  const byPeriod = new Map<string, { booked: MinorMoneyFigure[]; estimated: MinorMoneyFigure[] }>();
-  for (const row of monthRows) {
-    const entry = byPeriod.get(row.period) ?? { booked: [], estimated: [] };
-    const side = row.state === "reconciled" ? entry.booked : entry.estimated;
-    side.push({ currency: row.currency, revenueMinor: cents(row.revenueMinor), costMinor: cents(row.costMinor) });
-    byPeriod.set(row.period, entry);
+  const byPeriod = new Map<string, {
+    booked: MinorMoneyFigure[];
+    estimated: MinorMoneyFigure[];
+    sources: Map<string, Omit<MoneySourceLine, "amount"> & { amountMinor: number; rows: number }>;
+  }>();
+  for (const { period, state, kind, family, source, label, currency, amountMinor, rows } of monthRows) {
+    const entry = byPeriod.get(period) ?? { booked: [], estimated: [], sources: new Map() };
+    const side = state === "reconciled" ? entry.booked : entry.estimated;
+    const amount = cents(amountMinor);
+    side.push({ currency, revenueMinor: kind === "revenue" ? amount : 0, costMinor: kind === "cost" ? amount : 0 });
+    const key = JSON.stringify([kind, family, source, currency]);
+    const line = entry.sources.get(key) ?? { kind, family, source, label, currency, amountMinor: 0, rows: 0 };
+    line.amountMinor += amount;
+    line.rows += rows;
+    entry.sources.set(key, line);
+    byPeriod.set(period, entry);
   }
   const months: FinancialMonth[] = [...byPeriod.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([period, entry]) => ({ period,
+    .map(([period, entry]) => ({
+      period,
       booked: moneyFigure(entry.booked, entry.estimated[0]?.currency ?? 'USD'),
       estimated: moneyFigure(entry.estimated, entry.booked[0]?.currency ?? 'USD'),
       total: moneyFigure([...entry.booked, ...entry.estimated]),
+      sourceLines: [...entry.sources.values()].map(({ amountMinor, rows: _rows, ...line }) => ({
+        ...line, amount: minorToMajorUnits(amountMinor, line.currency),
+      })),
     }));
 
   // --- which period the breakdowns describe ---------------------------------
@@ -176,54 +199,22 @@ export async function buildFinancialsPayload(
   const os = properties.find((p) => p.isOs);
   const overhead: MoneyFigure = os?.figure ?? moneyFigure([], months.find(month => month.period === period)?.total.currency ?? 'USD');
 
-  // --- this period, by cost family and how it was learned -------------------
-  // Equal totals order by family, then source with no source first, byte for
-  // byte.
-  const costRows = await store.read((tx) =>
-    tx.query<{ family: string; source: string | null; currency: string; amountMinor: bigint; rows: number }>(
-      `SELECT family, source, currency,
-              COALESCE(SUM(amount_minor), 0)::bigint AS "amountMinor",
-              count(*)::int AS rows
-         FROM noticeos.financial_ledger
-        WHERE period_month = $1::date AND kind = 'cost'
-        GROUP BY family, source, currency
-        ORDER BY currency COLLATE "C", "amountMinor" DESC, family COLLATE "C", source COLLATE "C" NULLS FIRST`,
-      [monthDate(period)],
-    ),
-  );
-
-  const costLines: FinancialCostLine[] = costRows.map((row) => ({
-    family: row.family,
-    provenance: costProvenance(row.source),
-    source: row.source,
-    currency: row.currency,
-    amount: minorToMajorUnits(cents(row.amountMinor), row.currency),
-    rows: row.rows,
-  }));
-
-  // --- this period, by revenue source ----------------------------------------
-  // The name is the source's vocabulary row; a source no row names keeps its id.
-  const revenueRows = await store.read((tx) =>
-    tx.query<{ family: string; source: string | null; label: string | null; currency: string; amountMinor: bigint; rows: number }>(
-      `SELECT l.family, l.source, s.display_name AS label, l.currency,
-              COALESCE(SUM(l.amount_minor), 0)::bigint AS "amountMinor",
-              count(*)::int AS rows
-         FROM noticeos.financial_ledger l
-         LEFT JOIN noticeos_ref.revenue_sources s ON s.source = l.source
-        WHERE l.period_month = $1::date AND l.kind = 'revenue'
-        GROUP BY l.family, l.source, s.display_name, l.currency
-        ORDER BY l.currency COLLATE "C", "amountMinor" DESC, l.family COLLATE "C", l.source COLLATE "C" NULLS FIRST`,
-      [monthDate(period)],
-    ),
-  );
-  const revenueLines: FinancialRevenueLine[] = revenueRows.map((row) => ({
-    family: row.family,
-    source: row.source,
-    label: row.label,
-    currency: row.currency,
-    amount: minorToMajorUnits(cents(row.amountMinor), row.currency),
-    rows: row.rows,
-  }));
+  // Keep the selected month's breakdowns in the same order as the ledger.
+  const compareText = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+  const lines = [...(byPeriod.get(period)?.sources.values() ?? [])]
+    .sort((a, b) => compareText(a.currency, b.currency) || b.amountMinor - a.amountMinor
+      || compareText(a.family, b.family) || compareText(a.source ?? "", b.source ?? "")
+      || Number(a.source !== null) - Number(b.source !== null));
+  const costLines: FinancialCostLine[] = lines.filter(line => line.kind === "cost")
+    .map(({ family, source, currency, amountMinor, rows }) => ({
+      family, provenance: costProvenance(source), source, currency,
+      amount: minorToMajorUnits(amountMinor, currency), rows,
+    }));
+  const revenueLines: FinancialRevenueLine[] = lines.filter(line => line.kind === "revenue")
+    .map(({ family, source, label, currency, amountMinor, rows }) => ({
+      family, source, label, currency,
+      amount: minorToMajorUnits(amountMinor, currency), rows,
+    }));
 
   // --- the domain schedule, from config rather than the ledger --------------
   // The ledger holds one summed `infra` row per asset per month; this is the
