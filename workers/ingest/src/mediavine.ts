@@ -431,21 +431,20 @@ async function collectDailyRevenue(
       return enabled(lane) ? [{ asset, siteId: lane.mediavineSiteId! }] : [];
     });
     if (!enabledSites.length) return;
-    const [coverage] = await env.STORE.read(tx => tx.query<{ complete: boolean }>(
-      `SELECT NOT EXISTS (
-         SELECT 1 FROM unnest($1::text[], $2::text[]) AS site(asset_id, site_id)
-          WHERE NOT EXISTS (
-            SELECT 1 FROM noticeos.current_revenue r
-             WHERE r.asset_id = site.asset_id AND r.account_ref = site.site_id
-               AND r.source = $3 AND r.revenue_date = $4::date AND r.item_ref IS NULL
-          )
-       ) AS complete`,
+    const outstanding = await env.STORE.read(tx => tx.query<{ asset: string; siteId: string }>(
+      `SELECT site.asset_id AS asset, site.site_id AS "siteId"
+         FROM unnest($1::text[], $2::text[]) WITH ORDINALITY AS site(asset_id, site_id, position)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM noticeos.current_revenue r
+           WHERE r.asset_id = site.asset_id AND r.account_ref = site.site_id
+             AND r.source = $3 AND r.revenue_date = $4::date AND r.item_ref IS NULL
+        )
+        ORDER BY site.position`,
       [enabledSites.map(site => site.asset), enabledSites.map(site => site.siteId), MEDIAVINE_REVENUE_SOURCE, date],
     ));
     // Historical gaps are handled by an explicit backfill or the next daily collection.
-    if (coverage?.complete) return;
     const due: PlannedSite[] = [];
-    for (const { asset, siteId } of enabledSites) {
+    for (const { asset, siteId } of outstanding) {
       try {
         await validateSiteAssignment(env, config, asset, siteId);
         const plan = await planReport(env, { asset }, now, true);

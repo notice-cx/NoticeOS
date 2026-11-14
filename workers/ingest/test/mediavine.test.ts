@@ -548,6 +548,28 @@ describe('portfolio daily collection', () => {
     expect((await syncMediavine(env, { asset: otherAsset }, { fetchImpl: source, nowMs: NOW + 7_200_000 })).outcome).toBe('ran');
   });
 
+  it('keeps collecting only for the mapping whose yesterday reading is missing', async () => {
+    const otherAsset = 'northwind.example';
+    const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
+    const prior = { start: '2026-09-01', end: '2026-09-07' };
+    const now = NOW + 3_600_000;
+    const source = transport({ sites: [SITE, otherSite] });
+    await putMediavineCredential(env, { provider: 'mediavine', fields: { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET } });
+    expect((await discoverMediavineSites(env, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    expect((await saveMediavineSettings(env, { asset: ASSET, siteId: SITE.id, enabled: true })).ok).toBe(true);
+    expect((await saveMediavineSettings(env, { asset: otherAsset, siteId: otherSite.id, enabled: true })).ok).toBe(true);
+    expect((await syncMediavine(env, { asset: ASSET, start: '2026-09-08', end: '2026-09-08' }, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    expect((await syncMediavine(env, { asset: otherAsset, ...prior }, { fetchImpl: source, nowMs: NOW })).ok).toBe(true);
+    await saveMediavineSession(env, JSON.stringify({ accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresAt: now + 7_200_000 }));
+    const fetchImpl = transport({ sites: [SITE, otherSite] });
+
+    expect((await runMediavine(env, { fetchImpl, nowMs: now })).outcome).toBe('ran');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[1]?.body)).toContain('NoticeOSDailyRevenue');
+    expect((await mediavineStatus(env, ASSET)).daily.map(day => day.date)).toEqual(['2026-09-08']);
+    expect((await mediavineStatus(env, otherAsset)).reportedThrough).toBe('2026-09-08');
+  });
+
   it('uses one request and sends the published projects together, even with another delivery consumer', async () => {
     const otherAsset = 'northwind.example';
     const otherSite = { id: 'second-site', title: 'Second publisher', domain: otherAsset };
