@@ -951,11 +951,9 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // Subscription and product sales from one Stripe account. A restricted
-    // key that can only read is enough; the account it reads is the one a
-    // site's Subscriptions entry names, so no site list follows the answer.
+    // Daily net receipts from one Stripe account, including one-time payments.
     id: 'stripe',
-    label: 'Stripe (subscription revenue)',
+    label: 'Stripe revenue',
     docRef: 'docs/11-integrations.md#stripe',
     scope: 'shared',
     lanes: ['subscriptions'],
@@ -1297,6 +1295,9 @@ export interface IntegrationProviderStatus {
   /** Assets that declare one of this provider's lanes in
    * `config/integrations.json`, with the lanes they declare. Ids only. */
   assets: IntegrationProviderAssetRef[];
+  /** Stripe only. An absent key has no asset entry. Null has an asset entry
+   * with no Stripe source. Other rows carry the values used to guard a save. */
+  stripeAssetSources?: Record<string, { status: string; accountId: string | null } | null>;
   /**
    * Spend against `provider.meter`, from the manifest rows this OS wrote.
    * `null` for a provider that declares no meter, and for a store that could

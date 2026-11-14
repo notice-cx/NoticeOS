@@ -21,6 +21,7 @@ import { NIGHTLY_REPORT_LANE_ID, PROPERTY_DATA_SOURCE_IDS, UPTIME_LANE_ID, integ
 import { ageMs, formatAge } from "@shared/freshness";
 import { integrationFailureMessage, type IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { integrationProvider } from "@noticeos/contract/integrations";
+import { STRIPE_REVENUE_LANE } from "@noticeos/contract/configuration";
 import { connectionFacts, laneStatus, sourceReadings, type ConnectionKind } from "@shared/connection-status";
 import { connectable, connectHref, connectsInPanel, firstToConnect, providerName } from "@shared/connect-panel";
 import { connectBlockers } from "@shared/integrations-page";
@@ -34,10 +35,9 @@ import { CADENCE_HOURS } from "@shared/wall";
 import type { SeriesPointOrGap } from "@shared/surface";
 import { SavesPaused } from "@/components/SavesPaused";
 import { AgeBadge } from "@/components/AgeBadge";
-import { PageAnswer } from "@/components/surface/PageAnswer";
 import { EvidencePopover } from "@/components/EvidencePopover";
 import { InfoTooltip } from "@/components/InfoTooltip";
-import { ConnectionFacts, IntegrationStateChip } from "@/components/IntegrationStateChip";
+import { IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { useConnections } from "@/hooks/useConnections";
 import { ScheduledLanesPanel } from "@/components/ScheduledLanes";
 import { StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
@@ -57,7 +57,6 @@ import { formatInt, formatSeriesDate, formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Eyebrow, Hero, Panel, LaneAge } from "@/routes/asset-detail/shared";
 import { SetupChecklistPanel } from "@/routes/asset-detail/SetupChecklist";
-import { SourceGraph } from "@/routes/asset-detail/SourceGraph";
 import { MediavineSettings } from '@/routes/asset-detail/MediavineSettings';
 import {
   GA4_LANE_ID,
@@ -99,7 +98,6 @@ export function SourcesTab({
     <IntegrationsSection
       integrations={data.integrations}
       asset={data.asset.id}
-      assetName={data.asset.displayName}
       isOs={data.asset.isOs}
       ga4Config={data.ga4Config}
       nowMs={nowMs}
@@ -157,40 +155,6 @@ const KIND_TONE: Record<ConnectionKind | "not-applicable", ListRowTone> = {
 
 type LaneReading = ReturnType<typeof laneStatus>;
 
-const CONNECTED: ReadonlySet<ConnectionKind | "not-applicable"> = new Set(["working", "key-accepted", "collecting"]);
-
-/** The tab's one answer: which of the site's own sources need the operator,
- * else how many work. The sentence counts, and names them only when they are
- * the problem. */
-export function sourcesAnswer(direct: readonly { lane: { catalog: { label: string } }; reading: { kind: ConnectionKind | "not-applicable" } }[]): {
-  answer: string;
-  detail?: string;
-  mark: "problem" | "none" | "working" | "empty";
-} {
-  // A source the operator declared unused is a decision, not a gap.
-  const used = direct.filter(({ reading }) => reading.kind !== "not-using");
-  const total = used.length;
-  if (total === 0) return { answer: "No data sources in use", mark: "empty" };
-  const problems = used.filter(({ reading }) => reading.kind === "failing" || reading.kind === "overdue");
-  const connected = used.filter(({ reading }) => CONNECTED.has(reading.kind));
-  if (problems.length > 0) {
-    return {
-      answer: problems.length === 1 ? `${problems[0]!.lane.catalog.label} needs attention` : `${problems.length} of ${total} sources need attention`,
-      detail: problems.map(({ lane, reading }) => `${lane.catalog.label} ${reading.kind === "failing" ? "failing" : "overdue"}`).join(" · "),
-      mark: "problem",
-    };
-  }
-  if (connected.length === 0) return { answer: "No sources connected yet", detail: `${total} to connect`, mark: "none" };
-  const open = total - connected.length;
-  // Collecting or a key just accepted is connected, not yet proven working.
-  const word = connected.every(({ reading }) => reading.kind === "working") ? "working" : "connected";
-  return {
-    answer: open > 0 ? `${connected.length} of ${total} sources ${word}` : total === 1 ? `${connected[0]!.lane.catalog.label} ${word}` : `All ${total} sources ${word}`,
-    detail: open > 0 ? `${open} not connected` : undefined,
-    mark: "working",
-  };
-}
-
 /**
  * The asset's data sources, each row wearing the one status the connection
  * model gives this asset's site, so a source never reads Not connected here
@@ -201,7 +165,6 @@ export function sourcesAnswer(direct: readonly { lane: { catalog: { label: strin
 function IntegrationsSection({
   integrations,
   asset,
-  assetName,
   isOs,
   ga4Config,
   nowMs,
@@ -209,7 +172,6 @@ function IntegrationsSection({
   integrations: AssetIntegrations;
   /** Whose page this is — the `{asset}` a per-asset config register is scoped to. */
   asset: string;
-  assetName: string;
   /** The System's own page — which scope rule makes a source not apply. */
   isOs: boolean;
   ga4Config: AssetGa4Config;
@@ -257,11 +219,8 @@ function IntegrationsSection({
   const firstConnect = firstToConnect(direct.map(({ lane, reading }) => ({
     id: lane.cell.laneId, label: lane.catalog.label, kind: reading.kind, provider: reading.provider,
   })))?.id ?? null;
-  const answer = sourcesAnswer(direct);
   return (
     <div id="integrations" className="flex scroll-mt-4 flex-col gap-2">
-      <PageAnswer answer={answer.answer} detail={answer.detail} className="mb-1.5" marks={{ "data-sources-answer": answer.mark }} />
-      <SourceGraph asset={{ id: asset, displayName: assetName }} integrations={integrations} nowMs={nowMs} />
       <ListPanel
         title="Data sources"
         limit={7}
@@ -330,16 +289,33 @@ function LaneRow({
   const { kind, site, provider } = reading;
   const subject: StatusSubject = `source:${asset}:${catalog.id}`;
   const failure: IntegrationHealthItem | null = site?.failure ?? null;
+  const label = integrationLabel(catalog.id, catalog.label);
+  const facts = site ? connectionFacts(site) : [];
+  const uptime = catalog.id === UPTIME_LANE_ID && cell.evidence[0]?.at ? cell.evidence[0] : null;
+  const details = facts.length > 0 || uptime !== null ? (
+    <InfoTooltip label={`${label} details`}>
+      {facts.map((fact) => <span key={fact.key}>{fact.label}</span>)}
+      {uptime ? <UptimeCheck evidence={uptime} nowMs={nowMs} /> : null}
+    </InfoTooltip>
+  ) : null;
   const identity = [cell.ref, cell.since ? `since ${cell.since}` : null]
     .filter((part): part is string => Boolean(part))
     .join(" · ");
   const spec = provider ? integrationProvider(provider) : null;
+  const stripe = catalog.id === STRIPE_REVENUE_LANE;
+  const stripeSettings = stripe && spec ? (
+    <Button asChild size="sm" variant="outline">
+      <Link to={demoReadonly ? "/integrations?provider=stripe" : connectHref(spec.id, asset)}>
+        {demoReadonly ? "View integration" : "Manage Stripe"}
+      </Link>
+    </Button>
+  ) : undefined;
   // One action on the face: a source whose provider is not connected shows
   // Connect where its status would be, and it goes straight to the connect
   // panel for this asset without opening the row first. It carries the status
   // it stands for, so every status reader still finds this source Not connected.
   const stands = { "aria-label": `${demoReadonly ? 'View' : 'Connect'} ${spec ? providerName(spec) : ""}`, "data-source-connect": catalog.id, "data-status-for": subject, "data-connection": "not-connected" };
-  const connect = spec && connectable(reading) ? (
+  const connect = !stripe && spec && connectable(reading) ? (
     // A provider that connects in the panel opens it over this page; any
     // other opens its own page on Integrations.
     connectsInPanel(spec) && onConnect ? (
@@ -357,7 +333,7 @@ function LaneRow({
   // A failing source's one action is Fix, beside its Failing chip: the
   // connection itself, in the panel over this page for a provider that
   // connects there, else the provider's own page.
-  const fix = kind === "failing" && spec ? (
+  const fix = !stripe && kind === "failing" && spec ? (
     connectsInPanel(spec) && onConnect ? (
       <Button type="button" size="sm" variant="outline" onClick={() => onConnect(spec.id)} aria-label={`Fix ${providerName(spec)}`} data-source-fix={catalog.id}>
         Fix
@@ -368,37 +344,33 @@ function LaneRow({
       </Button>
     )
   ) : undefined;
+  const action = stripeSettings ?? connect ?? fix;
   return (
     <ListRow
       tone={KIND_TONE[kind]}
       marks={{ "data-subject": subject }}
-      rowActions={connect ?? fix}
-      rowActionsInline
-      title={integrationLabel(catalog.id, catalog.label)}
+      rowActions={details || action ? <>{details}{action}</> : undefined}
+      rowActionsInline={!stripe}
+      title={label}
       caption={
         kind === "failing" && failure ? <span className="text-error">{integrationFailureMessage(failure)}</span>
-          : site && connectionFacts(site).length > 0 ? <ConnectionFacts status={site} subject={subject} />
-            // A skipped source's reason is why it reads Not using: one line
-            // beside the chip, in the operator's words, because the stored
-            // prefix is the product's (`declineReason`).
-            : kind === "not-using" && cell.note ? <span className="wrap-anywhere" data-lane-reason>{declineReason(cell.note) ?? cell.note}</span>
-              : catalog.id === UPTIME_LANE_ID && cell.evidence[0]?.at ? <UptimeCheck evidence={cell.evidence[0]} nowMs={nowMs} />
-                // Mapped on a connected provider, before its first result.
-                : kind === "collecting" && site === null && provider ? <NextRun provider={provider} nowMs={nowMs} />
-                  : undefined
+          : uptime?.polarity === "against" ? <span className="text-error">{uptime.detail || "Home page could not be reached"}</span>
+            : kind === "collecting" && site === null && provider ? <NextRun provider={provider} nowMs={nowMs} />
+              : undefined
       }
       value={connect ? undefined : <IntegrationStateChip state={kind === "not-applicable" ? "not-applicable" : kind} subject={subject} lane={catalog.id} />}
       // The one decision the file owns, in use or Not using with a reason
       // chip, as the expanded row's action. A derived source has no cell to
       // decide on.
-      actions={cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
+      actions={stripe || cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
     >
       {/* No link for a source nothing on Integrations connects: its evidence
           is what the row has to say. */}
       {kind === "not-connected" && cell.laneId === NIGHTLY_REPORT_LANE_ID ? <Link to="/health" className="inline-flex min-h-11 w-fit items-center text-sm font-medium text-foreground underline underline-offset-4">Nightly report in System health →</Link> : null}
       <span className="flex flex-wrap items-center gap-2">
         {identity ? <span className="tabular-nums">{identity}</span> : null}
-        {cell.evidence.length > 0 ? (
+        {kind === "not-using" && cell.note ? <span data-lane-reason>{declineReason(cell.note) ?? cell.note}</span> : null}
+        {cell.evidence.length > 0 && !uptime ? (
           <EvidencePopover evidence={cell.evidence} nowMs={nowMs} contextLabel={catalog.label} />
         ) : null}
         {/* No documentation pointer on the row: its one action, Connect, is
@@ -411,7 +383,7 @@ function LaneRow({
           has no cell in the register and nothing here to edit. */}
       {/* Ad revenue unconnected: the row's Connect is its one action, so its
           revenue section is not even asked for. */}
-      {cell.laneId === 'ad-network' ? (connect ? null : <MediavineSettings asset={asset} />) : cell.since === "" ? null : <LaneConfig lane={lane} asset={asset} />}
+      {cell.laneId === 'ad-network' ? (connect ? null : <MediavineSettings asset={asset} />) : stripe || cell.since === "" ? null : <LaneConfig lane={lane} asset={asset} />}
 
       {cell.laneId === GA4_LANE_ID ? <Ga4LaneConfig asset={asset} config={ga4Config} /> : null}
     </ListRow>

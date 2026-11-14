@@ -71,6 +71,19 @@ export const CONFIG_ASSET_KEY_SOURCE = '[a-z0-9][a-z0-9._-]*';
 export const CONFIG_ASSET_KEY_RE = new RegExp(`^${CONFIG_ASSET_KEY_SOURCE}$`);
 export const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 
+export const STRIPE_REVENUE_LANE = 'subscriptions';
+
+export function stripeRevenueAssignments(register: unknown): { asset: string; account: string }[] {
+  if (!isPlainObject(register) || !isPlainObject(register.assets)) return [];
+  return Object.entries(register.assets).flatMap(([asset, lanes]) => {
+    if (!isPlainObject(lanes)) return [];
+    const cell = lanes[STRIPE_REVENUE_LANE];
+    if (!isPlainObject(cell) || cell.status === 'skipped' || cell.status === 'not-applicable') return [];
+    const account = cell.stripeAccountId;
+    return typeof account === 'string' && account !== '' ? [{ asset, account }] : [];
+  });
+}
+
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 // ── PostHog per-asset settings ──────────────────────────────────────────────

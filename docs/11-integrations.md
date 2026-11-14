@@ -731,17 +731,21 @@ machine cannot reach the network, the assets are named on the one
 
 *Daily cash receipts and subscription growth. Collector: `workers/ingest/src/stripe.ts`.*
 
-Stripe holds an asset's subscription and product sales. NoticeOS reads them
+Stripe holds an asset's one-time payments and subscription sales. NoticeOS reads them
 with one restricted key that can only read: create it on Stripe's **API keys**
 page with **Read** on **Balance**, **Charges**, and **Subscriptions**. Paste it into the
-**Stripe (subscription revenue)** card on `/integrations`. Connecting checks the
-key with one balance read and lists no assets. Then, on the asset's **Data
-sources** tab, the **Subscription revenue** row's mapping takes the account id
-(`acct_…`, on Stripe's account settings page). One key reads one account, so
-one asset names it; while two assets name a Stripe account, neither is collected
-and both rows show the mapping failure.
+**Stripe revenue** card on **Integrations**. The key check reads the balance.
+After it succeeds, choose an asset and enter the account ID (`acct_…`, in
+Stripe's account settings), then select **Assign revenue**. **Assign revenue**
+also opens from **Integrations** whenever a saved key has no asset assigned.
+NoticeOS credits the whole account's net receipts to the chosen asset, including
+one-time payments. Select **Manage** on **Integrations** to see the assignment,
+edit the account ID, or remove the assignment. The asset's **Stripe revenue**
+row shows collection status and links to the integration.
+Reassigning the same account starts with its next uncollected day. Receipts
+already collected stay on the asset they were assigned to.
 
-**What runs, and when.** The **Subscription revenue** job runs at 20 minutes
+**What runs, and when.** The **Stripe revenue** job runs at 20 minutes
 past every hour (`20 * * * *`). It asks Stripe only when a completed day is
 missing: a UTC day is complete from 01:00 UTC, the clock its revenue source
 row (`stripe`, "Stripe subscriptions", family `subs`) records. The first run

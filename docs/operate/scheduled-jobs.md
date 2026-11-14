@@ -22,7 +22,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Live traffic and counters | every 15 minutes | Refreshes counters every 15 minutes and daily Google Analytics and Search Console metrics once per hour. |
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
 | Bank balances and activity | 40 past each hour | Records Mercury deposit balances and transactions created in the last 35 days; complete reads remain separate from revenue and costs |
-| Subscription revenue | 20 past each hour | Records each completed UTC day's Stripe sales less refunds for the asset that names the account; asks Stripe only when a day is missing |
+| Stripe revenue | 20 past each hour | Records each completed UTC day's Stripe sales less refunds for the asset that names the account; asks Stripe only when a day is missing |
 | Data freshness checks | every hour | Flags an asset whose report is late or whose connection stopped |
 | Operator notification recovery | 5 past each hour | Retries pending notifications and recovers missed events; new conditions trigger delivery immediately |
 | Nightly reports | 02:30 | Collects the daily provider reports, including Bing Webmaster |

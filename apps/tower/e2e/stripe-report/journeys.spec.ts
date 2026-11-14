@@ -1,9 +1,54 @@
 import { test, expect } from '../journey-test';
-import { PR_SMOKE } from '../fixtures';
+import { JOURNEY_ASSET, JOURNEY_KEY, JOURNEY_STRIPE_ACCOUNT, PR_SMOKE } from '../fixtures';
 import { everyTabPayload, viewOf } from '../../test/asset-detail-fixture';
 import { isAssetDetailView } from '../../shared/asset-detail-views';
 import { compareStripe, summarizeStripe } from '@noticeos/contract/stripe-report';
 import { demoStripeSales, demoStripeSnapshot, shiftDemoDay } from '../../../../scripts/demo-scenario.mjs';
+
+test(`Assign Stripe revenue to an existing asset with no Stripe source ${PR_SMOKE}`, async ({ page, request, baseURL }) => {
+  expect((await request.post('/__journey/reset')).ok()).toBe(true);
+  const headers = { origin: new URL(baseURL!).origin };
+  expect((await request.post('/api/assets', {
+    headers, data: { id: JOURNEY_ASSET, domain: JOURNEY_ASSET, displayName: 'Journey Example' },
+  })).status()).toBe(201);
+  expect((await request.put('/api/config', { headers, data: { ops: [{
+    kind: 'file-json-insert', file: 'config/integrations.json', pointer: `/assets/${JOURNEY_ASSET}`,
+    value: { 'ad-network': { status: 'needs-setup', since: '2026-09-06' } },
+  }] } })).ok()).toBe(true);
+
+  await page.goto('/integrations');
+  const stripe = page.locator('[data-integration-tile="stripe"]');
+  await stripe.getByRole('button', { name: 'Connect Stripe revenue' }).click();
+  const panel = page.getByRole('dialog', { name: 'Stripe revenue' });
+  await panel.getByLabel('Restricted API key', { exact: true }).fill(JOURNEY_KEY);
+  await panel.getByRole('button', { name: 'Connect', exact: true }).click();
+  await expect(panel.getByRole('combobox', { name: /Asset/ })).toBeEnabled();
+  await panel.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.reload();
+  await stripe.getByRole('button', { name: 'Assign Stripe revenue' }).click();
+  await panel.getByRole('combobox', { name: /Asset/ }).selectOption(JOURNEY_ASSET);
+  await panel.getByLabel(/Stripe account ID/).fill(JOURNEY_STRIPE_ACCOUNT);
+  await panel.getByRole('button', { name: 'Assign revenue', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await page.reload();
+  await stripe.getByRole('button', { name: 'Manage Stripe revenue' }).click();
+  await expect(panel.getByText('Journey Example', { exact: true })).toBeVisible();
+  await expect(panel).toContainText(JOURNEY_STRIPE_ACCOUNT);
+  await panel.getByRole('button', { name: 'Edit account ID' }).click();
+  const account = panel.getByLabel(/Stripe account ID/);
+  await expect(account).toHaveValue(JOURNEY_STRIPE_ACCOUNT);
+  await account.fill('acct_updated');
+  await panel.getByRole('button', { name: 'Save account ID' }).click();
+  await expect(panel).toHaveCount(0);
+  await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
+  const source = page.locator(`[data-subject="source:${JOURNEY_ASSET}:subscriptions"]`).first();
+  await source.getByRole('link', { name: 'Manage Stripe' }).click();
+  await expect(panel).toContainText('acct_updated');
+  await panel.getByRole('button', { name: 'Remove Stripe assignment for Journey Example' }).click();
+  await expect(panel).toHaveCount(0);
+  await page.reload();
+  await expect(stripe.getByRole('button', { name: 'Assign Stripe revenue' })).toBeVisible();
+});
 
 test(`Stripe reports show cash and subscription growth across ranges ${PR_SMOKE}`, async ({ page, request }, info) => {
   expect((await request.post('/__journey/reset')).ok()).toBe(true);

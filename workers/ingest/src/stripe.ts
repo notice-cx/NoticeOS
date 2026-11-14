@@ -12,14 +12,15 @@ import { subscriptionSnapshot } from './stripe-subscriptions.js';
 import { stripeSnapshotRecord, type SalesBreakdown } from '@noticeos/contract/stripe-report';
 import type { ScheduledRunResult } from '@noticeos/contract';
 import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
+import { STRIPE_REVENUE_LANE, stripeRevenueAssignments } from '@noticeos/contract/configuration';
 import { credentialConnected, recordCredentialOutcome, resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-import { LANE_REGISTER, cellDeclined, type LaneRegister } from './lane-mapping.js';
+import { LANE_REGISTER, type LaneRegister } from './lane-mapping.js';
 
 /** The credential field, and its legacy env binding name. */
 export const STRIPE_KEY_FIELD = 'STRIPE_API_KEY';
 /** The catalog lane a site names its Stripe account on. */
-export const STRIPE_LANE = 'subscriptions';
+export const STRIPE_LANE = STRIPE_REVENUE_LANE;
 /** The integration-health capability one site's daily collection is recorded under. */
 export const STRIPE_REVENUE_CAPABILITY = 'stripe-revenue';
 
@@ -184,14 +185,7 @@ type Target = StripeTarget;
 /** Every site whose Subscriptions entry names a Stripe account and is not
  * declined there. */
 export function stripeTargets(register: LaneRegister = LANE_REGISTER): Target[] {
-  const targets: Target[] = [];
-  for (const [asset, lanes] of Object.entries(register.assets ?? {})) {
-    const cell = lanes?.[STRIPE_LANE];
-    const account = cell?.stripeAccountId;
-    if (typeof account !== 'string' || account === '' || cellDeclined(cell)) continue;
-    targets.push({ asset, account });
-  }
-  return targets.sort((a, b) => a.asset.localeCompare(b.asset));
+  return stripeRevenueAssignments(register).sort((a, b) => a.asset.localeCompare(b.asset));
 }
 
 class StripeFailure extends Error {
@@ -352,9 +346,12 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
     for (const target of targets) await fail(target, new StripeFailure('stripe_mapping_shared', 'More than one asset names a Stripe account; one key reads one account.'));
   } else {
     const target = targets[0]!;
+    // Receipts already filed under this account stay with their original asset.
+    // Changing the assignment must not collect those days a second time.
     const [held] = await env.STORE.read((tx) => tx.query<{ day: string | null }>(
       `SELECT MAX(revenue_date)::text AS day FROM noticeos.current_revenue
-        WHERE asset_id = $1 AND source = $2 AND account_ref = $3 AND sales_minor IS NOT NULL`, [target.asset, STRIPE_REVENUE_SOURCE, target.account]));
+        WHERE source = $1 AND account_ref = $2
+          AND (asset_id <> $3 OR sales_minor IS NOT NULL)`, [STRIPE_REVENUE_SOURCE, target.account, target.asset]));
     const window = stripeWindow(end, held?.day ?? null);
     const [lastSnapshot] = await env.STORE.read((tx) => tx.query<{ at: string | null }>(
       `SELECT MAX(observed_at AT TIME ZONE 'UTC')::date::text AS at FROM noticeos.stripe_subscription_snapshots WHERE asset_id = $1 AND account_ref = $2`, [target.asset, target.account]));

@@ -93,7 +93,7 @@ export function integrationLabel(id: string, fallback: string): string {
     "ad-network": "Ad revenue",
     "affiliate-cj": "CJ affiliate revenue",
     "affiliate-amazon": "Amazon affiliate revenue",
-    subscriptions: "Subscription revenue",
+    subscriptions: "Stripe revenue",
     "deploy-annotations": "Deployment history",
     "github-app": "GitHub",
     "discord-webhooks": "Discord notifications",

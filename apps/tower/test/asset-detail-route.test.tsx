@@ -125,9 +125,9 @@ function renderRoute(id: string, hash = "", tab: AssetTab | "" = "") {
 
 /** Render at a literal URL, for a segment nobody built. The probe lets a
  * redirect be asserted as the address bar, not only as the tab bar. */
-function renderPath(path: string) {
+function renderPath(path: string, client = testClient()) {
   return render(
-    <QueryClientProvider client={testClient()}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route
@@ -1378,14 +1378,13 @@ describe("AssetDetailRoute — executive page identity", () => {
       },
     };
     stubFetch(200, data);
-    const view = renderRoute("meadow.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "growth");
     const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Google Analytics: Unknown"]);
     const unknown = heading.closest("header")!.querySelector('[data-connection="unknown"]');
     expect(unknown?.querySelector('[data-state-mark="unknown"]')).not.toBeNull();
     expect(unknown?.querySelector('[data-state-mark="check"]')).toBeNull();
     expect(heading).not.toHaveTextContent("Unknown");
-    expect(view.container.querySelector("#integrations")).not.toHaveTextContent("working");
     expect(view.getByRole("tab", { name: "Data sources" }).querySelector("[data-sources-ratio]")).toBeNull();
   });
 
@@ -1398,7 +1397,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       sources: [{ id: "ga4", label: "Google Analytics", state: "live", observedAt: new Date(Date.now() - 60_000).toISOString(), verification: { kind: "collection-success", laneId: "ga4" } }],
     };
     stubFetch(200, data);
-    const view = renderRoute("meadow.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "growth");
     const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Google Analytics: Working"]);
     expect(within(heading).queryByText("Onboarding")).toBeNull();
@@ -1449,7 +1448,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       verification: kind === "legacy-date" ? undefined : { kind: "collection-success", laneId: kind === "wrong-source" ? "gsc" : "nightly-report" },
     }] };
     stubFetch(200, data);
-    const view = renderRoute("meadow.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "growth");
     const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Nightly report: Not checked"]);
     expect(view.getByRole("tab", { name: "Data sources" }).getAttribute("title") ?? "").not.toContain("working");
@@ -1790,9 +1789,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
     };
     stubFetch(200, data);
     const view = renderRoute("meadow.example", "", "sources");
-    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
-    const word = attempt === "healthy" ? "Working" : "Failing";
-    expect(headerStatuses(heading)).toEqual([`Google Search Console: ${word}`]);
+    await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     const sources = view.container.querySelector<HTMLElement>("#integrations")!;
     const currentRow = within(sources).getByRole("button", { name: /Google Search Console/u });
     expect(currentRow.querySelector("[data-connection]")).toHaveAttribute("data-connection", attempt === "healthy" ? "working" : "failing");
@@ -2114,11 +2111,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     // The unmapped source keeps Connect as the page's one primary action.
     expect(rowOf("Google Search Console").querySelector("[data-source-connect]")).not.toBeNull();
     expect(view.getAllByRole("link", { name: /Connect Google/u })).toHaveLength(1);
-    // The header and the page's answer read the same status as the row.
-    const heading = view.getByRole("heading", { name: /Meadow Board/u, level: 1 });
-    expect(headerStatuses(heading)).toEqual(["Google Analytics: Collecting", "Google Search Console: Not connected"]);
-    expect(view.container.querySelector('[data-sources-answer]')).toHaveTextContent("1 of 2 sources connected");
-
     // Its evidence is an info mark, not a warning: nothing is wrong before the first run.
     openLane("Google Analytics");
     const evidence = rowOf("Google Analytics").querySelector("[data-evidence-trigger]");
@@ -2173,7 +2165,9 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = [...view.container.querySelectorAll<HTMLElement>("#integrations li")].find((li) => li.textContent?.includes("Uptime monitoring"))!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", kind);
     expect(row.querySelector("[data-connection]")).toHaveTextContent(word);
-    expect(row.querySelector("[data-uptime-check]")).toHaveTextContent(caption);
+    expect(row).not.toHaveTextContent(/checked \d/u);
+    fireEvent.click(within(row).getByRole("button", { name: "Uptime monitoring details" }));
+    expect(view.getByRole("tooltip")).toHaveTextContent(caption);
     expect(row.querySelector("[data-source-connect]")).toBeNull();
     expect(row.textContent).not.toMatch(/Working|Failing|Not connected/u);
   });
@@ -2303,8 +2297,9 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     await view.findByText("Google Search Console");
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
-    expect(row).toHaveTextContent("1 report missing");
-    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console working");
+    expect(row).not.toHaveTextContent("1 report missing");
+    fireEvent.focus(within(row as HTMLElement).getByRole("button", { name: "Google Search Console details" }));
+    expect(view.getByRole("tooltip")).toHaveTextContent("1 report missing");
   });
 
   it("reads the source Failing, with why, when its latest pull fails", async () => {
@@ -2318,8 +2313,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
     expect(row).toHaveTextContent("Access was refused.");
-    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs attention");
-    expect(view.container.querySelector("[data-page-answer-detail]")).toHaveTextContent("Google Search Console failing");
     expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
   });
 
@@ -3427,8 +3420,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
-    expect(container.querySelector("[data-lane-reason]")?.textContent).toBe("Replaced by another tool");
     openLane("Google Analytics");
+    expect(container.querySelector("[data-lane-reason]")?.textContent).toBe("Replaced by another tool");
     expect(container.textContent).not.toMatch(/REASON:/u);
     expect(screen.queryByRole("button", { name: "Not using" })).toBeNull();
 
@@ -5692,6 +5685,34 @@ describe("AssetDetailRoute — failed detail read", () => {
     const attempts = fetchMock.mock.calls.length; // the hook's own retry already ran
     fireEvent.click(retry);
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(attempts));
+  });
+
+  it("keeps data sources visible after a failed refresh and clears the warning after a retry", async () => {
+    const client = testClient();
+    const data = payload();
+    let fail = false;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const isDetail = String(input).startsWith("/api/assets/meadow.example?");
+      return new Response(JSON.stringify(isDetail && fail ? { error: "asset_detail_failed" } : data), {
+        status: isDetail && fail ? 500 : 200,
+        headers: { "content-type": "application/json" },
+      });
+    }));
+    const view = renderPath("/assets/meadow.example/sources", client);
+    const sources = await view.findByRole("region", { name: "Data sources" });
+    const panel = within(view.getByRole("tabpanel"));
+    expect(panel.queryByRole("button", { name: /try again/i })).toBeNull();
+
+    fail = true;
+    void client.invalidateQueries({ queryKey: ["asset-detail", "meadow.example", "sources"] });
+    const retry = await panel.findByRole("button", { name: /try again/i });
+    expect(retry.closest('[role="status"]')).toHaveTextContent("Showing the last successful read.");
+    expect(sources).toBeVisible();
+
+    fail = false;
+    fireEvent.click(retry);
+    await waitFor(() => expect(panel.queryByText("Couldn't refresh data sources")).toBeNull());
+    expect(sources).toBeVisible();
   });
 
   it("keeps the distinct 'no such asset' state for a 404", async () => {

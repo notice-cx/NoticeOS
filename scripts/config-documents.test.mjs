@@ -106,6 +106,30 @@ test('a document that never touched a disk applies the same ops', async () => {
   assert.equal(docs['config/tower.json'].countdown.label, 'Launch', 'the reader handed a copy');
 });
 
+test('Stripe assignment refuses a second asset and allows a legacy duplicate to be removed', async () => {
+  const file = 'config/integrations.json';
+  const first = { status: 'needs-setup', since: '2026-09-04', stripeAccountId: 'acct_first' };
+  const second = { status: 'needs-setup', since: '2026-09-04', stripeAccountId: 'acct_second' };
+  const pointer = '/assets/second.example/subscriptions';
+  const docs = { [file]: { catalog: [], assets: { 'first.example': { subscriptions: first }, 'second.example': {} } } };
+  async function prepare(op) {
+    const cs = changeset([op]);
+    validateSchemaAndSafety(cs);
+    const candidate = await resolveOps(cs, null, { readDocument: documentsFrom(docs) });
+    assert.deepEqual(candidate.mismatches, []);
+    return candidate;
+  }
+
+  const add = await prepare({ kind: 'file-json-insert', file, pointer, value: second });
+  assert.throws(() => applyDocumentOps(add.resolved, add.documents), ChangesetError);
+  assert.deepEqual(docs[file].assets['second.example'], {});
+
+  docs[file].assets['second.example'] = { subscriptions: second };
+  const remove = await prepare({ kind: 'file-json-delete', file, pointer, expect: second });
+  assert.deepEqual(applyDocumentOps(remove.resolved, remove.documents), [file]);
+  assert.deepEqual(remove.documents.get(file).assets, { 'first.example': { subscriptions: first }, 'second.example': {} });
+});
+
 test('a stale expect refuses the whole set, and says what is there now', async () => {
   const cs = changeset([
     {

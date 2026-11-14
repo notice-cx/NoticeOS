@@ -22,7 +22,7 @@ Beside the equation:
 Then:
 
 - **Where the cost goes** — each cost line, largest first: what it is, its amount, its share of the month's cost, its family in words (**Hosting and infrastructure**, **Running NoticeOS**, **Search data**, **People's time** or **Model usage**), and where the figure comes from (**Subscription**, **Usage**, **Prepaid yearly**, **No source**). **Compare with previous month** opens recorded costs for the immediately preceding calendar month, loaded only when opened and retained in the normal month cache. Each exact source, family and currency identity shows **Previous**, **Current** and **Difference**, largest absolute supported difference first, with cents retained. Totals stay separate by currency. An added or absent source shows **No record** and an **Unavailable** difference; missing history or a failed read also leaves differences unavailable. A recorded zero remains zero. An open month compares month-to-date costs with the complete previous calendar month; a lower amount does not establish savings or improved performance.
-- **By source** — the month's revenue by source, largest first: the source's name (such as **Mediavine Journey ad revenue** or **Stripe subscriptions**), its amount, its share of the month's revenue, and its family: **Ads**, **Subscriptions**, **Affiliate** or **Licensing**. A row booked with no source is named by its family. The panel is not drawn for a month with no revenue.
+- **By source** — the month's revenue by source, largest first, with each amount and share of the month's revenue. Sources with a single revenue family show that family. **Stripe revenue** includes one-time and recurring payments. A row booked with no source is named by its family. The panel is not drawn for a month with no revenue.
 - **By asset** — every asset ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the asset's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the assets' nets less that overhead. On a narrow screen each row shows the asset, its revenue and its net; the other columns are hidden before a name is cut short.
 - **Month by month** — revenue, cost and net for every month to the shown one, the open month marked.
 
@@ -41,7 +41,7 @@ Three panels open one at a time underneath:
 - **Every month** — **Revenue**, **Cost**, **Net**, **Reconciled** and **Net to date** for every month.
 - **Declared costs** — **Recurring costs** and **Domain orders**, the two tables you edit. Over them, **Declared, by asset** shows each asset's declared run rate per month.
 
-Revenue is collected (Mediavine ad revenue and Stripe subscriptions, daily) and stays an estimate until reconciled. Costs are the rows you declare plus metered spend the product records itself, such as DataForSEO reports. A booked month is never rewritten; a correction is a new row.
+Revenue is collected daily from Mediavine and Stripe and stays an estimate until reconciled. Costs are the rows you declare plus metered spend the product records itself, such as DataForSEO reports. A booked month is never rewritten; a correction is a new row.
 
 ## What you can do
 

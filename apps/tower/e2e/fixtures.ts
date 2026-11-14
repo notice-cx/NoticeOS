@@ -10,6 +10,7 @@ export const DEV_SERVER = "@dev-server";
 export const JOURNEY_NOW = "2026-09-06T12:00:00.000Z";
 export const JOURNEY_ASSET = "journey.example";
 export const JOURNEY_KEY = "journey-only-not-a-real-key";
+export const JOURNEY_STRIPE_ACCOUNT = "acct_journey";
 export const JOURNEY_SITE = "https://journey.example/";
 /** The fixture's own operator clock: the saved `os_time_zone` its config
  * store holds and the compiled fallback its Worker is given. Never the
@@ -74,7 +75,13 @@ export const EVERY_SOURCE_CATALOG = [
 
 export const INJECTED: Record<string, unknown> = {
   __MONTHLY_CAPS__: { dataUsd: 25 }, __FLAG_DEFAULTS__: {}, __PULL_CONFIG__: [],
-  __OPERATOR_RATE__: 1, __INTEGRATIONS__: INITIAL_DOCUMENTS["config/integrations.json"],
+  __OPERATOR_RATE__: 1, __INTEGRATIONS__: {
+    assets: {},
+    catalog: [
+      ...(INITIAL_DOCUMENTS["config/integrations.json"] as { catalog: unknown[] }).catalog,
+      { id: "subscriptions", label: "Stripe revenue", scope: "property", layer: "provider", credential: "shared", docRef: "docs/11-integrations.md#stripe" },
+    ],
+  },
   __COUNTERS__: INITIAL_DOCUMENTS["config/counters.json"], __DASHBOARD__: {},
   __OS_TIME_ZONE__: JOURNEY_TIME_ZONE, __NO_NIGHTLY_REPORT__: null, __SCHEDULES__: null, __SERP_PANEL__: { assets: {} }, __SIGNAL_PANELS__: { assets: {} },
   __VALUE_EVENTS__: { assets: {} }, __GA4_EVENT_PARAMS__: { assets: {} },

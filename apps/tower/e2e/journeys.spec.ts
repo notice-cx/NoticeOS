@@ -2444,9 +2444,7 @@ test("a new asset raises no nightly-report warning anywhere, and the System frac
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
 
-  // The site's header: the neutral No report mark, never an amber "never".
   const header = page.locator("header").filter({ has: page.getByRole("heading", { name: /^Journey Example/, level: 1 }) });
-  await expect(header.locator('[data-nightly-report="none"]')).toHaveText("No report");
   await expect(header.locator("[data-nightly-report-age]")).toHaveCount(0);
   await expect(header.locator('[data-age-state="never"]')).toHaveCount(0);
   // Unconnected sources and optional reports leave no setup obligation.
@@ -2456,6 +2454,7 @@ test("a new asset raises no nightly-report warning anywhere, and the System frac
 
   await page.goto(`/assets/${JOURNEY_ASSET}`);
   await expect(page.locator("[data-site-overview]")).toBeVisible();
+  await expect(header.locator('[data-nightly-report="none"]')).toHaveText("No report");
   const setup = page.getByRole("status").filter({ hasText: "Data setup" });
   await expect(setup).toHaveCount(0);
 
@@ -2935,7 +2934,8 @@ test("an asset's uptime row reads Up, stays Up after one failed try, then Down w
   await page.reload();
   const row = () => page.locator("#integrations li").filter({ hasText: "Uptime monitoring" });
   await expect(row().locator('[data-connection="working"]')).toHaveText("Up");
-  await expect(row().locator("[data-uptime-check]")).toHaveText("checked 1h ago");
+  await row().getByRole("button", { name: "Uptime monitoring details" }).click();
+  await expect(page.getByRole("tooltip", { name: "Uptime monitoring details" })).toContainText("checked 1h ago");
   await expect(row().locator("[data-source-connect]")).toHaveCount(0);
 
   // One failed GET that the retry answers is not Down. The row stays Up and
@@ -2944,15 +2944,16 @@ test("an asset's uptime row reads Up, stays Up after one failed try, then Down w
   expect(await blip.json()).toMatchObject({ checked: 1, retried: 1, fired: 0 });
   await page.reload();
   await expect(row().locator('[data-connection="working"]')).toHaveText("Up");
-  await expect(row().locator("[data-uptime-check]")).toHaveText("checked 50m ago · 1 failed try");
+  await row().getByRole("button", { name: "Uptime monitoring details" }).click();
+  await expect(page.getByRole("tooltip", { name: "Uptime monitoring details" })).toContainText("checked 50m ago · 1 failed try");
 
   // Two failures in a row are.
   expect((await page.request.post("/__journey/uptime?status=503&minutesAgo=5")).ok()).toBe(true);
   await page.reload();
   await expect(row().locator('[data-connection="failing"]')).toHaveText("Down");
-  await expect(row().locator("[data-uptime-check]")).toHaveText("HTTP 503 · checked 5m ago");
-  // The header's source mark says the same word.
-  await expect(page.getByRole("img", { name: "Uptime monitoring: Down" })).toBeVisible();
+  await expect(row()).toContainText("HTTP 503");
+  await row().getByRole("button", { name: "Uptime monitoring details" }).click();
+  await expect(page.getByRole("tooltip", { name: "Uptime monitoring details" })).toContainText("checked 5m ago");
   // …and the site's Alerts carry it, as the existing home-page alert.
   await page.goto(`/assets/${JOURNEY_ASSET}/alerts`);
   await expect(page.getByText("Home page check failed — HTTP 503").first()).toBeVisible();

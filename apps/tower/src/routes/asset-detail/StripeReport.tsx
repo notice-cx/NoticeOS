@@ -1,11 +1,15 @@
 import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import { useId } from 'react';
 import { minorToMajorUnits } from '@noticeos/contract/money';
-import type { StripeSubscriptionReport } from '@noticeos/contract/stripe-report';
+import type { StripeSnapshotSummary, StripeSubscriptionReport } from '@noticeos/contract/stripe-report';
 import type { DailyRevenueHistory } from '@shared/daily-revenue';
 import { StatTile } from '@/components/viz/StatTile';
 import { BarStrip } from '@/components/viz/BarStrip';
 import { formatInt, formatMoney, formatTimestamp } from '@/lib/format';
+
+function hasSubscriptionActivity(snapshot: StripeSnapshotSummary): boolean {
+  return snapshot.activeSubscriptions > 0 || snapshot.trials > 0;
+}
 
 /** Cash uses completed days; recurring growth uses observed subscription state,
  * so the two reports retain separate dates and totals. */
@@ -17,14 +21,16 @@ export function StripeReport({ report, history, days, nowMs }: {
 }) {
   const id = useId();
   const sources = history?.bySource?.filter((source) => source.provider === 'stripe') ?? [];
-  if (!report && sources.length === 0) return null;
   const latest = report?.latest;
   const growth = report?.comparisons.find((comparison) => comparison.days === days)?.growth;
+  const showSubscriptions = latest && (hasSubscriptionActivity(latest) || report.history.some(hasSubscriptionActivity)
+    || Boolean(growth?.lostCustomers));
+  if (sources.length === 0 && (!report || (latest && !showSubscriptions))) return null;
   const stale = latest ? nowMs - Date.parse(latest.observedAt) > STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000 : false;
   const money = (value: number) => formatMoney(minorToMajorUnits(value, latest!.currency), latest!.currency, { cents: true });
   return <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3" data-stripe-report="">
     <h2 id={id} className="text-sm font-medium">Stripe</h2>
-    {latest ? <>
+    {showSubscriptions ? <>
       <p className="m-0 text-xs text-muted-foreground">
         Subscriptions observed {formatTimestamp(latest.observedAt)}{stale ? ' · overdue' : ''}
       </p>
@@ -53,7 +59,7 @@ export function StripeReport({ report, history, days, nowMs }: {
           MRR: {money(growth.newMrrMinor)} added · {money(growth.expansionMinor)} expansion · {money(growth.contractionMinor)} contraction · {money(growth.lostMrrMinor)} lost.
         </p>
       </> : <p className="m-0 text-sm text-muted-foreground">Growth needs comparable reports {days} days apart.</p>}
-    </> : <p className="m-0 text-sm text-muted-foreground">No subscription report yet.</p>}
+    </> : report && !latest ? <p className="m-0 text-sm text-muted-foreground">No subscription report yet.</p> : null}
     {sources.map((source) => {
       const rows = source.days.filter((day) => day.date >= history!.from && day.date <= history!.to);
       const measured = rows.filter((day) => day.sales !== undefined);
