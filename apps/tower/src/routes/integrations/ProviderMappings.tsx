@@ -162,10 +162,19 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
       } else if (cell) {
         const ops: SettingOp[] = [];
         const undo: SettingOp[] = [];
+        const mappingChanged = field.keys.some((key) => (held[key] ?? null) !== (values?.[key] ?? null));
         for (const name of field.keys) {
           const before = held[name] ?? null;
           const after = values?.[name] ?? null;
-          if (after === before) continue;
+          if (after === before) {
+            // A PostHog project is the region and the id together.
+            if (lane === "posthog" && before !== null && before !== "" && mappingChanged) {
+              const guard = laneFieldOp(asset.id, lane, name, before, before);
+              ops.push(guard);
+              undo.push(guard);
+            }
+            continue;
+          }
           if (after !== null) {
             ops.push(laneFieldOp(asset.id, lane, name, before, after));
             undo.push(before === null || before === "" ? laneFieldUnsetOp(asset.id, lane, name, after)
@@ -175,9 +184,11 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
             if (before !== "") undo.push(laneFieldOp(asset.id, lane, name, null, before));
           }
         }
-        if (lane === "posthog" && ops.length > 0 && Array.isArray(cell.funnels) && cell.funnels.length > 0) {
-          ops.push(laneFieldOp(asset.id, lane, "funnels", cell.funnels, []));
-          undo.push(laneFieldOp(asset.id, lane, "funnels", [], cell.funnels));
+        if (lane === "posthog" && ops.length > 0) {
+          const before = cell.funnels ?? null;
+          ops.push(laneFieldOp(asset.id, lane, "funnels", before, []));
+          undo.push(before === null ? laneFieldUnsetOp(asset.id, lane, "funnels", [])
+            : laneFieldOp(asset.id, lane, "funnels", [], before));
         }
         if (values && cell.status === "skipped") {
           ops.push(...resumeOps(asset.id, lane, cell.status));
@@ -250,12 +261,16 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         saving ? { state: "saving" } : outcome?.saved ? { state: "saved", undoing: loading, onUndo: () => void undo() }
           : outcome ? { state: "refused", refusal: outcome.refusal } : { state: "idle" }
       } />
-      {lane === "posthog" && cell && cell.status !== "skipped" && heldLabel && !needsSave ? (
+      {lane === "posthog" && cell && cell.status !== "skipped" && held.host && held.projectId && !needsSave ? (
         <details className="text-sm">
           <summary className="min-h-8 cursor-pointer text-muted-foreground">Funnels{funnelList?.length ? ` · ${funnelList.length}` : ""}</summary>
-          <FunnelListEditor key={String(heldLabel)} assetId={asset.id} statesReadOnly={false} current={funnelList}
+          <FunnelListEditor key={`${held.host}:${held.projectId}`} assetId={asset.id} statesReadOnly={false} current={funnelList}
             refusal={(draft) => fieldRefusal(FUNNEL_FIELD, draft)}
             makeOp={(draft) => laneFieldOp(asset.id, lane, "funnels", cell.funnels ?? null, draft as unknown as JsonValue)}
+            guards={field.keys.flatMap((key) => {
+              const value = held[key];
+              return value === undefined ? [] : [laneFieldOp(asset.id, lane, key, value, value)];
+            })}
             slug={changesetSlug(asset.id, lane, "funnels")}
             saved={current ? current.funnels ?? [] : undefined} />
         </details>

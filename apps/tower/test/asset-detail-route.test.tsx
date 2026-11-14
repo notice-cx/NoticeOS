@@ -1,3 +1,4 @@
+import { everyTabPayload } from "./asset-detail-fixture";
 import { wallMoneyResponse, settingsResponse } from "./critical-response-fixtures";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
@@ -1865,6 +1866,13 @@ describe("AssetDetailRoute — inbound deep links", () => {
     };
     if (hash === RESTORE_HASH) data.asset.status = "retired";
     if (hash === "#setup") data.asset.status = "onboarding";
+    if (hash === "#mediavine") {
+      const lane = everyTabPayload().integrations.lanes[0]!;
+      data.integrations.lanes = [{
+        ...lane, catalog: { ...lane.catalog, id: "ad-network" },
+        cell: { ...lane.cell, laneId: "ad-network", mapped: true },
+      }];
+    }
     stubFetch(200, data);
     const { container } = renderRoute("northwind.example", hash);
     const target = hash === "#details" ? "integrations" : hash.slice(1);

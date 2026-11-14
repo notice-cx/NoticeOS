@@ -154,10 +154,9 @@ test.beforeEach(async ({ request, page }, info) => {
     await page.route("**/api/config", (route) => route.fulfill({ json: { writable: false, reason: PAUSED, sources: {} } }));
     await page.goto("/assets/meadow.example/sources");
     await expect(page.locator("[data-saves-paused]")).toContainText(PAUSED);
-    for (const label of ["Google Analytics", "PostHog"]) await page.getByRole("button", { name: label, exact: true }).click();
+    await page.getByRole("button", { name: "Google Analytics", exact: true }).click();
     for (const summary of await page.locator("#integrations details:not([open]) > summary").all()) await summary.click();
     await expect(page.locator("[data-collection-editor]")).toHaveCount(3);
-    await expect(page.locator("[data-funnel-editor]")).toContainText("Signup");
     await expect(page.locator(STATEMENTS)).toHaveCount(1);
     await fits(page);
     await page.evaluate(() => window.scrollTo(0, 0));

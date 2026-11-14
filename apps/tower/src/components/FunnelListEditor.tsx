@@ -43,6 +43,7 @@ export interface FunnelListEditorProps {
   refusal: (value: unknown) => string | null;
   /** The op a Save writes for this list (it carries the guard). */
   makeOp: (value: PosthogFunnel[]) => SettingOp;
+  guards?: readonly SettingOp[];
   /** Changeset slug and commit subject. */
   slug?: string;
   /** Write somewhere else — the component gallery passes a fake. */
@@ -92,6 +93,7 @@ export function FunnelListEditor({
   current,
   refusal,
   makeOp,
+  guards = [],
   slug,
   onSave,
   saved: fromAccount,
@@ -126,7 +128,7 @@ export function FunnelListEditor({
     setSaving(true);
     try {
       if (onSave) await onSave(op);
-      else await save({ ops: [op], label, slug });
+      else await save({ ops: [...guards, op], label, slug });
     } finally {
       setSaving(false);
     }
@@ -173,6 +175,7 @@ export function FunnelListEditor({
         saved={fromAccount}
         refusal={refusal}
         makeOp={makeOp}
+        guards={guards}
         slug={slug}
         onSave={onSave}
       />
@@ -398,6 +401,7 @@ function PickedFunnels({
   saved,
   refusal,
   makeOp,
+  guards = [],
   slug,
   onSave,
 }: {
@@ -408,6 +412,7 @@ function PickedFunnels({
   saved: readonly PosthogFunnel[];
   refusal: (value: unknown) => string | null;
   makeOp: (value: PosthogFunnel[]) => SettingOp;
+  guards?: readonly SettingOp[];
   slug?: string;
   onSave?: (op: SettingOp) => Promise<void>;
 }) {
@@ -433,7 +438,7 @@ function PickedFunnels({
         await onSave(op);
         setOutcome({ kind: "saved", undo: async () => ({ undone: true }) });
       } else {
-        const result = await saveField({ ops: [op], label: `${label}: ${what}`, slug });
+        const result = await saveField({ ops: [...guards, op], label: `${label}: ${what}`, slug });
         setOutcome(result.saved ? { kind: "saved", undo: result.undo } : { kind: "refused", refusal: result.refusal });
       }
     } finally {

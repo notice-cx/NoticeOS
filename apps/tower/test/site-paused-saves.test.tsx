@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
-import { render, fireEvent, screen, within } from "./render";
+import { render, fireEvent, screen } from "./render";
 import { everyTabPayload } from "./asset-detail-fixture";
 import { SourcesTab } from "@/routes/asset-detail/SourcesTab";
+import { ProviderMappings } from "@/routes/integrations/ProviderMappings";
 import { RuleTunePanel } from "@/components/RuleTune";
 import { FunnelListEditor } from "@/components/FunnelListEditor";
 
@@ -27,25 +28,35 @@ function statements(container: HTMLElement) {
 
 afterEach(() => { capability.writable = false; });
 
-it("states Saves paused once on Sources with GA4 declarations and PostHog funnels opened", () => {
+it("states Saves paused once on Sources with GA4 declarations opened", () => {
   const data = everyTabPayload();
   const base = data.integrations.lanes[0]!;
   data.integrations.lanes = [
     { ...base, catalog: { ...base.catalog, id: "ga4", label: "Google Analytics 4" }, cell: { ...base.cell, laneId: "ga4" } },
-    { ...base, catalog: { ...base.catalog, id: "posthog", label: "PostHog" }, cell: { ...base.cell, laneId: "posthog" },
-      mappingLists: [{ name: "funnels", value: [{ id: "signup", name: "Signup", steps: [{ event: "visit" }, { event: "sign_up" }] }] }] },
   ];
   data.ga4Config = { valueEvents: ["sign_up"], eventParams: ["message"] };
   const { container } = render(wrap(<SourcesTab data={data} nowMs={Date.parse(data.generatedAt)} />));
-  for (const name of [/Google Analytics/, /PostHog/]) {
-    fireEvent.click(screen.getByRole("button", { name }));
-  }
+  fireEvent.click(screen.getByRole("button", { name: /Google Analytics(?! details)/ }));
   for (const details of container.querySelectorAll("details")) details.open = true;
   expect(container.querySelectorAll("[data-collection-editor]")).toHaveLength(3);
-  expect(container.querySelector("[data-funnel-editor]")).toHaveTextContent("Signup");
   expect(statements(container)).toHaveLength(1);
   expect(statements(container)[0]).toHaveTextContent("Saves paused · Config store unreachable");
-  expect(within(container).queryByRole("button", { name: "Add funnel" })).toBeNull();
+});
+
+it("shows PostHog mappings and funnels read-only when saves are paused", () => {
+  const funnels = [{ id: "signup", name: "Signup", steps: [{ event: "visit" }, { event: "sign_up" }] }];
+  render(wrap(<ProviderMappings provider="posthog" preselect={null} loading={false}
+    onClose={vi.fn()} onRetry={vi.fn()} onCollect={vi.fn()} payload={{
+      discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: "2026-01-01T00:00:00Z", sites: [] },
+      assets: [{ id: "example.com", label: "Example", domain: "example.com", status: "live",
+        cells: { posthog: { status: "live", mapping: { host: "us", projectId: "123" }, funnels } } }],
+      spend: null,
+    }} />));
+  expect(screen.getByRole("combobox", { name: "PostHog project for Example" })).toBeDisabled();
+  fireEvent.click(screen.getByText("Funnels · 1", { exact: true }));
+  expect(screen.getByText("Signup", { exact: true })).toBeVisible();
+  expect(screen.getAllByText(capability.reason)).toHaveLength(1);
+  expect(screen.queryByRole("combobox", { name: "Add funnel" })).toBeNull();
 });
 
 it("states Saves paused once in Tune, keeping both settings read only", () => {
