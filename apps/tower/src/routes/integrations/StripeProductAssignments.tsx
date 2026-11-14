@@ -15,11 +15,11 @@ export function StripeProductAssignments({ status, onClose }: {
   const query = useAccountSites("stripe", true, { refetchOnMount: "always" });
   const data = query.data;
   const discovery = data?.discovery;
-  if (query.isPending || (query.isFetching && !query.isFetchedAfterMount)) return <p role="status" className="text-sm text-muted-foreground">Loading Stripe products…</p>;
+  if (query.isPending || (query.isFetching && !query.isFetchedAfterMount)) return <p role="status" data-status-for="integration:stripe" className="text-sm text-muted-foreground">Loading Stripe products…</p>;
   if (!data || !discovery?.ok || !discovery.stripeAccountId) {
     return (
       <div className="grid gap-3">
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" data-status-for="integration:stripe" className="text-sm text-error">
           {discovery?.ok === false && discovery.reason === "test-mode" ? "Connect a live Stripe key to map products for revenue."
             : discovery?.ok === false && discovery.reason === "refused" ? "Stripe refused access. Check the key’s read permissions."
             : "Stripe products could not be loaded."}

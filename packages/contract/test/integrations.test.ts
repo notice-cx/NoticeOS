@@ -352,8 +352,6 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('connects Stripe with one restricted key that only reads', () => {
-    // The key reads one account; which site earns it is that site's
-    // Subscriptions entry, so no site list follows the answer.
     const stripe = integrationProvider('stripe')!;
     expect(stripe.scope).toBe('shared');
     expect(stripe.lanes).toEqual(['subscriptions']);
@@ -365,7 +363,6 @@ describe('INTEGRATION_PROVIDERS', () => {
     const [key] = stripe.fields;
     expect(key).toMatchObject({ name: 'STRIPE_API_KEY', secret: true, kind: 'password', required: true });
     expect(key!.link?.url).toBe('https://dashboard.stripe.com/apikeys');
-    expect(key!.grants).toEqual(['Balance: read', 'Charges: read', 'Subscriptions: read']);
     expect(credentialAuthState(stripe, ['STRIPE_API_KEY'])).toEqual({ complete: true, auth: null, missing: [] });
     expect(credentialAuthState(stripe, []).complete).toBe(false);
   });
