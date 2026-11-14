@@ -230,7 +230,14 @@ test('actual HTTP gateway preserves original proof, refuses hostile Host/release
     assert.equal(proof.url, origin + '/api/tasks'); assert.equal(proof.headers.get('origin'), 'https://foreign.example.com');
     assert.equal(proof.headers.get('sec-fetch-site'), 'cross-site'); assert.equal(proof.headers.get('forwarded'), null);
     assert.equal(proof.headers.get('x-forwarded-proto'), null); assert.equal(await proof.text(), '{"exact":true}');
-    for (const address of ['/health', '/health/operations/job', '/workflows/job', '/assets/example.com/search', '/alerts/history', '/wall']) {
+    for (const [address, method] of [['/api/workspaces', 'GET'], ['/api/access/me', 'PATCH'], ['/api/fields?project=fixture', 'GET'],
+      ['/api/changes?after=0', 'GET'], ['/api/version', 'GET']]) {
+      await request(address, { method, ...(method === 'PATCH' ? { body: '{}' } : {}) });
+      assert.equal(a.calls.at(-1).lane, 'tasks', address);
+      assert.equal(a.calls.at(-1).proof.url, origin + address);
+    }
+    for (const address of ['/health', '/health/operations/job', '/workflows/job', '/assets/example.com/search', '/alerts/history', '/wall',
+      '/tasks/projects/example.com/tasks', '/tasks/settings/projects']) {
       // The page's absolute URLs name the configured origin, never a request header's.
       assert.equal((await request(address)).text, `<link rel="canonical" href="${origin}/"><main>Compiled preview</main>`);
     }

@@ -42,6 +42,7 @@ export function demoNtasksOrigin(value: unknown): string {
 export const DEMO_NTASKS_CREDENTIALS = Object.freeze({ seed: 'seed', activity: 'demo' });
 /** The operator of record, who files the scenario's tasks. */
 const OPERATOR = 'Mara';
+const WORKSPACE_NAME = 'Synthetic demo';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const TIMEOUT_MS = 15_000;
 
@@ -52,7 +53,7 @@ export function demoNtasksProvisionRequest(scenario: Scenario) {
   const projects = demoNtasksSeed(scenario).projects.filter(project => !own(project.prefix));
   return {
     format: 'ntasks-provision-request-v1',
-    workspace: { id: scenario.manifest.workspaceId, name: 'Synthetic demo' },
+    workspace: { id: scenario.manifest.workspaceId, name: WORKSPACE_NAME },
     owner: { name: OPERATOR },
     credentials: [
       { name: DEMO_NTASKS_CREDENTIALS.seed, backup: true, restore: true },
@@ -81,7 +82,7 @@ export function demoNtasksWorker({ bundleRoot, authSecret, workspaceId }: { bund
     name: 'ntasks',
     modulesRoot: bundleRoot,
     modules: [{ type: 'ESModule', path: path.join(bundleRoot, 'index.js') },
-      ...files.filter(name => name.endsWith('.sql')).sort().map(name => ({ type: 'Text', path: path.join(bundleRoot, name) }))],
+      ...files.filter(name => /\.(?:sql|md)$/u.test(name)).sort().map(name => ({ type: 'Text', path: path.join(bundleRoot, name) }))],
     compatibilityDate: DEMO_NTASKS_COMPATIBILITY_DATE,
     durableObjects: { TASK_STORE: { className: 'TaskStore', useSQLite: true } },
     d1Databases: { DB: 'ntasks' },
@@ -186,14 +187,21 @@ function withRecords(body: Record<string, unknown>): Record<string, unknown> {
   return { ...body, ...(tasks === undefined ? {} : { tasks }), ...(task === undefined ? {} : { task }) };
 }
 const READ = /^\/api\/tasks(?:\/(?:projects|capabilities|agent-stats|[a-z0-9]+-[a-z0-9]+(?:\.[0-9]+)*(?:\/history)?))?$/u;
+const UI_READS = new Set(['/api/fields', '/api/version', '/api/tasks/search', '/api/tasks/wins', '/api/tasks/burndown']);
 
 /** The demo's task routes for its pages: every read answered by its Ntasks as
  * a visitor, and every change refused here, as the demo refuses any other. */
-export function createDemoTaskGateway({ ntasks, now = () => Date.now() }: { ntasks: DemoNtasks; now?: () => number }) {
+export function createDemoTaskGateway({ ntasks, workspaceId, now = () => Date.now() }: {
+  ntasks: DemoNtasks; workspaceId: string; now?: () => number;
+}) {
   return async function handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (!['GET', 'HEAD'].includes(request.method)) return json(403, { error: 'demo_read_only', detail: DEMO_READ_ONLY });
-    if (!READ.test(url.pathname)) return json(404, { error: 'not_found' });
+    // Ntasks's account routes require sign-in. The demo presents its fixed visitor identity.
+    if (url.pathname === '/api/workspaces') return json(200, { workspaces: [{ workspaceId, name: WORKSPACE_NAME, role: null }] });
+    if (url.pathname === '/api/access/me') return json(200, { kind: 'visitor', name: 'Visitor', deploymentAdmin: false, projects: [] });
+    if (!READ.test(url.pathname) && !UI_READS.has(url.pathname)
+      && !(url.pathname === '/api/changes' && url.searchParams.has('after'))) return json(404, { error: 'not_found' });
     if (url.pathname === '/api/tasks/agent-stats') return json(200, await agentStats(ntasks, url, now()));
     const reply = await ntasks.call('GET', url.pathname + url.search, { signal: request.signal });
     const body = record(reply.body);
@@ -208,7 +216,7 @@ export function createDemoTaskGateway({ ntasks, now = () => Date.now() }: { ntas
 export function openDemoTasks(options: { trustedOrigin: string; demoWorkspaceId: string; ntasks: { origin: string } },
   { readModels, fetch }: { readModels?: (request: Request) => Promise<Response>; fetch?: typeof globalThis.fetch } = {}) {
   const ntasks = demoNtasks({ workspaceId: options.demoWorkspaceId, origin: options.ntasks.origin, ...(fetch ? { fetch } : {}) });
-  const gateway = createDemoTaskGateway({ ntasks });
+  const gateway = createDemoTaskGateway({ ntasks, workspaceId: options.demoWorkspaceId });
   const mcp = createHostedMcp({ profile: 'demo', trustedOrigin: options.trustedOrigin, demoWorkspaceId: options.demoWorkspaceId,
     ...(readModels ? { readModels } : {}),
     taskTools: async (name, args) => {

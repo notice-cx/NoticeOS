@@ -11,7 +11,7 @@ const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', r
 const scenario = generateDemoScenario(input);
 const referenceIssues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
 test('one scenario names six real task projects and all cross-store story identities', () => {
-  assert.equal(scenario.manifest.scenarioVersion, 17);
+  assert.equal(scenario.manifest.scenarioVersion, 18);
   assert.equal(scenario.manifest.taskProjects.length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 220);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 12);
