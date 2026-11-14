@@ -12,15 +12,15 @@ import {
   formatUsd,
   formatSeriesDate,
 } from "@/lib/format";
-import { monthRevenue, yesterdayTotal, type MonthPace } from "@/lib/wall-revenue";
+import { cumulativeRevenueSources, monthRevenue, yesterdayTotal, type MonthPace } from "@/lib/wall-revenue";
 
 // The Wall's revenue widget: the month so far, where it lands, yesterday's
-// money, and the month as a line against last month's total. The arithmetic
+// money, and cumulative earnings against last month's total. The arithmetic
 // is `lib/wall-revenue`; this file only draws it.
 //
 // The shared comparison tile keeps the month's facts beside a contained chart.
 
-type RevenueAsset = Pick<AssetCard, "id" | "displayName" | "icons" | "revenueProjection" | "dailyRevenue">;
+type RevenueAsset = Pick<AssetCard, "id" | "displayName" | "icons" | "revenueProjection" | "revenueProjectionSources" | "dailyRevenue">;
 
 export interface RevenueHeroProps {
   portfolio: PortfolioBand;
@@ -73,6 +73,11 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     previousTotal: pace.previousTotal === null ? undefined : { value: pace.previousTotal, label: `${priorMonth} ${formatUsd(pace.previousTotal)}` },
     domain: { start: first.date, end: last.date },
     showLabels: false,
+    breakdown: {
+      ...cumulativeRevenueSources(assets, model.period, pace.points),
+      observed: new Map(pace.points.map(point => [point.date, point.observed])),
+      format: value => formatUsd(value, { cents: true }),
+    },
     tone: "revenue",
   } : undefined;
   const secondary = yesterday ? [yesterdayFact(yesterday)] : [];

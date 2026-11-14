@@ -1,3 +1,4 @@
+import type { MoneySourceLine } from "./financials";
 import type { StripeSubscriptionReport } from '@noticeos/contract/stripe-report';
 import type { DailyRevenueHistory } from "./daily-revenue";
 import type { Liveness, SignalVerification } from "./signal-liveness";
@@ -458,6 +459,7 @@ export interface LedgerFamilyAmount {
  * The breakdown travels with the figure so a family list can never be summed
  * over both booking states under a reconciled net. */
 export interface LedgerRollup {
+  sourceLines?: MoneySourceLine[];
   figure: LedgerFigure;
   revenueByFamily: LedgerFamilyAmount[];
   costByFamily: LedgerFamilyAmount[];

@@ -655,6 +655,12 @@ export interface AssetCard {
   activeUsers: SignalTrend;
   /** Future earnings estimate derived from stored daily revenue and traffic. */
   revenueProjection?: RevenueProjection;
+  /** Observed source contributions used in the projected month. */
+  revenueProjectionSources?: {
+    source: string;
+    displayName: string;
+    days: { date: string; amountMinor: number }[];
+  }[];
   /** Yesterday's saved provider estimate. Missing is not zero. */
   dailyRevenue?: DailyRevenueSummary;
   /**

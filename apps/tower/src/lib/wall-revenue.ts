@@ -1,3 +1,4 @@
+import { chartSources, revenueChartSource, type MoneyChartSource } from "@/lib/money-chart";
 // The month's revenue as the Wall's revenue widget states it.
 //
 // The figure is the ledger's, the pace is the projections'. The large number
@@ -27,6 +28,8 @@ export interface MonthRevenuePoint {
   date: string;
   /** Dollars earned (or projected) from the 1st through this day. */
   cumulative: number;
+  /** Observations used by the projections, without their estimates. */
+  observed: number;
   /** Any covered site's value for this day is a projection, not a report. */
   projected: boolean;
 }
@@ -155,6 +158,34 @@ export function monthRevenue(
   };
 }
 
+/** Split only the provider observations that the existing forecast used. */
+export function cumulativeRevenueSources(
+  assets: readonly Pick<AssetCard, "revenueProjection" | "revenueProjectionSources">[],
+  period: string,
+  points: readonly MonthRevenuePoint[],
+): { sources: MoneyChartSource[]; contributions: ReadonlyMap<string, ReadonlyMap<string, number>> } {
+  const ready = assets.filter(asset => asset.revenueProjection?.period === period && isReady(asset.revenueProjection));
+  const byDay = new Map<string, Map<string, number>>();
+  const sources = chartSources(ready.flatMap(asset => (asset.revenueProjectionSources ?? [])
+    .map(source => revenueChartSource(source.source, source.displayName))));
+  for (const asset of ready) {
+    for (const source of asset.revenueProjectionSources ?? []) {
+      for (const day of source.days) {
+        const values = byDay.get(day.date) ?? new Map<string, number>();
+        values.set(source.source, (values.get(source.source) ?? 0) + day.amountMinor);
+        byDay.set(day.date, values);
+      }
+    }
+  }
+  const contributions = new Map<string, ReadonlyMap<string, number>>();
+  const running = new Map<string, number>();
+  for (const point of points) {
+    for (const [id, amount] of byDay.get(point.date) ?? []) running.set(id, (running.get(id) ?? 0) + amount);
+    if (running.size) contributions.set(point.date, new Map([...running].map(([id, amount]) => [id, amount / 100])));
+  }
+  return { sources, contributions };
+}
+
 function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, previousTotal: number | null): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
   const projected = (coveredMinor + Math.max(0, uncoveredMinor)) / 100;
@@ -162,26 +193,32 @@ function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, pr
   // Day by day across the covered sites. Every ready projection carries every
   // day of its month, so the dates line up; a date one site lacks is left to
   // the others rather than guessed.
-  const byDate = new Map<string, { cumulativeMinor: number; projected: boolean }>();
+  const byDate = new Map<string, { cumulativeMinor: number; observedMinor: number; projected: boolean }>();
   for (const projection of ready) {
+    let previous = 0;
     for (const point of projection.points) {
-      const day = byDate.get(point.date) ?? { cumulativeMinor: 0, projected: false };
+      const day = byDate.get(point.date) ?? { cumulativeMinor: 0, observedMinor: 0, projected: false };
       day.cumulativeMinor += point.cumulativeMinor;
+      if (!point.projected) day.observedMinor += point.cumulativeMinor - previous;
+      previous = point.cumulativeMinor;
       day.projected ||= point.projected;
       byDate.set(point.date, day);
     }
   }
+  let observedMinor = 0;
   const points = [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, day]) => ({
-      day: Number(date.slice(8, 10)),
-      date,
-      cumulative: day.cumulativeMinor / 100,
-      projected: day.projected,
-    }));
+    .map(([date, day]) => {
+      observedMinor += day.observedMinor;
+      return {
+        day: Number(date.slice(8, 10)), date,
+        cumulative: day.cumulativeMinor / 100, observed: observedMinor / 100, projected: day.projected,
+      };
+    });
   const last = points.at(-1);
   if (last && uncoveredMinor > 0) {
-    // Money with no daily series contributes at the endpoint only.
+    // Recorded money with no daily series contributes at the endpoint only.
+    last.observed += uncoveredMinor / 100;
     last.cumulative = projected;
     last.projected = true;
   }

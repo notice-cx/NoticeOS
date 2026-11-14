@@ -113,8 +113,12 @@
 .wall-metric-chart { min-width: 0; margin-top: auto; }
 .wall-metric-chart svg { display: block; width: 100%; height: var(--metric-chart-height); overflow: visible; }
 .wall-metric-chart [data-metric-previous-total] line { stroke: var(--muted-foreground); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
-.wall-metric-chart [data-metric-cumulative-bar="current"] { fill: currentColor; fill-opacity: .8; }
-.wall-metric-chart [data-metric-cumulative-bar="forecast"] { fill: currentColor; fill-opacity: .12; stroke: currentColor; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.wall-metric-chart [data-metric-cumulative-segment="current"] { fill: currentColor; fill-opacity: .8; }
+.wall-metric-chart [data-metric-cumulative-segment="forecast"] { fill: currentColor; fill-opacity: .12; stroke: currentColor; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.wall-metric-source-key { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .15rem var(--metric-gap); flex: none; margin: 0; padding: 0; list-style: none; font-size: var(--metric-axis-size); color: var(--muted-foreground); }
+.wall-metric-source-key li { display: inline-flex; align-items: center; gap: .25rem; }
+.wall-metric-source-key i { width: .5rem; height: .5rem; background: currentColor; border-radius: .125rem; }
+.wall-metric-source-key .wall-metric-source-forecast { background: transparent; border: 1px dashed currentColor; }
 .wall-metric-axis { display: flex; justify-content: space-between; gap: var(--metric-gap); font-size: var(--metric-axis-size); line-height: 1.25; color: var(--muted-foreground); }
 .wall-metric-reference, .wall-metric-empty { font-size: var(--metric-axis-size); color: var(--muted-foreground); }
 .wall-metric-comparison { font-size: var(--metric-small-value-size); font-weight: 600; line-height: 1.15; }

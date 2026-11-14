@@ -190,6 +190,9 @@ describe("buildFinancialsPayload", () => {
       { family: "subs", source: "stripe", currency: "USD", amount: 138, rows: 1 },
       { family: "affiliate", source: "cj-export", label: null, currency: "USD", amount: 12, rows: 1 },
     ]);
+    expect(payload.months.find(month => month.period === "2026-07")?.sourceLines).toMatchObject([
+      { kind: "revenue", source: "mediavine", currency: "USD", amount: 9.99 },
+    ]);
     // The lines add up to the month's revenue, to the cent.
     const august = payload.months.find((month) => month.period === "2026-08")!;
     const sum = payload.revenueLines!.reduce((total, line) => total + line.amount, 0);

@@ -67,12 +67,32 @@ describe("Wall metric widgets", () => {
       expect(view.container.querySelector('[data-chart-line="solid"]')).toBeNull();
       const actual = view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-21"]')!;
       const lastSlot = 4 + 6.5 * 192 / 7;
-      expect(Number(actual.getAttribute("x"))).toBeLessThan(lastSlot);
+      expect(Number(actual.querySelector("rect")!.getAttribute("x"))).toBeLessThan(lastSlot);
       expect(view.container.querySelector(".wall-metric-axis")).toHaveTextContent("MonSun");
     };
     verify();
     view.rerender(<CumulativeCompareMetric {...props} expanded />);
     verify();
+  });
+
+  it("extends the forecast from net recorded revenue when a source includes refunds", () => {
+    const date = "2026-10-21";
+    const next = "2026-10-22";
+    const contributions = new Map([["sales", 120], ["refunds", -20]]);
+    const { container } = render(<MetricComparisonChart label="Revenue" variant="cumulative-bars"
+      current={[{ t: date, v: 100 }]} forecast={[{ t: next, v: 150 }]}
+      previousTotal={{ value: 100, label: "Last month" }}
+      breakdown={{
+        format: String, observed: new Map([[date, 100], [next, 100]]),
+        sources: [{ id: "sales", name: "Sales", tone: "text-asset-1" }, { id: "refunds", name: "Refunds", tone: "text-asset-2" }],
+        contributions: new Map([[date, contributions], [next, contributions]]),
+      }} />);
+    const forecast = container.querySelector('[data-metric-cumulative-bar="forecast"]')!;
+    const outline = forecast.querySelector('[data-metric-cumulative-segment="forecast"]')!;
+    const end = Number(outline.getAttribute("y")) + Number(outline.getAttribute("height"));
+    expect(end).toBeCloseTo(Number(container.querySelector("[data-metric-previous-total] line")!.getAttribute("y1")));
+    expect(outline).toHaveAttribute("data-source-value", "50");
+    expect(forecast.querySelector('[data-revenue-source="refunds"]')).toHaveAttribute("data-source-value", "-20");
   });
 
   it("shows isolated observations without joining a missing interval", () => {

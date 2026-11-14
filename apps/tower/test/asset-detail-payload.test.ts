@@ -3660,7 +3660,17 @@ describe("the asset ledger in one statement", () => {
     const rows = await specRows(ctx);
 
     const page = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-    expect(page.ledger).toEqual(specLedger(rows));
+    const { periods, ...ledger } = page.ledger;
+    expect({ ...ledger, periods: periods.map(({ period, booked, forecast }) => {
+      const { sourceLines: _bookedSources, ...bookedFamilies } = booked;
+      const { sourceLines: _forecastSources, ...forecastFamilies } = forecast;
+      return { period, booked: bookedFamilies, forecast: forecastFamilies };
+    }) }).toEqual(specLedger(rows));
+    expect(periods[0]?.forecast.sourceLines).toEqual(expect.arrayContaining([
+      { kind: "revenue", family: "ads", source: "raptive-report", label: null, amount: 113, currency: "USD" },
+      { kind: "revenue", family: "affiliate", source: "cj-export", label: null, amount: 12.5, currency: "USD" },
+      { kind: "cost", family: "inference", source: null, label: null, amount: 4.6, currency: "USD" },
+    ]));
     expect(page.ledger.recentRows).toHaveLength(20);
     expect(page.ledger.periods).toHaveLength(14);
     const [age] = await (ctx.call).read((tx) => tx.query<{ ts: string }>(AGE_SPEC, ["meadow.example"]));

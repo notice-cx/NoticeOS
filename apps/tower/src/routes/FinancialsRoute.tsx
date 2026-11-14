@@ -1,3 +1,5 @@
+import { chartSources, ledgerChartSource, totalSources } from "@/lib/money-chart";
+import { costSourceLabel } from "@/routes/financials/cost-comparison";
 import { moneyCurrency } from "@noticeos/contract/money";
 import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
@@ -71,15 +73,6 @@ import { Banking } from '@/routes/financials/Banking';
 /** Cents, everywhere on this page: it exists to be reconciled against a
  * receipt, and a column of rounded figures does not add up to its own total. */
 const CENTS = { cents: true } as const;
-
-/** The three series' identity in the month-by-month chart: revenue cyan and
- * solid, cost violet and dashed, net in plain ink and dotted. */
-const SERIES = {
-  revenue: { name: "Revenue", tone: "revenue", lineStyle: "solid" },
-  cost: { name: "Cost", tone: "cost", lineStyle: "dashed" },
-  // Identity, not performance: signed geometry carries profit/loss.
-  net: { name: "Net", tone: "primary", lineStyle: "dotted" },
-} as const satisfies Record<string, Omit<HeroSeries, "points">>;
 
 /**
  * /financials: am I making money, and where? The month is drawn as revenue
@@ -416,6 +409,34 @@ function monthly(
   return values.some(value => value === null) ? [] : months.map((month, index) => ({ t: month.period, v: values[index]! }));
 }
 
+function monthlySourceSeries(months: readonly FinancialMonth[], currency: string | null, recurringCosts: FinancialsPayload["recurringCosts"]): HeroSeries[] {
+  if (currency === null) return [];
+  const sources = months.map(month => {
+    const readings = new Map<string, { source: ReturnType<typeof ledgerChartSource>; amount: number }>();
+    const lines = month.sourceLines;
+    if (lines?.length) {
+      for (const line of lines) {
+        if (line.currency !== currency) continue;
+        const source = ledgerChartSource(line, line.kind === "cost" ? costSourceLabel(line.source, recurringCosts) : null);
+        const amount = line.kind === "cost" ? -line.amount : line.amount;
+        readings.set(source.id, { source, amount: (readings.get(source.id)?.amount ?? 0) + amount });
+      }
+    } else {
+      readings.set(totalSources.revenue.id, { source: totalSources.revenue, amount: month.total.revenue ?? 0 });
+      readings.set(totalSources.cost.id, { source: totalSources.cost, amount: -(month.total.cost ?? 0) });
+    }
+    return readings;
+  });
+  return chartSources(sources.flatMap(readings => [...readings.values()].map(line => line.source)))
+    .map(source => ({
+      id: source.id, name: source.name, colorClass: source.tone,
+      points: months.flatMap((month, i) => {
+        const reading = sources[i]?.get(source.id);
+        return reading ? [{ t: month.period, v: reading.amount }] : [];
+      }),
+    }));
+}
+
 /** The page's answer, once the ledger has one. Everything below the hero is a
  * collapsed panel: the shape of the money is what the page is opened for. */
 function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; sites: number | null }) {
@@ -550,27 +571,23 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         />
         {upto.length >= 2 ? (
           <section aria-label="Month by month" data-money-months="" className="rounded-xl bg-card px-5 pt-4 pb-3 ring-1 ring-inset ring-border @3xl:col-span-2 @6xl:col-span-12">
-            {/* Net is drawn, not inferred: the scale takes a signed domain, so
-                the page's headline figure is a line rather than a subtraction
-                performed by eye. */}
             <HeroChart
               title="Month by month"
+              variant="bars"
+              stacked
               series={[
-                { ...SERIES.revenue, points: monthly(upto, (month) => month.total.revenue) },
-                { ...SERIES.cost, points: monthly(upto, (month) => month.total.cost) },
-                { ...SERIES.net, points: monthly(upto, (month) => month.total.net) },
+                ...monthlySourceSeries(upto, trendCurrency, data.recurringCosts),
+                { id: "net", name: "Net", tone: "primary", reference: true, points: monthly(upto, month => month.total.net) },
               ]}
-              range={upto.length}
+              range={(Number(shown.period.slice(0, 4)) - Number(upto[0]!.period.slice(0, 4))) * 12
+                + Number(shown.period.slice(5)) - Number(upto[0]!.period.slice(5)) + 1}
+              end={shown.period}
               height={200}
-              /* A monthly ledger has nothing to smooth and two overlapping
-                 translucent areas read as a third colour that means nothing —
-                 so: lines, no trailing average, no fill. */
-              average={false}
-              area={false}
               format={(value) => formatMoney(value, trendCurrency)}
               formatValue={(value) => formatMoney(value, trendCurrency, CENTS)}
               provisionalFrom={openPeriod}
               ariaLabel="Revenue, cost and net for the whole ledger, month by month"
+              footnote="Revenue and costs stack on opposite sides of zero. Dots show net."
             />
           </section>
         ) : null}

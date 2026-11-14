@@ -60,8 +60,8 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.sites).toBe(2);
     expect(model?.pace?.previousTotal).toBe(520);
     expect(model?.pace?.changePercent).toBeCloseTo((68_400 / 52_000 - 1) * 100, 6);
-    expect(model?.pace?.points[0]).toEqual({ day: 1, date: "2026-09-01", cumulative: 20, projected: false });
-    expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 684, projected: true });
+    expect(model?.pace?.points[0]).toEqual({ day: 1, date: "2026-09-01", cumulative: 20, observed: 20, projected: false });
+    expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 684, observed: 450, projected: true });
   });
 
   it("includes recorded revenue from unpaced assets in the prior month", () => {

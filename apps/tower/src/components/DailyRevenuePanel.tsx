@@ -1,3 +1,5 @@
+import { minorToMajorUnits } from "@noticeos/contract/money";
+import { dailyChartSources } from "@/lib/money-chart";
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { DailyRevenueHistory } from '@shared/daily-revenue';
@@ -6,14 +8,14 @@ import { HeroChart } from '@/components/surface/HeroChart';
 import { Kpi, KpiStrip } from '@/components/surface/KpiStrip';
 import { SectionLabel } from '@/components/surface/SectionLabel';
 import { InfoTooltip } from '@/components/InfoTooltip';
-import { formatCalendarDate, formatUsd } from '@/lib/format';
+import { formatCalendarDate, formatMoney } from '@/lib/format';
 
 /**
  * Daily observations are estimates; monthly accounting owns booked money.
  * A partial day is an outlined bar and an empty window links to setup, so the
  * panel carries no explanatory paragraph.
  */
-export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside, totals = true }: {
+export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside, totals = true, splitSources = false }: {
   history: DailyRevenueHistory;
   range: number;
   title?: string;
@@ -28,13 +30,17 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   /** The panel's own three figures. A page that states the month elsewhere
    * passes false, so no total appears twice. */
   totals?: boolean;
+  splitSources?: boolean;
 }) {
   const id = useId();
   const chartId = `${id}-chart`;
   const total = history.days.reduce((sum, day) => sum + day.amountMinor, 0);
   const count = history.days.length;
   const latest = history.days.at(-1);
-  const currency = (value: number) => formatUsd(value, { cents: true });
+  const sources = splitSources ? dailyChartSources(history) : [];
+  const chartCurrency = sources.length ? history.bySource?.[0]?.currency ?? 'USD' : 'USD';
+  const major = (minor: number) => minorToMajorUnits(minor, chartCurrency);
+  const currency = (value: number) => formatMoney(value, chartCurrency, { cents: true });
   const noun = revenueNoun(history.bySource);
   return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
     {/* The kind of revenue, not a source's name; the reporting day's clock is one press away. */}
@@ -43,15 +49,17 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
     {context ? <div className="px-4 pt-2 text-xs text-muted-foreground">{context}</div> : null}
     {count > 0 ? <>
       {totals ? <KpiStrip columns={3} className="border-0 bg-transparent">
-        <Kpi label={partialDates.length ? 'Reported subtotal' : 'Reported earnings'} value={currency(total / 100)} caption={`${count} of ${range} days reported`} improvement="none" seriesChartId={chartId} />
-        <Kpi label="Average / reported day" value={partialDates.length ? '—' : currency(total / count / 100)} caption={partialDates.length ? 'Incomplete asset coverage' : 'Excludes missing days'} improvement="none" seriesChartId={chartId} />
-        <Kpi label={partialDates.includes(latest!.date) ? 'Latest day · partial' : 'Latest reported day'} value={currency(latest!.amountMinor / 100)} caption={formatCalendarDate(latest!.date)} improvement="none" seriesChartId={chartId} />
+        <Kpi label={partialDates.length ? 'Reported subtotal' : 'Reported earnings'} value={currency(major(total))} caption={`${count} of ${range} days reported`} improvement="none" seriesChartId={chartId} />
+        <Kpi label="Average / reported day" value={partialDates.length ? '—' : currency(major(total) / count)} caption={partialDates.length ? 'Incomplete asset coverage' : 'Excludes missing days'} improvement="none" seriesChartId={chartId} />
+        <Kpi label={partialDates.includes(latest!.date) ? 'Latest day · partial' : 'Latest reported day'} value={currency(major(latest!.amountMinor))} caption={formatCalendarDate(latest!.date)} improvement="none" seriesChartId={chartId} />
       </KpiStrip> : null}
       <div id={chartId} className="px-4 pb-4">
         <HeroChart variant="bars" range={range} end={history.to} height={240}
-          series={[{ name: `Estimated ${noun.toLowerCase()}`, tone: 'revenue', points: history.days.map(day => ({ t: day.date, v: day.amountMinor / 100 })) }]}
+          stacked={sources.length > 0}
+          series={sources.length ? sources.map(source => ({ id: source.id, name: source.name, colorClass: source.tone, points: source.points }))
+            : [{ name: `Estimated ${noun.toLowerCase()}`, tone: 'revenue', points: history.days.map(day => ({ t: day.date, v: day.amountMinor / 100 })) }]}
           notesByDate={notesByDate} partialDates={partialDates}
-          format={value => formatUsd(value)} formatValue={currency} ariaLabel={`${title} by day`}
+          format={value => formatMoney(value, chartCurrency)} formatValue={currency} ariaLabel={`${title} by day`}
           footnote={<>Saved estimates may be revised. Missing dates are gaps, not $0.</>} />
       </div>
     </> : <div className="px-4 py-8" data-daily-revenue-empty="">

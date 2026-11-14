@@ -1047,6 +1047,22 @@ test.describe(() => {
   test("the Wall's revenue comparison keeps facts beside the chart and the forecast distinct from last month's total", desktopOnly("measures the TV and phone comparison"), async ({ page, request }, testInfo) => {
     expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
     await wallScene(page, "fire");
+    const scene = structuredClone(wallFixturePayload("fire"));
+    for (const asset of scene.assets) {
+      const projection = asset.revenueProjection;
+      if (projection?.status !== "ready") continue;
+      let before = 0;
+      const days = projection.points.filter(point => !point.projected).map(point => {
+        const amountMinor = point.cumulativeMinor - before;
+        before = point.cumulativeMinor;
+        return { date: point.date, amountMinor };
+      });
+      asset.revenueProjectionSources = [
+        { source: "mediavine-journey", displayName: "Mediavine Journey", days: days.map(day => ({ ...day, amountMinor: day.amountMinor - 100 })) },
+        { source: "stripe", displayName: "Stripe", days: days.map(day => ({ ...day, amountMinor: 100 })) },
+      ];
+    }
+    await page.route("**/api/wall", route => route.fulfill({ json: scene }));
     for (const size of [[1920, 1080], [390, 844]] as const) {
       await wallAt(page, size);
       const revenue = page.locator('[data-wall-revenue="pace"]');
@@ -1063,7 +1079,7 @@ test.describe(() => {
         const movement = section.querySelector("[data-metric-movement]")!.getBoundingClientRect();
         const main = section.querySelector("[data-revenue-figure]")!.getBoundingClientRect();
         const yesterday = section.querySelector('[data-metric-fact="Yesterday"]')!.getBoundingClientRect();
-        const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")), bottom: bar.getBoundingClientRect().bottom }));
+        const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: bar.getBoundingClientRect().height, bottom: bar.getBoundingClientRect().bottom }));
         return { height: section.getBoundingClientRect().height / scale, overlap: facts.right - chart.left, stacked: facts.bottom <= chart.top, chartWidth: chart.width, factsWidth: facts.width,
           yesterdayGap: yesterday.top - main.bottom, iconBottom: icons.bottom, movementTop: movement.top,
           projectedOffset: Math.hypot(projected.x + projected.width / 2 - plot.x - plot.width / 2, projected.y + projected.height / 2 - plot.y - plot.height / 2),
@@ -1090,6 +1106,15 @@ test.describe(() => {
         expect(bar.height).toBeGreaterThan(0);
       }
       expect(found.forecast.every(bar => !found.actual.some(actual => actual.date === bar.date))).toBe(true);
+      const segments = revenue.locator('[data-metric-cumulative-bar="current"]').last();
+      const ads = segments.locator('[data-revenue-source="mediavine-journey"]');
+      const stripe = segments.locator('[data-revenue-source="stripe"]');
+      await expect(ads).toBeVisible();
+      await expect(stripe).toBeVisible();
+      expect(await ads.evaluate(el => getComputedStyle(el).fill)).not.toBe(await stripe.evaluate(el => getComputedStyle(el).fill));
+      const key = revenue.getByRole("list", { name: "Revenue sources" });
+      await expect(key.getByText("Stripe")).toBeInViewport();
+      expect((await key.boundingBox())!.y).toBeGreaterThanOrEqual((await ads.boundingBox())!.y + (await ads.boundingBox())!.height - 1);
       await expect(revenue.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Filled: observed.*Outlined: forecast/);
       await expect(revenue.locator('[data-revenue-site="reported"] .wall-revenue-reported-badge').first()).toBeVisible();
       const projection = revenue.locator(".wall-revenue-projection");

@@ -2061,14 +2061,16 @@ function handoffTasksOf(snapshot: TaskSnapshot | null, asset: string): HandoffTa
   return project.handoffs ?? null;
 }
 
-/** One (period, booking state, kind, family) total over the current rows, in
- * integer cents, with the newest `recorded_at` among the rows it sums. */
+/** A family or source total over the current rows, in minor units. */
 interface LedgerTotalRow {
   currency: string;
   period: string;
   bookingState: string;
   kind: string;
   family: string;
+  part: "total" | "source";
+  source: string | null;
+  label: string | null;
   amountMinor: number;
   recordedAt: string;
 }
@@ -2092,7 +2094,7 @@ function newestLedgerRowFirst(a: LedgerDbRow, b: LedgerDbRow): number {
 /**
  * This asset's ledger in one statement over one evaluation of the current-row
  * view `noticeos.financial_ledger`. The totals are computed in SQL, one row
- * per (period, booking state, kind, family), plus only the 20 newest rows the
+ * per family and per source, plus only the 20 newest rows the
  * page lists; the totals cover every current row, never only the 20. The CTE
  * is MATERIALIZED so every part of the answer comes from one evaluation.
  */
@@ -2104,7 +2106,7 @@ async function readLedger(
 ): Promise<LedgerRead> {
   const stored = await store.read((tx) =>
     tx.query<{
-      part: "latest" | "revenue" | "total" | "recent";
+      part: "latest" | "revenue" | "total" | "source" | "recent";
       currency: string;
       id: bigint | null;
       kind: string;
@@ -2133,10 +2135,12 @@ async function readLedger(
          FROM current_rows
         WHERE kind = 'revenue' AND period >= $2
        ${withSlice ? `UNION ALL
-       SELECT 'total', NULL, kind, period, family, currency, SUM(amount_minor)::bigint, booking_state,
-              NULL, NULL, NULL, MAX(recorded_at)
-         FROM current_rows
-        GROUP BY period, booking_state, kind, family, currency
+       SELECT CASE WHEN GROUPING(l.source) = 1 THEN 'total' ELSE 'source' END,
+              NULL, l.kind, l.period, l.family, l.currency, SUM(l.amount_minor)::bigint, l.booking_state,
+              l.source, NULL, s.display_name, MAX(l.recorded_at)
+         FROM current_rows l
+         LEFT JOIN noticeos_ref.revenue_sources s ON l.kind = 'revenue' AND s.source = l.source
+        GROUP BY l.period, l.booking_state, l.kind, l.family, l.currency, GROUPING SETS ((), (l.source, s.display_name))
        UNION ALL
        SELECT * FROM (
          SELECT 'recent', id, kind, period, family, currency, amount_minor, booking_state,
@@ -2166,8 +2170,10 @@ async function readLedger(
         recordedAt: javascriptInstant(row.recordedAt!),
       }));
   const totals: LedgerTotalRow[] = stored
-    .filter((row) => row.part === "total")
-    .map((row) => ({
+    .flatMap((row): LedgerTotalRow[] => row.part === "total" || row.part === "source" ? [{
+      part: row.part,
+      source: row.source,
+      label: row.part === "source" ? row.note : null,
       period: row.period,
       bookingState: row.bookingState,
       kind: row.kind,
@@ -2175,7 +2181,7 @@ async function readLedger(
       currency: row.currency,
       amountMinor: cents(row.amountMinor),
       recordedAt: javascriptInstant(row.recordedAt!),
-    }));
+    }] : []);
   const latest = stored.find((row) => row.part === "latest");
 
   const recentRevenue = listed("revenue")
@@ -2201,15 +2207,22 @@ async function readLedger(
 
 function ledgerSliceOf(totals: LedgerTotalRow[], recent: LedgerDbRow[], rowCount: number): LedgerSlice {
   const rollup = (rows: LedgerTotalRow[]): LedgerRollup => {
-    const groups: MinorMoneyFigure[] = rows.map(row => ({ currency: row.currency,
+    const totals = rows.filter(row => row.part === "total");
+    const groups: MinorMoneyFigure[] = totals.map(row => ({ currency: row.currency,
       revenueMinor: row.kind === 'revenue' ? row.amountMinor : 0,
       costMinor: row.kind === 'cost' ? row.amountMinor : 0 }));
-    const families = (kind: string): LedgerFamilyAmount[] => rows.filter(row => row.kind === kind)
+    const families = (kind: string): LedgerFamilyAmount[] => totals.filter(row => row.kind === kind)
       .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt) || a.family.localeCompare(b.family))
       .map(row => ({ family: row.family, currency: row.currency,
         amount: minorToMajorUnits(row.amountMinor, row.currency) }))
       .sort((a, b) => a.currency.localeCompare(b.currency) || b.amount - a.amount);
-    return { figure: moneyFigure(groups), revenueByFamily: families('revenue'), costByFamily: families('cost') };
+    return {
+      figure: moneyFigure(groups), revenueByFamily: families('revenue'), costByFamily: families('cost'),
+      sourceLines: rows.flatMap(({ part, kind, family, source, label, currency, amountMinor }) =>
+        part === "source" && (kind === "revenue" || kind === "cost")
+          ? [{ kind, family, source, label, currency, amount: minorToMajorUnits(amountMinor, currency) }]
+          : []),
+    };
   };
   const periods: LedgerPeriod[] = [...new Set(totals.map(row => row.period))]
     .sort((a, b) => b.localeCompare(a)).map(period => {
