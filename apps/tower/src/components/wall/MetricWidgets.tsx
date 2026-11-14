@@ -118,6 +118,7 @@ export interface MetricComparisonChartProps {
   forecast?: readonly SeriesPointOrGap[];
   breakdown?: {
     format: (value: number) => string;
+    observed: ReadonlyMap<string, number>;
     sources: readonly MoneyChartSource[];
     contributions: ReadonlyMap<string, ReadonlyMap<string, number>>;
   };
@@ -154,11 +155,12 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
     const value = known ? observed : projected != null && Number.isFinite(projected) ? projected : null;
     const contributions = breakdown?.contributions.get(date);
     const pieces = sources.map(source => contributions?.get(source.id) ?? 0);
-    // The forecast and any observed total without source detail use the residual.
-    const residual = value === null ? null : sources.length
-      ? Math.round((value - pieces.reduce((sum, amount) => sum + amount, 0)) * 100) / 100
-      : value;
-    const ranges = value === null ? [] : stackRanges([...pieces, residual]);
+    const recorded = known ? observed : breakdown?.observed.get(date) ?? 0;
+    const attributed = pieces.reduce((sum, amount) => sum + amount, 0);
+    const moneyPrecision = (amount: number) => Math.round(amount * 100) / 100;
+    const actualRemainder = breakdown ? moneyPrecision(recorded - attributed) : recorded;
+    const forecastRemainder = value === null ? null : breakdown ? moneyPrecision(value - recorded) : value - recorded;
+    const ranges = value === null ? [] : stackRanges([...pieces, actualRemainder, forecastRemainder]);
     for (const range of ranges) if (range) values.push(range.to);
     return { date, known, value, ranges };
   });
@@ -179,17 +181,17 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
     if (value === null) return <g key={date} data-metric-cumulative-day="missing" data-date={date}><title>{date} · unavailable</title></g>;
     const width = 192 / Math.max(1, dates.length) * .72;
     const segments = ranges.flatMap((range, segment) => range && range.from !== range.to
-      ? [{ ...range, source: sources[segment] }] : []);
-    if (!segments.length) segments.push({ from: 0, to: 0, source: undefined });
+      ? [{ ...range, source: sources[segment], forecast: segment > sources.length }] : []);
+    if (!segments.length) segments.push({ from: 0, to: 0, source: undefined, forecast: !known });
     const format = breakdown?.format ?? formatInt;
     return <g key={date} data-metric-cumulative-bar={known ? "current" : "forecast"} data-date={date} data-value={value}>
-      {segments.map(({ from, to, source }) => <rect key={source?.id ?? "unassigned"} x={x(index) - width / 2}
+      {segments.map(({ from, to, source, forecast }) => <rect key={source?.id ?? (forecast ? "forecast" : "unassigned")} x={x(index) - width / 2}
         y={Math.min(y(from), y(to)) - (from === to ? .5 : 0)} width={width}
         height={from === to ? .5 : Math.abs(y(from) - y(to))}
         className={source?.tone ?? (sources.length ? "text-muted-foreground" : undefined)}
-        data-metric-cumulative-segment={source || known ? "current" : "forecast"} data-revenue-source={source?.id}
+        data-metric-cumulative-segment={forecast ? "forecast" : "current"} data-revenue-source={source?.id}
         data-source-value={to - from}>
-        <title>{date} · {source?.name ?? (known ? "Observed" : "Forecast")} · {format(to - from)}</title>
+        <title>{date} · {source?.name ?? (forecast ? "Forecast" : "Observed")} · {format(to - from)}</title>
       </rect>)}
     </g>;
   }) : null;

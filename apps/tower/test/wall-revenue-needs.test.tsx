@@ -42,14 +42,14 @@ describe("the revenue widget", () => {
     expect(section.textContent).toContain('Aug $1,458');
   });
 
-  it("keeps the latest observed source totals in the forecast bars", () => {
+  it("keeps attributed and unattributed earnings filled in forecast bars", () => {
     const data = wallFixturePayload();
     const asset = data.assets.find(asset => asset.revenueProjection?.status === "ready")!;
     const point = asset.revenueProjection!.points.find(point => !point.projected && point.cumulativeMinor > 0)!;
     const { container } = render(<RevenueHero portfolio={data.portfolio} assets={[{
       ...asset,
       revenueProjectionSources: [
-        { source: "mediavine-journey", displayName: "Mediavine Journey", days: [{ date: point.date, amountMinor: point.cumulativeMinor - 50 }] },
+        { source: "mediavine-journey", displayName: "Mediavine Journey", days: [{ date: point.date, amountMinor: point.cumulativeMinor - 100 }] },
         { source: "stripe", displayName: "Stripe", days: [{ date: point.date, amountMinor: 50 }] },
       ],
     }]} nowMs={NOW} />);
@@ -60,8 +60,12 @@ describe("the revenue widget", () => {
     expect(stripe).toHaveAttribute("data-source-value", "0.5");
     const projected = container.querySelector('[data-metric-cumulative-bar="forecast"]')!;
     expect(projected.querySelector('[data-revenue-source="stripe"]')).toHaveAttribute("data-source-value", "0.5");
+    const unnamed = projected.querySelector('[data-metric-cumulative-segment="current"]:not([data-revenue-source])')!;
     const forecast = projected.querySelector('[data-metric-cumulative-segment="forecast"]')!;
-    expect(Number(forecast.getAttribute("data-source-value")) + point.cumulativeMinor / 100)
+    const attributed = point.cumulativeMinor / 100 - 0.5;
+    const lastObserved = asset.revenueProjection!.points.filter(point => !point.projected).at(-1)!.cumulativeMinor / 100;
+    expect(Number(unnamed.getAttribute("data-source-value"))).toBeCloseTo(lastObserved - attributed);
+    expect(Number(forecast.getAttribute("data-source-value")) + lastObserved)
       .toBeCloseTo(Number(projected.getAttribute("data-value")));
   });
 

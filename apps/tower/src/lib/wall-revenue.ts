@@ -28,6 +28,8 @@ export interface MonthRevenuePoint {
   date: string;
   /** Dollars earned (or projected) from the 1st through this day. */
   cumulative: number;
+  /** Observations used by the projections, without their estimates. */
+  observed: number;
   /** Any covered site's value for this day is a projection, not a report. */
   projected: boolean;
 }
@@ -191,26 +193,32 @@ function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, pr
   // Day by day across the covered sites. Every ready projection carries every
   // day of its month, so the dates line up; a date one site lacks is left to
   // the others rather than guessed.
-  const byDate = new Map<string, { cumulativeMinor: number; projected: boolean }>();
+  const byDate = new Map<string, { cumulativeMinor: number; observedMinor: number; projected: boolean }>();
   for (const projection of ready) {
+    let previous = 0;
     for (const point of projection.points) {
-      const day = byDate.get(point.date) ?? { cumulativeMinor: 0, projected: false };
+      const day = byDate.get(point.date) ?? { cumulativeMinor: 0, observedMinor: 0, projected: false };
       day.cumulativeMinor += point.cumulativeMinor;
+      if (!point.projected) day.observedMinor += point.cumulativeMinor - previous;
+      previous = point.cumulativeMinor;
       day.projected ||= point.projected;
       byDate.set(point.date, day);
     }
   }
+  let observedMinor = 0;
   const points = [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, day]) => ({
-      day: Number(date.slice(8, 10)),
-      date,
-      cumulative: day.cumulativeMinor / 100,
-      projected: day.projected,
-    }));
+    .map(([date, day]) => {
+      observedMinor += day.observedMinor;
+      return {
+        day: Number(date.slice(8, 10)), date,
+        cumulative: day.cumulativeMinor / 100, observed: observedMinor / 100, projected: day.projected,
+      };
+    });
   const last = points.at(-1);
   if (last && uncoveredMinor > 0) {
-    // Money with no daily series contributes at the endpoint only.
+    // Recorded money with no daily series contributes at the endpoint only.
+    last.observed += uncoveredMinor / 100;
     last.cumulative = projected;
     last.projected = true;
   }

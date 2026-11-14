@@ -75,6 +75,7 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     showLabels: false,
     breakdown: {
       ...cumulativeRevenueSources(assets, model.period, pace.points),
+      observed: new Map(pace.points.map(point => [point.date, point.observed])),
       format: value => formatUsd(value, { cents: true }),
     },
     tone: "revenue",
