@@ -4,7 +4,7 @@ import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import { googleListingGrant } from "@shared/connect-panel";
 import { changesetSlug, escapePointerToken, type FileOp, type JsonValue, type SettingOp } from "@shared/changeset";
 import { fieldOf, fieldRefusal } from "@shared/config-registers";
-import { declineOps, resumeOps, undeclineOps } from "@shared/lane-decline";
+import { declineNote, declineOps, resumeOps, undeclineOps } from "@shared/lane-decline";
 import { LANE_REGISTER, laneFieldOp, laneFieldUnsetOp } from "@shared/lane-mapping-ops";
 import { holdsSiteMapping, planSites, type SitesAsset, type SitesPayload } from "@shared/site-discovery";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ type MappingLane = keyof typeof FIELDS;
 type MappingValues = Record<string, string | number>;
 const REGISTER_FILE = TOWER_CONFIG_FILES.integrations;
 const FUNNEL_FIELD = fieldOf(LANE_REGISTER, "funnels")!;
+const REMOVED = "Mapping removed";
 
 export function ProviderMappings({ provider, googleFallbacks, payload, preselect, onClose, onRetry, onCollect, loading }: {
   provider: "google" | "posthog";
@@ -150,7 +151,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
           return;
         }
       }
-    } else if (!cell) return;
+    } else if (!cell && !googleFallback) return;
 
     setOutcome(null);
     onSaving(true);
@@ -158,8 +159,10 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
     try {
       const label = `${field.label} for ${asset.label}`;
       let result: FieldSaveOutcome | null = null;
-      if (!cell && values) {
-        const entry = { status: "needs-setup", since: new Date().toISOString().slice(0, 10), ...values };
+      if (!cell) {
+        const since = new Date().toISOString().slice(0, 10);
+        const entry: JsonValue = values ? { status: "needs-setup", since, ...values }
+          : { status: "skipped", since, note: declineNote(REMOVED) };
         const holder = `/assets/${escapePointerToken(asset.id)}`;
         const pointer = asset.hasIntegrationEntry ? `${holder}/${lane}` : holder;
         const value = asset.hasIntegrationEntry ? entry : { [lane]: entry };
@@ -205,8 +208,8 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         // A removed Google mapping must not fall back to the old credential.
         if (!values && cell.status !== "skipped") {
           const posture = { status: cell.status, note: cell.note ?? null };
-          ops.push(...declineOps(asset.id, lane, posture, "Mapping removed"));
-          undo.push(...undeclineOps(asset.id, lane, posture, "Mapping removed"));
+          ops.push(...declineOps(asset.id, lane, posture, REMOVED));
+          undo.push(...undeclineOps(asset.id, lane, posture, REMOVED));
         }
         if (ops.length > 0) result = await save({ ops, undo, label, slug });
       }
@@ -246,7 +249,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         <Button type="button" variant="ghost" size="sm" className="h-auto w-fit max-w-full whitespace-normal text-start"
           disabled={disabled} onClick={() => setSelection(suggested.ref)}>Use {suggested.label}</Button>
       ) : null}
-      {cell && !heldLabel && cell.status !== "skipped" && !disabled && !needsSave && googleFallback ? (
+      {!heldLabel && cell?.status !== "skipped" && !disabled && !needsSave && googleFallback ? (
         <Button type="button" variant="ghost" size="sm" className="w-fit" onClick={() => void commit(null)}>Stop collecting</Button>
       ) : null}
       {cell?.status === "not-applicable" ? <span className="text-xs text-muted-foreground">Doesn’t apply</span> : null}

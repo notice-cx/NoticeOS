@@ -3,9 +3,10 @@
 // writes exactly the operations the asset's Data sources tab writes
 // (`laneFieldOp`, shared/lane-mapping-ops.ts), and nothing already saved.
 
-import { act, fireEvent, render, screen, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CollectNowResult, DiscoveredSite, SiteDiscovery } from "@noticeos/contract";
 import { integrationProvider } from "@noticeos/contract";
 import { laneFieldOp } from "@shared/lane-mapping-ops";
@@ -24,11 +25,14 @@ import {
 } from "@shared/site-discovery";
 import { marketLabel } from "@shared/site-markets";
 import { SitePicker } from "@/components/SitePicker";
+import { ProviderMappings } from "@/routes/integrations/ProviderMappings";
 import { handleSitesRequest, loadSitesAssets } from "../worker/site-discovery-route";
 import { loadSpendPreview } from "../worker/metered-spend";
 import { createTestStore } from "./postgres-store";
 import { writeArchiveRuns, type TestArchiveRun } from "./provider-reports";
 import { addSites } from "./sites";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const BING = integrationProvider("bing-webmaster")!;
 const DATAFORSEO = integrationProvider("dataforseo")!;
@@ -804,6 +808,34 @@ describe("Google's two kinds of asset on one row", () => {
         asset("declined.example", { cells: { ...cells(), ga4: { status: "skipped", mapping: {} } } })],
     ), null, { googleFallbacks: new Set(["journey.example/ga4", "declined.example/ga4"]) });
     expect(startPlan(plan, initialSelection(plan))).toEqual({ assets: ["journey.example"], declined: [], ops: [] });
+  });
+
+  it("stops a legacy Google mapping with a guarded save when the asset has no cell, and can undo it", async () => {
+    const puts: { ops: { kind: string; pointer: string; value?: unknown; expect?: unknown }[] }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        puts.push(JSON.parse(String(init.body)));
+        return Response.json({ applied: 1, archive: null, commit: "abc1234" });
+      }
+      return Response.json({ writable: true, reason: null, sources: { "config/integrations.json": "store" } });
+    }));
+    const listing = payload([], [asset("journey.example", { hasIntegrationEntry: true, cells: { ga4: null, gsc: null } })]);
+    const client = new QueryClient();
+    client.setQueryData(["config-writable"], { writable: true, reason: null, sources: { "config/integrations.json": "store" } });
+    render(<QueryClientProvider client={client}>
+      <ProviderMappings provider="google" payload={listing} preselect={null} loading={false}
+        googleFallbacks={new Set(["journey.example/ga4"])} onClose={vi.fn()} onRetry={vi.fn()} onCollect={vi.fn()} />
+    </QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Stop collecting" }));
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    expect(puts[0]?.ops).toEqual([{
+      kind: "file-json-insert", file: "config/integrations.json", pointer: "/assets/journey.example/ga4",
+      value: { status: "skipped", note: "REASON: Mapping removed", since: expect.any(String) },
+    }]);
+    fireEvent.click(undo);
+    await waitFor(() => expect(puts[1]?.ops).toEqual([{
+      kind: "file-json-delete", file: "config/integrations.json", pointer: "/assets/journey.example/ga4", expect: puts[0]?.ops[0]?.value,
+    }]));
   });
 
   it("reads the row as the property's number and the asset, and names each picker by what it picks", () => {
