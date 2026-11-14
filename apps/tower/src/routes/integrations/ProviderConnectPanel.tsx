@@ -85,6 +85,12 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
   const [started, setStarted] = useState(false);
   const { provider, credential } = status;
   const stripe = provider.id === "stripe";
+  const legacyStripe = stripe && status.stripeProducts === null && status.assets.length > 0;
+  const connectProvider = legacyStripe ? {
+    ...provider, fields: provider.fields.map((field) => field.name === "STRIPE_API_KEY"
+      ? { ...field, grants: [...(field.grants ?? []), "Subscriptions: read"] }
+      : field),
+  } : provider;
   const state = connectionState(credential);
   const shown = connectionStatus(provider.id, credential, items);
   const siteTokens = provider.connect?.kind === "site-tokens";
@@ -98,7 +104,7 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
   return (
     <ConnectPanel
       key={provider.id}
-      provider={provider}
+      provider={connectProvider}
       canConnect={canConnect}
       blocked={blockers && blockers.length > 0 ? <ConnectBlockers blockers={blockers} /> : undefined}
       opened={opened}

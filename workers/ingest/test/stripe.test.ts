@@ -303,6 +303,7 @@ function productStripe(rows: unknown[], options: { account?: string; failCheckou
     if (url.pathname === '/v1/account') return Response.json({ id: options.account ?? ACCOUNT });
     if (url.pathname === '/v1/balance') return Response.json({ livemode: !options.sandbox, available: [{ currency: 'usd', amount: 0 }], pending: [] });
     if (url.pathname === '/v1/balance_transactions') return list(rows);
+    if (url.pathname === '/v1/balance_transactions/txn_tip') return Response.json(productSale('tip', 1020));
     if (url.pathname === '/v1/refunds/re_partial') return Response.json({ id: 're_partial', charge: 'ch_tip' });
     if (url.pathname === '/v1/charges/ch_tip') return Response.json(productSale('tip', 500).source);
     if (url.pathname === '/v1/products') return url.searchParams.has('starting_after')
@@ -403,12 +404,16 @@ describe('Stripe product mappings', () => {
     const old = stripe();
     await runStripeRevenue(env, { fetchImpl: old.fetchImpl, nowMs: NOW, laneRegister: register() });
     const original = productSale('tip', 1020);
-    const fresh = productStripe([original, productRefund(original, 100, '2026-09-09')]);
+    // Authorized one day and captured the next, when the balance transaction
+    // was recorded. Look up the captured receipt when only the refund is due.
+    const authorized = { ...original, source: { ...original.source, created: at('2026-09-07T10:00:00Z') } };
+    const fresh = productStripe([productRefund(authorized, 100, '2026-09-09')]);
     const result = await runStripeRevenue(env, {
       fetchImpl: fresh.fetchImpl, nowMs: NOW + DAY_MS, laneRegister: productRegister({ prod_tip: OTHER }),
     });
     expect(result).toMatchObject({ outcome: 'ran', unattributedTransactions: 0 });
     expect(await receiptRows()).toEqual([{ asset: ASSET, day: '2026-09-09', item: 'txn_partial', net: -100, payment: 0, refund: 1 }]);
+    expect(fresh.calls.map(({ path }) => path)).toContain('/v1/balance_transactions/txn_tip');
     const legacy = await pgRows(`SELECT COUNT(*)::int AS days FROM noticeos.current_revenue
       WHERE source = 'stripe' AND item_ref IS NULL AND asset_id = $1`, [ASSET]);
     expect(legacy).toEqual([{ days: 35 }]);

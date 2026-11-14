@@ -1,5 +1,5 @@
 import { test, expect } from '../journey-test';
-import { JOURNEY_ASSET, JOURNEY_KEY, PR_SMOKE } from '../fixtures';
+import { JOURNEY_ASSET, JOURNEY_KEY, JOURNEY_STRIPE_ACCOUNT, PR_SMOKE } from '../fixtures';
 import { everyTabPayload, viewOf } from '../../test/asset-detail-fixture';
 import { isAssetDetailView } from '../../shared/asset-detail-views';
 import { compareStripe, summarizeStripe } from '@noticeos/contract/stripe-report';
@@ -13,6 +13,11 @@ test(`Map Stripe products from one account to two assets ${PR_SMOKE}`, async ({ 
     expect((await request.post('/api/assets', { headers, data: { id, domain: id, displayName } })).status()).toBe(201);
   }
 
+  expect((await request.put('/api/config', { headers, data: { ops: [{
+    kind: 'file-json-insert', file: 'config/integrations.json', pointer: `/assets/${JOURNEY_ASSET}`,
+    value: { subscriptions: { status: 'live', since: '2026-09-06', stripeAccountId: JOURNEY_STRIPE_ACCOUNT } },
+  }] } })).ok()).toBe(true);
+
   await page.goto('/integrations');
   const stripe = page.locator('[data-integration-tile="stripe"]');
   await stripe.getByRole('button', { name: 'Connect Stripe', exact: true }).click();
@@ -20,7 +25,11 @@ test(`Map Stripe products from one account to two assets ${PR_SMOKE}`, async ({ 
   await panel.getByLabel('Restricted API key', { exact: true }).fill(JOURNEY_KEY);
   await panel.getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(panel.getByRole('combobox', { name: 'One-time contribution' })).toBeEnabled();
-  await panel.getByRole('button', { name: 'Close', exact: true }).click();
+  await panel.getByRole('button', { name: 'Save mappings' }).click();
+  await expect(panel).toHaveCount(0);
+  const connections = await (await request.get('/api/integrations/providers')).json();
+  expect(connections.providers.find((status: { provider: { id: string } }) => status.provider.id === 'stripe'))
+    .toMatchObject({ assets: [], stripeProducts: { accountId: JOURNEY_STRIPE_ACCOUNT, products: {} } });
   await page.reload();
 
   await stripe.getByRole('button', { name: 'Map Stripe products' }).click();

@@ -376,7 +376,7 @@ type ProductReceipt = {
   row: BalanceTransaction;
   day: string;
   asset: string | null;
-  original: { id: string; day: string } | null;
+  original: { id: string; day: string; currency: string } | null;
 };
 
 type ProductObservation = {
@@ -412,6 +412,7 @@ async function resolveProductReceipts(
   const rows = await readTransactions(apiKey, gte, lt, fetchImpl);
   const receipts: ProductReceipt[] = [];
   const payments = new Map<string, string | null>();
+  const byId = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
     if (!REVENUE_TYPES.has(row.type)) continue;
     const day = clockAt(row.created * 1000, clock.timeZone).date;
@@ -424,9 +425,14 @@ async function resolveProductReceipts(
       receipts.push({ row, day, asset: intent ? payments.get(intent) ?? null : null, original: null });
     } else {
       const id = stripeId(charge?.balance_transaction, 'txn_');
-      const created = charge?.created;
-      const original = id && typeof created === 'number' && Number.isFinite(created)
-        ? { id, day: clockAt(created * 1000, clock.timeZone).date } : null;
+      let original = null;
+      if (id) {
+        const payment = byId.get(id) ?? balanceTransaction(await getStripeBody(apiKey, `/balance_transactions/${id}`, fetchImpl));
+        if (!payment || payment.id !== id || !isSale(payment)) {
+          throw new StripeFailure('stripe_invalid_response', 'Stripe did not identify the original balance transaction for a refund.');
+        }
+        original = { id, day: clockAt(payment.created * 1000, clock.timeZone).date, currency: payment.currency };
+      }
       receipts.push({ row, day, asset: null, original });
     }
   }
@@ -473,7 +479,7 @@ async function writeProductReceipts(
       if (!due.has(day)) continue;
       const sale = isSale(row);
       const earnedBy = sale ? (asset && assetIds.has(asset) ? asset : null)
-        : original && (assetsBySale.get(original.id) ?? assetsByLegacyDay.get(`${original.day}/${row.currency}`));
+        : original && (assetsBySale.get(original.id) ?? assetsByLegacyDay.get(`${original.day}/${original.currency}`));
       if (!earnedBy) {
         unattributedTransactions++;
         continue;

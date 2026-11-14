@@ -59,11 +59,12 @@ function ProductForm({ accountId, saved, assets, products, legacy, onClose }: {
   const [saving, setSaving] = useState(false);
   const changed = new Set([...Object.keys(initial), ...Object.keys(mappings)]);
   const dirty = [...changed].some((product) => initial[product] !== mappings[product]);
+  const canSave = legacy || dirty;
   const assetIds = new Set(assets.map((asset) => asset.id));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!dirty || !writable || saving) return;
+    if (!canSave || !writable || saving) return;
     setSaving(true);
     try {
       if (await save({
@@ -82,12 +83,12 @@ function ProductForm({ accountId, saved, assets, products, legacy, onClose }: {
 
   return (
     <form onSubmit={submit} className="grid gap-4">
+      {legacy ? <p className="text-sm text-muted-foreground">Saving switches this account to product mapping. Previously recorded revenue stays with its asset.</p> : null}
       {products.length === 0 ? <p className="text-sm text-muted-foreground">There are no products in this Stripe account.</p> : <>
         <div className="grid gap-1">
           <h3 className="text-sm font-medium">Products</h3>
           <p className="text-sm text-muted-foreground">Choose which asset earns revenue from each Stripe product.</p>
         </div>
-        {legacy ? <p className="text-sm text-muted-foreground">Saving switches this account to product mapping. Previously recorded revenue stays with its asset.</p> : null}
         {saved && saved.accountId !== accountId ? <p className="text-sm text-muted-foreground">The key is for a different Stripe account. Saving replaces the previous account’s mappings.</p> : null}
         {assets.length === 0 ? <p className="text-sm text-muted-foreground">Add an asset to map a product.</p> : null}
         <fieldset disabled={!writable || saving} className="grid gap-3">
@@ -120,7 +121,7 @@ function ProductForm({ accountId, saved, assets, products, legacy, onClose }: {
       </>}
       {!writable ? <p className="text-sm text-muted-foreground">{reason ?? CONFIG_READ_ONLY_FALLBACK}</p> : null}
       <div className="flex flex-wrap gap-2">
-        {products.length > 0 && writable ? <Button type="submit" disabled={!dirty || saving}>{saving ? "Saving…" : "Save mappings"}</Button> : null}
+        {(products.length > 0 || legacy) && writable ? <Button type="submit" disabled={!canSave || saving}>{saving ? "Saving…" : "Save mappings"}</Button> : null}
         <Button type="button" variant="outline" onClick={onClose} disabled={saving}>{dirty ? "Cancel" : "Done"}</Button>
       </div>
     </form>
