@@ -1810,7 +1810,7 @@ async function assembleAssetDetail(
     asset.isOs === 1 ? readLatestJobRuns(store) : null,
     // Ninety days ending yesterday on the site's revenue sources' own clock.
     wants("dailyRevenue") ? loadDailyRevenue(store, id, { now, days: 90, fallback: operatorRevenueClock(osTimeZone) }) : null,
-    wants("stripe") ? loadStripeReport(store, id, integrations.assets?.[id]?.subscriptions?.stripeAccountId, now) : null,
+    wants("stripe") && !integrations.stripeProducts ? loadStripeReport(store, id, integrations.assets?.[id]?.subscriptions?.stripeAccountId, now) : null,
     // The site's all-time totals: read only when the Overview draws them and
     // the register configures any.
     wants("counters") && (counters.assets[id]?.cards?.length ?? 0) > 0

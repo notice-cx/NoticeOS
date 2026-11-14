@@ -39,7 +39,7 @@ import {
   seedWallFeedProviderReports, seedWallFeedRevenue, seedWallFeedRuns, seedWallFeedTasks, wallFeedSites,
 } from "./wall-feed-fixture";
 import {
-  EVERY_SOURCE_CATALOG, INITIAL_DOCUMENTS, JOURNEY_ARCHIVED_SITE, JOURNEY_ASSET, JOURNEY_COUNTER_CARDS, JOURNEY_CREDENTIALS_KEY, JOURNEY_KEY, JOURNEY_NOW,
+  EVERY_SOURCE_CATALOG, INITIAL_DOCUMENTS, JOURNEY_ARCHIVED_SITE, JOURNEY_ASSET, JOURNEY_COUNTER_CARDS, JOURNEY_CREDENTIALS_KEY, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_STRIPE_ACCOUNT,
   JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, CHOICE_TASK, JOURNEY_CHOICES, backlogTasks, initialTasks, journeyFindingSnapshot,
   journeyPosthogSnapshot, journeySerpPanelSnapshot,
 } from "./fixtures";
@@ -247,10 +247,19 @@ export const JOURNEY_DATAFORSEO_LOGIN = "journey-login";
  */
 export const journeyProviderNetwork: typeof fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
-  if (url.origin === "https://api.stripe.com" && url.pathname === "/v1/balance") {
-    return new Headers(init?.headers).get("authorization") === `Bearer ${JOURNEY_KEY}`
-      ? Response.json({ available: [{ currency: "usd", amount: 0 }], pending: [] })
-      : new Response(null, { status: 401 });
+  if (url.origin === "https://api.stripe.com") {
+    if (new Headers(init?.headers).get("authorization") !== `Bearer ${JOURNEY_KEY}`) return new Response(null, { status: 401 });
+    if (url.pathname === "/v1/balance") return Response.json({ livemode: true, available: [{ currency: "usd", amount: 0 }], pending: [] });
+    if (url.pathname === "/v1/account") return Response.json({ id: JOURNEY_STRIPE_ACCOUNT });
+    if (url.pathname === "/v1/products") return Response.json({
+      data: [
+        { id: "prod_contribution", name: "One-time contribution", active: true },
+        { id: "prod_tip", name: "Tip jar", active: true },
+        { id: "prod_old_tip", name: "Original tip jar", active: false },
+      ],
+      has_more: false,
+    });
+    throw new Error("Unexpected Stripe route in journey fixture");
   }
   if (url.origin === "https://ssl.bing.com" && url.pathname.startsWith("/webmaster/api.svc/json/")) {
     if (url.searchParams.get("apikey") !== JOURNEY_KEY) return Response.json({ ErrorCode: 3, Message: "InvalidApiKey" }, { status: 400 });

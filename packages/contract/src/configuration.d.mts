@@ -58,6 +58,18 @@ export declare const CONFIG_ASSET_KEY_SOURCE = "[a-z0-9][a-z0-9._-]*";
 export declare const CONFIG_ASSET_KEY_RE: RegExp;
 export declare const DOMAIN_RE: RegExp;
 export declare const STRIPE_REVENUE_LANE = "subscriptions";
+export declare const STRIPE_PRODUCTS_POINTER = "/stripeProducts";
+export declare const STRIPE_ACCOUNT_ID: RegExp;
+export type StripeProductMapping = {
+    accountId: string;
+    products: Record<string, string>;
+};
+export declare function readStripeProductMapping(value: unknown): StripeProductMapping | null;
+export declare function stripeProductId(id: unknown): id is string;
+export declare function stripeProductTargets(mapping: StripeProductMapping): {
+    asset: string;
+    account: string;
+}[];
 export declare function stripeRevenueAssignments(register: unknown): {
     asset: string;
     account: string;

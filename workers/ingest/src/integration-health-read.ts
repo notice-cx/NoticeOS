@@ -1,3 +1,4 @@
+import { readStripeProductMapping, stripeProductTargets } from '@noticeos/contract/configuration';
 import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import {
   INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER, REALTIME_ATTEMPT_EVIDENCE,
@@ -432,13 +433,17 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
           requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });
       } else if (provider === 'stripe') {
-        // One daily collection per site that names a Stripe account; a
-        // declined one is listed paused.
-        for (const [asset, lanes] of Object.entries(register.assets)) {
-          const cell = lanes?.[STRIPE_LANE];
-          if (typeof cell?.stripeAccountId !== 'string' || cell.stripeAccountId === '') continue;
-          const account = cell.stripeAccountId;
-          for (const capability of [STRIPE_REVENUE_CAPABILITY, 'stripe-subscriptions']) {
+        const mapping = readStripeProductMapping(register.stripeProducts);
+        const targets = mapping
+          ? stripeProductTargets(mapping).map((target) => ({ ...target, paused: false }))
+          : Object.entries(register.assets).flatMap(([asset, lanes]) => {
+              const cell = lanes?.[STRIPE_LANE];
+              const account = cell?.stripeAccountId;
+              return typeof account === 'string' && account !== '' ? [{ asset, account, paused: cellDeclined(cell) }] : [];
+            });
+        const capabilities = mapping ? [STRIPE_REVENUE_CAPABILITY] : [STRIPE_REVENUE_CAPABILITY, 'stripe-subscriptions'];
+        for (const { asset, account, paused } of targets) {
+          for (const capability of capabilities) {
             const observations: IntegrationObservation[] = [];
             if (connection.demo) {
               const [saved] = await env.STORE.read(tx => tx.query<{ at: string | null }>(capability === STRIPE_REVENUE_CAPABILITY
@@ -452,7 +457,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
               }
             }
             await add({ connection, capability, asset, target: account,
-              paused: cellDeclined(cell), requiredSince: capability === STRIPE_REVENUE_CAPABILITY ? since(nowMs, 24) : new Date(nowMs - STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000).toISOString(), observations: connection.demo ? observations : undefined });
+              paused, requiredSince: capability === STRIPE_REVENUE_CAPABILITY ? since(nowMs, 24) : new Date(nowMs - STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000).toISOString(), observations: connection.demo ? observations : undefined });
           }
         }
       } else if (provider === 'calendar') {

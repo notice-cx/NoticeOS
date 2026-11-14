@@ -64,6 +64,7 @@ export interface ResolvedMapping<T> {
  * card print `gsc` at the operator.
  */
 export interface LaneRegister {
+  stripeProducts?: unknown;
   assets: Record<string, Record<string, Record<string, unknown>> | undefined>;
   catalog?: { id?: unknown; label?: unknown }[];
 }

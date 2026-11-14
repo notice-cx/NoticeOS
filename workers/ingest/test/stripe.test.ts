@@ -9,13 +9,14 @@ import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { putCredential } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
 import type { LaneRegister } from '../src/lane-mapping.js';
-import { STRIPE_WINDOW_DAYS, lastCompleteDay, runStripeRevenue, stripeWindow } from '../src/stripe.js';
+import { STRIPE_WINDOW_DAYS, discoverStripeProducts, lastCompleteDay, runStripeRevenue, stripeWindow } from '../src/stripe.js';
 import { credentialVerdict, pgCount, pgRows, reset, storedHealthStates } from './helpers.js';
 
 const NOW = Date.parse('2026-09-09T13:10:00Z');
 const DAY_MS = 86_400_000;
 const KEY = 'rk_test_synthetic-stripe-key';
 const ASSET = 'meadow.example';
+const OTHER = 'northwind.example';
 const ACCOUNT = 'acct_1Synthetic';
 const at = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 
@@ -283,5 +284,146 @@ describe('runStripeRevenue', () => {
     const probe = await probeCredential(env, 'stripe', { fetchImpl });
     expect(probe.ok).toBe(true);
     expect(calls.map((call) => call.path)).toEqual(['/v1/balance']);
+  });
+});
+
+
+function productRegister(products: Record<string, string> = { prod_tip: ASSET, prod_support: OTHER }): LaneRegister {
+  return { ...register(), stripeProducts: { accountId: ACCOUNT, products } };
+}
+
+function productStripe(rows: unknown[], options: { account?: string; failCheckout?: boolean; sandbox?: boolean } = {}) {
+  const calls: StripeCall[] = [];
+  const list = (data: unknown[]) => Response.json({ data, has_more: false });
+  const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+    const url = new URL(String(input));
+    if (url.origin !== 'https://api.stripe.com') throw new Error('Unexpected external request');
+    const headers = new Headers(init?.headers);
+    calls.push({ path: url.pathname, params: url.searchParams, authorization: headers.get('authorization'), account: headers.get('stripe-account') });
+    if (url.pathname === '/v1/account') return Response.json({ id: options.account ?? ACCOUNT });
+    if (url.pathname === '/v1/balance') return Response.json({ livemode: !options.sandbox, available: [{ currency: 'usd', amount: 0 }], pending: [] });
+    if (url.pathname === '/v1/balance_transactions') return list(rows);
+    if (url.pathname === '/v1/refunds/re_partial') return Response.json({ id: 're_partial', charge: 'ch_tip' });
+    if (url.pathname === '/v1/charges/ch_tip') return Response.json(productSale('tip', 500).source);
+    if (url.pathname === '/v1/products') return url.searchParams.has('starting_after')
+      ? list([{ id: 'prod_support', name: 'Support', active: false }])
+      : Response.json({ data: [{ id: 'prod_tip', name: 'Tips', active: true }], has_more: true });
+    if (url.pathname === '/v1/checkout/sessions') {
+      if (options.failCheckout) return new Response(null, { status: 403 });
+      const intent = url.searchParams.get('payment_intent');
+      return intent === 'pi_invoice' || intent === 'pi_direct' ? list([]) : list([{ id: intent?.replace('pi_', 'cs_') }]);
+    }
+    if (url.pathname === '/v1/invoice_payments') {
+      if (url.searchParams.get('payment[type]') !== 'payment_intent') return new Response(null, { status: 400 });
+      return url.searchParams.get('payment[payment_intent]') === 'pi_invoice'
+        ? list([{ id: 'inpay_fixture', invoice: 'in_support' }]) : list([]);
+    }
+    if (url.pathname === '/v1/invoices/in_support/lines') {
+      return list([{ id: 'il_support', amount: 900, pricing: { price_details: { product: 'prod_support' } } }]);
+    }
+    const products: Record<string, string[]> = {
+      '/v1/checkout/sessions/cs_tip/line_items': ['prod_tip'],
+      '/v1/checkout/sessions/cs_new_tip/line_items': ['prod_tip'],
+      '/v1/checkout/sessions/cs_mixed/line_items': ['prod_tip', 'prod_support'],
+      '/v1/checkout/sessions/cs_unmapped/line_items': ['prod_tip', 'prod_unknown'],
+    };
+    if (products[url.pathname]) return list(products[url.pathname]!.map((product, i) => ({
+      id: `li_${i}`, price: { product }, amount_total: 500,
+    })));
+    return new Response(null, { status: 404 });
+  });
+  return { fetchImpl, calls };
+}
+
+function productSale(name: string, amount: number, day = '2026-09-08') {
+  const created = at(`${day}T10:00:00Z`);
+  return {
+    id: `txn_${name}`, type: 'charge', amount, fee: 30, net: amount - 30, currency: 'usd', created,
+    source: { id: `ch_${name}`, balance_transaction: `txn_${name}`, payment_intent: `pi_${name}`, created },
+  };
+}
+
+function productRefund(sale: ReturnType<typeof productSale>, amount: number, day: string, name = 'partial') {
+  return {
+    id: `txn_${name}`, type: 'refund', amount: -amount, fee: 0, net: -amount, currency: 'usd',
+    created: at(`${day}T11:00:00Z`), source: { id: `re_${name}`, charge: sale.source },
+  };
+}
+
+const receiptRows = () => pgRows<{ asset: string; day: string; item: string; net: number; payment: number; refund: number }>(
+  `SELECT asset_id AS asset, revenue_date::text AS day, item_ref AS item,
+          amount_minor::int AS net, payment_count AS payment, refund_count AS refund
+     FROM noticeos.current_revenue WHERE source = 'stripe' AND item_ref LIKE 'txn_%' ORDER BY day, item`);
+
+describe('Stripe product mappings', () => {
+  it('lists all account products including archived ones, without an account override', async () => {
+    const mock = productStripe([]);
+    expect(await discoverStripeProducts(KEY, mock.fetchImpl)).toMatchObject({
+      ok: true, stripeAccountId: ACCOUNT,
+      sites: [{ ref: 'prod_tip', label: 'Tips', ready: true }, { ref: 'prod_support', label: 'Support', ready: false }],
+    });
+    expect(mock.calls.map(({ path, account }) => [path, account])).toEqual([
+      ['/v1/balance', null], ['/v1/account', null], ['/v1/products', null], ['/v1/products', null],
+    ]);
+  });
+
+  it('attributes one-time Checkout and invoice receipts, then credits a later refund to the original asset after a remap', async () => {
+    await connect();
+    const tip = productSale('tip', 500);
+    const refund = { ...productRefund(tip, 100, '2026-09-08'), source: 're_partial' };
+    const mock = productStripe([refund, tip, productSale('invoice', 900), productSale('mixed', 1000), productSale('unmapped', 1000), productSale('direct', 1200)]);
+    const result = await runStripeRevenue(env, { fetchImpl: mock.fetchImpl, nowMs: NOW, laneRegister: productRegister() });
+
+    expect(result).toMatchObject({ outcome: 'ran', unattributedTransactions: 3 });
+    expect(result.outcomes.map(({ asset, status }) => [asset, status])).toEqual([[ASSET, 'collected'], [OTHER, 'collected']]);
+    expect(await receiptRows()).toEqual([
+      { asset: OTHER, day: '2026-09-08', item: 'txn_invoice', net: 870, payment: 1, refund: 0 },
+      { asset: ASSET, day: '2026-09-08', item: 'txn_partial', net: -100, payment: 0, refund: 1 },
+      { asset: ASSET, day: '2026-09-08', item: 'txn_tip', net: 470, payment: 1, refund: 0 },
+    ]);
+    expect(await pgCount('SELECT count(*) AS n FROM noticeos.stripe_subscription_snapshots')).toBe(0);
+    expect(mock.calls.every(({ account }) => account === null)).toBe(true);
+
+    const next = productStripe([productSale('new_tip', 300, '2026-09-09'), productRefund(tip, 50, '2026-09-09', 'later')]);
+    const tomorrow = await runStripeRevenue(env, {
+      fetchImpl: next.fetchImpl, nowMs: NOW + DAY_MS, laneRegister: productRegister({ prod_tip: OTHER }),
+    });
+    expect(tomorrow).toMatchObject({ outcome: 'ran', unattributedTransactions: 0 });
+    expect((await receiptRows()).slice(-2)).toEqual([
+      { asset: ASSET, day: '2026-09-09', item: 'txn_later', net: -50, payment: 0, refund: 1 },
+      { asset: OTHER, day: '2026-09-09', item: 'txn_new_tip', net: 270, payment: 1, refund: 0 },
+    ]);
+    const retry = productStripe([]);
+    expect((await runStripeRevenue(env, { fetchImpl: retry.fetchImpl, nowMs: NOW + DAY_MS, laneRegister: productRegister() })).outcome).toBe('skipped');
+    expect(retry.calls).toHaveLength(0);
+  });
+
+  it('preserves whole-account days at cutover and keeps their refunds with the old asset', async () => {
+    await connect();
+    const old = stripe();
+    await runStripeRevenue(env, { fetchImpl: old.fetchImpl, nowMs: NOW, laneRegister: register() });
+    const original = productSale('tip', 1020);
+    const fresh = productStripe([original, productRefund(original, 100, '2026-09-09')]);
+    const result = await runStripeRevenue(env, {
+      fetchImpl: fresh.fetchImpl, nowMs: NOW + DAY_MS, laneRegister: productRegister({ prod_tip: OTHER }),
+    });
+    expect(result).toMatchObject({ outcome: 'ran', unattributedTransactions: 0 });
+    expect(await receiptRows()).toEqual([{ asset: ASSET, day: '2026-09-09', item: 'txn_partial', net: -100, payment: 0, refund: 1 }]);
+    const legacy = await pgRows(`SELECT COUNT(*)::int AS days FROM noticeos.current_revenue
+      WHERE source = 'stripe' AND item_ref IS NULL AND asset_id = $1`, [ASSET]);
+    expect(legacy).toEqual([{ days: 35 }]);
+  });
+
+  it('refuses a different account or an incomplete lookup before writing any days', async () => {
+    await connect();
+    const changed = productStripe([], { account: 'acct_other' });
+    expect((await runStripeRevenue(env, { fetchImpl: changed.fetchImpl, nowMs: NOW, laneRegister: productRegister() })).outcomes[0]?.errorCode).toBe('stripe_account_changed');
+    expect(changed.calls.map(({ path }) => path)).toEqual(['/v1/account']);
+    const sandbox = productStripe([productSale('tip', 300)], { sandbox: true });
+    expect(await discoverStripeProducts(KEY, sandbox.fetchImpl)).toMatchObject({ ok: false, reason: 'test-mode' });
+    expect((await runStripeRevenue(env, { fetchImpl: sandbox.fetchImpl, nowMs: NOW, laneRegister: productRegister() })).outcomes[0]?.errorCode).toBe('stripe_live_key_required');
+    const denied = productStripe([productSale('tip', 300)], { failCheckout: true });
+    expect((await runStripeRevenue(env, { fetchImpl: denied.fetchImpl, nowMs: NOW, laneRegister: productRegister() })).outcomes[0]?.errorCode).toBe('stripe_http_403');
+    expect(await stored()).toEqual([]);
   });
 });

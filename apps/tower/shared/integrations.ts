@@ -1,3 +1,4 @@
+import type { StripeProductMapping } from '@noticeos/contract/configuration';
 // The integrations contract: the payloads GET /api/integrations and the
 // `integrations` section of GET /api/assets/:id return. Types and pure display
 // helpers only, so it loads in workerd and in the browser. The register it
@@ -93,7 +94,7 @@ export function integrationLabel(id: string, fallback: string): string {
     "ad-network": "Ad revenue",
     "affiliate-cj": "CJ affiliate revenue",
     "affiliate-amazon": "Amazon affiliate revenue",
-    subscriptions: "Stripe revenue",
+    subscriptions: "Stripe",
     "deploy-annotations": "Deployment history",
     "github-app": "GitHub",
     "discord-webhooks": "Discord notifications",
@@ -185,6 +186,7 @@ export interface IntegrationsConfigCell {
 }
 
 export interface IntegrationsConfig {
+  stripeProducts?: StripeProductMapping;
   catalog: IntegrationsConfigCatalogRow[];
   /** assetId → laneId → file-backed setup/applicability cell. */
   assets: Record<string, Record<string, IntegrationsConfigCell>>;

@@ -14,6 +14,7 @@ import { resolveCredential } from './credentials.js';
 import { dataForSeoCandidates } from './dataforseo-dumps.js';
 import { discoverMediavineSites } from './mediavine-connection.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT, discoverPosthogProjects } from './posthog-account.js';
+import { discoverStripeProducts, STRIPE_KEY_FIELD } from './stripe.js';
 import { POSTHOG_KEY_SLOT, resolvePosthogKeys } from './posthog-dumps.js';
 
 export interface DiscoverSitesOptions {
@@ -29,7 +30,7 @@ export async function discoverSites(
 ): Promise<SiteDiscovery> {
   const checkedAt = new Date(options.nowMs ?? Date.now()).toISOString();
   const declared = integrationProvider(provider);
-  if (declared === null || !['bing-webmaster', 'dataforseo', 'posthog', 'mediavine', 'google'].includes(declared.id)) {
+  if (declared === null || !['bing-webmaster', 'dataforseo', 'posthog', 'mediavine', 'google', 'stripe'].includes(declared.id)) {
     return { ok: false, provider, checkedAt, reason: 'not-supported' };
   }
   const credential = await resolveCredential(env, declared.id as IntegrationProviderId);
@@ -42,6 +43,12 @@ export async function discoverSites(
   if (declared.id === 'mediavine') return { provider, checkedAt, ...(await mediavineSites(env, options)) };
 
   if (declared.id === 'google') return { provider, checkedAt, ...(await discoverGoogleSites(env, options)) };
+
+  if (declared.id === 'stripe') {
+    const key = credential.fields[STRIPE_KEY_FIELD];
+    if (!key) return { ok: false, provider, checkedAt, reason: 'not-connected' };
+    return { provider, checkedAt, ...(await discoverStripeProducts(key, options.fetchImpl ?? fetch)) };
+  }
 
   if (declared.id === 'dataforseo') {
     // The collector's OWN membership rule, so the list is exactly what the

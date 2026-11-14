@@ -40,5 +40,11 @@
     "reference": "https://posthog.com/handbook/company/brand-assets",
     "retrieved": "2026-09-22",
     "sha256": "0fcd1cbdd0366188c9829735662f2bcaedb868a4380a48ca45ca444133a61913"
+  },
+  "stripe.svg": {
+    "source": "https://images.stripeassets.com/fzn2n1nzq965/1hgcBNd12BfT9VLgbId7By/01d91920114b124fb4cf6d448f9f06eb/favicon.svg",
+    "reference": "https://stripe.com/newsroom/information",
+    "retrieved": "2026-11-14",
+    "sha256": "7253e3eb4657773723a696a1f4ad9c8f62794191b9f09c1359db74a51d2d3ae5"
   }
 }

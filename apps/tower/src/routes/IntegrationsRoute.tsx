@@ -461,8 +461,8 @@ function IntegrationRow({
   const inPanel = connectsInPanel(status.provider);
   const credentialState = connectionState(status.credential);
   const failing = credentialState === "failing";
-  const assignStripe = status.provider.id === "stripe" && credentialState !== "not-connected" && !failing && status.assets.length === 0;
-  const verb = shown.kind === "not-connected" ? "Connect" : inPanel && failing ? "Reconnect" : assignStripe ? "Assign revenue" : "Manage";
+  const assignStripe = status.provider.id === "stripe" && credentialState !== "not-connected" && !failing && Object.keys(status.stripeProducts?.products ?? {}).length === 0;
+  const verb = shown.kind === "not-connected" ? "Connect" : inPanel && failing ? "Reconnect" : assignStripe ? "Map products" : "Manage";
   const subject: StatusSubject = `integration:${status.provider.id}`;
   return (
     <li
@@ -493,7 +493,7 @@ function IntegrationRow({
           type="button"
           size="sm"
           variant={verb === "Reconnect" ? "default" : verb === "Connect" ? "outline" : "ghost"}
-          aria-label={assignStripe ? "Assign Stripe revenue" : `${verb} ${name}`}
+          aria-label={assignStripe ? "Map Stripe products" : `${verb} ${name}`}
           disabled={demoReadonly}
           onClick={() => onOpen(verb === "Manage" || assignStripe ? "sites" : "form")}
         >

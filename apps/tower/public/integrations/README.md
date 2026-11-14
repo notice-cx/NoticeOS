@@ -13,6 +13,7 @@ or provider websites to render an integration.
 | Microsoft Clarity | [Clarity app icon announcement](https://clarity.microsoft.com/blog/a-behind-the-scenes-look-the-new-clarity-app-icon/), the original 256px `siteIcon.png` |
 | Mediavine | [Mediavine](https://www.mediavine.com/), its published 320px asset icon |
 | Discord | [Discord brand assets](https://discord.com/branding), the original blurple Clyde symbol |
+| Stripe | [Stripe Newsroom](https://stripe.com/newsroom/information), its published SVG icon |
 | PostHog | [PostHog brand assets](https://posthog.com/handbook/company/brand-assets), the published `posthog-logomark.svg` |
 
 Exact download URLs and SHA-256 hashes are in [sources.json](sources.json).

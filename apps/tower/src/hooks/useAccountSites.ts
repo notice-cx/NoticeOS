@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
  *
  * A read that fails is not retried: the row falls back to its typed fields.
  */
-export function useAccountSites(provider: string, enabled: boolean) {
+export function useAccountSites(provider: string, enabled: boolean, options?: { refetchOnMount: "always" }) {
   const { fetchProviderSites } = useTowerApi();
   return useQuery({
     queryKey: ["account-sites", provider],
@@ -28,5 +28,6 @@ export function useAccountSites(provider: string, enabled: boolean) {
     staleTime: 5 * 60_000,
     retry: 0,
     refetchOnWindowFocus: false,
+    ...options,
   });
 }

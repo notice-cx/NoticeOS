@@ -110,7 +110,7 @@ export const INTEGRATION_MONITORS = {
   ],
   stripe: [
     // The hourly subscriptions job; each site's completed UTC days are revenue_observations rows.
-    monitor('stripe-revenue', 'Daily subscription revenue', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key and the account this asset’s Subscriptions entry names.'),
+    monitor('stripe-revenue', 'Daily Stripe receipts', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key and product mappings in Integrations.'),
     monitor('stripe-subscriptions', 'Subscription growth report', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key’s Subscriptions read permission.'),
     // Explicit connection test only.
     monitor('stripe-test', 'Stripe connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the Stripe key in Integrations.'),

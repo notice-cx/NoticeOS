@@ -62,6 +62,30 @@ export const CONFIG_ASSET_KEY_SOURCE = '[a-z0-9][a-z0-9._-]*';
 export const CONFIG_ASSET_KEY_RE = new RegExp(`^${CONFIG_ASSET_KEY_SOURCE}$`);
 export const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 export const STRIPE_REVENUE_LANE = 'subscriptions';
+export const STRIPE_PRODUCTS_POINTER = '/stripeProducts';
+export const STRIPE_ACCOUNT_ID = /^acct_[a-zA-Z0-9]+$/;
+export function readStripeProductMapping(value) {
+    if (!isPlainObject(value) || Object.keys(value).length !== 2 ||
+        typeof value.accountId !== 'string' || !STRIPE_ACCOUNT_ID.test(value.accountId) ||
+        !isPlainObject(value.products))
+        return null;
+    const products = {};
+    for (const [id, asset] of Object.entries(value.products)) {
+        if (!stripeProductId(id) || typeof asset !== 'string' || asset.length > ASSET_ID_MAX || !ASSET_ID_RE.test(asset))
+            return null;
+        products[id] = asset;
+    }
+    return { accountId: value.accountId, products };
+}
+// Stripe also allows product IDs supplied by the business.
+export function stripeProductId(id) {
+    return typeof id === 'string' && id.length > 0 && id.length <= 255 &&
+        !/[\x00-\x1f\x7f]/u.test(id) && !Object.hasOwn(Object.prototype, id) && id !== 'prototype';
+}
+export function stripeProductTargets(mapping) {
+    return [...new Set(Object.values(mapping.products))].sort()
+        .map((asset) => ({ asset, account: mapping.accountId }));
+}
 export function stripeRevenueAssignments(register) {
     if (!isPlainObject(register) || !isPlainObject(register.assets))
         return [];
