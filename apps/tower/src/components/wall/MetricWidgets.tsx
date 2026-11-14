@@ -157,12 +157,11 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
     const pieces = sources.map(source => contributions?.get(source.id) ?? 0);
     const recorded = known ? observed : breakdown?.observed.get(date) ?? 0;
     const attributed = pieces.reduce((sum, amount) => sum + amount, 0);
-    const moneyPrecision = (amount: number) => Math.round(amount * 100) / 100;
-    const actualRemainder = breakdown ? moneyPrecision(recorded - attributed) : recorded;
-    const forecastRemainder = value === null ? null : breakdown ? moneyPrecision(value - recorded) : value - recorded;
-    const ranges = value === null ? [] : stackRanges([...pieces, actualRemainder, forecastRemainder]);
+    const actualRemainder = breakdown ? Math.round((recorded - attributed) * 100) / 100 : recorded;
+    const ranges = value === null ? [] : stackRanges([...pieces, actualRemainder]);
     for (const range of ranges) if (range) values.push(range.to);
-    return { date, known, value, ranges };
+    const forecastRange = value === null || known || value === recorded ? null : { from: recorded, to: value };
+    return { date, known, value, ranges, forecastRange };
   });
   const low = Math.min(0, ...values), high = Math.max(1, ...values);
   const y = (value: number) => 44 - (value - low) / (high - low) * 40;
@@ -177,11 +176,12 @@ export function MetricComparisonChart({ current, reference = [], forecast = [], 
   };
   const currentRuns = runs(current), endpoint = currentRuns.at(-1)?.at(-1);
   const hasReadings = [...current, ...reference, ...forecast].some(p => p.v !== null && Number.isFinite(p.v));
-  const bars = variant === "cumulative-bars" ? readings.map(({ date, known, value, ranges }, index) => {
+  const bars = variant === "cumulative-bars" ? readings.map(({ date, known, value, ranges, forecastRange }, index) => {
     if (value === null) return <g key={date} data-metric-cumulative-day="missing" data-date={date}><title>{date} · unavailable</title></g>;
     const width = 192 / Math.max(1, dates.length) * .72;
     const segments = ranges.flatMap((range, segment) => range && range.from !== range.to
-      ? [{ ...range, source: sources[segment], forecast: segment > sources.length }] : []);
+      ? [{ ...range, source: sources[segment], forecast: false }] : []);
+    if (forecastRange) segments.push({ ...forecastRange, source: undefined, forecast: true });
     if (!segments.length) segments.push({ from: 0, to: 0, source: undefined, forecast: !known });
     const format = breakdown?.format ?? formatInt;
     return <g key={date} data-metric-cumulative-bar={known ? "current" : "forecast"} data-date={date} data-value={value}>

@@ -75,6 +75,26 @@ describe("Wall metric widgets", () => {
     verify();
   });
 
+  it("extends the forecast from net recorded revenue when a source includes refunds", () => {
+    const date = "2026-10-21";
+    const next = "2026-10-22";
+    const contributions = new Map([["sales", 120], ["refunds", -20]]);
+    const { container } = render(<MetricComparisonChart label="Revenue" variant="cumulative-bars"
+      current={[{ t: date, v: 100 }]} forecast={[{ t: next, v: 150 }]}
+      previousTotal={{ value: 100, label: "Last month" }}
+      breakdown={{
+        format: String, observed: new Map([[date, 100], [next, 100]]),
+        sources: [{ id: "sales", name: "Sales", tone: "text-asset-1" }, { id: "refunds", name: "Refunds", tone: "text-asset-2" }],
+        contributions: new Map([[date, contributions], [next, contributions]]),
+      }} />);
+    const forecast = container.querySelector('[data-metric-cumulative-bar="forecast"]')!;
+    const outline = forecast.querySelector('[data-metric-cumulative-segment="forecast"]')!;
+    const end = Number(outline.getAttribute("y")) + Number(outline.getAttribute("height"));
+    expect(end).toBeCloseTo(Number(container.querySelector("[data-metric-previous-total] line")!.getAttribute("y1")));
+    expect(outline).toHaveAttribute("data-source-value", "50");
+    expect(forecast.querySelector('[data-revenue-source="refunds"]')).toHaveAttribute("data-source-value", "-20");
+  });
+
   it("shows isolated observations without joining a missing interval", () => {
     const { container } = render(<MetricComparisonChart label="Count" current={[{ t: "2026-10-19", v: 0 }, { t: "2026-10-20", v: null }, { t: "2026-10-21", v: 4 }]} startLabel="Mon" endLabel="Wed" />);
     expect(container.querySelectorAll("[data-chart-dot]")).toHaveLength(2);
