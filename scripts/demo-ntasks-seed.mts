@@ -20,13 +20,37 @@ export interface NtasksSeedChange {
   metadata?: Record<string, unknown>; close?: { reason: string };
 }
 export interface NtasksSeedTask {
-  id: string; type: 'task' | 'epic' | 'gate'; title: string; description: string; acceptance: string; priority: number;
+  id: string; type: DemoTaskFact['issueType']; title: string; description: string; acceptance: string; priority: number;
   parent?: string; labels: string[]; links?: { type: 'blocks'; to: string }[]; metadata: Record<string, unknown>;
   awaitsPerson?: true; choices?: unknown;
   createdAt: string; createdBy: string; changes: NtasksSeedChange[];
   comments: { author: string; text: string; at: string }[];
 }
 export interface NtasksSeed { format: typeof NTASKS_SEED_FORMAT; projects: NtasksSeedProject[]; tasks: NtasksSeedTask[] }
+
+interface SeedBackup {
+  format: 'ntasks-backup-v1';
+  tables: {
+    tasks: { id: string; type: string; await_type: string | null; steps?: string | null }[];
+    task_events: { task_id: string; kind: string; changes: string }[];
+  };
+}
+
+/** The pinned Ntasks seed format has no steps field. Its backup format holds
+ * the checklist in both the task row and the creation event. */
+export function addDemoChecklistSteps(backup: SeedBackup, facts: readonly DemoTaskFact[]): void {
+  for (const fact of facts) {
+    if (!fact.steps) continue;
+    const task = backup.format === 'ntasks-backup-v1' && backup.tables.tasks.find(row => row.id === fact.id);
+    const created = backup.tables.task_events.find(event => event.task_id === fact.id && event.kind === 'created');
+    if (!task || task.type !== 'gate' || task.await_type !== 'human' || task.steps != null || !created) {
+      throw new Error('Demo checklist has no matching Ntasks seed request.');
+    }
+    const steps = fact.steps.map(({ text }) => ({ text, command: null, done: null, note: null, stuck: null }));
+    task.steps = JSON.stringify(steps);
+    created.changes = JSON.stringify({ ...JSON.parse(created.changes), steps });
+  }
+}
 
 type Scenario = ReturnType<typeof generateDemoScenario>;
 /** A task that answers one of the scenario's alerts: the alert's asset, rule

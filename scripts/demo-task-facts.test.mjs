@@ -11,9 +11,9 @@ const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', r
 const scenario = generateDemoScenario(input);
 const referenceIssues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
 test('one scenario names six real task projects and all cross-store story identities', () => {
-  assert.equal(scenario.manifest.scenarioVersion, 18);
+  assert.equal(scenario.manifest.scenarioVersion, 19);
   assert.equal(scenario.manifest.taskProjects.length, 6);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 220);
+  assert.equal(scenario.tasks.filter(task => !['epic', 'gate'].includes(task.issueType)).length, 220);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 12);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 3);
   assert.equal(new Set(scenario.tasks.map(task => task.id)).size, scenario.tasks.length);
@@ -30,7 +30,7 @@ test('one scenario names six real task projects and all cross-store story identi
   }
   const { stories: { repair, problem }, ship, slide } = scenario.manifest;
   for (const ref of [repair.ref, repair.readbackTaskId, problem.ref, ship.ref, slide.ref]) {
-    assert.ok(scenario.tasks.some(task => task.id === ref && task.issueType === 'task'), ref);
+    assert.ok(scenario.tasks.some(task => task.id === ref && !['epic', 'gate'].includes(task.issueType)), ref);
   }
   assert.ok(scenario.tasks.find(task => task.id === repair.readbackTaskId).events[0].at < repair.annotationAt);
 });
@@ -44,14 +44,14 @@ test('planned work stays within each asset’s epics and ungrouped work stays ou
   }
   for (const epic of epics) {
     const children = scenario.tasks.filter(task => task.parent === epic.id);
-    assert.ok(children.every(child => child.asset === epic.asset && child.issueType === 'task'), epic.title);
+    assert.ok(children.every(child => child.asset === epic.asset && !['epic', 'gate'].includes(child.issueType)), epic.title);
     assert.ok(children.some(child => child.events.at(-1).status !== 'closed'), epic.title);
   }
   for (const [taskTitle, epicTitle] of [
-    ['Which onboarding email goes out first?', 'Onboarding emails'],
-    ['Roll back the trail page redesign?', 'Trail redesign: keep or roll back'],
-    ['Charge for saved validation rules?', 'Saved validation rules'],
-    ['Choose the holiday recipe collection', 'Holiday recipe season'],
+    ['Choose the first onboarding email', 'Onboarding emails'],
+    ['Decide whether to roll back the trail redesign', 'Trail redesign: keep or roll back'],
+    ['Choose the plan for saved validation rules', 'Saved validation rules'],
+    ['Schedule the holiday recipe collection', 'Holiday recipe season'],
     ['Split the recipe page’s largest function', 'Recipe page code cleanup'],
   ]) {
     assert.equal(scenario.tasks.find(task => task.title === taskTitle).parent, epics.find(epic => epic.title === epicTitle).id);
@@ -62,9 +62,9 @@ test('planned work stays within each asset’s epics and ungrouped work stays ou
   }
   // Gates and the dated history beside the plans join no epic.
   assert.ok(scenario.tasks.filter(task => task.issueType === 'gate' || /^(?:Verify the .+ release|Review the week to|Check the .+ changes on)/u.test(task.title)).every(task => !task.parent));
-  // The board's shape: three questions, three approvals, six parked tasks, and only the planned edges.
-  assert.deepEqual(issues.filter(issue => issue.status === 'open' && issue.issue_type === 'task' && issue.labels.includes('human')).map(issue => issue.title).sort(),
-    ['Charge for saved validation rules?', 'Roll back the trail page redesign?', 'Which onboarding email goes out first?']);
+  const decisions = issues.filter(issue => issue.status === 'open' && issue.issue_type === 'decision');
+  assert.equal(decisions.length, 3);
+  assert.ok(decisions.every(issue => issue.labels.includes('human')));
   assert.equal(issues.filter(issue => issue.status === 'open' && issue.issue_type === 'gate').length, 3);
   assert.equal(issues.filter(issue => issue.status === 'deferred').length, 6);
   const edges = type => issues.flatMap(issue => issue.dependencies.filter(edge => edge.type === type)).length;
@@ -115,20 +115,20 @@ test('cards price about fifteen open tasks in their asset’s revenue family, as
   assert.equal(kills.length, 3);
   assert.ok(kills.every(date => date > referenceDate && date <= shiftDemoDay(referenceDate, 35)), kills.join());
   // A card is recorded after its task is filed; an earlier state does not carry it.
-  const asked = carded.find(issue => issue.title === 'Which onboarding email goes out first?');
+  const asked = carded.find(issue => issue.id.startsWith('lb-') && issue.issue_type === 'decision');
   const before = demoTaskIssuesAt(scenario.tasks, new Date(Date.parse(asked.metadata.noticeos_card.at) - 1000).toISOString()).find(issue => issue.id === asked.id);
   assert.equal(before.metadata.noticeos_card, undefined);
 });
 
-test('two questions offer lettered options with one recommended; the other asks offer none', () => {
+test('each open decision offers lettered options with one recommendation', () => {
   const issues = referenceIssues;
   const offered = issues.filter(issue => issue.metadata.noticeos_choices !== undefined);
   assert.ok(offered.every(issue => issue.status === 'open' && issue.labels.includes('human')));
-  assert.equal(offered.length, 2);
+  assert.equal(offered.length, 3);
   for (const issue of offered) {
     const choices = issue.metadata.noticeos_choices;
     assert.equal(taskChoicesProblem(choices), null, issue.id);
-    assert.equal(choices.question, issue.title);
+    assert.equal(issue.issue_type, 'decision');
   }
 });
 
@@ -315,7 +315,7 @@ test('the codebase findings the Codebase tab leads with already have tasks on th
   // The old templates wait on the rollback question: rolling back would need them.
   const legacy = taskOn('tn', 'Remove the old templates left in legacy/');
   assert.equal(legacy.status, 'blocked');
-  const rollback = taskOn('tn', 'Roll back the trail page redesign?');
+  const rollback = issues.find(issue => issue.id.startsWith('tn-') && issue.issue_type === 'decision');
   assert.ok(legacy.dependencies.some(edge => edge.type === 'blocks' && edge.depends_on_id === rollback.id));
   assert.ok(latest(trails.id).findings.unused.filter(item => item.kind === 'file' && item.path.includes('/legacy/')).length >= 10);
 });

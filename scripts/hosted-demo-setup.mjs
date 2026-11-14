@@ -13,7 +13,7 @@ import { fillDemo } from './demo-store.mjs';
 import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mjs';
 import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoUptime, recordDemoSiteChecks, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
 import { configureDemoTasks, writeDemoTaskReceipt } from './demo-tasks.mjs';
-import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
+import { addDemoChecklistSteps, demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { demoTaskHistory } from './demo-task-history.mjs';
 import { DEMO_NTASKS_CREDENTIALS, demoNtasks, demoNtasksOrigin } from './demo-ntasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
@@ -255,6 +255,9 @@ export async function setupHostedDemo(input) {
         fs.writeFileSync(tokenFile, seedToken + '\n', { flag: 'wx', mode: 0o600 });
         try {
             await ntasksTool(['seed', '--from', seedFile, '--out', backupFile]);
+            const backup = JSON.parse(privateRead(backupFile));
+            addDemoChecklistSteps(backup, scenario.tasks);
+            fs.writeFileSync(backupFile, JSON.stringify(backup));
             const loaded = await ntasksTool(['load', '--api', request.ntasks.origin, '--token-file', tokenFile, '--from', backupFile]);
             if (!loaded.stdout.includes('0 differences.'))
                 refuse();

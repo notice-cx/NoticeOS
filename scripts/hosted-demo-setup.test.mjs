@@ -157,6 +157,12 @@ test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped d
     tasks = openDemoTasks(configuration.tasks);
     const catalog = await tasks.handle(new Request(input.publicOrigin + '/api/tasks/projects')); assert.equal(catalog.status, 200);
     const projects = await catalog.json(); assert.ok(JSON.stringify(projects).includes('Light Brief'));
+    for (const request of scenario.tasks.filter(task => task.steps)) {
+      const projectId = projects.projects.find(project => project.prefix === request.prefix).projectId;
+      const reply = await tasks.handle(new Request(input.publicOrigin + '/api/tasks/' + request.id + '?project=' + projectId));
+      assert.equal(reply.status, 200);
+      assert.deepEqual((await reply.json()).task.steps.map(step => step.text), request.steps.map(step => step.text));
+    }
     const denied = await tasks.handle(new Request(input.publicOrigin + '/api/tasks', { method: 'POST', headers: { origin: input.publicOrigin }, body: '{}' }));
     assert.equal(denied.status, 403);
     store = openWorkspaceStore(configuration.workspaceDatabaseUrl, { workspaceId: result.workspaceId });

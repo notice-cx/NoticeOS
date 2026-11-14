@@ -11,6 +11,22 @@ export const NTASKS_SEED_FORMAT = 'ntasks-seed-v1';
 /** The operator who files every demo task, as the scenario names her. */
 const OPERATOR = 'Mara';
 const AGENTS = new Set([DEMO_BUILDER, DEMO_VERIFIER]);
+/** The pinned Ntasks seed format has no steps field. Its backup format holds
+ * the checklist in both the task row and the creation event. */
+export function addDemoChecklistSteps(backup, facts) {
+    for (const fact of facts) {
+        if (!fact.steps)
+            continue;
+        const task = backup.format === 'ntasks-backup-v1' && backup.tables.tasks.find(row => row.id === fact.id);
+        const created = backup.tables.task_events.find(event => event.task_id === fact.id && event.kind === 'created');
+        if (!task || task.type !== 'gate' || task.await_type !== 'human' || task.steps != null || !created) {
+            throw new Error('Demo checklist has no matching Ntasks seed request.');
+        }
+        const steps = fact.steps.map(({ text }) => ({ text, command: null, done: null, note: null, stuck: null }));
+        task.steps = JSON.stringify(steps);
+        created.changes = JSON.stringify({ ...JSON.parse(created.changes), steps });
+    }
+}
 /** A project's id in Ntasks: a UUID fixed by the demo's workspace and the project's prefix. */
 export function demoNtasksProjectId(workspaceId, prefix) {
     const hex = createHash('sha256').update(`${workspaceId}\0ntasks-project\0${prefix}`).digest('hex');

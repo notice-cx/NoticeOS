@@ -4,8 +4,8 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
-// The stored generation includes Ntasks's provisioned D1 schema.
-export const SCENARIO_VERSION = 18;
+// Changes to the seeded task history need a fresh demo generation.
+export const SCENARIO_VERSION = 19;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';

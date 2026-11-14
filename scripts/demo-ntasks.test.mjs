@@ -9,6 +9,7 @@
 // job builds it), and without one these tests are skipped.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -17,7 +18,7 @@ import { after, before, describe, test } from 'node:test';
 import { generateDemoScenario } from './demo-scenario.mjs';
 import { applyDemoNtasksProvision, createDemoTaskGateway, createDemoTaskService, demoNtasks, demoNtasksProvisionRequest,
   demoNtasksWorker, DEMO_NTASKS_CREDENTIALS, openDemoTasks } from './demo-ntasks.mjs';
-import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
+import { addDemoChecklistSteps, demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { demoTaskHistory } from './demo-task-history.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 
@@ -28,6 +29,7 @@ const skip = NTASKS ? false : 'needs a built Ntasks in NOTICEOS_NTASKS_ROOT (nod
 const scenario = generateDemoScenario({ seed: 'synthetic-work-v2', cutoff: new Date(Date.now() - 1000).toISOString(), release: '1'.repeat(40) });
 const workspaceId = scenario.manifest.workspaceId;
 const PUBLIC = 'https://demo.example.com';
+const AUTH_SECRET = 'test-only-demo-ntasks-secret-0123456789';
 
 describe('the demo task gateway', () => {
   test('refuses every change before asking Ntasks anything', async () => {
@@ -43,7 +45,7 @@ describe('the demo task gateway', () => {
 });
 
 describe('the demo\'s own Ntasks', { skip }, () => {
-  let miniflare, origin, folder, provision, seed, projects;
+  let miniflare, origin, ownerOrigin, folder, provision, seed, projects;
   const cli = (...args) => execFileSync(process.execPath, [path.join(NTASKS, 'tools/migrate/src/cli.ts'), ...args], { encoding: 'utf8' });
 
   before(async () => {
@@ -53,7 +55,9 @@ describe('the demo\'s own Ntasks', { skip }, () => {
     provision = JSON.parse(fs.readFileSync(path.join(folder, 'provision.json'), 'utf8'));
     const wrangler = createRequire(createRequire(new URL('../workers/ingest/package.json', import.meta.url)).resolve('wrangler/package.json'));
     const { Miniflare, Log } = v4Miniflare(wrangler);
-    miniflare = new Miniflare({ ...demoNtasksWorker({ bundleRoot: path.join(NTASKS, 'dist'), authSecret: 'test-only-demo-ntasks-secret-0123456789', workspaceId }),
+    const worker = demoNtasksWorker({ bundleRoot: path.join(NTASKS, 'dist'), authSecret: AUTH_SECRET, workspaceId });
+    ownerOrigin = worker.bindings.NTASKS_ORIGIN;
+    miniflare = new Miniflare({ ...worker,
       host: '127.0.0.1', port: 0, cf: false, resourcePersistencePath: path.join(folder, 'state'), log: new Log(0), handleStructuredLogs: () => undefined });
     origin = (await miniflare.ready).origin;
     await applyDemoNtasksProvision(await miniflare.getD1Database('DB'), provision);
@@ -61,6 +65,9 @@ describe('the demo\'s own Ntasks', { skip }, () => {
     fs.writeFileSync(path.join(folder, 'seed.json'), JSON.stringify(seed));
     fs.writeFileSync(path.join(folder, 'seed.token'), `${provision.tokens[DEMO_NTASKS_CREDENTIALS.seed]}\n`, { mode: 0o600 });
     cli('seed', '--from', path.join(folder, 'seed.json'), '--out', path.join(folder, 'backup.json'));
+    const backup = JSON.parse(fs.readFileSync(path.join(folder, 'backup.json'), 'utf8'));
+    addDemoChecklistSteps(backup, scenario.tasks);
+    fs.writeFileSync(path.join(folder, 'backup.json'), JSON.stringify(backup));
     assert.match(cli('load', '--api', origin, '--token-file', path.join(folder, 'seed.token'), '--from', path.join(folder, 'backup.json')), /0 differences\./u);
     projects = new Map(seed.projects.map(project => [project.prefix, project.id]));
   });
@@ -143,6 +150,45 @@ describe('the demo\'s own Ntasks', { skip }, () => {
     for (const entry of snapshot.projects) {
       const kept = last.projects.find(project => project.asset === entry.asset);
       assert.deepEqual({ counts: kept.counts, epics: kept.epics }, { counts: entry.counts, epics: entry.epics }, entry.asset);
+    }
+  });
+
+  test('a seeded checklist stays open until its last owner tick and then unblocks the linked task', async () => {
+    const tasks = pages();
+    const requests = scenario.tasks.filter(task => task.steps);
+    assert.deepEqual(requests.map(task => task.prefix).sort(), ['pw', 'wp']);
+    const [fact] = requests;
+    const projectId = projects.get(fact.prefix);
+    const gatePath = '/api/gates/' + fact.id + '/steps';
+    const detail = id => read(tasks, '/api/tasks/' + id + '?project=' + projectId);
+    const deny = await tasks.handle(new Request(PUBLIC + gatePath, { method: 'POST', body: JSON.stringify({ projectId, step: 1, done: true }) }));
+    assert.equal(deny.status, 403);
+    const initial = (await detail(fact.id)).body.task;
+    assert.equal(initial.status, 'open');
+    assert.deepEqual(initial.steps.map(step => [step.text, step.done]), fact.steps.map(step => [step.text, null]));
+    assert.equal((await detail(fact.blocks)).body.task.ready, false);
+
+    const db = await miniflare.getD1Database('DB');
+    const token = 'checklist-owner-fixture';
+    const expires = new Date(Date.now() + 60_000).toISOString();
+    const now = new Date().toISOString();
+    // Provisioning creates the owner and membership. Only this fixture signs in as that owner.
+    await db.prepare(`INSERT INTO auth_session (id, expires_at, token, created_at, updated_at, user_id)
+      SELECT ?, ?, ?, ?, ?, user_id FROM workspace_members WHERE workspace_id = ? AND role = 'owner'`)
+      .bind('checklist-session', expires, token, now, now, workspaceId).run();
+    const signed = token + '.' + createHmac('sha256', AUTH_SECRET).update(token).digest('base64');
+    for (let step = 1; step <= fact.steps.length; step++) {
+      const result = await miniflare.dispatchFetch(ownerOrigin + gatePath, { method: 'POST', headers: {
+        cookie: 'ntasks.session_token=' + encodeURIComponent(signed), 'x-ntasks-workspace': workspaceId,
+        'content-type': 'application/json', 'idempotency-key': 'seeded-step-' + step, origin: ownerOrigin,
+      }, body: JSON.stringify({ projectId, step, done: true, proposalVersion: initial.proposalVersion }) });
+      const body = await result.json();
+      assert.equal(result.status, 200, JSON.stringify(body));
+      const last = step === fact.steps.length;
+      const saved = (await detail(fact.id)).body.task;
+      assert.equal(saved.status, last ? 'closed' : 'open');
+      assert.equal(saved.steps.filter(row => row.done !== null).length, step);
+      assert.equal((await detail(fact.blocks)).body.task.ready, last);
     }
   });
 

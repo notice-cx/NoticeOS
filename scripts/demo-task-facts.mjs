@@ -11,6 +11,12 @@ const OPERATOR = 'Mara';
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const task = (title, brief, plan) => ({ title, brief, ...plan });
+function workDescription(action, why, fix, where, reproduce) {
+    return `${action}\n\n## Why\n\n${why}${reproduce ? `\n\n## Steps to Reproduce\n\n${reproduce}` : ''}\n\n## Fix\n\n${fix}\n\n## Where\n\n${where}`;
+}
+function checklist(criterion) {
+    return `- [ ] ${criterion}`;
+}
 /** Each project's themes: the epics its planned work is grouped under. */
 const EPICS = {
     lb: [
@@ -50,12 +56,15 @@ const WORK = {
         task('Check the completed subscription report', ['The completed subscription month needs its own ledger check.', 'Check subscription income and reconciled state separately from usage.', 'Use the subscription entry, not combined revenue.', 'Subscription month and booking state match.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara', change: 'content-data' }),
         task('Verify the refreshed brief library', ['The grouped library needs its routes checked before announcing.', 'Check every grouped route; record missing links.', 'Grouped draft shipped; checking routes from the library index.', ''], { status: 'in_progress', opened: -21, started: -3, owner: 'codex', dependsOn: 4, epic: 'library', change: 'template' }),
         task('Explore a template filter', ['A template filter remains an unselected proposal.', 'At the wake-up date, choose a bounded discovery task.', 'Keep this parked until the brief library is accepted.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara', epic: 'library', change: 'feature' }),
-        task('Restore the nightly report', ['The nightly report stopped arriving two nights ago.', 'Find why the report job stopped; resume nightly delivery.', 'Report job exits before sending; checking its schedule.', ''], { status: 'in_progress', opened: '30h', started: '5h', priority: 1, change: 'infra' }),
-        task('Fix the export button on mobile', ['Exports fail on narrow phone screens after the last release.', 'Export works on three phone widths; record each result.', 'Reproduced on the smallest width first.', 'Exports pass on all three phone widths.'], { status: 'closed', opened: -5, started: '30h', finished: '20h',
+        task('Restore the nightly report', ['Light Brief missed two nightly reports, so its recent figures are stale.', 'The next scheduled run delivers a report, and the two missed days remain absent in history.', 'Find why the report job exits before sending and restore the scheduled delivery.', ''], { status: 'in_progress', opened: '30h', started: '5h', priority: 1, change: 'infra' }),
+        task('Fix the export button on mobile', ['The release made the export button unreachable on narrow phones.', 'Export works at 360, 390 and 430 px, with a result recorded for each width.', 'Keep the export button above the sticky footer.', 'Exports pass on all three phone widths.'], { status: 'closed', opened: -5, started: '30h', finished: '20h',
+            reproduce: '1. Open a brief at 360 px wide.\n2. Scroll to the export button.\n\n**Actual:** The sticky footer covers the button.\n\n**Expected:** The export button is visible and can be pressed.',
             note: 'The sticky footer hid the export button below 380 px.', check: 'export works at 360, 390 and 430 px', path: '/briefs', model: 'Opus 5.5', change: 'template' }),
         task('Add a brief template for agencies', ['Agency customers keep rebuilding the same brief by hand.', 'Ship one agency template; link it from the library.', 'Drafted from the three most copied briefs.', 'Agency template published and linked.'], { status: 'closed', opened: -14, started: -4, finished: -2, path: '/templates/agency', epic: 'library', change: 'content-data' }),
-        task('Write the onboarding email sequence', ['New trials receive no guidance after signing up.', 'Draft three onboarding emails; send once the order is chosen.', 'Drafts ready; sending waits on the order decision.', ''], { status: 'open', opened: -9, epic: 'onboarding', change: 'copy' }),
-        task('Which onboarding email goes out first?', ['Two first emails compete: a product tour or templates.', 'Choose the first email; the sequence ships after it.', 'Both drafts are attached; the tour converted better in tests.', ''], { status: 'open', opened: -2, owner: 'Mara', human: true, epic: 'onboarding', change: 'copy',
+        task('Write the onboarding email sequence', ['New trials receive no guidance after signing up.', 'The sequence contains three emails and starts with the draft selected in the onboarding decision.', 'Prepare the drafts while the owner chooses the first email.', ''], { status: 'open', opened: -9, epic: 'onboarding', change: 'copy' }),
+        task('Choose the first onboarding email', ['New trials get no guidance after signing up. The product tour converted better in testing.', 'The first email is recorded and the sequence uses that order.', 'The trial can begin with either draft.', ''], { status: 'open', opened: -2, owner: 'Mara', human: true, epic: 'onboarding', change: 'copy',
+            question: 'Which onboarding email goes out first?',
+            request: 'Mara, select the first email on this task so the team can schedule the three-email sequence.',
             card: { valuePerMonth: 240, likelihood: 0.6, reviewMinutes: 10, buildMinutes: 30, daysToSignal: 21, measurability: 'cohort',
                 note: 'A first email that shows the product converts more trials into paid subscriptions.', by: DEMO_BUILDER },
             options: [{ label: 'The product tour', detail: 'The tour converted better in tests.', recommended: true },
@@ -66,16 +75,25 @@ const WORK = {
         task('Send the agency template launch email', ['The agency template launch needs the email sequence first.', 'Send the launch email once the sequence is live.', 'Waiting for the onboarding sequence before announcing.', ''], { status: 'blocked', opened: -5, dependsOn: 11, owner: 'Mara', epic: 'onboarding', change: 'copy' }),
     ],
     pw: [
-        task('Restore source saving', ['Source saves dropped for two days; visits continue.', 'Link reproduction, restore saving, and verify; retain the original alert.', 'Starting with the save action. Keep the alert open.', 'Saving restored; tonight’s report confirms recovery.'], { status: 'closed', opened: -2, started: -2, finished: '3h', priority: 1,
+        task('Restore source saving', ['Source saves dropped for two days while visits continued.', 'Saving from the preview adds the source to the library. The task links to the original alert and verification.', 'Pass the save request through the source preview.', 'Saving restored; tonight’s report confirms recovery.'], { status: 'closed', opened: -2, started: -2, finished: '3h', priority: 1,
+            reproduce: '1. Open a source preview.\n2. Press Save and reopen the library.\n\n**Actual:** The source is absent.\n\n**Expected:** The saved source appears in the library.',
             note: 'The preview step dropped the save request.', path: '/sources', epic: 'saving', change: 'feature' }),
         task('Reproduce the source-save failure', ['The source-save alert needs a repeatable failing action.', 'Record the source, preview, and failed save for repair.', 'Sources open. Saving fails after the source preview.', 'The preview-save failure is reproduced.'], { status: 'closed', opened: -2, finished: -1, epic: 'saving', change: 'feature' }),
-        task('Revise the collection labels', ['Collection label revisions need Mara’s decision first.', 'After approval, revise labels and retain the before/after list.', 'The label draft awaits Mara. Save repair can continue.', ''], { status: 'blocked', opened: -12, owner: 'Mara', change: 'copy' }),
+        task('Revise the collection labels', ['Customers need familiar labels to find their saved collections.', 'The collections show the reviewed labels and this task links to the before-and-after list.', 'Proposed labels are “Papers” for academic sources and “Reading list” for sources to read next. Apply the terms Mara confirms in her checklist.', ''], { status: 'open', opened: -12, change: 'copy' }),
         task('Verify restored source saving', ['Source-save verification follows the shipped repair.', 'Run the failing save flow, reopen it, and record results.', 'Use the reported route now the restore task is closed.', ''], { status: 'in_progress', opened: -2, started: '2h', owner: 'codex', dependsOn: 0, epic: 'saving', change: 'feature' }),
         task('Check the saved-source links', ['Saved-source links can be checked during the repair.', 'Open each index link; file broken targets against named sources.', 'This check needs neither save repair nor label approval.', 'Saved-source links reach their named routes.'], { status: 'closed', opened: -12, started: -6, finished: -5, epic: 'saving', change: 'content-data' }),
         task('Reconcile the completed licensing report', ['Monthly licensing reconciliation remains separate from the missing day.', 'Check monthly corrections and reconciled state; retain the daily gap.', 'Use the completed month. The recent gap remains visible.', 'Monthly corrections reconcile; the gap stays visible.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara', change: 'content-data' }),
-        task('Verify the recovered daily report', ['One recent daily report is missing.', 'Identify the missing day; never substitute a zero observation.', 'Collection resumed. The earlier missing day still needs explicit treatment.', 'Recovered report checked; the earlier gap remains.'], { status: 'closed', opened: -4, finished: -2, owner: 'codex', change: 'infra' }),
+        task('Verify the recovered daily report', ['Pinwell has a report from the day after collection resumed. The previous day is still missing.', 'The recovered report opens, and the missing day appears as a gap in the daily series.', 'Compare the recovered report with the collection history and check the missing day on the chart.', 'The recovered report opens and the earlier gap remains.'], { status: 'closed', opened: -4, finished: -2, owner: 'codex', change: 'infra' }),
         task('Explore shared research folders', ['Shared research folders remain a discovery proposal.', 'At the wake-up date, decide a bounded discovery scope.', 'Park shared-folder exploration while existing source saving is repaired.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara', epic: 'reader', change: 'feature' }),
-        task('Approve revised collection labels', ['Synthetic operator decision; this gate blocks only its declared task.', 'Mara records the decision before the blocked task proceeds.', 'Waiting for the stated decision; unrelated ready work remains available.', ''], { status: 'open', opened: '3h', gate: 2, owner: 'Mara', change: 'copy' }),
+        task('Confirm the terms customers use for collections', [
+            'Mara, review the proposed collection labels so the team can use the terms customers already know. You have the renewal call notes.',
+            'The linked copy task has a confirmed replacement for each label under review.',
+            'The draft covers the labels customers asked about during renewals.', '',
+        ], { status: 'open', opened: '3h', gate: 2, owner: 'Mara', change: 'copy', steps: [
+                { text: 'Read the draft labels on the linked copy task.' },
+                { text: 'Compare the proposed labels with the wording in the renewal call notes.' },
+                { text: 'Record the confirmed wording for each label in a note on this step.' },
+            ], request: '## What it changes\n\n- **Collection labels** The confirmed wording will appear in the saved-source library. Existing collections keep their contents.\n\n## How we’ll confirm\n\nAfter the final tick, the agent will read the recorded wording before applying it and check the resulting labels against the list.' }),
         task('Add a save shortcut to the reader', ['Readers want to save a source without leaving the page.', 'Ship a keyboard save shortcut; record it in help.', 'Shortcut drafted; waits for saving to be stable.', ''], { status: 'open', opened: -12, epic: 'reader', change: 'feature' }),
         task('Renew the university license', ['The largest university license renews next month.', 'Send renewal terms; record the signed license.', 'Usage summary prepared for the renewal call.', ''], { status: 'in_progress', opened: -9, started: -3, owner: 'Mara', change: 'content-data',
             card: { valuePerMonth: 260, likelihood: 0.85, reviewMinutes: 60, daysToSignal: 30, measurability: 'unmeasured',
@@ -88,13 +106,21 @@ const WORK = {
     wp: [
         task('Speed up the recipe pages', ['Slow recipe pages lose visits before readers reach a recipe.', 'Link page timings before and after; keep ad income claims separate.', 'Start with the ten most visited recipe pages.', 'Measured recipe pages beat their baseline.'], { status: 'closed', opened: -21, started: -12, finished: -7, priority: 1, epic: 'speed', change: 'template' }),
         task('Measure the slow recipe pages', ['Recipe page timings need a measured baseline first.', 'Record load timings for the most visited recipe pages.', 'Measure before changing images or ad placement.', 'Baseline timings recorded for top pages.'], { status: 'closed', opened: -21, finished: -12, epic: 'speed', change: 'template' }),
-        task('Choose the holiday recipe collection', ['The holiday recipe collection needs Mara’s selection.', 'After her choice, record the recipes and their publishing dates.', 'Waiting for Mara’s selection; page speed work continues.', ''], { status: 'blocked', opened: -12, owner: 'Mara', epic: 'holiday', change: 'content-data' }),
-        task('Verify the faster recipe pages', ['Faster recipe pages need verification after the speed work.', 'Re-measure the baseline pages; record any page that regressed.', 'Use the same pages once the speed task closes.', ''], { status: 'open', opened: -9, owner: 'codex', dependsOn: 0, epic: 'speed', change: 'template' }),
+        task('Schedule the holiday recipe collection', ['The final recipe list is needed to plan publishing dates ahead of the holiday search peak.', 'Each selected recipe has a publishing date in the holiday calendar.', 'Use the shortlist Mara marks up to build the calendar.', ''], { status: 'open', opened: -12, epic: 'holiday', change: 'content-data' }),
+        task('Verify the faster recipe pages', ['The speed work changed the ten most visited recipe pages. The baseline covers those same pages.', 'The comparison contains timings before and after for all 10 pages and identifies any page that slowed down.', 'Repeat the baseline measurements on the same pages and compare each result.', ''], { status: 'open', opened: -9, owner: 'codex', dependsOn: 0, epic: 'speed', change: 'template' }),
         task('Check the printable recipe cards', ['Printable recipe cards can be checked independently.', 'Print each card layout; file problems against named recipes.', 'This check needs neither speed work nor the holiday selection.', 'Printable cards render on every checked recipe.'], { status: 'closed', opened: -12, started: -4, finished: -3, change: 'template' }),
         task('Check the completed ad payment', ['The completed month’s ad payment needs its own check.', 'Compare the payment with the month’s daily estimates; keep both labelled.', 'Use the stored daily estimates, never traffic, for the comparison.', 'Payment and daily estimates are both recorded.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara', change: 'content-data' }),
         task('Review the seasonal recipe pages', ['Seasonal recipe pages need review before the holidays.', 'List seasonal pages with falling search clicks; propose updates.', 'Use the last four weeks of search clicks.', ''], { status: 'in_progress', opened: -12, started: -2, epic: 'holiday', change: 'content-data' }),
         task('Explore a weekly meal plan', ['A weekly meal plan remains a discovery proposal.', 'At the wake-up date, scope a bounded meal-plan discovery.', 'Park this until the faster pages are verified.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara', change: 'feature' }),
-        task('Approve the holiday recipe collection', ['Synthetic operator approval; it holds only the collection choice.', 'Mara approves or changes the collection before publishing dates.', 'Shortlist of twenty recipes attached for approval.', ''], { status: 'open', opened: -9, gate: 2, owner: 'Mara', change: 'content-data' }),
+        task('Mark recipes ready for the holiday collection', [
+            'Mara, mark which of the 20 shortlisted recipes are ready to schedule. You have the kitchen test notes and final photo list.',
+            'The linked scheduling task has the final recipe list.',
+            'The shortlist is ready for review.', '',
+        ], { status: 'open', opened: -9, gate: 2, owner: 'Mara', change: 'content-data', steps: [
+                { text: 'Open the holiday shortlist in the editorial calendar.' },
+                { text: 'Check the kitchen test notes and photos for each shortlisted recipe.' },
+                { text: 'Mark each recipe that can be published and add the final list to a note on this step.' },
+            ], request: '## What it changes\n\n- **Holiday calendar** The marked recipes get publishing dates. Recipes that still need testing or photography stay in the draft list.\n\n## How we’ll confirm\n\nAfter the final tick, the agent will match scheduled recipes to the confirmed list before sharing the calendar.' }),
         task('Fix the recipe save button', ['Recipe saves failed for a day after a plugin update.', 'Saving works again on recipe pages; record the cause.', 'The plugin update broke the save request; rolling back.', 'Saves restored; the plugin version is pinned.'], { status: 'closed', opened: -2, started: -2, finished: -1, priority: 1,
             note: 'A plugin update broke saving; version now pinned.', check: 'saves work on ten recipes', path: '/recipes', change: 'feature' }),
         task('Publish ten Thanksgiving recipes', ['Thanksgiving searches start rising in mid-October.', 'Publish ten tested recipes before the search rise.', 'Ten recipes tested; photos ready for six.', 'Ten Thanksgiving recipes published with photos.'], { status: 'closed', opened: -14, started: -6, finished: -4, epic: 'holiday', change: 'copy' }),
@@ -118,8 +144,12 @@ const WORK = {
     ],
     tn: [
         task('Ship the trail page redesign', ['Trail pages looked dated beside newer guide assets.', 'Ship the redesigned trail pages; record the changed routes.', 'The redesign covers trail, region and map pages.', 'Redesign live; comparison registered on sessions.'], { status: 'closed', opened: -50, started: -40, finished: -36, priority: 1, epic: 'redesign', change: 'template' }),
-        task('Read the redesign comparison', ['The redesign’s 28-day comparison has its final reading.', 'Record sessions before and after; file the rollback decision.', 'Final reading in; sessions fell after the redesign.', 'Sessions fell; rollback question filed.'], { status: 'closed', opened: -37, started: -8, finished: -7, owner: 'codex', epic: 'redesign', change: 'template' }),
-        task('Roll back the trail page redesign?', ['Sessions fell after the redesign, while the season fell too.', 'Decide: roll back, or keep it and fix the slowest pages.', 'The comparison and search positions are attached for review.', ''], { status: 'open', opened: -7, owner: 'Mara', human: true, priority: 1, epic: 'redesign', change: 'template',
+        task('Read the redesign comparison', ['The redesign’s 28-day comparison has ended, and the team needs the result to decide whether to roll back.', 'The result records sessions for both periods, explains the seasonal change and links the rollback decision.', 'Read the registered comparison and record what changed across the two periods.', 'Sessions fell over the comparison period. The rollback decision is open.'], { status: 'closed', opened: -37, started: -8, finished: -7, owner: 'codex', epic: 'redesign', change: 'template' }),
+        task('Decide whether to roll back the trail redesign', ['Sessions fell in the 28-day comparison. Seasonal traffic fell over the same period, so the comparison leaves the cause uncertain.', 'The chosen direction is recorded and the map work follows that direction.', 'The comparison and search positions are attached for review.', ''], { status: 'open', opened: -7, owner: 'Mara', human: true, priority: 1, epic: 'redesign', change: 'template',
+            question: 'Should Trail Notes roll back the trail page redesign?',
+            request: 'Mara, choose a direction on this task so the team can plan the interactive maps and decide whether to keep the old templates.',
+            options: [{ label: 'Roll back', detail: 'Restore the previous trail pages and compare sessions over another 28 days.', recommended: true },
+                { label: 'Keep the redesign', detail: 'Keep the new layout and fix the slowest map pages first.' }],
             card: { valuePerMonth: 520, likelihood: 0.55, reviewMinutes: 25, buildMinutes: 180, daysToSignal: 28, measurability: 'cohort', durability: 0.9,
                 note: 'Sessions fell after the redesign; if the redesign caused it, rolling back regains their ad income.', by: DEMO_VERIFIER } }),
         task('Find the trail pages losing search clicks', ['Search clicks to trail pages have fallen since July.', 'List the pages with the largest click losses.', 'Comparing positions for the fifty biggest trail pages.', 'Forty pages listed with their lost positions.'], { status: 'closed', opened: -9, started: -6, finished: -4, epic: 'search', change: 'content-data' }),
@@ -140,7 +170,7 @@ const WORK = {
         task('Remove the old templates left in legacy/', ['The redesign left old trail templates unused in legacy/.', 'Unused legacy/ files deleted; the next codebase report lists none.', 'A rollback needs these files; waits for that decision.', ''], { status: 'blocked', opened: -6, dependsOn: 2, epic: 'redesign', change: 'template' }),
     ],
     fr: [
-        task('Check CSV input handling', ['CSV input handling needs verification before more examples.', 'Check empty, zero, and numeric inputs; record concrete failures.', 'Start with inputs; more examples cannot repair rejected values.', ''], { status: 'in_progress', opened: -22, started: -3, epic: 'imports', change: 'feature' }),
+        task('Check CSV input handling', ['The examples depend on how the CSV checker handles blank cells and numeric data.', 'The input checklist records the actual result for an empty file, a blank cell, zero and a decimal value.', 'Run each input and record any mismatch between the expected and actual result.', ''], { status: 'in_progress', opened: -22, started: -3, epic: 'imports', change: 'feature' }),
         task('Verify the first usage reports', ['First usage reports cover only the short post-launch period.', 'Verify launch bounds and identify provisional recent days.', 'Check available days before interpreting a change.', 'Usage begins at launch; recent days stay provisional.'], { status: 'closed', opened: -21, finished: -14, owner: 'codex', change: 'infra' }),
         task('Review sample CSV files', ['Sample files must match accepted CSV inputs.', 'Check examples against accepted inputs; hold unsupported cases.', 'Waiting for the input checklist before accepting examples.', ''], { status: 'open', opened: -20, owner: 'Mara', epic: 'imports', change: 'content-data' }),
         task('Verify keyboard CSV use', ['CSV acceptance includes keyboard operation.', 'After input acceptance, complete those cases using the keyboard.', 'Reuse accepted input cases; record every unreachable control.', ''], { status: 'blocked', opened: -19, owner: 'codex', dependsOn: 0, epic: 'imports', change: 'feature' }),
@@ -148,7 +178,9 @@ const WORK = {
         task('Record the initial operating costs', ['Operating costs exist; monetization is unconfigured.', 'Check initial costs; leave unconfigured subscription and licensing revenue absent.', 'Record operating costs without inventing disconnected revenue.', 'Initial costs recorded; no revenue invented.'], { status: 'closed', opened: -17, started: -7, finished: -6, owner: 'Mara', change: 'content-data' }),
         task('Review the next coverage comparison', ['The next comparison must begin no earlier than launch.', 'Choose available days and retain provisional indicators.', 'A mature-asset window would fabricate this asset’s earlier history.', 'The comparison uses only post-launch days.'], { status: 'closed', opened: -16, started: -3, finished: -2, owner: 'codex', change: 'content-data' }),
         task('Explore saved validation rules', ['Saved validation rules remain a discovery proposal.', 'At the wake-up date, define evidence for bounded discovery.', 'Keep this parked until input and keyboard checks finish.', ''], { status: 'deferred', opened: -15, finished: -10, owner: 'Mara', epic: 'rules', change: 'feature' }),
-        task('Charge for saved validation rules?', ['Early users ask to keep their validation rules between visits.', 'Decide whether saved rules are free or part of a paid plan.', 'A third of returning users rerun the same checks.', ''], { status: 'open', opened: -20, owner: 'Mara', human: true, epic: 'rules', change: 'feature',
+        task('Choose the plan for saved validation rules', ['A third of returning users rerun the same checks. They have asked to keep rules between visits.', 'The pricing task reflects the recorded decision before it publishes.', 'The pricing page waits on this choice.', ''], { status: 'open', opened: -20, owner: 'Mara', human: true, epic: 'rules', change: 'feature',
+            question: 'Should saved validation rules be part of a paid plan?',
+            request: 'Mara, select a pricing direction on this task so the team knows what to put on the pricing page.',
             card: { valuePerMonth: 600, likelihood: 0.3, reviewMinutes: 20, daysToSignal: 45, measurability: 'cohort', revenueFamily: 'subs',
                 note: 'A third of returning users rerun the same checks; a paid tier for saved rules starts subscription income.', by: DEMO_BUILDER },
             options: [{ label: 'A paid tier', detail: 'Saved rules join a paid plan; checking files stays free.', recommended: true },
@@ -168,13 +200,17 @@ const WORK = {
     no: [
         task('Verify the portfolio backup restore', ['Portfolio recovery must preserve operational records and task history.', 'Verify restored databases, task history, and configuration on isolated resources.', 'Server startup alone is insufficient; inspect restored task history.', 'Recovery checks include task history readbacks.'], { status: 'closed', opened: -390, finished: -7, change: 'infra' }),
         task('Check the task-board refresh', ['Task-board refresh must retain identity, empty queues, and failures.', 'Compare snapshot identities and counts; distinguish unavailable from empty.', 'An unavailable project must never appear as an empty queue.', 'Board refresh keeps identities and unavailable counts.'], { status: 'closed', opened: -359, finished: -8, epic: 'board', change: 'infra' }),
-        task('Review the next operating-cost budget', ['The next operating-cost budget needs Mara’s decision.', 'Record approved scope after the gate; preserve existing cost history.', 'Next budget approval does not authorize rewriting previous costs.', ''], { status: 'open', opened: -328, owner: 'Mara', change: 'content-data' }),
-        task('Verify the refreshed task projects', ['Project-map verification awaits the shared budget decision.', 'After approval, verify all six project identities and snapshot reads.', 'These projects already exist; this review never reinitializes them.', ''], { status: 'blocked', opened: -297, finished: -10, owner: 'codex', dependsOn: 2, epic: 'board', change: 'infra' }),
+        task('Record the next operating-cost budget', ['The next budget needs the owner’s approval before it can guide operating costs.', 'The next month has an approved limit for each operating-cost category.', 'Record the approved limits against the new budget period.', ''], { status: 'open', opened: -328, owner: 'Mara', change: 'content-data' }),
+        task('Verify the refreshed task projects', ['A project refresh can mislabel work or leave a project’s task counts missing.', 'All six project identities match their task snapshots.', 'Verification uses the existing project map after the budget review clears.', ''], { status: 'blocked', opened: -297, finished: -10, owner: 'codex', dependsOn: 2, epic: 'board', change: 'infra' }),
         task('Inspect the recorded collection recovery', ['Collection history includes a failed attempt and later recovery.', 'Inspect both recorded attempts; never recollect to rewrite history.', 'Read the recorded attempts, rather than starting another collection.', ''], { status: 'open', opened: -266, change: 'infra' }),
         task('Reconcile the shared operating costs', ['Shared costs belong to the OS, separate from asset revenue.', 'Check OS cost entries, booking states, and recorded periods.', 'Keep portfolio overhead separate; use the ledger’s recorded amounts.', 'Shared costs keep OS ownership and periods.'], { status: 'closed', opened: -235, finished: -12, owner: 'Mara', change: 'content-data' }),
         task('Check the portfolio report links', ['Portfolio report links must preserve task-board asset identities.', 'Open five asset links and the OS; check target identities.', 'Compare with the six-project map, not display names.', 'All six portfolio links open their identities.'], { status: 'closed', opened: -204, finished: -13, owner: 'codex', change: 'content-data' }),
         task('Explore the next portfolio import', ['A further portfolio import needs bounded discovery first.', 'At the wake-up date, choose scope without copying an installation.', 'Park this until task, recovery, and report checks finish.', ''], { status: 'deferred', opened: -173, finished: -1, owner: 'Mara', change: 'infra' }),
-        task('Approve the next operating-cost budget', ['Synthetic operator decision; this gate holds only the budget review.', 'Mara records the budget decision before its review proceeds.', 'The budget review waits; other system work stays available.', ''], { status: 'open', opened: -1, gate: 2, owner: 'Mara', change: 'content-data' }),
+        task('Approve the next operating-cost budget', [
+            'Mara, approve the next month’s operating budget here so the team can record the approved costs.',
+            'The approved budget is recorded against the next month.', 'The draft budget is ready for the owner to review.', '',
+        ], { status: 'open', opened: -1, gate: 2, owner: 'Mara', change: 'content-data',
+            request: '## Why this needs you\n\nThe owner sets the operating budget. The review task needs your approval to record it.\n\n## What the agent will do\n\nRecord the approved categories and limits in the next month’s budget.\n\n## What it changes\n\n- **Budget period** The new limits apply to the next month.\n\n## How we’ll confirm\n\nCompare the saved limits with the approved draft.\n\n## If you decline\n\nThe team will revise the draft before recording new limits.' }),
         task('Show who closed each task', ['Closed tasks name no closer, so agent work reads anonymous.', 'Task pages name who closed each task, and with which model.', 'Agents already send their name; models come with the claim.', 'Task pages name the closer and model.'], { status: 'closed', opened: -6, started: -2, finished: '9h',
             note: 'Closes now record the closer and model.', check: 'closer shown on ten closed tasks', model: 'Opus 5.5', epic: 'board', change: 'feature' }),
         task('Chart each agent’s weekly velocity', ['Nobody can see how fast agent work is closing.', 'One chart shows each agent’s closed work a week, eight weeks.', 'Reading eight weeks of closed tasks per project first.', ''], { status: 'in_progress', opened: -4, started: '6h', model: 'Sonnet 5.5', epic: 'board', change: 'feature' }),
@@ -316,7 +352,15 @@ const PROCESS = 'infra';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const dayLabel = (iso) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 const sentence = (text) => text.replace(/[.!]$/u, '');
-const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+const sentenceEnding = (text) => /[.!?]$/u.test(text) ? text : `${text}.`;
+function plannedDescription(plan, where, linkedWork) {
+    const [why, , fix] = plan.brief;
+    if (linkedWork)
+        return `${why}\n\n${plan.request}\n\n## Where\n\n${linkedWork}`;
+    if (plan.question)
+        return `${plan.request}\n\n## Why\n\n${why}\n\n## What happens next\n\n${plan.brief[1]}\n\n## Where\n\n${where}`;
+    return workDescription(sentenceEnding(plan.title), why, fix, where, plan.reproduce);
+}
 /** Facts describe fictional work, never provider execution or causal returns. */
 export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
     const digest = (asset, key) => createHash('sha256').update(`${seed}\0${asset.id}\0${key}`).digest('hex');
@@ -350,14 +394,17 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         if (!plans || !themes)
             throw new Error('The task scenario needs every declared project.');
         const epics = new Map(themes.map(theme => [theme.key, id(asset, `epic-${theme.key}`)]));
+        const where = `[${asset.name} in NoticeOS](/assets/${asset.id})`;
         if (plans.some(plan => plan.epic !== undefined && !epics.has(plan.epic)))
             throw new Error('A planned task names an epic its project does not have.');
         for (const theme of themes) {
             const members = plans.filter(plan => plan.epic === theme.key);
             if (!members.length)
                 throw new Error('Every demo epic needs planned work.');
-            tasks.push({ id: epics.get(theme.key), asset: asset.id, prefix: asset.prefix, title: theme.title, description: theme.about,
-                acceptance: 'Required children need accepted evidence before this epic closes.', issueType: 'epic', priority: 2, changeClass: theme.kind,
+            const [why, ...scope] = theme.about.split(/(?<=\.) /u);
+            tasks.push({ id: epics.get(theme.key), asset: asset.id, prefix: asset.prefix, title: theme.title,
+                description: workDescription(sentenceEnding(theme.title), why, scope.join(' '), where),
+                acceptance: members.filter(member => member.status !== 'deferred').map(member => checklist(member.brief[1])).join('\n'), issueType: 'epic', priority: 2, changeClass: theme.kind,
                 events: [{ at: at(Math.min(...members.map(plan => typeof plan.opened === 'number' ? plan.opened : 0)) - 1, 9), status: 'open', assignee: OPERATOR }], comments: [] });
         }
         // Times of day vary by task so a day's work does not all land at once; a
@@ -389,33 +436,38 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
             const commit = commitOf(asset, key), link = linkOf(asset, plan.path);
             const built = plan.status === 'closed' && owner === DEMO_BUILDER;
             const fact = { id: id(asset, key), asset: asset.id, prefix: asset.prefix, title: plan.title,
-                description: gateFor ? plan.brief[0] : `${plan.brief[0]} Asset: /assets/${asset.id}`, acceptance: plan.brief[1],
-                issueType: gateFor ? 'gate' : 'task', priority: plan.priority ?? 2, events: history, comments: [], changeClass: plan.change,
+                description: plannedDescription(plan, where, plan.gate === undefined ? undefined : `[${plans[plan.gate].title}](/tasks/${gateFor})`),
+                acceptance: checklist(plan.brief[1]),
+                issueType: gateFor ? 'gate' : plan.question ? 'decision' : plan.reproduce ? 'bug' : 'task',
+                priority: plan.priority ?? 2, events: history, comments: [], changeClass: plan.change,
                 ...(gateFor ? { human: true, blocks: gateFor } : plan.epic ? { parent: epics.get(plan.epic) } : {}),
                 ...(plan.human ? { human: true } : {}),
+                ...(plan.steps ? { steps: plan.steps } : {}),
                 ...(plan.card ? { card: cardOf(plan.card, asset, opened) } : {}),
-                ...(plan.options ? { choices: { question: plan.title, options: plan.options.map((option, index) => ({ key: TASK_CHOICE_KEYS[index], ...option })) } } : {}),
+                ...(plan.options && plan.question ? { choices: { question: plan.question, options: plan.options.map((option, index) => ({ key: TASK_CHOICE_KEYS[index], ...option })) } } : {}),
                 ...(plan.dependsOn === undefined ? {} : { dependsOn: id(asset, `task-${plan.dependsOn}`) }),
                 ...(plan.status === 'deferred' ? { deferUntil: at(14, 12) } : {}),
                 // An agent's close carries its evidence as pointers: the commit and where the change shows.
                 ...(plan.status === 'closed' ? { closeEvidence: built ? [sentence(plan.brief[3]), commit, ...(link ? [link] : [])].join(' · ') : plan.brief[3] } : {}),
                 ...(history.some(event => event.status === 'in_progress') && modelOf(asset, key, owner, plan.priority) ? { model: plan.model ?? modelOf(asset, key, owner, plan.priority) } : {}) };
-            fact.comments.push({ author: plan.human || gateFor ? DEMO_BUILDER : OPERATOR, at: opened, text: plan.brief[2] });
+            if (plan.note || plan.check || plan.human || gateFor) {
+                fact.comments.push({ author: plan.human || gateFor ? DEMO_BUILDER : OPERATOR, at: opened, text: plan.brief[2] });
+            }
             const closedAt = history.at(-1).at, claimedAt = history.find(event => event.status === 'in_progress')?.at;
             const before = (hours) => new Date(Math.max(Date.parse(claimedAt ?? opened) + HOUR / 2, Date.parse(closedAt) - hours * HOUR)).toISOString();
             if (plan.status === 'in_progress')
-                fact.comments.push({ author: owner, at: closedAt, text: 'Checking the agreed cases; verification remains open.' });
-            if (fact.dependsOn && plan.status !== 'closed')
-                fact.comments.push({ author: owner, at: closedAt, text: `Waiting for /tasks/${fact.dependsOn} before verification.` });
+                fact.comments.push({ author: owner, at: closedAt, text: plan.brief[2] });
+            if (fact.dependsOn && plan.status === 'blocked')
+                fact.comments.push({ author: owner, at: closedAt, text: `Work resumes when [the prerequisite](/tasks/${fact.dependsOn}) is complete.` });
             if (built) {
-                fact.comments.push({ author: DEMO_BUILDER, at: before(2), text: plan.note ? `${plan.note} Fixed in ${commit}.` : `Shipped in ${commit}; ready for verification.` });
+                fact.comments.push({ author: DEMO_BUILDER, at: before(2), text: plan.note ? `${plan.note} Fixed in \`${commit}\`.` : `The change in \`${commit}\` is ready for verification.` });
                 // Work with its own verification task is checked there instead.
                 if (!plans.some(other => other.dependsOn === index && other.owner === DEMO_VERIFIER)) {
-                    fact.comments.push({ author: DEMO_VERIFIER, at: before(1), text: `Verified: ${plan.check ?? lowerFirst(sentence(plan.brief[3]))}.` });
+                    fact.comments.push({ author: DEMO_VERIFIER, at: before(1), text: sentenceEnding(plan.check ? `Checked that ${plan.check}` : plan.brief[3]) });
                 }
             }
             else if (plan.status === 'closed') {
-                fact.comments.push({ author: owner, at: closedAt, text: `${plan.brief[3]} Evidence: /tasks/${fact.id} · /assets/${asset.id}` });
+                fact.comments.push({ author: owner, at: closedAt, text: `${plan.brief[3]} See [${asset.name} in NoticeOS](/assets/${asset.id}).` });
             }
             tasks.push(fact);
         }
@@ -431,13 +483,13 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         const closed = at(when, 0), claimed = new Date(Date.parse(closed) - (1 + index % 3) * HOUR).toISOString();
         const opened = new Date(Date.parse(claimed) - DAY).toISOString();
         const commit = commitOf(asset, key), link = linkOf(asset, path);
-        tasks.push({ id: id(asset, key), asset: asset.id, prefix, title, description: `${title} on ${asset.name}.`,
-            acceptance: `${done}; checked on the live page.`, issueType: 'task', priority: 3, changeClass: change,
+        tasks.push({ id: id(asset, key), asset: asset.id, prefix, title,
+            description: `${title} on ${asset.name}.\n\n## Where\n\n\`${path}\``,
+            acceptance: checklist(sentenceEnding(done)), issueType: 'task', priority: 3, changeClass: change,
             events: [{ at: opened, status: 'open', assignee: null }, { at: claimed, status: 'in_progress', assignee: DEMO_BUILDER },
                 { at: closed, status: 'closed', assignee: DEMO_BUILDER }],
             closeEvidence: [done, commit, ...(link ? [link] : [])].join(' · '), model: modelOf(asset, key, DEMO_BUILDER, 3),
-            comments: [{ author: OPERATOR, at: opened, text: `Small fix: ${lowerFirst(done)}.` },
-                { author: DEMO_BUILDER, at: new Date(Date.parse(closed) - HOUR / 2).toISOString(), text: `Fixed in ${commit}; ready for verification.` }] });
+            comments: [{ author: DEMO_BUILDER, at: new Date(Date.parse(closed) - HOUR / 2).toISOString(), text: `The change in \`${commit}\` is ready for verification.` }] });
     });
     CHECKS.forEach(([prefix, when, running], index) => {
         const asset = assets.find(entry => entry.prefix === prefix);
@@ -448,7 +500,8 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         const opened = new Date(Date.parse(claimed) - 3 * HOUR).toISOString();
         const key = `check-${index}`;
         tasks.push({ id: id(asset, key), asset: asset.id, prefix, title: `Check the ${label} changes on ${asset.name}`,
-            description: `Check what shipped to ${asset.name} on ${label}.`, acceptance: `Each ${asset.name} change from ${label} passes its check.`,
+            description: workDescription(`Verify what shipped to ${asset.name} on ${label}.`, 'An independent check confirms whether the release behaves as expected.', 'Open each shipped change from that day and record the result of its acceptance checks.', `[${asset.name} in NoticeOS](/assets/${asset.id})`),
+            acceptance: checklist(`Each change from ${label} has a recorded result for its acceptance checks.`),
             issueType: 'task', priority: 2, changeClass: PROCESS,
             events: [{ at: opened, status: 'open', assignee: DEMO_VERIFIER }, { at: claimed, status: 'in_progress', assignee: DEMO_VERIFIER },
                 ...(running ? [] : [{ at: finished, status: 'closed', assignee: DEMO_VERIFIER }])],
@@ -483,14 +536,15 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
             const claimed = new Date(Date.parse(closed) - (priority === 3 ? 1 + j % 3 : 6 + (j * 7) % 60) * HOUR).toISOString();
             const opened = new Date(Math.max(Date.parse(asset.createdAt) + HOUR, Date.parse(claimed) - (1 + j % 9) * DAY)).toISOString();
             const commit = commitOf(asset, key), link = linkOf(asset, path);
-            tasks.push({ id: id(asset, key), asset: asset.id, prefix: asset.prefix, title, description: `${title} on ${asset.name}.`,
-                acceptance: `${done}; checked and linked.`, issueType: 'task', priority, changeClass: change,
+            const where = path ? `\`${path}\` on ${asset.name}` : `[${asset.name} in NoticeOS](/assets/${asset.id})`;
+            tasks.push({ id: id(asset, key), asset: asset.id, prefix: asset.prefix, title,
+                description: `${title}.\n\n## Where\n\n${where}`,
+                acceptance: checklist(sentenceEnding(done)), issueType: 'task', priority, changeClass: change,
                 events: [{ at: opened, status: 'open', assignee: null }, { at: claimed, status: 'in_progress', assignee: DEMO_BUILDER },
                     { at: closed, status: 'closed', assignee: DEMO_BUILDER }],
                 closeEvidence: [done, commit, ...(link ? [link] : [])].join(' · '), model: modelOf(asset, key, DEMO_BUILDER, priority),
-                comments: [{ author: OPERATOR, at: opened, text: `${asset.prefix === 'no' ? 'Needed' : 'Readers expect'}: ${lowerFirst(done)}.` },
-                    { author: DEMO_BUILDER, at: new Date(Date.parse(closed) - 2 * HOUR).toISOString(), text: `Shipped in ${commit}; ready for verification.` },
-                    { author: DEMO_VERIFIER, at: new Date(Date.parse(closed) - HOUR).toISOString(), text: `Verified: ${lowerFirst(done)}.` }] });
+                comments: [{ author: DEMO_BUILDER, at: new Date(Date.parse(closed) - 2 * HOUR).toISOString(), text: `The change in \`${commit}\` is ready for verification.` },
+                    { author: DEMO_VERIFIER, at: new Date(Date.parse(closed) - HOUR).toISOString(), text: sentenceEnding(done) }] });
             shipped.set(prefix, (shipped.get(prefix) ?? 0) + 1);
             taken++;
         }
@@ -504,7 +558,8 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
             const opened = new Date(monday.getTime() - 2 * DAY).toISOString();
             const claimed = new Date(Date.parse(closed) - 3 * HOUR).toISOString();
             tasks.push({ id: id(asset, `release-${weeksAgo}`), asset: asset.id, prefix, title: `Verify the ${label} release`,
-                description: `Check the changes shipped to ${asset.name} by ${label}.`, acceptance: `Each ${asset.name} change by ${label} passes its check.`,
+                description: workDescription(`Verify the ${asset.name} release for the week ending ${label}.`, `The release includes ${changes} ${changes === 1 ? 'change that needs' : 'changes that need'} an independent check.`, 'Run each shipped task’s acceptance checks and record any follow-up.', `[${asset.name} in NoticeOS](/assets/${asset.id})`),
+                acceptance: checklist(`The release record includes a check result for all ${changes} ${changes === 1 ? 'change' : 'changes'}.`),
                 issueType: 'task', priority: 2, changeClass: PROCESS,
                 events: [{ at: opened, status: 'open', assignee: DEMO_VERIFIER }, { at: claimed, status: 'in_progress', assignee: DEMO_VERIFIER },
                     { at: closed, status: 'closed', assignee: DEMO_VERIFIER }],
@@ -516,7 +571,8 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         if (os) {
             const closed = new Date(monday.getTime() + 15 * HOUR).toISOString();
             tasks.push({ id: id(os, `review-${weeksAgo}`), asset: os.id, prefix: os.prefix, title: `Review the week to ${label}`,
-                description: `Read the portfolio's week to ${label}; file what needs work.`, acceptance: `Week to ${label} reviewed; follow-ups filed.`,
+                description: workDescription(`Review portfolio results for the week ending ${label}.`, 'The review sets the work the team will pick up next.', 'Read the week’s reports and file a task for each finding that needs action.', `[${os.name} in NoticeOS](/assets/${os.id})`),
+                acceptance: checklist('The review records its findings and links each follow-up task.'),
                 issueType: 'task', priority: 2, changeClass: PROCESS,
                 events: [{ at: new Date(monday.getTime() - DAY).toISOString(), status: 'open', assignee: OPERATOR },
                     { at: new Date(monday.getTime() + 9 * HOUR).toISOString(), status: 'in_progress', assignee: OPERATOR },
