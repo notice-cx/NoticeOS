@@ -239,7 +239,7 @@ const costChange = {
 const consumers = {
   "config/constants.json": ["wall", "asset-detail", "settings", "workflows", "financials", "integrations", "integration-providers", "work", "wall-feed"],
   "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
-  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
+  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers", "integration-sites"],
   "config/counters.json": ["wall", "asset-detail"],
   "config/tower.json": ["wall", "settings", "asset-detail"],
   "config/serp-panel.json": ["wall", "asset-detail", "integrations"],

@@ -1,3 +1,4 @@
+import { MediavineSettings } from "./MediavineSettings";
 import { StripeReport } from "./StripeReport";
 import { PurposeSections } from "./purpose-presentation";
 import { useId } from "react";
@@ -32,6 +33,9 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
   // The estimates' month is the reporting clock's, which a ledger month
   // never moves: the newest day the source owes.
   const estimateMonth = history.to.slice(0, 7);
+  const hasMediavine = data.integrations.lanes.some(({ catalog, cell }) =>
+    catalog.id === "ad-network" && (cell.mapped || cell.effective === "live" || cell.effective === "degraded"))
+    || history.bySource?.some(({ provider }) => provider === "mediavine");
   return (
     <PurposeSections surface="financials" className="flex min-w-0 flex-col gap-5">
       {money && equation ? (
@@ -49,6 +53,7 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
       )}
       {/* The month's figures are the hero's; the panel draws the range. */}
       <DailyRevenuePanel key="daily" history={history} range={days} totals={false} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
+      {hasMediavine ? <MediavineSettings key="mediavine" asset={data.asset.id} /> : null}
       <StripeReport key="stripe" report={data.stripeSubscriptions} history={history} days={days} nowMs={nowMs} />
       <div key="ledger" id="pnl"><div id="ledger">
         <AssetLedger ledger={data.ledger} ledgerRecordedAt={data.freshness.ledgerRecordedAt} nowMs={nowMs} />

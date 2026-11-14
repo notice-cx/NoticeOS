@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2, X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { POSTHOG_FUNNEL_LIMITS, type PosthogFunnel } from "@noticeos/contract/configuration";
 import type { SettingOp } from "@shared/changeset";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { InlineSaveState, type InlineSave } from "@/components/InlineSaveState";
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
@@ -476,8 +477,8 @@ function PickedFunnels({
             <li key={funnel.id} className="flex min-h-11 items-center gap-3 border-t border-border px-3 py-1.5 first:border-t-0" data-funnel={funnel.id}>
               <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-3">
                 <span className="truncate text-sm font-medium text-foreground">{funnel.name}</span>
-                <span className="truncate font-mono text-xs text-muted-foreground">{stepLine(funnel)}</span>
               </span>
+              <InfoTooltip label={`Steps for ${funnel.name}`}>{stepLine(funnel)}</InfoTooltip>
               <Button
                 type="button"
                 variant="ghost"

@@ -21,9 +21,9 @@ const SECTIONS: Record<string, Partial<Record<ViewId, readonly string[]>>> = {
     reliability: ["journey", "moves", "audience", "search", "product", "panel"],
   },
   financials: {
-    growth: ["stripe", "daily", "month", "ledger"],
-    delivery: ["month", "ledger", "daily"],
-    reliability: ["ledger", "month", "daily"],
+    growth: ["stripe", "daily", "mediavine", "month", "ledger"],
+    delivery: ["month", "ledger", "daily", "mediavine"],
+    reliability: ["ledger", "month", "daily", "mediavine"],
   },
   search: {
     growth: ["analysis", "moves", "panel", "decisions", "context"],

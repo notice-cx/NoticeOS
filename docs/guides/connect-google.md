@@ -33,7 +33,7 @@ How often the archive runs is set on **Integrations** > **Manage** on the Google
 
 1. In the panel, select **Continue with Google**.
 2. On Google's screen, select the account that can read the asset's GA4 property and Search Console site, and allow both permissions.
-3. Back in the panel, review each asset's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked. When the account cannot read an asset's GA4 property or Search Console site, the row reads **GA4: not in this account** or **Search Console: not in this account**, and a line under the list names the account and what to grant (see [Change which asset an asset uses](#change-which-asset-a-asset-uses)).
+3. Back in the panel, review each asset's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked. When the account cannot read an asset's GA4 property or Search Console site, the row reads **GA4: not in this account** or **Search Console: not in this account**, and a line under the list names the account and what to grant (see [Change an asset’s Google mapping](#change-an-asset-s-google-mapping)).
 4. Select **Start collecting**.
 
 ## Self-hosted: the one-time console steps
@@ -62,16 +62,16 @@ A new consent screen in the Google Cloud console starts in Testing. While it sta
 1. In the Google Cloud console, open the OAuth consent screen and select **Publish app**.
 2. On the Google row, select **it does not expire**. Google provides no way for NoticeOS to check whether you published, so the row shows the chip until you record that you did. NoticeOS keeps that setting through later sign-ins.
 
-## Change which asset an asset uses
+## Change an asset’s Google mapping {#change-an-asset-s-google-mapping}
 
 You decide which GA4 property and Search Console site belong to each of your assets; Google does not. The panel pre-selects a match by domain.
 
-1. On the asset's **Data sources** tab, open the Google row.
-2. Under **Mapping**, set the **Provider site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each choice is saved on its own with **Undo** beside it.
+1. Open **Integrations** and select **Manage** on the Google row.
+2. In **Asset mappings**, choose a **GA4 property** or **Search Console site** for the asset and select **Save**. **Undo** appears beside the mapping.
 
-The two lists show only what the connected Google credential can read, and the line under each list names that credential. When a GA4 property or Search Console site is missing:
+The lists show what the connected Google account can read. When a property is missing, grant access and select **Reload list**. **Enter manually** is available for a mapping that the account did not list.
 
-- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that Search Console site. Then select **Read again** under the list in the panel, or reload the **Data sources** tab.
+- **Service account**: in Google Analytics, add the service account's email as **Viewer** on the GA4 property or its account. In Search Console, add it as a **Full user** on the Search Console site.
 - **Sign-in**: on **Integrations**, sign in with a Google account that can read it.
 
 ## Verify

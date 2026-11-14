@@ -188,13 +188,13 @@ export type FieldUndoOutcome = { undone: true } | { undone: false; refusal: stri
 export function useFieldConfigSave() {
   const write = useConfigWrite();
   return useCallback(
-    async ({ ops, slug, record }: SaveRequest): Promise<FieldSaveOutcome> => {
+    async ({ ops, slug, record, undo }: SaveRequest): Promise<FieldSaveOutcome> => {
       try {
         await write(ops, slug, record);
       } catch (err) {
         return { saved: false, refusal: refusalMessage(err) };
       }
-      const back = ops.map(invert);
+      const back = undo ?? ops.map(invert);
       return {
         saved: true,
         undo: async () => {
@@ -332,53 +332,62 @@ export interface StructuralSaveRequest {
   slug: string;
 }
 
-/** A structural save, confirmed in a toast that carries its Undo. */
-export function useStructuralSave() {
+/** Save a structural change with its outcome and Undo beside the field. */
+export function useFieldStructuralSave() {
   const toast = useOwnerToast();
   const { saveConfig } = useTowerApi();
   const queryClient = useQueryClient();
   const delayMs = useConfigSaveDelay();
 
-  const write = useCallback(
-    async (ops: FileOp[], slug: string) => {
-      warnConfigExport(await saveConfig(ops, slug), toast);
-      // The same reads and the same wait the hook above uses: the structure
-      // lives in a config file like any setting, so what a save of it
-      // invalidates and how long it waits for the restart are decided in one
-      // place.
-      refreshConfigBackedQueries(queryClient, delayMs, ops);
-    },
-    [queryClient, delayMs],
-  );
+  const write = useCallback(async (ops: FileOp[], slug: string) => {
+    warnConfigExport(await saveConfig(ops, slug), toast);
+    refreshConfigBackedQueries(queryClient, delayMs, ops);
+  }, [queryClient, delayMs]);
 
-  return useCallback(
-    async ({ ops, undo, label, slug }: StructuralSaveRequest): Promise<boolean> => {
-      try {
-        await write(ops, slug);
-      } catch (err) {
-        toast.error(refusalMessage(err));
-        return false;
-      }
-      toast.success(`Saved — ${label}`, {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void (async () => {
-              try {
-                await write(undo, slug);
-              } catch (err) {
-                toast.error(refusalMessage(err));
-                return;
-              }
-              toast.success(`Reverted — ${label}`);
-            })();
-          },
+  return useCallback(async ({ ops, undo, slug }: StructuralSaveRequest): Promise<FieldSaveOutcome> => {
+    try {
+      await write(ops, slug);
+    } catch (err) {
+      return { saved: false, refusal: refusalMessage(err) };
+    }
+    return {
+      saved: true,
+      undo: async () => {
+        try {
+          await write(undo, slug);
+          return { undone: true };
+        } catch (err) {
+          return { undone: false, refusal: refusalMessage(err) };
+        }
+      },
+    };
+  }, [write]);
+}
+
+/** A structural save, confirmed in a toast that carries its Undo. */
+export function useStructuralSave() {
+  const toast = useOwnerToast();
+  const save = useFieldStructuralSave();
+
+  return useCallback(async (request: StructuralSaveRequest): Promise<boolean> => {
+    const result = await save(request);
+    if (!result.saved) {
+      toast.error(result.refusal);
+      return false;
+    }
+    toast.success(`Saved — ${request.label}`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void result.undo().then((back) => {
+            if (!back.undone) toast.error(back.refusal);
+            else toast.success(`Reverted — ${request.label}`);
+          });
         },
-      });
-      return true;
-    },
-    [write],
-  );
+      },
+    });
+    return true;
+  }, [save]);
 }
 
 /** What a refusal says out loud. A stale value is the one case with its own

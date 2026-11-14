@@ -41,6 +41,8 @@ import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export interface SitePickerProps {
+  onEditMappings?: () => void;
+  savedOnly?: boolean;
   provider: IntegrationProvider;
   /** `GET …/sites`; undefined while it is read. */
   payload: SitesPayload | undefined;
@@ -100,6 +102,8 @@ export function SitePicker(props: SitePickerProps) {
 
 function SitePickerSession({
   provider,
+  onEditMappings,
+  savedOnly = false,
   payload,
   failed = false,
   onRetry,
@@ -110,7 +114,7 @@ function SitePickerSession({
   onStarted,
   onClose,
 }: SitePickerProps) {
-  const plan = useMemo(() => (payload?.discovery.ok ? planSites(payload, preselect) : null), [payload, preselect]);
+  const plan = useMemo(() => (payload?.discovery.ok ? planSites(payload, preselect, savedOnly) : null), [payload, preselect, savedOnly]);
   const iconsOf = useSiteIcons();
   // Reconcile in the same render so Start never uses a previous reading's
   // options or guards. The component's lifetime bounds the unsaved choices.
@@ -232,6 +236,7 @@ function SitePickerSession({
             Finding assets
           </p>
         )}
+        {onEditMappings && (failed || refused) ? <Button type="button" variant="outline" onClick={onEditMappings}>Edit mappings</Button> : null}
         <Button type="button" variant="outline" className="mt-auto w-full" onClick={onClose}>
           Done
         </Button>
@@ -249,7 +254,7 @@ function SitePickerSession({
   // under it.
   const grants = listingGrants(plan, selection, discovery, onRetry ? `press ${READ_AGAIN}` : "reload this page");
   const metered = payload?.spend ?? null;
-  const verb = metered ? "Start weekly reports" : "Start collecting";
+  const verb = metered ? "Start weekly reports" : savedOnly ? "Collect now" : "Start collecting";
   const count = siteCount(confirmed.length);
   // A press that only declines is a save, not a start; a press that does
   // both says both.
@@ -283,7 +288,7 @@ function SitePickerSession({
     if (next.assets.length === 0 && next.declined.length === 0) return;
     setPhase({ phase: "starting", assets: next.assets, declined: next.declined });
     onStarted?.();
-    const result = await onStart(next).catch(() => null);
+    const result = await onStart(savedOnly ? { ...next, ops: [] } : next).catch(() => null);
     if (result === null) {
       setPhase({ phase: "choosing" });
       return;
@@ -293,6 +298,7 @@ function SitePickerSession({
 
   return (
     <div className="flex flex-1 flex-col gap-4" data-site-picker={provider.id} data-sites-phase="choosing">
+      {onEditMappings ? <Button type="button" variant="outline" size="sm" className="self-start" onClick={onEditMappings}>Edit mappings</Button> : null}
       {plan.rows.length === 0 ? (
         <p className="text-sm text-muted-foreground" data-sites-state="empty">No assets yet</p>
       ) : (

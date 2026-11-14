@@ -18,7 +18,7 @@ NoticeOS keeps money in one **ledger**: revenue and cost rows per asset, per mon
 
 ### Where revenue comes from
 
-Ad revenue from Mediavine is collected automatically once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests the previous day by its date. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the asset's **Data sources** tab shows **Reported through** with an **Estimates** chip.
+Ad revenue from Mediavine is collected automatically once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests the previous day by its date. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the asset's **Money** tab lists the latest date under **Reported through**. The **Mediavine revenue** section also has **Refresh revenue**, backfill and forecast settings.
 
 Open **Integrations → Stripe**, connect the restricted key, then select **Map products**. Choose the asset that earns each product’s revenue and select **Save mappings**. The asset’s **Money** tab shows receipts after refunds and Stripe fees, including one-time contributions. See [Stripe setup](../11-integrations.md#stripe).
 

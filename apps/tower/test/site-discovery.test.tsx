@@ -334,7 +334,7 @@ describe("the assets and collect routes", () => {
     const res = await handleSitesRequest(new Request("http://t/api/integrations/bing-webmaster/sites"), new URL("http://t/api/integrations/bing-webmaster/sites"), d, "bing-webmaster", "sites");
     const body = (await res.json()) as SitesPayload;
     expect(res.status).toBe(200);
-    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "onboarding",
+    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "onboarding", hasIntegrationEntry: true,
       cells: { "bing-webmaster": { status: "needs-setup", note: "", mapping: { siteUrl: "https://journey.example/" } } } }]);
     expect(body.spend).toBeNull();
     expect(body.domainMatch).toEqual(["bing-webmaster"]);
@@ -382,7 +382,7 @@ describe("the assets and collect routes", () => {
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "n.example", domain: null, displayName: "N", status: "pre-launch" }]);
     expect(await loadSitesAssets(ctx.call, { catalog: [], assets: {} }, ["bing-webmaster"])).toEqual([
-      { id: "n.example", label: "N", domain: null, status: "pre-launch", cells: { "bing-webmaster": null } },
+      { id: "n.example", label: "N", domain: null, status: "pre-launch", hasIntegrationEntry: false, cells: { "bing-webmaster": null } },
     ]);
   });
 });

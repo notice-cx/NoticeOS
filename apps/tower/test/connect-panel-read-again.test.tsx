@@ -73,7 +73,7 @@ describe("the Google panel's Read again", () => {
     const panel = () => (
       <QueryClientProvider client={client}>
         <MemoryRouter>
-          <ProviderConnectPanel status={google()} opened="sites" asset={null} canConnect items={[]} names={new Map()}
+          <ProviderConnectPanel status={google()} opened="sites" googleSetup asset={null} canConnect items={[]} names={new Map()}
             onClose={() => {}} onChanged={async () => {}} />
         </MemoryRouter>
       </QueryClientProvider>
@@ -112,7 +112,7 @@ describe("the Google panel's Read again", () => {
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
           <ProviderConnectPanel
-            status={google()} opened="sites" asset={null} canConnect items={[]} names={new Map()}
+            status={google()} opened="sites" googleSetup asset={null} canConnect items={[]} names={new Map()}
             onClose={() => {}} onChanged={async () => {}}
           />
         </MemoryRouter>

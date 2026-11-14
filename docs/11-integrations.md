@@ -929,12 +929,12 @@ the stopped run, so no other record is written.
 | Setting | Where | Notes |
 |---|---|---|
 | Key (`POSTHOG_API_KEY`: one personal API key for the account) | `/integrations`, the connect panel | Create the key under PostHog → account settings → Personal API keys, with read access to Project, Insight and Query. Connect sends it to the US and EU clouds at once and saves it only where it is accepted; that cloud is the region. An install that connected a key per asset before (`POSTHOG_KEYS`: asset → key) keeps collecting with it — an asset with its own key uses it, every other asset the account key; the Tower no longer has a field for a per-asset key. The env bindings of the same names are the legacy fallback. |
-| `host` (`us` or `eu`) and `projectId` (digits) | Discovered: the connect panel lists the region's projects, matched to assets by the domain each project records (its app URLs, then its recording domains, then a name that is a domain), and Start saves them on the asset's Data sources entry | Standard mapping fields, still editable on the Data sources row. No fallback: a guessed region or project would read another asset's data. |
-| `funnels` (list of `{ id, name, steps: [{ event, path? }] }`, 2–10 steps each, at most 10 funnels) | Imported: the project's saved funnel insights, written by Start only where the asset's entry holds none | Only funnels whose every step is a named event, optionally on one exact `$pathname`, are imported — the archive cannot count any other filter as PostHog does. Checked by `posthogFunnelsRefusal`, the same rule the store save runs. |
+| `host` (`us` or `eu`) and `projectId` (digits) | Discovered: the connect panel lists the region's projects, matched to assets by the domain each project records (its app URLs, then its recording domains, then a name that is a domain), and Start saves them on the asset's Data sources entry | Editable in **Integrations** → **Manage** → **Asset mappings**. The collector requires a region and project. |
+| `funnels` (list of `{ id, name, steps: [{ event, path? }] }`, 2–10 steps each, at most 10 funnels) | Imported on first collection. The asset's **Funnels** section in PostHog's **Asset mappings** adds or removes them. Changing the mapped project clears its funnel selection. | Only funnels whose every step is a named event, optionally on one exact `$pathname`, are imported — the archive cannot count any other filter as PostHog does. Checked by `posthogFunnelsRefusal`, the same rule the store save runs. |
 
 **When the panel calls PostHog.** Only after Connect is pressed (two
 `GET /api/projects/` reads, one per region, at once) and when the panel lists
-the account's assets (the project list, then each project's details and saved
+or refreshes its project list (the project list, then each project's details and saved
 insights, at most 20 projects). Every read is bounded at 10 seconds; a rejection
 in both regions shows "PostHog rejected this key", anything else "No response
 from PostHog", with Try again (`workers/ingest/src/posthog-account.ts`).

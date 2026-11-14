@@ -72,7 +72,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "IntegrationLogo",
     file: "components/IntegrationLogo.tsx",
-    purpose: "Locally served, original provider artwork beside a visible name, shared by catalog and setup views. Calendar feeds use CalendarDays and the task source the Tasks glyph (ListTodo); unknown or unavailable artwork uses Plug. Vendor colors are identity, never connection status.",
+    purpose: "Locally served, original provider artwork beside a visible name, shared by catalog and setup views. Protocol and generic task connections use Lucide glyphs; unknown or unavailable artwork uses Plug. Vendor colors are identity, never connection status.",
     variants: ["provider logos", "calendar", "fallback", "small", "default", "large"],
   },
   {

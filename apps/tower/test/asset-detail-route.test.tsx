@@ -8,7 +8,7 @@ import type {
   ProductUseSnapshot,
   SearchIntelligenceSnapshot,
 } from "@shared/asset-detail";
-import { GOOGLE_PROPERTIES_PATH, type WatchQueryHistory } from "@noticeos/contract";
+import { type WatchQueryHistory } from "@noticeos/contract";
 import { integrationProvider } from "@noticeos/contract/integrations";
 import { watchCalibration } from "@shared/watch-windows";
 import { formatCalendarDate, formatSeriesDate } from "@/lib/format";
@@ -18,8 +18,6 @@ import posthogProductJson from "@/routes/kitchen-sink/posthog-product.json";
 // The real write pipeline, so a case about a save runs the ops the browser
 // built. Plain ESM with no `node:` imports, so it is safe to reach from jsdom.
 import {
-  applyDocumentOps,
-  resolveOps,
   validateSchemaAndSafety,
   type ChangesetOp,
 } from "../../../scripts/config-documents.mjs";
@@ -1791,7 +1789,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
     const view = renderRoute("meadow.example", "", "sources");
     await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     const sources = view.container.querySelector<HTMLElement>("#integrations")!;
-    const currentRow = within(sources).getByRole("button", { name: /Google Search Console/u });
+    const currentRow = sources.querySelector('[data-subject="source:meadow.example:gsc"]')!;
     expect(currentRow.querySelector("[data-connection]")).toHaveAttribute("data-connection", attempt === "healthy" ? "working" : "failing");
 
     const setupToggle = view.getByText(/^Data setup ·/);
@@ -2111,11 +2109,8 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     // The unmapped source keeps Connect as the page's one primary action.
     expect(rowOf("Google Search Console").querySelector("[data-source-connect]")).not.toBeNull();
     expect(view.getAllByRole("link", { name: /Connect Google/u })).toHaveLength(1);
-    // Its evidence is an info mark, not a warning: nothing is wrong before the first run.
-    openLane("Google Analytics");
-    const evidence = rowOf("Google Analytics").querySelector("[data-evidence-trigger]");
-    expect(evidence).not.toHaveClass("text-warn");
-    expect(evidence).toHaveClass("text-info");
+    fireEvent.focus(within(row).getByRole("button", { name: "Google Analytics details" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("No run yet");
   });
 
   it("shows a source nothing connects with its evidence, and no Connect or dead link", async () => {
@@ -2313,7 +2308,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
     expect(row).toHaveTextContent("Access was refused.");
-    expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
+    expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?connect=google&asset=meadow.example");
   });
 
 
@@ -2659,35 +2654,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     });
   }
 
-  /** What the connected Google account answers. The default is a 200 saying
-   * not connected, which is an answer, not an error. */
-  const NOT_CONNECTED = {
-    ok: false,
-    message: "Google is not connected — sign in on /integrations first.",
-    checkedAt: "2026-09-05T00:00:00.000Z",
-    account: null,
-    auth: null,
-    properties: [],
-  };
-
-  const TWO_PROPERTIES = {
-    ok: true,
-    message: "The connected account can see 2 GA4 properties and 1 Search Console site.",
-    checkedAt: "2026-09-05T00:00:00.000Z",
-    account: "ops@example.test",
-    auth: "oauth",
-    properties: [
-      { lane: "ga4", ref: "123456789", label: "Meadow Board", detail: "Example Ventures" },
-      { lane: "ga4", ref: "444555666", label: "Northwind", detail: null },
-      { lane: "gsc", ref: "sc-domain:meadow.example", label: "meadow.example", detail: "owner" },
-    ],
-  };
-
-  /** The asset, the write lane's writability, the connected account's list, and
-   * what a PUT carried. */
   function stubEditing(
     lane: ReturnType<typeof ga4Lane>,
-    discovery: unknown = NOT_CONNECTED,
     /** Where this deployment read `config/integrations.json`, which the
      * timing sentence is derived from. */
     sources: Record<string, "store" | "file"> = {},
@@ -2697,9 +2665,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     /** Only a fixture explicitly exercising successful collection supplies this. */
     observedAt: string | null = null,
     verified = false,
-    /** What `GET /api/integrations/posthog/sites` answers; `null` is the read
-     * failing outright. */
-    accountSites: unknown = null,
   ) {
     const data = payload();
     data.integrations = {
@@ -2719,12 +2684,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
           return lane_ === null
             ? json({ applied: body.ops.length, archive: "config/changesets/x.json", commit: "abc1234" })
             : await lane_(body);
-        }
-        if (String(input).startsWith("/api/integrations/posthog/sites")) {
-          return accountSites === null ? json({ error: "sites_unavailable" }, 503) : json(accountSites);
-        }
-        if (String(input).startsWith(GOOGLE_PROPERTIES_PATH)) {
-          return discovery === null ? json({ error: "google_properties_failed" }, 500) : json(discovery);
         }
         return String(input).startsWith("/api/config")
           ? json({ writable: true, reason: null, sources })
@@ -2757,481 +2716,9 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     ]);
   });
 
-  const SIGNUP = { id: "signup", name: "Signup", steps: [{ event: "$pageview" }, { event: "signed_up" }] };
-  const CHECKOUT = { id: "checkout", name: "Checkout", steps: [{ event: "$pageview", path: "/pricing" }, { event: "purchase" }] };
-  function posthogLane() {
-    const cell = { assetId: "meadow.example", laneId: "posthog", declared: "needs-setup" as const, effective: "live" as const,
-      evidence: [], note: "", ref: null, since: "2026-07-06" };
-    return {
-      catalog: { ...catalog, id: "posthog", label: "PostHog", provider: "posthog" },
-      cell,
-      mapping: [{ name: "host", value: "us" }, { name: "projectId", value: "424242" }],
-      mappingLists: [{ name: "funnels", value: [SIGNUP] }],
-      mappingSource: "register" as const,
-    } as unknown as ReturnType<typeof ga4Lane>;
-  }
-  const project = (id: number, name: string, funnels: unknown[], host = "us") => ({
-    lane: "posthog", ref: `${host}:${id}`, label: name, host: null, mapping: { host, projectId: String(id) }, funnels, ready: true,
-  });
-  const ACCOUNT = {
-    discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: "2026-09-23T00:00:00.000Z",
-      sites: [project(424242, "Meadow Board", [SIGNUP, CHECKOUT]), project(12, "Staging", [], "eu")] },
-    assets: [], spend: null,
-  };
-
-  it("picks a PostHog asset's project by name and number, and adds a funnel by picking one of the project's saved funnels", async () => {
-    const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { container } = renderRoute("meadow.example", "", "sources");
-    await screen.findAllByText("PostHog");
-    openLane("PostHog");
-    const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
-    fireEvent.click(block.closest("details")!.querySelector("summary")!);
-    const select = await within(block).findByLabelText("PostHog project") as HTMLSelectElement;
-    await waitFor(() => expect(select.selectedOptions[0]!.textContent).toBe("Meadow Board · 424242 · US"));
-    expect(block.querySelectorAll("input")).toHaveLength(0);
-    expect(within(block).queryByLabelText("PostHog project id")).toBeNull();
-    const pick = within(block).getByLabelText("Add funnel") as HTMLSelectElement;
-    expect([...pick.options].map((option) => option.textContent)).toEqual(["Add funnel", "Checkout"]);
-    fireEvent.change(pick, { target: { value: "checkout" } });
-    await waitFor(() => expect(puts).toHaveLength(1));
-    const funnelsOp = (puts[0] as unknown as { ops: { pointer: string; expect?: unknown; value: unknown }[] }).ops;
-    expect(funnelsOp).toEqual([expect.objectContaining({ pointer: "/assets/meadow.example/posthog/funnels", expect: [SIGNUP], value: [SIGNUP, CHECKOUT] })]);
-    expect(await within(block).findByRole("button", { name: "Undo" })).toBeTruthy();
-    fireEvent.change(select, { target: { value: "eu:12" } });
-    await waitFor(() => expect(puts).toHaveLength(2));
-    const projectOps = (puts[1] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
-    expect(projectOps.map((op) => [op.pointer, op.value])).toEqual([
-      ["/assets/meadow.example/posthog/host", "eu"],
-      ["/assets/meadow.example/posthog/projectId", "12"],
-    ]);
-  });
-
-  it("removes a PostHog funnel with its own press, saved at once", async () => {
-    const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { container } = renderRoute("meadow.example", "", "sources");
-    await screen.findAllByText("PostHog");
-    openLane("PostHog");
-    const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
-    fireEvent.click(block.closest("details")!.querySelector("summary")!);
-    fireEvent.click(await within(block).findByRole("button", { name: "Remove funnel Signup" }));
-    await waitFor(() => expect(puts).toHaveLength(1));
-    const ops = (puts[0] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
-    expect(ops.map((op) => [op.pointer, op.value])).toEqual([["/assets/meadow.example/posthog/funnels", []]]);
-  });
-
-  it("types the PostHog project and funnels only when the account cannot be read", async () => {
-    stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, null);
-    const { container } = renderRoute("meadow.example", "", "sources");
-    await screen.findAllByText("PostHog");
-    openLane("PostHog");
-    const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
-    fireEvent.click(block.closest("details")!.querySelector("summary")!);
-    expect(await within(block).findByLabelText("PostHog project id")).toBeTruthy();
-    await waitFor(() => expect(block.querySelector("[data-funnel-step-event]")).not.toBeNull());
-    expect(within(block).queryByLabelText("PostHog project")).toBeNull();
-    expect(within(block).queryByLabelText("Add funnel")).toBeNull();
-  });
-
-  function mappingBlock(): HTMLElement {
-    openLane("Google Analytics");
-    const found = document.querySelector('[data-lane-mapping="ga4"]');
-    if (!(found instanceof HTMLElement)) throw new Error("no mapping block");
-    return found;
-  }
-
   beforeEach(() => {
     toasts.success.mockReset();
     toasts.error.mockReset();
-  });
-
-  /** `config/integrations.json` as every asset starts: the lane row with its
-   * posture and no mapping field. */
-  function noMappingYet() {
-    return {
-      catalog: [{ id: "ga4", label: "Google Analytics 4" }],
-      assets: {
-        "meadow.example": {
-          ga4: { status: "live", note: "Collector proved it.", since: "2026-07-29" },
-        },
-      },
-    };
-  }
-
-  /** Runs the request through `scripts/config-documents.mjs`, the pipeline
-   * both write doors execute, and answers what the real lane answers: 200
-   * with the applied document, or 409 with the mismatch list. */
-  async function applyThroughPipeline(
-    doc: Record<string, unknown>,
-    request: ConfigPut,
-  ): Promise<Response> {
-    const changeset = {
-      version: 1 as const,
-      // The slug the browser actually sent: the pipeline wants kebab-case and
-      // refuses an asset id's dot or a declared field's capital.
-      slug: request.slug ?? "sources",
-      createdAt: "2026-09-05T09:00:00.000Z",
-      ops: request.ops as unknown as ChangesetOp[],
-    };
-    try {
-      validateSchemaAndSafety(changeset);
-      const { resolved, mismatches, documents } = await resolveOps(changeset, null, {
-        readDocument: async () => doc,
-      });
-      if (mismatches.length > 0) return json({ error: "expect_mismatch" }, 409);
-      applyDocumentOps(resolved, documents, { at: changeset.createdAt });
-    } catch (err) {
-      return json({ error: "invalid_changeset", detail: String(err) }, 422);
-    }
-    return json({
-      applied: request.ops.length,
-      archive: "config/changesets/x.json",
-      commit: "abc1234",
-    });
-  }
-
-  it("saves the first GA4 property id an asset has ever had", async () => {
-    const file = noMappingYet();
-    const puts = stubEditing(ga4Lane(), NOT_CONNECTED, {}, (body) =>
-      applyThroughPipeline(file, body),
-    );
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    const block = mappingBlock();
-    fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "123456789" },
-    });
-    fireEvent.click(within(block).getByRole("button", { name: "Save" }));
-
-    // An absent key and an empty string are different facts to the guard.
-    await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]?.ops).toEqual([
-      {
-        kind: "file-json-set",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expectAbsent: true,
-        value: "123456789",
-      },
-    ]);
-
-    const undo = await within(block).findByRole("button", { name: "Undo" });
-    expect(toasts.error).not.toHaveBeenCalled();
-    expect(file.assets["meadow.example"].ga4).toEqual({
-      status: "live",
-      note: "Collector proved it.",
-      since: "2026-07-29",
-      propertyId: "123456789",
-    });
-    fireEvent.click(undo);
-    await waitFor(() => expect(puts).toHaveLength(2));
-    expect(puts[1]?.ops).toEqual([
-      {
-        kind: "file-json-delete",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expect: "123456789",
-      },
-    ]);
-    // The key is gone rather than blank, which the collector reads as "fall
-    // back to the Google credential".
-    expect(file.assets["meadow.example"].ga4).toEqual({
-      status: "live",
-      note: "Collector proved it.",
-      since: "2026-07-29",
-    });
-  });
-
-  it("removes a mapping that is already there, and the Undo writes it back", async () => {
-    const file = {
-      catalog: [{ id: "ga4", label: "Google Analytics 4" }],
-      assets: {
-        "meadow.example": {
-          ga4: {
-            status: "live",
-            note: "Collector proved it.",
-            since: "2026-07-29",
-            propertyId: "123456789",
-          } as Record<string, unknown>,
-        },
-      },
-    };
-    const puts = stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {}, (body) =>
-      applyThroughPipeline(file, body),
-    );
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    const block = mappingBlock();
-    fireEvent.click(within(block).getByRole("button", { name: "Remove mapping" }));
-
-    await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]?.ops).toEqual([
-      {
-        kind: "file-json-delete",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expect: "123456789",
-      },
-    ]);
-    await waitFor(() => expect(toasts.success).toHaveBeenCalled());
-    expect(toasts.error).not.toHaveBeenCalled();
-    expect(file.assets["meadow.example"].ga4).toEqual({
-      status: "live",
-      note: "Collector proved it.",
-      since: "2026-07-29",
-    });
-
-    const action = toasts.success.mock.calls[0]?.[1]?.action as { onClick: () => void };
-    action.onClick();
-    await waitFor(() => expect(puts).toHaveLength(2));
-    expect(puts[1]?.ops).toEqual([
-      {
-        kind: "file-json-set",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expectAbsent: true,
-        value: "123456789",
-      },
-    ]);
-    expect(file.assets["meadow.example"].ga4.propertyId).toBe("123456789");
-  });
-
-  it("offers nothing to remove on a field nothing has written", async () => {
-    stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    expect(
-      within(mappingBlock()).queryByRole("button", { name: "Remove mapping" }),
-    ).toBeNull();
-  });
-
-  it("saves a property id over one that is already there, and offers the way back", async () => {
-    const puts = stubEditing(ga4Lane({ propertyId: "111222333" }));
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    const block = mappingBlock();
-    fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "123456789" },
-    });
-    fireEvent.click(within(block).getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]?.ops).toEqual([
-      {
-        kind: "file-json-set",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expect: "111222333",
-        value: "123456789",
-      },
-    ]);
-
-    fireEvent.click(await within(block).findByRole("button", { name: "Undo" }));
-    await waitFor(() => expect(puts).toHaveLength(2));
-    expect(puts[1]?.ops[0]).toMatchObject({ expect: "123456789", value: "111222333" });
-  });
-
-  function picker(): HTMLElement {
-    const found = document.querySelector('[data-lane-picker="ga4"]');
-    if (!(found instanceof HTMLElement)) throw new Error("no picker");
-    return found;
-  }
-
-  it("picks a GA4 property from the connected account, writing the box's own op", async () => {
-    const puts = stubEditing(ga4Lane(), TWO_PROPERTIES);
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("ready"));
-    const block = picker();
-    expect(block.textContent).toContain("Meadow Board — Example Ventures (123456789)");
-    expect(block.textContent).not.toContain("sc-domain:meadow.example");
-
-    fireEvent.change(within(block).getByRole("combobox"), {
-      target: { value: "123456789" },
-    });
-    fireEvent.click(within(block).getAllByRole("button", { name: "Save" })[0]!);
-
-    await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]?.ops).toEqual([
-      {
-        kind: "file-json-set",
-        file: "config/integrations.json",
-        pointer: "/assets/meadow.example/ga4/propertyId",
-        expectAbsent: true,
-        value: "123456789",
-      },
-    ]);
-    await waitFor(() =>
-      expect(block.querySelector('[data-save-state="saved"]')).not.toBeNull(),
-    );
-  });
-
-  it("keeps a property the account cannot see, and a box to type another", async () => {
-    stubEditing(ga4Lane({ propertyId: "111222333" }), TWO_PROPERTIES);
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("ready"));
-    expect(picker().textContent).toContain("111222333 — not in the connected account");
-    expect(document.querySelector('[data-lane-picker-typed="ga4"]')).not.toBeNull();
-  });
-
-  const SERVICE_ACCOUNT_LISTING = {
-    ...TWO_PROPERTIES,
-    account: "collector@example-project.iam.gserviceaccount.com",
-    auth: "service-account",
-  };
-
-  function gscLane() {
-    return {
-      catalog: { ...catalog, id: "gsc", label: "Google Search Console" },
-      cell: { ...ga4Lane().cell, laneId: "gsc" },
-      mapping: [{ name: "siteUrl", value: null }],
-      mappingSource: "fallback" as const,
-    } as unknown as ReturnType<typeof ga4Lane>;
-  }
-
-  async function listingLine(lane: "ga4" | "gsc", title: string): Promise<string> {
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-    await findByText(title);
-    openLane(title);
-    const line = await waitFor(() => {
-      const found = document.querySelector(`[data-lane-picker-grant="${lane}"]`);
-      if (!(found instanceof HTMLElement)) throw new Error("no listing line");
-      return found;
-    });
-    return line.textContent ?? "";
-  }
-
-  it("names the signed-in account under the GA4 picker, and the sign-in that lists a missing one", async () => {
-    stubEditing(ga4Lane(), TWO_PROPERTIES);
-    expect(await listingLine("ga4", "Google Analytics")).toBe(
-      "Listed for ops@example.test. Missing a GA4 property? Sign in on Integrations with a Google account that can read it.",
-    );
-  });
-
-  it("names the service account under the GA4 picker, and the Viewer grant that lists a missing one", async () => {
-    stubEditing(ga4Lane(), SERVICE_ACCOUNT_LISTING);
-    expect(await listingLine("ga4", "Google Analytics")).toBe(
-      "Listed for the service account collector@example-project.iam.gserviceaccount.com. Missing a GA4 property? " +
-        "In Google Analytics, add this account as Viewer on that GA4 property or its account, then reload this page.",
-    );
-  });
-
-  it("names the service account under the Search Console picker, and the Full user grant", async () => {
-    stubEditing(gscLane(), SERVICE_ACCOUNT_LISTING);
-    expect(await listingLine("gsc", "Google Search Console")).toBe(
-      "Listed for the service account collector@example-project.iam.gserviceaccount.com. Missing a Search Console site? " +
-        "In Search Console, add this account as a Full user on that Search Console site, then reload this page.",
-    );
-  });
-
-  it("names the signed-in account under the Search Console picker too", async () => {
-    stubEditing(gscLane(), TWO_PROPERTIES);
-    expect(await listingLine("gsc", "Google Search Console")).toBe(
-      "Listed for ops@example.test. Missing a Search Console site? Sign in on Integrations with a Google account that can read it.",
-    );
-  });
-
-  it("says nothing about access when Google is not connected", async () => {
-    stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
-    expect(document.querySelector("[data-lane-picker-grant]")).toBeNull();
-  });
-
-  it("degrades to the text box when the account cannot be read", async () => {
-    stubEditing(ga4Lane(), null);
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
-    expect(picker().textContent).toContain("No response from Google");
-    expect(within(picker()).getByRole("textbox")).toBeInTheDocument();
-    expect(within(picker()).queryByRole("combobox")).toBeNull();
-  });
-
-  it("says the account is not connected rather than showing an empty list", async () => {
-    stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
-    expect(picker().textContent).toContain("Google not connected");
-  });
-
-  it("refuses a property id the declaration would not accept, and names the field", async () => {
-    const puts = stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meadow.example", "", "sources");
-
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    const block = mappingBlock();
-    fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "properties/123456789" },
-    });
-    fireEvent.click(within(block).getByRole("button", { name: "Save" }));
-
-    expect(
-      await within(block).findByText("GA4 property id: digits only, e.g. 123456789"),
-    ).toBeInTheDocument();
-    expect(puts).toHaveLength(0);
-  });
-
-  it("shows what reads the mapping, which differs per asset, and when a save gets there", async () => {
-    stubEditing(ga4Lane(), NOT_CONNECTED, { "config/integrations.json": "file" });
-    const first = renderRoute("meadow.example", "", "sources");
-
-    await first.findByText("Google Analytics");
-    openLane("Google Analytics");
-    const unmapped = first.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
-    expect(unmapped).toHaveAttribute("data-lane-mapping-state", "fallback");
-    expect(unmapped.textContent).toContain("Using the Google account map");
-    await waitFor(() => expect(unmapped.textContent).toContain("Applies after a restart"));
-    first.unmount();
-
-    stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {
-      "config/integrations.json": "store",
-    });
-    const second = renderRoute("meadow.example", "", "sources");
-
-    await second.findByText("Google Analytics");
-    openLane("Google Analytics");
-    const mapped = second.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
-    expect(mapped).toHaveAttribute("data-lane-mapping-state", "register");
-    expect(mapped.textContent).toContain("Mapped here");
-    // Awaited: no timing chip renders until `/api/config` answers (see
-    // `useConfigWritable`).
-    await waitFor(() => expect(mapped.textContent).toContain("Applies on the next run"));
-    expect(mapped.textContent).not.toContain("after a restart");
-  });
-
-  it("draws no timing chip when the deployment does not say where it read the file", async () => {
-    stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {});
-    const view = renderRoute("meadow.example", "", "sources");
-
-    await view.findByText("Google Analytics");
-    openLane("Google Analytics");
-    await waitFor(() =>
-      expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).startsWith("/api/config"))).toBe(true),
-    );
-    const state = view.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
-    expect(state.textContent).toContain("Mapped here");
-    expect(state.textContent).not.toContain("Applies");
   });
 
   function declineChips(): HTMLElement {
@@ -3449,14 +2936,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     stubEditing(ga4Lane({ note: "Viewer grant pending on the GA4 property" }));
     const second = renderRoute("meadow.example", "", "sources");
     await second.findByText("Google Analytics");
-    openLane("Google Analytics");
-    expect(second.container.querySelector("[data-lane-note]")?.textContent).toBe("Viewer grant pending on the GA4 property");
+    fireEvent.focus(screen.getByRole("button", { name: "Google Analytics details" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Viewer grant pending on the GA4 property");
   });
 
   it("leaves the observed chip alone — the operator's choice is not a health toggle", async () => {
     stubEditing(
       ga4Lane({ declared: "skipped", effective: "live", note: "REASON: declined." }),
-      NOT_CONNECTED,
       {},
       null,
       new Date(Date.now() - 60_000).toISOString(),
@@ -3467,21 +2953,21 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    const card = container.querySelector('[data-lane-config="ga4"]')!.closest("li")!;
+    const card = container.querySelector('[data-subject="source:meadow.example:ga4"]')!;
     expect(card.querySelectorAll("[data-connection]")).toHaveLength(1);
     expect(card.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
     expect(card.querySelector('[data-lane-use-again="ga4"]')).not.toBeNull();
   });
 
-  it("opens a source's settings on its mapping alone, never a checklist restating its status", async () => {
+  it("links a working GA4 source to its mapping and keeps the editor off Data sources", async () => {
     stubEditing(ga4Lane({ propertyId: "123456789", effective: "live", declared: "live" }));
-    const { findByText, container } = renderRoute("meadow.example", "", "sources");
+    const { container } = renderRoute("meadow.example", "", "sources");
 
-    await findByText("Google Analytics");
-    openLane("Google Analytics");
-    expect(container.querySelectorAll("[data-lane-step]")).toHaveLength(0);
-    expect(container.querySelector('[data-lane-mapping="ga4"]')).not.toBeNull();
+    const manage = await screen.findByRole("link", { name: "Manage Google" });
+    expect(manage).toHaveAttribute("href", "/integrations?connect=google&asset=meadow.example");
+    expect(container.querySelector('[data-lane-mapping="ga4"]')).toBeNull();
   });
+
 });
 
 describe("AssetDetailRoute — data the OS already paid for", () => {
