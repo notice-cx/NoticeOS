@@ -37,6 +37,7 @@ import { SavesPaused } from "@/components/SavesPaused";
 import { AgeBadge } from "@/components/AgeBadge";
 import { EvidencePopover } from "@/components/EvidencePopover";
 import { InfoTooltip } from "@/components/InfoTooltip";
+import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { useConnections } from "@/hooks/useConnections";
 import { ScheduledLanesPanel } from "@/components/ScheduledLanes";
@@ -351,7 +352,7 @@ function LaneRow({
       marks={{ "data-subject": subject }}
       rowActions={details || action ? <>{details}{action}</> : undefined}
       rowActionsInline={!stripe}
-      title={label}
+      title={stripe ? <span className="inline-flex items-center gap-2"><IntegrationLogo provider="stripe" size="small" />{label}</span> : label}
       caption={
         kind === "failing" && failure ? <span className="text-error">{integrationFailureMessage(failure)}</span>
           : uptime?.polarity === "against" ? <span className="text-error">{uptime.detail || "Home page could not be reached"}</span>

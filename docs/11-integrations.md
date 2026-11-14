@@ -28,7 +28,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **Model providers (via AI Gateway)** | builder/verifier/judge inference | Act, Decide sweeps | keys behind the gateway only | Metered per token; **the dominant OS cost** | per-run/day/month caps, velocity breaker (doc 06) | fallback chain → pause Act |
 | **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine daily collector; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
 | **Mercury** ([below](#mercury)) | deposit-account balances and recent bank activity → Money, separate from revenue and costs | Sense (cash collection) | a Read Only API token connected on `/integrations` | Free | hourly; at most 10 pages of 1,000 rows per endpoint, over the last 35 days | retain the previous complete observation when a page fails or a limit is reached |
-| **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per asset → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the asset that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
+| **Stripe** ([below](#stripe)) | Daily net receipts by mapped product and asset | Sense (revenue collection) | one restricted key on **Integrations**, with read access to the account, products and payment records | Free | reads completed UTC days, starting with up to 35 days | retains saved receipts and records transactions without a single asset in the job’s unassigned count |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
 | **Uptime** | up/down per asset, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each asset's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per asset per hour; an asset read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no asset is marked down (the egress gate) and the row shows Not checked |
 | **Discord webhooks** | new open error alerts, data source failures, and daily Mediavine revenue when enabled | ingest → operator | one HTTPS webhook URL, connected on `/integrations` ([below](#how-to-connect-one)) | Free | one channel per workspace | fall back to email |
@@ -729,41 +729,32 @@ machine cannot reach the network, the assets are named on the one
 
 ## Stripe
 
-*Daily cash receipts and subscription growth. Collector: `workers/ingest/src/stripe.ts`.*
+*Daily cash receipts by product. Collector: `workers/ingest/src/stripe.ts`.*
 
-Stripe holds an asset's one-time payments and subscription sales. NoticeOS reads them
-with one restricted key that can only read: create it on Stripe's **API keys**
-page with **Read** on **Balance**, **Charges**, and **Subscriptions**. Paste it into the
-**Stripe revenue** card on **Integrations**. The key check reads the balance.
-After it succeeds, choose an asset and enter the account ID (`acct_…`, in
-Stripe's account settings), then select **Assign revenue**. **Assign revenue**
-also opens from **Integrations** whenever a saved key has no asset assigned.
-NoticeOS credits the whole account's net receipts to the chosen asset, including
-one-time payments. Select **Manage** on **Integrations** to see the assignment,
-edit the account ID, or remove the assignment. The asset's **Stripe revenue**
-row shows collection status and links to the integration.
-Reassigning the same account starts with its next uncollected day. Receipts
-already collected stay on the asset they were assigned to.
+Connect a live restricted key on **Integrations → Stripe**. Grant **Read** on
+**Accounts**, **Balance**, **Charges and Refunds**, **Products**, **Checkout Sessions**, and **Invoices**.
+Select **Map products** and choose the NoticeOS asset that earns each product’s
+revenue. **Manage** opens the saved mappings. The asset’s **Stripe** row in
+**Data sources** shows its collection status and links to the integration.
 
-**What runs, and when.** The **Stripe revenue** job runs at 20 minutes
-past every hour (`20 * * * *`). It asks Stripe only when a completed day is
-missing: a UTC day is complete from 01:00 UTC, the clock its revenue source
-row (`stripe`, "Stripe subscriptions", family `subs`) records. The first run
-reads the last 35 days; later runs read from the day after the newest saved
-day, at most 35 days back. Each run reads the account's balance (its one
-currency) and its balance transactions for those days, and for each day sums
-the `net` of charges and payments less refunds, in minor units. Fees, payouts
-and transfers are not revenue. Each day is one row in the revenue ledger
-(`revenue_observations`, source `stripe`, the account id as `account_ref`), a
-day with no sale included as 0; a day whose figure equals the saved one writes
-nothing. Gross sales, signed refunds net of failed-refund reversals, payment
-fees, payment counts and refund counts are saved with each new daily figure.
-Older net-only days remain without a breakdown until collected again. The month's
-days stand in for the month on the Money page and in each
-asset's daily revenue, as Mediavine's do.
+NoticeOS uses product IDs on Checkout or invoice line items, including
+one-time contributions paid through Stripe Payment Links. All paid lines
+must map to the same asset before NoticeOS credits the receipt. The job
+reports a count of transactions it could not assign. Refunds follow their
+original receipt, including after you move or unassign a product.
+The asset’s **Money** tab shows gross sales, refunds, fees, and net receipts.
 
-**Subscription growth.** Once per UTC day, the same job reads every page of
-`GET /v1/subscriptions?status=all` and saves an observed subscription snapshot.
+The **Stripe revenue** job runs at 20 minutes past each hour and checks for
+completed days. A UTC day is complete from 01:00 UTC. The first run reads up
+to 35 completed days. Later runs start after the newest saved day for that
+account. Saved receipts retain their original assignments. An asset with
+no mapped activity on a collected day has zero mapped revenue for the day.
+
+**Existing whole-account assignments.** Saving a product mapping switches the
+account to collection by product for its next uncollected day. Previously
+recorded revenue stays with its asset. While an existing installation keeps
+its whole-account assignment, the job also reads the account’s subscriptions
+once per UTC day using the key’s **Subscriptions: Read** permission.
 The asset's **Growth** and **Money** tabs show MRR, paid-plan customer counts,
 trials, past-due subscriptions and scheduled cancellations. Fixed licensed
 monthly and annual prices are normalized by quantity and billing interval;
@@ -778,8 +769,7 @@ paid-plan customer counts and growth comparisons are unavailable; status counts
 remain visible. These definitions do not replicate configurable Stripe Dashboard
 analytics. Customer IDs are retained for comparisons on the server; browser
 payloads contain only aggregates. Names, emails, payment details and subscription
-metadata are not saved. Requests use a pinned API version and the mapped
-`Stripe-Account` header, so an unauthorized account mapping fails at Stripe.
+metadata are not saved. The subscription report uses the legacy assignment’s `Stripe-Account` header and a pinned API version.
 
 The 7-, 28- and 90-day comparisons require snapshots at both boundaries (the
 opening observation may be at most one day earlier). They show new and lost

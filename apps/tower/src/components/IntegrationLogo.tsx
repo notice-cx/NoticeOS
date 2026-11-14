@@ -11,6 +11,7 @@ const PROVIDER_LOGOS: Readonly<Record<string, string>> = {
   clarity: "/integrations/clarity.png",
   posthog: "/integrations/posthog.svg",
   mediavine: "/integrations/mediavine.webp",
+  stripe: "/integrations/stripe.svg",
   discord: "/integrations/discord.svg",
 };
 

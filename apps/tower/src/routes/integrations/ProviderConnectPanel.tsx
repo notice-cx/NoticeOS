@@ -5,7 +5,7 @@ import { fieldClass } from '@/components/ui/field';
 import { useOwnerToast } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { TriangleAlert } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CollectNowResult, IntegrationProvider } from "@noticeos/contract";
 import { acceptedAs } from "@noticeos/contract/integrations";
 import { useEffect, useId, useRef, useState } from "react";
@@ -28,7 +28,7 @@ import { SitePicker } from "@/components/SitePicker";
 import { SiteTokens } from "@/components/SiteTokens";
 import { useConnections } from "@/hooks/useConnections";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
-import { StripeRevenueAssignment } from "./StripeRevenueAssignment";
+import { StripeProductAssignments } from "./StripeProductAssignments";
 import { useSettings } from "@/hooks/useSettings";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { useInlineConfigSave } from "@/hooks/useConfigSave";
@@ -79,10 +79,18 @@ export interface ProviderConnectPanelProps {
  */
 export function ProviderConnectPanel({ status, opened, asset, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
+  const queryClient = useQueryClient();
   const googleStart = useGoogleOAuthStart();
   const { deleteProviderCredential, connectProviderCredential, saveProviderCredential } = useTowerApi();
   const [started, setStarted] = useState(false);
   const { provider, credential } = status;
+  const stripe = provider.id === "stripe";
+  const legacyStripe = stripe && status.stripeProducts === null && status.assets.length > 0;
+  const connectProvider = legacyStripe ? {
+    ...provider, fields: provider.fields.map((field) => field.name === "STRIPE_API_KEY"
+      ? { ...field, grants: [...(field.grants ?? []), "Subscriptions: read"] }
+      : field),
+  } : provider;
   const state = connectionState(credential);
   const shown = connectionStatus(provider.id, credential, items);
   const siteTokens = provider.connect?.kind === "site-tokens";
@@ -91,10 +99,12 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
   const signIn = provider.connect?.kind === "sign-in";
   const providers = useIntegrationProviders();
   const app = signIn ? providers.data?.providers.find((entry) => entry.provider.companionOf === provider.id) ?? null : null;
+  const schedule = state !== "not-connected" && connectionCollections(provider.id).length > 0
+    ? <ConnectionSchedule provider={provider.id} /> : undefined;
   return (
     <ConnectPanel
       key={provider.id}
-      provider={provider}
+      provider={connectProvider}
       canConnect={canConnect}
       blocked={blockers && blockers.length > 0 ? <ConnectBlockers blockers={blockers} /> : undefined}
       opened={opened}
@@ -124,11 +134,19 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
         <WhatLands connected={state !== "not-connected"} />
       ) : undefined}
       // When the collections this connection feeds run.
-      schedule={state !== "not-connected" && connectionCollections(provider.id).length > 0 ? <ConnectionSchedule provider={provider.id} /> : undefined}
+      schedule={stripe && schedule ? (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Collection schedule</summary>
+          <div className="mt-2">{schedule}</div>
+        </details>
+      ) : schedule}
       onConnect={async (fields) => {
         const answer = await connectProviderCredential(provider.id, fields);
         // The row behind reads the new state from the store, never from the panel.
-        if (answer.verdict === "accepted") void onChanged();
+        if (answer.verdict === "accepted") {
+          if (stripe) queryClient.removeQueries({ queryKey: ["account-sites", provider.id], exact: true });
+          void onChanged();
+        }
         return answer;
       }}
       setup={signIn ? (
@@ -155,8 +173,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
         <Button type="button" onClick={close}>Done</Button>
       </> : provider.id === 'cloudflare' ? answer => (
         <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
-      ) : provider.id === "stripe" ? (_answer, close) => (
-        <StripeRevenueAssignment status={status} preselect={asset} names={names} onClose={close} />
+      ) : stripe ? (_answer, close) => (
+        <StripeProductAssignments status={status} onClose={close} />
       ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
       ) : (

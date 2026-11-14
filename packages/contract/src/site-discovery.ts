@@ -56,6 +56,8 @@ export type SiteDiscovery =
       kind: 'account' | 'portfolio';
       checkedAt: string;
       sites: DiscoveredSite[];
+      /** Stripe: the account that owns the listed products. */
+      stripeAccountId?: string;
       /** Google: whose access the list shows (the service account's address,
        * or the signed-in account's), so the panel can name who to grant a
        * missing site to. Absent for every other provider. */
@@ -69,7 +71,7 @@ export type SiteDiscovery =
 /** `not-connected` — no credential is stored; `refused` — the provider said
  * no; `unreachable` — it did not answer; `not-supported` — this provider does
  * not list sites here. */
-export type SiteDiscoveryFailure = 'not-connected' | 'refused' | 'unreachable' | 'not-supported';
+export type SiteDiscoveryFailure = 'not-connected' | 'refused' | 'unreachable' | 'not-supported' | 'test-mode';
 
 /**
  * The one host rule: what "matches by domain" means, everywhere. Lowercased

@@ -1,3 +1,4 @@
+import type { StripeProductMapping } from './configuration.mjs';
 /** The provider credential contract, declared once: the Tower renders the
  * form from this list, the ingest validates a submitted body against it before
  * encrypting anything, and `scripts/dev-secrets.mjs` reads it to import env
@@ -951,9 +952,8 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // Daily net receipts from one Stripe account, including one-time payments.
     id: 'stripe',
-    label: 'Stripe revenue',
+    label: 'Stripe',
     docRef: 'docs/11-integrations.md#stripe',
     scope: 'shared',
     lanes: ['subscriptions'],
@@ -971,7 +971,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         required: true,
         link: { url: 'https://dashboard.stripe.com/apikeys', label: 'Create a key' },
         placeholder: 'rk_live_…',
-        grants: ['Balance: read', 'Charges: read', 'Subscriptions: read'],
+        grants: ['Accounts: read', 'Balance: read', 'Charges and Refunds: read', 'Products: read', 'Checkout Sessions: read', 'Invoices: read'],
       },
     ],
   },
@@ -1295,9 +1295,7 @@ export interface IntegrationProviderStatus {
   /** Assets that declare one of this provider's lanes in
    * `config/integrations.json`, with the lanes they declare. Ids only. */
   assets: IntegrationProviderAssetRef[];
-  /** Stripe only. An absent key has no asset entry. Null has an asset entry
-   * with no Stripe source. Other rows carry the values used to guard a save. */
-  stripeAssetSources?: Record<string, { status: string; accountId: string | null } | null>;
+  stripeProducts?: StripeProductMapping | null;
   /**
    * Spend against `provider.meter`, from the manifest rows this OS wrote.
    * `null` for a provider that declares no meter, and for a store that could

@@ -12,7 +12,7 @@ NoticeOS keeps money in one **ledger**: revenue and cost rows per asset, per mon
 ## Before you begin
 
 - For ad revenue, Mediavine connected. See [Connect data sources](/guides/connect-data-sources).
-- For subscription revenue, a Stripe restricted key with **Read** on **Balance** and **Charges**, and the Stripe account id (`acct_…`).
+- For Stripe, a restricted key with the [read permissions for Stripe collection](../11-integrations.md#stripe).
 - For a recurring cost, what the statement calls it, its monthly amount in USD and its first month.
 - For a domain order, the registrar's receipt.
 
@@ -20,7 +20,7 @@ NoticeOS keeps money in one **ledger**: revenue and cost rows per asset, per mon
 
 Ad revenue from Mediavine is collected automatically once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests the previous day by its date. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the asset's **Data sources** tab shows **Reported through** with an **Estimates** chip.
 
-On **Integrations**, open **Stripe revenue**, connect the restricted key and select **Assign revenue**. Choose the asset that earned the account's receipts and enter its Stripe account ID. Automatic collection credits the whole account to that asset, including one-time payments. **Money** on the asset shows each completed UTC day's receipts after refunds and Stripe fees, in the account's currency. A day with no sale is recorded as 0. See [Stripe setup](../11-integrations.md#stripe).
+Open **Integrations → Stripe**, connect the restricted key, then select **Map products**. Choose the asset that earns each product’s revenue and select **Save mappings**. The asset’s **Money** tab shows receipts after refunds and Stripe fees, including one-time contributions. See [Stripe setup](../11-integrations.md#stripe).
 
 Revenue from other networks has no connector yet. NoticeOS's data receiver has an import route for revenue rows, but it requires the installation's operator token, so only whoever runs the installation can use it.
 

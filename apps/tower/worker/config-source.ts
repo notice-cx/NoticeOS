@@ -23,7 +23,7 @@ import { logicalTaskProjects, type TaskProjectsConfig } from "../shared/settings
 import { type DashboardConfig, readDashboardConfig } from "../shared/dashboard";
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
 import { discordRevenueEnabled, portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
-import { STRIPE_REVENUE_LANE, stripeRevenueAssignments, TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
+import { readStripeProductMapping, STRIPE_REVENUE_LANE, stripeProductTargets, stripeRevenueAssignments, TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 
 import type { ConfigDocumentRead, ApplyConfigOpsInput, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
@@ -181,16 +181,32 @@ export async function resolveTowerConfig(
     : fallbacks.pullConfig;
 
   const integrationsDoc = stored.get(TOWER_CONFIG_FILES.integrations);
-  const integrationsAssets = container(integrationsDoc, "assets");
+  const storedAssets = container(integrationsDoc, "assets");
+  const stripeProducts = isObject(integrationsDoc) ? readStripeProductMapping(integrationsDoc.stripeProducts) : null;
   const integrationsCatalog = list(integrationsDoc, "catalog");
   // A Stripe assignment in an older installation needs a row to manage it.
-  const stripe = stripeRevenueAssignments(integrationsDoc).length > 0
+  const stripe = (stripeProducts !== null || stripeRevenueAssignments(integrationsDoc).length > 0)
     ? fallbacks.integrations.catalog.find((row) => row.id === STRIPE_REVENUE_LANE)
     : undefined;
   const hasStripe = integrationsCatalog?.some((row) => isObject(row) && row.id === STRIPE_REVENUE_LANE);
+  let integrationsAssets = storedAssets as IntegrationsConfig["assets"] | null;
+  if (integrationsAssets !== null && stripeProducts !== null) {
+    integrationsAssets = Object.fromEntries(Object.entries(integrationsAssets).map(([asset, lanes]) => {
+      const cells = { ...lanes };
+      delete cells[STRIPE_REVENUE_LANE];
+      return [asset, cells];
+    }));
+    for (const { asset, account } of stripeProductTargets(stripeProducts)) {
+      integrationsAssets[asset] = {
+        ...integrationsAssets[asset],
+        // This is a derived source card. Only the integration writes the mapping.
+        [STRIPE_REVENUE_LANE]: { status: "needs-setup", since: "", stripeAccountId: account },
+      };
+    }
+  }
   const integrations =
     integrationsAssets !== null && integrationsCatalog !== null
-      ? ({ catalog: stripe && !hasStripe ? [...integrationsCatalog, stripe] : integrationsCatalog, assets: integrationsAssets } as unknown as IntegrationsConfig)
+      ? ({ catalog: stripe && !hasStripe ? [...integrationsCatalog, stripe] : integrationsCatalog, assets: integrationsAssets, ...(stripeProducts ? { stripeProducts } : {}) } as IntegrationsConfig)
       : fallbacks.integrations;
 
   const countersDoc = stored.get(TOWER_CONFIG_FILES.counters);

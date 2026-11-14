@@ -4,7 +4,7 @@ import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
   DISCORD_REVENUE_KEY, NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
-  stripeRevenueAssignments, TOWER_CONFIG_FILES,
+  readStripeProductMapping, STRIPE_PRODUCTS_POINTER, stripeRevenueAssignments, TOWER_CONFIG_FILES,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
 export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
@@ -119,6 +119,7 @@ export const ADDABLE_CONTAINERS: ReadonlyMap<string, { shape: "object" | "array"
 export const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]> = new Map([
   ['config/tower.json', ['/wall', '/countdown', WORKSPACE_VIEW_POINTER]],
   ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER, '/portfolio_brief']],
+  [TOWER_CONFIG_FILES.integrations, [STRIPE_PRODUCTS_POINTER]],
 ]);
 
 /** Is this exact pointer one of the declared documents above? */
@@ -496,6 +497,12 @@ export function validateSchemaAndSafety(input: unknown): void {
     if (unschedulable !== null) throw new ChangesetError(unschedulable);
     const unreviewable = portfolioReviewOpRefusal(op);
     if (unreviewable !== null) throw new ChangesetError(`${at}: ${unreviewable}`);
+    if (op.file === TOWER_CONFIG_FILES.integrations && typeof op.pointer === 'string' &&
+        (op.pointer === STRIPE_PRODUCTS_POINTER || op.pointer.startsWith(`${STRIPE_PRODUCTS_POINTER}/`))) {
+      if (op.pointer !== STRIPE_PRODUCTS_POINTER || (op.kind !== 'file-json-delete' && !readStripeProductMapping(op.value))) {
+        throw new ChangesetError(`${at}: save the complete Stripe product mapping with valid account and asset IDs`);
+      }
+    }
     const undeclarable = noNightlyReportOpRefusal(op);
     if (undeclarable !== null) throw new ChangesetError(`${at}: ${undeclarable}`);
   });
