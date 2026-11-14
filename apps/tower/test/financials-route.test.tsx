@@ -873,13 +873,11 @@ describe("/financials — the first screen answers the whole question", () => {
     expect(lines[0]).toHaveTextContent("Mediavine Journey ad revenue");
     expect(lines[0]).toHaveTextContent("$290.94");
     expect(lines[0]).toHaveTextContent("Ads");
-    expect(lines[1]).toHaveTextContent("Stripe subscriptions");
-    expect(lines[1]).toHaveTextContent("Subscriptions");
+    expect(lines[1]).toHaveTextContent("$138.00");
+    expect(lines[1]!.querySelector("[data-revenue-family]")).toBeNull();
     // A row booked with no source is named by its family.
     expect(lines[2]).toHaveTextContent("Affiliate");
     expect(lines[2]).toHaveTextContent("×2");
-    // The ledger's own family codes stay off the screen.
-    expect(panel.querySelector('[data-revenue-family="subs"]')).toHaveTextContent(/^Subscriptions$/);
   });
 
   it("draws no By source panel for a month with no revenue lines", () => {

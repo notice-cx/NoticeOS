@@ -39,7 +39,7 @@ import type {
   SetCredentialExpiryResult,
 } from "@noticeos/contract";
 import { INTEGRATION_PROVIDERS, integrationProvider } from "@noticeos/contract";
-import { legacyBindingAsset } from "@noticeos/contract/configuration";
+import { legacyBindingAsset, STRIPE_REVENUE_LANE, stripeRevenueAssignments } from "@noticeos/contract/configuration";
 import type { IntegrationsConfig } from "../shared/integrations";
 import { ENV_IMPORT_ELSEWHERE_DETAIL, type EnvImportAvailability } from "../shared/env-import";
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
@@ -139,10 +139,17 @@ export async function handleIntegrationProvidersRequest(
   for (const provider of INTEGRATION_PROVIDERS) {
     const credential = summaries.get(provider.id);
     if (credential === undefined) continue;
+    const stripe = provider.id === "stripe";
     providers.push({
       provider: providerForInstallation(provider, config),
       credential,
-      assets: assetsUsingProvider(config, provider.lanes),
+      assets: stripe
+        ? stripeRevenueAssignments(config).map(({ asset }) => ({ id: asset, lanes: [STRIPE_REVENUE_LANE] }))
+        : assetsUsingProvider(config, provider.lanes),
+      ...(stripe ? { stripeAssetSources: Object.fromEntries(Object.entries(config.assets).map(([asset, lanes]) => {
+        const cell = lanes?.[STRIPE_REVENUE_LANE];
+        return [asset, cell ? { status: cell.status, accountId: cell.stripeAccountId ?? null } : null];
+      })) } : {}),
       // A store that cannot answer costs this one block rather than the page.
       meter:
         provider.meter === undefined || meterReader === undefined

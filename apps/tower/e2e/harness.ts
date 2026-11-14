@@ -247,6 +247,11 @@ export const JOURNEY_DATAFORSEO_LOGIN = "journey-login";
  */
 export const journeyProviderNetwork: typeof fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.origin === "https://api.stripe.com" && url.pathname === "/v1/balance") {
+    return new Headers(init?.headers).get("authorization") === `Bearer ${JOURNEY_KEY}`
+      ? Response.json({ available: [{ currency: "usd", amount: 0 }], pending: [] })
+      : new Response(null, { status: 401 });
+  }
   if (url.origin === "https://ssl.bing.com" && url.pathname.startsWith("/webmaster/api.svc/json/")) {
     if (url.searchParams.get("apikey") !== JOURNEY_KEY) return Response.json({ ErrorCode: 3, Message: "InvalidApiKey" }, { status: 400 });
     if (url.pathname.endsWith("/GetUserSites")) return Response.json({ d: JOURNEY_BING_SITES });

@@ -57,6 +57,11 @@ export declare const ASSET_ID_RE: RegExp;
 export declare const CONFIG_ASSET_KEY_SOURCE = "[a-z0-9][a-z0-9._-]*";
 export declare const CONFIG_ASSET_KEY_RE: RegExp;
 export declare const DOMAIN_RE: RegExp;
+export declare const STRIPE_REVENUE_LANE = "subscriptions";
+export declare function stripeRevenueAssignments(register: unknown): {
+    asset: string;
+    account: string;
+}[];
 export type JsonValue = string | number | boolean | null | JsonValue[] | {
     [key: string]: JsonValue;
 };

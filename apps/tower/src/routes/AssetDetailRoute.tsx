@@ -130,6 +130,7 @@ export function AssetDetailRoute() {
             lastGood={lastGood}
             rangeLabel={tab === "financials" ? "Revenue period" : tab === 'codebase' ? 'Chart period' : "Traffic period"}
             showRange={tab === "overview" || tab === "growth" || tab === "financials" || tab === 'codebase'}
+            showSources={tab !== "sources"}
           />
           <AssetTabs
             data={data}

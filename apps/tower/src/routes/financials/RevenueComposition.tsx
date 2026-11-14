@@ -1,4 +1,5 @@
 import { sumMoneyFigures } from "@noticeos/contract/money";
+import { STRIPE_REVENUE_SOURCE } from "@noticeos/contract/revenue-sources";
 import { useId, type CSSProperties } from "react";
 import { REVENUE_FAMILY_LABEL, type FinancialRevenueLine } from "@shared/financials";
 import { SectionLabel } from "@/components/surface/SectionLabel";
@@ -39,7 +40,8 @@ export function RevenueComposition({
         {ranked.map((line, index) => {
           const share = total.currency !== null && total.currency === line.currency && total.revenue > 0 ? Math.max(0, line.amount) / total.revenue : null;
           const family = revenueFamilyLabel(line.family);
-          const label = line.label ?? line.source ?? family;
+          const stripe = line.source === STRIPE_REVENUE_SOURCE;
+          const label = stripe ? "Stripe revenue" : line.label ?? line.source ?? family;
           return (
             <li key={`${line.family}:${line.source ?? "none"}:${line.currency}`} className="flex min-w-0 flex-col gap-1.5" data-revenue-line={line.source ?? ""}>
               <div className="flex min-w-0 items-baseline justify-between gap-3">
@@ -55,7 +57,7 @@ export function RevenueComposition({
                     <span className="viz-grow-x block h-full rounded-full bg-financial-revenue" style={{ width: `${Math.max(2, share * 100)}%`, "--viz-i": index } as CSSProperties} />
                   ) : null}
                 </span>
-                <span className="shrink-0 text-micro whitespace-nowrap text-muted-foreground" data-revenue-family={line.family}>{family}</span>
+                {stripe ? null : <span className="shrink-0 text-micro whitespace-nowrap text-muted-foreground" data-revenue-family={line.family}>{family}</span>}
               </div>
             </li>
           );

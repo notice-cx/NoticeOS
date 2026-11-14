@@ -23,7 +23,7 @@ import { logicalTaskProjects, type TaskProjectsConfig } from "../shared/settings
 import { type DashboardConfig, readDashboardConfig } from "../shared/dashboard";
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
 import { discordRevenueEnabled, portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
-import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
+import { STRIPE_REVENUE_LANE, stripeRevenueAssignments, TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 
 import type { ConfigDocumentRead, ApplyConfigOpsInput, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
@@ -183,9 +183,14 @@ export async function resolveTowerConfig(
   const integrationsDoc = stored.get(TOWER_CONFIG_FILES.integrations);
   const integrationsAssets = container(integrationsDoc, "assets");
   const integrationsCatalog = list(integrationsDoc, "catalog");
+  // A Stripe assignment in an older installation needs a row to manage it.
+  const stripe = stripeRevenueAssignments(integrationsDoc).length > 0
+    ? fallbacks.integrations.catalog.find((row) => row.id === STRIPE_REVENUE_LANE)
+    : undefined;
+  const hasStripe = integrationsCatalog?.some((row) => isObject(row) && row.id === STRIPE_REVENUE_LANE);
   const integrations =
     integrationsAssets !== null && integrationsCatalog !== null
-      ? ({ catalog: integrationsCatalog, assets: integrationsAssets } as unknown as IntegrationsConfig)
+      ? ({ catalog: stripe && !hasStripe ? [...integrationsCatalog, stripe] : integrationsCatalog, assets: integrationsAssets } as unknown as IntegrationsConfig)
       : fallbacks.integrations;
 
   const countersDoc = stored.get(TOWER_CONFIG_FILES.counters);

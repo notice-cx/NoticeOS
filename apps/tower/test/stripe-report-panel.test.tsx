@@ -29,4 +29,19 @@ describe('Stripe reporting panel', () => {
     const { container } = render(<StripeReport report={null} days={7} nowMs={0} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('shows one-time receipts when the account has no subscription activity', () => {
+    const empty = { ...latest, currency: 'USD', activeSubscriptions: 0, trials: 0, pastDue: 0, canceling: 0, mrrMinor: 0, paidCustomers: 0 };
+    const day = { date: '2026-09-28', amountMinor: 941, sales: { salesMinor: 1000, refundsMinor: 0, feesMinor: 59, payments: 1, refunds: 0 } };
+    const { container } = render(<StripeReport
+      report={{ ...report, latest: empty, history: [empty] }}
+      history={{ from: day.date, to: day.date, days: [day], reportedThrough: day.date,
+        bySource: [{ source: 'stripe', provider: 'stripe', family: 'subs', displayName: 'Stripe subscriptions', currency: 'USD',
+          clock: { timeZone: 'UTC', label: 'UTC', readyAfterMinute: 60 }, since: day.date, reportedThrough: day.date, days: [day] }] }}
+      days={7} nowMs={Date.parse(empty.observedAt)}
+    />);
+    expect(container.querySelector('[data-stat="Net receipts"] [data-stat-figure]')).toHaveTextContent('$9.41');
+    expect(container.querySelector('[data-stat="Payments"] [data-stat-figure]')).toHaveTextContent('1');
+    expect(container.querySelector('[data-stat="Monthly recurring revenue"]')).toBeNull();
+  });
 });

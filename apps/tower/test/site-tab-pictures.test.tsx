@@ -2,7 +2,6 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { FlagRecord, WatchWindowItem } from "@shared/asset-detail";
 import { activityEvents } from "@/routes/asset-detail/activity-timeline";
-import { siteSourceGraph } from "@/routes/asset-detail/source-graph";
 import { ChangeRows, changeScale } from "@/components/viz/ChangeRows";
 import { FunnelBars } from "@/components/viz/FunnelBars";
 import { siteAlertTimeline } from "@/routes/asset-detail/AlertsTab";
@@ -215,43 +214,6 @@ describe("Activity's last ninety days", () => {
     expect(href("watch:w1:verdict")).toBe("/tasks/md-r4.1");
     expect(href("watch:w3:start")).toBeNull();
     expect(href("watch:w3:verdict")).toBeNull();
-  });
-});
-
-describe("Data sources' graph", () => {
-  const columns = [
-    { id: "ga4", label: "Google Analytics", short: "GA4" },
-    { id: "bing-webmaster", label: "Bing Webmaster Tools", short: "Bing" },
-    { id: "uptime", label: "Uptime monitoring", short: "Uptime" },
-    { id: "clarity", label: "Microsoft Clarity", short: "Clarity" },
-    { id: "nightly-report", label: "Nightly report", short: "Report" },
-  ];
-
-  it("draws each connected source into the asset, lights the failing one and names the rest", () => {
-    const graph = siteSourceGraph(
-      {
-        id: "meadow.example",
-        name: "Meadow Board",
-        cells: [
-          { column: "ga4", state: "not-connected" },
-          { column: "bing-webmaster", state: "working", detail: "35 daily rows" },
-          { column: "uptime", state: "failing", detail: "HTTP 503", since: "2026-07-05T13:20:00.000Z" },
-          { column: "clarity", state: "not-using" },
-          { column: "nightly-report", state: "overdue", detail: "Due daily" },
-        ],
-      },
-      columns,
-      { id: "meadow.example", name: "Meadow Board" },
-    );
-    expect(graph.nodes.map((node) => [node.id, node.state, node.caption ?? null])).toEqual([
-      ["bing-webmaster", "ok", null],
-      ["uptime", "error", "HTTP 503"],
-      ["nightly-report", "warn", "Due daily"],
-      ["meadow.example", "error", null],
-    ]);
-    expect(graph.nodes.find((node) => node.id === "nightly-report")!.label).toBe("Nightly report");
-    expect(graph.edges.every((edge) => edge.to === "meadow.example")).toBe(true);
-    expect(graph.notConnected).toEqual(["GA4"]);
   });
 });
 

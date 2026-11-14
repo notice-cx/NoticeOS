@@ -4,6 +4,7 @@ import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
   DISCORD_REVENUE_KEY, NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
+  stripeRevenueAssignments, TOWER_CONFIG_FILES,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
 export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
@@ -1112,6 +1113,7 @@ export async function resolveOps(cs: Changeset, store: StoreLane | null, { readD
 export function applyDocumentOps(resolved: Resolved[], documents: Map<string, unknown>, { at }: { at?: string } = {}): string[] {
   const touched = new Set<string>();
   const stageLists = new Map<string, Set<string>>();
+  const stripeBefore = stripeRevenueAssignments(documents.get(TOWER_CONFIG_FILES.integrations));
   for (const r of resolved) {
     const { op } = r;
     if (op.kind !== 'store-asset-set') {
@@ -1165,6 +1167,12 @@ export function applyDocumentOps(resolved: Resolved[], documents: Map<string, un
       if (holder?.journeys === undefined) continue;
       const refusal = journeyDefinitionsRefusal(holder.journeys);
       if (refusal !== null) throw new ChangesetError(refusal);
+    }
+  }
+  if (touched.has(TOWER_CONFIG_FILES.integrations)) {
+    const stripeAfter = stripeRevenueAssignments(documents.get(TOWER_CONFIG_FILES.integrations));
+    if (stripeBefore.length < stripeAfter.length && stripeAfter.length > 1) {
+      throw new ChangesetError('Stripe revenue can be assigned to one asset. Remove the existing assignment first.');
     }
   }
   const date = applyDate(at);

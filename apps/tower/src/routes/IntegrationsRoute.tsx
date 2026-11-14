@@ -170,13 +170,15 @@ export function IntegrationsRoute() {
     const status = cards.find((card) => card.provider.id === id);
     if (!status || !connectsInPanel(status.provider)) return null;
     const state = connectionState(status.credential);
-    return state === "not-connected" || (connectedToo && state !== "failing") ? status : null;
+    return state === "not-connected" || (connectedToo && (state !== "failing" || id === "stripe")) ? status : null;
   };
   // `?setup=page` keeps a provider's own page (Google's service-account path).
-  const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(params.get("provider"), false));
+  const providerParam = params.get("provider");
+  const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
   useEffect(() => {
     if (!linked) return;
-    setConnecting({ id: linked.provider.id, opened: providerPanelOpening(linked), asset: params.get("asset") });
+    const opened = connectionState(linked.credential) === "failing" ? "form" : providerPanelOpening(linked);
+    setConnecting({ id: linked.provider.id, opened, asset: params.get("asset") });
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
@@ -457,8 +459,10 @@ function IntegrationRow({
   const shown = connectionStatus(status.provider.id, status.credential, items);
   const expiry = credentialExpiry(status.credential.metadata, nowMs);
   const inPanel = connectsInPanel(status.provider);
-  const failing = connectionState(status.credential) === "failing";
-  const verb = shown.kind === "not-connected" ? "Connect" : inPanel && failing ? "Reconnect" : "Manage";
+  const credentialState = connectionState(status.credential);
+  const failing = credentialState === "failing";
+  const assignStripe = status.provider.id === "stripe" && credentialState !== "not-connected" && !failing && status.assets.length === 0;
+  const verb = shown.kind === "not-connected" ? "Connect" : inPanel && failing ? "Reconnect" : assignStripe ? "Assign revenue" : "Manage";
   const subject: StatusSubject = `integration:${status.provider.id}`;
   return (
     <li
@@ -489,9 +493,9 @@ function IntegrationRow({
           type="button"
           size="sm"
           variant={verb === "Reconnect" ? "default" : verb === "Connect" ? "outline" : "ghost"}
-          aria-label={`${verb} ${name}`}
+          aria-label={assignStripe ? "Assign Stripe revenue" : `${verb} ${name}`}
           disabled={demoReadonly}
-          onClick={() => onOpen(verb === "Manage" ? "sites" : "form")}
+          onClick={() => onOpen(verb === "Manage" || assignStripe ? "sites" : "form")}
         >
           {verb}
         </Button>

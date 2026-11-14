@@ -169,6 +169,24 @@ describe('runStripeRevenue', () => {
     expect(log.mock.calls.map(([line]) => String(line))).toContain(JSON.stringify({ event: 'stripe_not_connected' }));
   });
 
+  it('assigns new receipts after a move without collecting the same Stripe days twice', async () => {
+    await connect();
+    const first = stripe();
+    await runStripeRevenue(env, { fetchImpl: first.fetchImpl, nowMs: NOW, laneRegister: register() });
+
+    const newAsset = 'northwind.example';
+    const next = stripe();
+    const result = await runStripeRevenue(env, {
+      fetchImpl: next.fetchImpl, nowMs: NOW + DAY_MS,
+      laneRegister: register({ [newAsset]: { stripeAccountId: ACCOUNT } }),
+    });
+
+    expect(result.outcomes[0]).toMatchObject({ asset: newAsset, status: 'collected', days: 1, written: 1 });
+    expect(await pgRows(`SELECT asset_id AS asset, COUNT(*)::int AS days FROM noticeos.current_revenue
+      WHERE source = $1 GROUP BY asset_id ORDER BY asset_id`, [STRIPE_REVENUE_SOURCE]))
+      .toEqual([{ asset: ASSET, days: STRIPE_WINDOW_DAYS }, { asset: newAsset, days: 1 }]);
+  });
+
   it('stops at a refused key: nothing is stored, the card shows why, and the key is not shown', async () => {
     await connect();
     const { fetchImpl, calls } = stripe({ status: 401 });

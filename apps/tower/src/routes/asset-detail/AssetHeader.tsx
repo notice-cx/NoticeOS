@@ -30,6 +30,7 @@ export function Header({
   nowMs,
   lastGood,
   showRange = true,
+  showSources = true,
   rangeLabel = "Traffic period",
 }: {
   asset: AssetInfo;
@@ -38,12 +39,13 @@ export function Header({
   nowMs: number;
   lastGood: boolean;
   showRange?: boolean;
+  showSources?: boolean;
   rangeLabel?: string;
 }) {
   const demoReadonly = useDemoReadonly();
   const { days, setDays } = useRange();
   const { credentials, items } = useConnections();
-  const sources = sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs);
+  const sources = showSources ? sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs) : [];
   const verdict = siteHealth(asset, useSiteIssues());
   const iconsOf = useSiteIcons();
   // The identity row is the heading: the page header renders it inside its
@@ -96,10 +98,10 @@ export function Header({
         <>
           {/* Beside the heading rather than inside it, so the page's name stays
               the asset's name and each mark keeps its own accessible name. */}
-          <DataSourceIcons sources={sources} className="me-1" />
+          {showSources ? <DataSourceIcons sources={sources} className="me-1" /> : null}
           {/* No report expected, none ever sent or declared away, is the Wall
               card's neutral mark, not an amber "never": nothing is owed. */}
-          {!showsNightlyReport(asset.noNightlyReport === true, pulseReceivedAt, nowMs) ? (
+          {!showSources ? null : !showsNightlyReport(asset.noNightlyReport === true, pulseReceivedAt, nowMs) ? (
             <NoNightlyReport />
           ) : (
             <span className="inline-flex items-center gap-2 whitespace-nowrap" data-nightly-report-age>

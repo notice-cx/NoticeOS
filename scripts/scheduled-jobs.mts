@@ -113,7 +113,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
   { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
     collectNow: [{ provider: 'mediavine', step: 'revenue' }], connections: ['mediavine'] },
-  { id: 'stripe', surface: 'system', label: 'Subscription revenue', group: 'Business signals', cron: '20 * * * *', source: 'Stripe',
+  { id: 'stripe', surface: 'system', label: 'Stripe revenue', group: 'Business signals', cron: '20 * * * *', source: 'Stripe',
     keywords: ['subscriptions', 'stripe', 'refunds'], connections: ['stripe'] },
   { id: 'freshness', surface: 'system', label: 'Data freshness checks', group: 'Asset health', cron: '0 * * * *', keywords: ['missing reports', 'late reports', 'uptime', 'asset down', 'connection counts', 'source history'] },
   { id: 'notifications', surface: 'workflow', label: 'Operator notifications', group: 'Notifications', cron: '5 * * * *' },

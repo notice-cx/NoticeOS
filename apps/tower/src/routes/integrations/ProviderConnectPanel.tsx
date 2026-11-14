@@ -28,6 +28,7 @@ import { SitePicker } from "@/components/SitePicker";
 import { SiteTokens } from "@/components/SiteTokens";
 import { useConnections } from "@/hooks/useConnections";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
+import { StripeRevenueAssignment } from "./StripeRevenueAssignment";
 import { useSettings } from "@/hooks/useSettings";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { useInlineConfigSave } from "@/hooks/useConfigSave";
@@ -154,6 +155,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
         <Button type="button" onClick={close}>Done</Button>
       </> : provider.id === 'cloudflare' ? answer => (
         <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
+      ) : provider.id === "stripe" ? (_answer, close) => (
+        <StripeRevenueAssignment status={status} preselect={asset} names={names} onClose={close} />
       ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
       ) : (
