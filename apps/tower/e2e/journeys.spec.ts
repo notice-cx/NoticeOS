@@ -2444,9 +2444,7 @@ test("a new asset raises no nightly-report warning anywhere, and the System frac
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
 
-  // The site's header: the neutral No report mark, never an amber "never".
   const header = page.locator("header").filter({ has: page.getByRole("heading", { name: /^Journey Example/, level: 1 }) });
-  await expect(header.locator('[data-nightly-report="none"]')).toHaveText("No report");
   await expect(header.locator("[data-nightly-report-age]")).toHaveCount(0);
   await expect(header.locator('[data-age-state="never"]')).toHaveCount(0);
   // Unconnected sources and optional reports leave no setup obligation.
@@ -2456,6 +2454,7 @@ test("a new asset raises no nightly-report warning anywhere, and the System frac
 
   await page.goto(`/assets/${JOURNEY_ASSET}`);
   await expect(page.locator("[data-site-overview]")).toBeVisible();
+  await expect(header.locator('[data-nightly-report="none"]')).toHaveText("No report");
   const setup = page.getByRole("status").filter({ hasText: "Data setup" });
   await expect(setup).toHaveCount(0);
 
