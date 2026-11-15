@@ -82,7 +82,9 @@ async function bookSales(tx: Transaction, settings: TempoMppSettings, at: string
   );
 }
 
-export async function runTempoMpp(env: IngestEnv, { fetchImpl = fetch, now = new Date() } = {}) {
+export async function runTempoMpp(env: IngestEnv, {
+  fetchImpl = fetch, now = new Date(), deadline,
+}: { fetchImpl?: typeof fetch; now?: Date; deadline?: AbortSignal } = {}) {
   const starting = await env.STORE.read(async (tx) => ({ settings: await settingsIn(tx), scan: await scanIn(tx) }));
   const { settings } = starting;
   if (!settings?.enabled) return { outcome: 'skipped', detail: 'Tempo MPP collection is off.' } as const;
@@ -95,7 +97,7 @@ export async function runTempoMpp(env: IngestEnv, { fetchImpl = fetch, now = new
     const cursor = startOf(settings, scope, await scanIn(tx));
     return cursor.block === from.block && cursor.logIndex === from.logIndex;
   };
-  const batch = await readTempoRange(settings, from, fetchImpl).catch(() => null);
+  const batch = await readTempoRange(settings, from, fetchImpl, deadline).catch(() => null);
   return env.STORE.write(async (tx) => {
     await lock(tx);
     if (!(await unchanged(tx))) return { outcome: 'skipped', detail: 'Tempo MPP settings or scan progress changed.' } as const;

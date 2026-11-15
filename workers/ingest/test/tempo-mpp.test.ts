@@ -30,9 +30,9 @@ const assetSettings: TempoMppSettings = {
 };
 
 function logs({
-  realm = 'paid.example.com', memoIndex = 14, amount = 500_000, token = PATH_USD, receiver = WALLET, deliveredTo = receiver,
-}: { realm?: string; memoIndex?: number; amount?: number; token?: string; receiver?: string; deliveredTo?: string } = {}) {
-  const common = { address: token, transactionHash: HASH, blockNumber: blockHex(BLOCK), data: `0x${word(amount.toString(16))}` };
+  realm = 'paid.example.com', memoIndex = 14, amount = 500_000, token = PATH_USD, receiver = WALLET, deliveredTo = receiver, hash = HASH,
+}: { realm?: string; memoIndex?: number; amount?: number; token?: string; receiver?: string; deliveredTo?: string; hash?: string } = {}) {
+  const common = { address: token, transactionHash: hash, blockNumber: blockHex(BLOCK), data: `0x${word(amount.toString(16))}` };
   // The saved Moderato receipt emits the ordinary transfer at 13 and the memo at 14.
   // Use synthetic actors and realms in the replay.
   const delivery = { ...common, logIndex: blockHex(memoIndex - 1), topics: [TRANSFER, `0x${word(PAYER)}`, `0x${word(deliveredTo)}`] };
@@ -41,11 +41,15 @@ function logs({
   return [delivery, memo];
 }
 
-function rpc(settings: TempoMppSettings, all = logs(), options: { fail?: boolean; chain?: number; beforeLogs?: () => Promise<void> } = {}) {
+function rpc(settings: TempoMppSettings, all = logs(), options: {
+  fail?: boolean; chain?: number; beforeLogs?: () => Promise<void>; beforeReceipt?: (hash: string) => void;
+} = {}) {
   const ranges: number[][] = [];
   const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
     expect(url).toBe(TEMPO_NETWORKS[settings.chainId].rpc);
-    const { method, params } = JSON.parse(String(init?.body));
+    const request = new Request(String(url), init);
+    expect(request.redirect).toBe('manual');
+    const { method, params } = JSON.parse(await request.text());
     if (options.fail && method === 'eth_getTransactionReceipt') return new Response(null, { status: 503 });
     let result: unknown;
     switch (method) {
@@ -65,7 +69,10 @@ function rpc(settings: TempoMppSettings, all = logs(), options: { fail?: boolean
         result = all.filter(log => log.topics[0] === MEMO);
         break;
       case 'eth_getTransactionReceipt':
-        result = { status: '0x1', transactionHash: HASH, blockNumber: blockHex(BLOCK), logs: all };
+        options.beforeReceipt?.(params[0]);
+        request.signal.throwIfAborted();
+        result = { status: '0x1', transactionHash: params[0], blockNumber: blockHex(BLOCK),
+          logs: all.filter(log => log.transactionHash === params[0]) };
         break;
       default: throw new Error(`Unexpected RPC ${method}`);
     }
@@ -198,6 +205,22 @@ describe('Tempo MPP reconciliation', () => {
     expect(await pgRows(position)).toEqual([{ block: BLOCK + 1, log: 0 }]);
     const rows = await pgRows('SELECT log_index AS log FROM noticeos.tempo_mpp_payments ORDER BY log_index');
     expect(rows.map(row => row.log)).toEqual(Array.from({ length: 22 }, (_, i) => 14 + i * 2));
+  });
+
+  it('saves the completed part of a scan when its deadline interrupts a receipt', async () => {
+    const nextHash = `0x${'21'.repeat(32)}`;
+    const incoming = [...logs(), ...logs({ memoIndex: 16, hash: nextHash })];
+    const deadline = new AbortController();
+    const slow = rpc(assetSettings, incoming, {
+      beforeReceipt: hash => { if (hash === nextHash) deadline.abort(); },
+    });
+    expect(await save(assetSettings)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, { ...slow, deadline: deadline.signal })).toMatchObject({ outcome: 'ran', matched: 1 });
+    const position = 'SELECT next_block::int AS block, next_log_index AS log FROM noticeos.tempo_mpp_scans';
+    expect(await pgRows(position)).toEqual([{ block: BLOCK, log: 16 }]);
+    expect(await runTempoMpp(env, rpc(assetSettings, incoming))).toMatchObject({ outcome: 'ran', matched: 1 });
+    expect(await pgRows(position)).toEqual([{ block: BLOCK + 1, log: 0 }]);
+    expect(await pgRows('SELECT log_index AS log FROM noticeos.tempo_mpp_payments ORDER BY log_index')).toEqual([{ log: 14 }, { log: 16 }]);
   });
 
   it('books a late sale record against its observed wallet after a wallet change', async () => {

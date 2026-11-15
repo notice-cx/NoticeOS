@@ -64,15 +64,16 @@ export interface TempoScanCursor {
   logIndex: number;
 }
 
-export async function readTempoRange(settings: TempoMppSettings, cursor: TempoScanCursor, fetchImpl: typeof fetch) {
+export async function readTempoRange(
+  settings: TempoMppSettings, cursor: TempoScanCursor, fetchImpl: typeof fetch, deadline = AbortSignal.timeout(55_000),
+) {
   const from = cursor.block;
-  const deadline = AbortSignal.timeout(55_000);
   const rpc = async (method: string, params: unknown[]): Promise<unknown> => {
     const response = await fetchImpl(TEMPO_NETWORKS[settings.chainId].rpc, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.any([deadline, AbortSignal.timeout(8_000)]),
     });
     const body = response.ok ? object(await response.json()) : null;
@@ -118,7 +119,8 @@ export async function readTempoRange(settings: TempoMppSettings, cursor: TempoSc
     }
   }
 
-  const matched = new Map<string, { candidate: Tip20Log; memo: `0x${string}`; asset: string }>();
+  type MatchedMemo = { candidate: Tip20Log; memo: `0x${string}`; asset: string };
+  const matched = new Map<string, MatchedMemo>();
   for (const rawLog of logs) {
     const candidate = transfer(rawLog, TRANSFER_WITH_MEMO);
     if (!candidate?.memo || candidate.address !== token || candidate.to !== wallet || candidate.from === wallet ||
@@ -135,7 +137,8 @@ export async function readTempoRange(settings: TempoMppSettings, cursor: TempoSc
   const remaining = ordered[MAX_PAYMENTS_PER_SCAN]?.candidate;
   const receipts = new Map<string, { logs: unknown[]; success: boolean }>();
   const blockTimes = new Map<number, string>();
-  for (const { candidate, memo, asset } of ordered.slice(0, MAX_PAYMENTS_PER_SCAN)) {
+  async function readDelivery({ candidate, memo, asset }: MatchedMemo): Promise<TempoDelivery | null> {
+    deadline.throwIfAborted();
     let receipt = receipts.get(candidate.hash);
     if (!receipt) {
       const result = object(await rpc('eth_getTransactionReceipt', [candidate.hash]));
@@ -144,7 +147,7 @@ export async function readTempoRange(settings: TempoMppSettings, cursor: TempoSc
       receipt = { logs: result.logs, success: result.status === '0x1' };
       receipts.set(candidate.hash, receipt);
     }
-    if (!receipt.success) continue;
+    if (!receipt.success) return null;
 
     const sameTransfer = (log: Tip20Log | null) => log && log.address === token && log.hash === candidate.hash &&
       log.block === candidate.block && log.from === candidate.from && log.to === wallet && log.amount === candidate.amount;
@@ -158,7 +161,7 @@ export async function readTempoRange(settings: TempoMppSettings, cursor: TempoSc
       const log = transfer(raw, TRANSFER);
       return sameTransfer(log) && log?.index === candidate.index - 1;
     });
-    if (!delivered) continue;
+    if (!delivered) return null;
 
     let settledAt = blockTimes.get(candidate.block);
     if (settledAt === undefined) {
@@ -167,8 +170,17 @@ export async function readTempoRange(settings: TempoMppSettings, cursor: TempoSc
       settledAt = new Date(quantity(block?.timestamp) * 1000).toISOString();
       blockTimes.set(candidate.block, settledAt);
     }
-    payments.push({ hash: candidate.hash, logIndex: candidate.index, asset,
-      memo, baseUnits: String(candidate.amount), settledAt });
+    return { hash: candidate.hash, logIndex: candidate.index, asset, memo, baseUnits: String(candidate.amount), settledAt };
+  }
+  for (const match of ordered.slice(0, MAX_PAYMENTS_PER_SCAN)) {
+    try {
+      const payment = await readDelivery(match);
+      if (payment) payments.push(payment);
+    } catch (error) {
+      if (!deadline.aborted) throw error;
+      const { block, index } = match.candidate;
+      return { cursor: { block, logIndex: index }, complete: false, payments };
+    }
   }
   return {
     cursor: remaining ? { block: remaining.block, logIndex: remaining.index } : { block: through + 1, logIndex: 0 },
