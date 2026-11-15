@@ -73,13 +73,13 @@ function TempoMppForm({ setup }: { setup: TempoMppSetup }) {
     }
     setSaving(true);
     try {
-      await save({
+      const savedSettings = await save({
         ops: [{ kind: 'file-json-set', file: TOWER_CONFIG_FILES.integrations, pointer: TEMPO_MPP_POINTER,
           ...(saved ? { expect: saved } : { expectAbsent: true }), value: settings }],
         label: 'Tempo MPP settings',
         slug: 'tempo-mpp-settings',
       });
-      await queries.invalidateQueries({ queryKey: setupKey });
+      if (savedSettings) await queries.invalidateQueries({ queryKey: setupKey });
     } finally {
       setSaving(false);
     }

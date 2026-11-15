@@ -266,8 +266,8 @@
       "rule": "Retry state."
     },
     "tempo_mpp_scans": {
-      "revision": { "insert": true, "update": ["scope", "next_block", "completed_at", "last_attempt_at", "failed"], "delete": false },
-      "rule": "Latest block scanned and collection result for the workspace's configured Tempo wallet."
+      "revision": { "insert": true, "update": ["scope", "next_block", "next_log_index", "completed_at", "last_attempt_at", "failed"], "delete": false },
+      "rule": "Next block and memo log index to scan, with the collection result for the workspace's configured Tempo wallet."
     },
     "tempo_mpp_payments": {
       "revision": { "insert": true, "update": [], "delete": false },

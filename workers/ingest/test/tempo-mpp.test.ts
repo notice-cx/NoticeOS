@@ -162,6 +162,56 @@ describe('Tempo MPP reconciliation', () => {
     expect(await runTempoMpp(env, rpc(moved, logs({ receiver: WRONG })))).toMatchObject({ outcome: 'ran', matched: 1 });
   });
 
+  it('validates the mapped assets of an inserted settings document', async () => {
+    const insert = (value: TempoMppSettings) => applyConfigOps(env, {
+      actor: 'test', ops: [{ kind: 'file-json-insert', file: TOWER_CONFIG_FILES.integrations,
+        pointer: TEMPO_MPP_POINTER, value }],
+    });
+    const missing = { ...assetSettings, mappings: [{ realm: 'absent.example.com', asset: 'absent.example' }] };
+    expect(await insert(missing)).toMatchObject({ ok: false, error: 'invalid_changeset',
+      detail: 'Select an available asset for each Tempo MPP realm.' });
+    expect(await insert(assetSettings)).toMatchObject({ ok: true });
+  });
+
+  it('rescans from the starting block when a realm is added', async () => {
+    const initial = { ...assetSettings, mappings: assetSettings.mappings.slice(0, 1) };
+    const provider = rpc(assetSettings, [...logs(), ...logs({ realm: 'lookup.example.com', memoIndex: 16 })]);
+    expect(await save(initial)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, provider)).toMatchObject({ matched: 1 });
+    expect(await save(assetSettings, initial)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, provider)).toMatchObject({ matched: 2 });
+    expect(provider.ranges).toEqual([[BLOCK, BLOCK], [BLOCK, BLOCK]]);
+    expect(await pgRows('SELECT asset_id AS asset FROM noticeos.tempo_mpp_payments ORDER BY asset_id'))
+      .toEqual([{ asset: FIRST }, { asset: SECOND }]);
+  });
+
+  it('resumes inside a dense block and advances once all its matching memos have been processed', async () => {
+    const relevant = Array.from({ length: 22 }, (_, i) => logs({ memoIndex: 14 + i * 2 })).flat();
+    const unrelated = Array.from({ length: 151 }, (_, i) =>
+      logs({ realm: 'unrelated.example.com', memoIndex: 100 + i * 2 })).flat();
+    const provider = rpc(assetSettings, [...unrelated, ...relevant].reverse());
+    expect(await save(assetSettings)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, provider)).toMatchObject({ outcome: 'ran', matched: 20 });
+    const position = 'SELECT next_block::int AS block, next_log_index AS log FROM noticeos.tempo_mpp_scans';
+    expect(await pgRows(position)).toEqual([{ block: BLOCK, log: 54 }]);
+    expect(await runTempoMpp(env, provider)).toMatchObject({ outcome: 'ran', matched: 2 });
+    expect(await pgRows(position)).toEqual([{ block: BLOCK + 1, log: 0 }]);
+    const rows = await pgRows('SELECT log_index AS log FROM noticeos.tempo_mpp_payments ORDER BY log_index');
+    expect(rows.map(row => row.log)).toEqual(Array.from({ length: 22 }, (_, i) => 14 + i * 2));
+  });
+
+  it('books a late sale record against its observed wallet after a wallet change', async () => {
+    const original: TempoMppSettings = { ...assetSettings, chainId: TEMPO_MPP_MAINNET };
+    expect(await save(original)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, rpc(original))).toMatchObject({ outcome: 'ran', matched: 1, recorded: 0 });
+    const moved = { ...original, wallet: WRONG };
+    expect(await save(moved, original)).toMatchObject({ ok: true });
+    expect((await sale(moved)).status).toBe(201);
+    expect(await runTempoMpp(env, rpc(moved, []))).toMatchObject({ outcome: 'ran', matched: 0, recorded: 1 });
+    expect(await pgRows("SELECT account_ref AS wallet FROM noticeos.current_revenue WHERE source = 'tempo-mpp'"))
+      .toEqual([{ wallet: WALLET }]);
+  });
+
   it('keeps a failed scan retryable and completes a scan with no qualifying payments', async () => {
     expect(await save(assetSettings)).toMatchObject({ ok: true });
     const broken = rpc(assetSettings, logs(), { fail: true });

@@ -559,7 +559,7 @@ by column; retention and maintenance privileges are checked separately.
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |
 | `tempo_mpp_payments` | append-only | Append-only deliveries with a matching Tempo MPP realm, including transfers awaiting a sale record. |
 | `tempo_mpp_sale_records` | append-only | Append-only sale evidence submitted by the asset that served the purchase. |
-| `tempo_mpp_scans` | insert; update only scope, next_block, completed_at, last_attempt_at, failed | Latest block scanned and collection result for the workspace's configured Tempo wallet. |
+| `tempo_mpp_scans` | insert; update only scope, next_block, next_log_index, completed_at, last_attempt_at, failed | Next block and memo log index to scan, with the collection result for the workspace's configured Tempo wallet. |
 | `traffic_comparison_reports` | append-only | Append-only processed activity reports; successful backfills remain available through failed refreshes. |
 | `watch_window_readings` | append-only | Append-only, one per offset. |
 | `watch_windows` | insert; update only status, outcome, closed_at, outcome_note, last_checked_at, readback_bead, readback_posted_at | The registration is fixed; the close is one-way. |

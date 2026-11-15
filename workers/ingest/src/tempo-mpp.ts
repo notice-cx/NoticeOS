@@ -5,10 +5,10 @@ import {
 import { TEMPO_MPP_SOURCE, tempoMppScope } from '@noticeos/contract/tempo-mpp';
 import type { Transaction } from '@noticeos/postgres';
 import { configDocumentKey } from '../../../scripts/config-documents.mjs';
-import { readTempoRange, type TempoDelivery } from './tempo-mpp-rpc.js';
+import { readTempoRange, type TempoDelivery, type TempoScanCursor } from './tempo-mpp-rpc.js';
 
 const integrationsKey = configDocumentKey(TOWER_CONFIG_FILES.integrations);
-type Scan = { scope: string; nextBlock: number };
+type Scan = { scope: string; cursor: TempoScanCursor };
 
 async function settingsIn(tx: Transaction, writer = false): Promise<TempoMppSettings | null> {
   const [row] = await tx.query<{ settings: string | null }>(
@@ -19,30 +19,30 @@ async function settingsIn(tx: Transaction, writer = false): Promise<TempoMppSett
 }
 
 async function scanIn(tx: Transaction): Promise<Scan | undefined> {
-  const [scan] = await tx.query<{ scope: string; nextBlock: string }>(
-    'SELECT scope, next_block::text AS "nextBlock" FROM noticeos.tempo_mpp_scans',
+  const [scan] = await tx.query<{ scope: string; nextBlock: string; logIndex: number }>(
+    'SELECT scope, next_block::text AS "nextBlock", next_log_index AS "logIndex" FROM noticeos.tempo_mpp_scans',
   );
-  return scan ? { scope: scan.scope, nextBlock: Number(scan.nextBlock) } : undefined;
+  return scan ? { scope: scan.scope, cursor: { block: Number(scan.nextBlock), logIndex: scan.logIndex } } : undefined;
 }
 
-function startOf(settings: TempoMppSettings, scan: Scan | undefined): number {
-  return scan?.scope === tempoMppScope(settings) ? scan.nextBlock : settings.startBlock;
+function startOf(settings: TempoMppSettings, scope: string, scan: Scan | undefined): TempoScanCursor {
+  return scan?.scope === scope ? scan.cursor : { block: settings.startBlock, logIndex: 0 };
 }
 
 async function lock(tx: Transaction): Promise<void> {
   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`noticeos.tempo-mpp:${tx.workspaceId}`]);
 }
 
-async function noteScan(tx: Transaction, scope: string, nextBlock: number, at: string, complete: boolean, failed: boolean) {
+async function noteScan(tx: Transaction, scope: string, cursor: TempoScanCursor, at: string, complete: boolean, failed: boolean) {
   await tx.execute(
     `INSERT INTO noticeos.tempo_mpp_scans AS held
-       (workspace_id, scope, next_block, completed_at, last_attempt_at, failed)
-     VALUES ($1, $2, $3, CASE WHEN $5 THEN $4::timestamptz END, $4, $6)
+       (workspace_id, scope, next_block, next_log_index, completed_at, last_attempt_at, failed)
+     VALUES ($1, $2, $3, $4, CASE WHEN $6 THEN $5::timestamptz END, $5, $7)
      ON CONFLICT (workspace_id) DO UPDATE SET
-       scope = excluded.scope, next_block = excluded.next_block,
+       scope = excluded.scope, next_block = excluded.next_block, next_log_index = excluded.next_log_index,
        completed_at = COALESCE(excluded.completed_at, CASE WHEN held.scope = excluded.scope THEN held.completed_at END),
        last_attempt_at = excluded.last_attempt_at, failed = excluded.failed`,
-    [tx.workspaceId, scope, nextBlock, at, complete, failed],
+    [tx.workspaceId, scope, cursor.block, cursor.logIndex, at, complete, failed],
   );
 }
 
@@ -70,14 +70,14 @@ async function bookSales(tx: Transaction, settings: TempoMppSettings, at: string
      FROM noticeos.tempo_mpp_payments p
      JOIN noticeos.tempo_mpp_sale_records s USING (workspace_id, asset_id, chain_id, transaction_hash, log_index, amount_base_units)
      JOIN noticeos.assets a ON a.asset_id = p.asset_id AND NOT a.is_os AND a.status <> 'retired'
-     WHERE p.chain_id = $1 AND p.wallet = $5 AND p.token = $6 AND p.asset_id = ANY($7::text[])
+     WHERE p.chain_id = $1 AND p.token = $5 AND p.asset_id = ANY($6::text[])
        AND mod(p.amount_base_units, 10000) = 0 AND p.amount_base_units <= 90071992547409910000
        AND NOT EXISTS (
          SELECT 1 FROM noticeos.revenue_observations r WHERE r.source = 'tempo-mpp'
            AND r.item_ref = concat(p.chain_id, ':', p.transaction_hash, ':', p.log_index)
        )
      ON CONFLICT (workspace_id, item_ref) WHERE source = 'tempo-mpp' DO NOTHING`,
-    [settings.chainId, TEMPO_MPP_SOURCE, crypto.randomUUID(), at, settings.wallet.toLowerCase(), settings.token.toLowerCase(),
+    [settings.chainId, TEMPO_MPP_SOURCE, crypto.randomUUID(), at, settings.token.toLowerCase(),
       [...new Set(settings.mappings.map(({ asset }) => asset))]],
   );
 }
@@ -88,10 +88,12 @@ export async function runTempoMpp(env: IngestEnv, { fetchImpl = fetch, now = new
   if (!settings?.enabled) return { outcome: 'skipped', detail: 'Tempo MPP collection is off.' } as const;
   const at = now.toISOString();
   const scope = tempoMppScope(settings);
-  const from = startOf(settings, starting.scan);
+  const from = startOf(settings, scope, starting.scan);
   const unchanged = async (tx: Transaction) => {
     const current = await settingsIn(tx, true);
-    return JSON.stringify(current) === JSON.stringify(settings) && startOf(settings, await scanIn(tx)) === from;
+    if (!current?.enabled || tempoMppScope(current) !== scope) return false;
+    const cursor = startOf(settings, scope, await scanIn(tx));
+    return cursor.block === from.block && cursor.logIndex === from.logIndex;
   };
   const batch = await readTempoRange(settings, from, fetchImpl).catch(() => null);
   return env.STORE.write(async (tx) => {
@@ -103,7 +105,7 @@ export async function runTempoMpp(env: IngestEnv, { fetchImpl = fetch, now = new
     }
     await saveDeliveries(tx, settings, batch.payments, at);
     const recorded = await bookSales(tx, settings, at);
-    await noteScan(tx, scope, batch.nextBlock, at, batch.complete, false);
+    await noteScan(tx, scope, batch.cursor, at, batch.complete, false);
     return { outcome: 'ran', detail: batch.complete ? 'Tempo MPP scan complete.' : 'Tempo MPP scan will continue.',
       matched: batch.payments.length, recorded } as const;
   });

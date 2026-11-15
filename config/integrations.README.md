@@ -296,7 +296,9 @@ first block to import. Add each service's MPP realm and select the asset that
 earns its sales. A wallet can receive payments for several assets. Select
 **Collect payments automatically** and save. The same page shows the
 collection schedule, which is hourly by default. Clear the checkbox and save
-to pause collection.
+to pause collection. Changing asset mappings rescans from the starting block.
+Existing payments keep their recorded asset and wallet; their sale records
+can still arrive after a wallet change.
 
 The payment list links matching transfers to Tempo. Each sale from mainnet
 appears in **Money** after a confirmed delivery matches a sale record from the

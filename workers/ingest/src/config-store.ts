@@ -378,9 +378,10 @@ export async function applyConfigOps(
       ops_json: JSON.stringify(ops.filter((op) => (op as { file?: string }).file === file)),
     };
   });
-  const tempoOp = changeset.ops.find((op) => op.kind === 'file-json-set' &&
+  const tempoChanged = changeset.ops.some((op) => op.kind !== 'store-asset-set' &&
     op.file === TOWER_CONFIG_FILES.integrations && op.pointer === TEMPO_MPP_POINTER);
-  const tempo = tempoOp && 'value' in tempoOp ? readTempoMppSettings(tempoOp.value) : null;
+  const integrations = documents.get(TOWER_CONFIG_FILES.integrations);
+  const tempo = tempoChanged && isRecord(integrations) ? readTempoMppSettings(integrations.tempoMpp) : null;
   const tempoAssets = [...new Set(tempo?.mappings.map(({ asset }) => asset))];
   // One transaction for the whole changeset. Each document is written only if
   // the store still holds the version this write started from (a missing

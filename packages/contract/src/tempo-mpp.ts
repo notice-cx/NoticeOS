@@ -10,7 +10,8 @@ export const TEMPO_NETWORKS = {
 } satisfies Record<TempoMppChain, { label: string; rpc: string; explorer: string }>;
 
 export function tempoMppScope(settings: TempoMppSettings): string {
-  return [settings.chainId, settings.wallet.toLowerCase(), settings.token.toLowerCase(), settings.startBlock].join(':');
+  const mappings = settings.mappings.map(({ realm, asset }) => JSON.stringify([realm, asset])).sort();
+  return JSON.stringify([settings.chainId, settings.wallet.toLowerCase(), settings.token.toLowerCase(), settings.startBlock, mappings]);
 }
 
 export type TempoMppPayment = {

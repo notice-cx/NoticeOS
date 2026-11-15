@@ -92,3 +92,23 @@ it('links a saved test transfer to the testnet explorer', async () => {
   expect(await screen.findByRole('link', { name: 'View transaction' }))
     .toHaveAttribute('href', `https://explore.testnet.tempo.xyz/tx/${hash}`);
 });
+
+it('preserves an edited wallet when a concurrent settings save is refused', async () => {
+  const editedWallet = `0x${'ab'.repeat(20)}`;
+  const original: TempoMppSettings = {
+    chainId: TEMPO_MPP_TESTNET, startBlock: 123, wallet: WALLET, token: TOKEN, enabled: false, mappings: [],
+  };
+  const setup: TempoMppSetup = { settings: original, assets, payments: [], scan: null, hasMore: false };
+  mocks.fetch.mockImplementation(async () => ({ ...setup }));
+  mocks.save.mockImplementation(async () => {
+    setup.settings = { ...original, startBlock: 456 };
+    return false;
+  });
+  renderSettings();
+  const save = await screen.findByRole('button', { name: 'Save settings' });
+  fill(/Receiving wallet/, editedWallet);
+  fireEvent.click(save);
+  await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
+  await waitFor(() => expect(save).toBeEnabled());
+  expect(screen.getByLabelText(/Receiving wallet/)).toHaveValue(editedWallet);
+});

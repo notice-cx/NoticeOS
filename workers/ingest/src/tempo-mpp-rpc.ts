@@ -5,7 +5,7 @@ import { TEMPO_NETWORKS } from '@noticeos/contract/tempo-mpp';
 const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const TRANSFER_WITH_MEMO = '0x57bc7354aa85aed339e000bccffabbc529466af35f0772c8f8ee1145927de7f0';
 const BLOCKS_PER_SCAN = 20_000;
-const MAX_LOGS_PER_SCAN = 150;
+const MAX_PAYMENTS_PER_SCAN = 20;
 
 type RecordValue = Record<string, unknown>;
 const object = (value: unknown): RecordValue | null =>
@@ -59,14 +59,21 @@ export interface TempoDelivery {
 
 class RangeTooLarge extends Error {}
 
-export async function readTempoRange(settings: TempoMppSettings, from: number, fetchImpl: typeof fetch) {
+export interface TempoScanCursor {
+  block: number;
+  logIndex: number;
+}
+
+export async function readTempoRange(settings: TempoMppSettings, cursor: TempoScanCursor, fetchImpl: typeof fetch) {
+  const from = cursor.block;
+  const deadline = AbortSignal.timeout(55_000);
   const rpc = async (method: string, params: unknown[]): Promise<unknown> => {
     const response = await fetchImpl(TEMPO_NETWORKS[settings.chainId].rpc, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       redirect: 'error',
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.any([deadline, AbortSignal.timeout(8_000)]),
     });
     const body = response.ok ? object(await response.json()) : null;
     if (method === 'eth_getLogs' && (response.status === 413 || object(body?.error)?.code === -32005 ||
@@ -82,7 +89,7 @@ export async function readTempoRange(settings: TempoMppSettings, from: number, f
   const finalized = object(await rpc('eth_getBlockByNumber', ['finalized', false]));
   const head = quantity(finalized?.number);
   const payments: TempoDelivery[] = [];
-  if (from > head) return { nextBlock: from, complete: true, payments };
+  if (from > head) return { cursor, complete: from === head + 1 && cursor.logIndex === 0, payments };
 
   // TIP-20 has six decimals. Check the configured contract and denomination before booking cents.
   const [decimals, currency] = await Promise.all([
@@ -103,7 +110,6 @@ export async function readTempoRange(settings: TempoMppSettings, from: number, f
         topics: [TRANSFER_WITH_MEMO, null, `0x${wallet.slice(2).padStart(64, '0')}`],
       }]);
       if (!Array.isArray(result)) throw invalid();
-      if (result.length > MAX_LOGS_PER_SCAN) throw new RangeTooLarge();
       logs = result;
       break;
     } catch (error) {
@@ -112,16 +118,24 @@ export async function readTempoRange(settings: TempoMppSettings, from: number, f
     }
   }
 
-  const receipts = new Map<string, { logs: unknown[]; success: boolean }>();
-  const blockTimes = new Map<number, string>();
+  const matched = new Map<string, { candidate: Tip20Log; memo: `0x${string}`; asset: string }>();
   for (const rawLog of logs) {
     const candidate = transfer(rawLog, TRANSFER_WITH_MEMO);
     if (!candidate?.memo || candidate.address !== token || candidate.to !== wallet || candidate.from === wallet ||
-        candidate.amount === 0n || candidate.block < from || candidate.block > through) continue;
+        candidate.amount === 0n || candidate.block < from || candidate.block > through ||
+        (candidate.block === from && candidate.index < cursor.logIndex)) continue;
     const memo = candidate.memo;
-    const matches = settings.mappings.filter(({ realm }) => Attribution.verifyServer(memo, realm));
-    if (matches.length !== 1) continue;
-
+    const mappings = settings.mappings.filter(({ realm }) => Attribution.verifyServer(memo, realm));
+    if (mappings.length === 1) {
+      matched.set(`${candidate.block}:${candidate.index}`, { candidate, memo, asset: mappings[0]!.asset });
+    }
+  }
+  // Apply the limit after realm filtering. The first unprocessed memo is an inclusive checkpoint.
+  const ordered = [...matched.values()].sort((a, b) => a.candidate.block - b.candidate.block || a.candidate.index - b.candidate.index);
+  const remaining = ordered[MAX_PAYMENTS_PER_SCAN]?.candidate;
+  const receipts = new Map<string, { logs: unknown[]; success: boolean }>();
+  const blockTimes = new Map<number, string>();
+  for (const { candidate, memo, asset } of ordered.slice(0, MAX_PAYMENTS_PER_SCAN)) {
     let receipt = receipts.get(candidate.hash);
     if (!receipt) {
       const result = object(await rpc('eth_getTransactionReceipt', [candidate.hash]));
@@ -153,8 +167,12 @@ export async function readTempoRange(settings: TempoMppSettings, from: number, f
       settledAt = new Date(quantity(block?.timestamp) * 1000).toISOString();
       blockTimes.set(candidate.block, settledAt);
     }
-    payments.push({ hash: candidate.hash, logIndex: candidate.index, asset: matches[0]!.asset,
+    payments.push({ hash: candidate.hash, logIndex: candidate.index, asset,
       memo, baseUnits: String(candidate.amount), settledAt });
   }
-  return { nextBlock: through + 1, complete: through === head, payments };
+  return {
+    cursor: remaining ? { block: remaining.block, logIndex: remaining.index } : { block: through + 1, logIndex: 0 },
+    complete: !remaining && through === head,
+    payments,
+  };
 }

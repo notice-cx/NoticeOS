@@ -1046,6 +1046,7 @@ END`; `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (f
 | `completed_at` | timestamp with time zone | no |  |
 | `last_attempt_at` | timestamp with time zone | yes |  |
 | `failed` | boolean | yes |  |
+| `next_log_index` | integer | yes | `(next_log_index >= 0)` |
 
 - **Keys:** primary (workspace_id)
 - **Links:** (workspace_id) → `workspaces`
