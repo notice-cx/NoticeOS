@@ -2,6 +2,7 @@ import { ASSET_ID_MAX, ASSET_ID_RE, TEMPO_HASH } from '@noticeos/contract/config
 import { authenticateAsset } from '../auth.js';
 import { json } from '../responses.js';
 import { recordTempoSale, tempoChain } from '../tempo-mpp.js';
+import { isTempoSaleProduct } from '../tempo-mpp-sales.js';
 
 const MAX_BYTES = 4096;
 const maxTokenAmount = (1n << 256n) - 1n;
@@ -37,7 +38,7 @@ export async function handleTempoMppSale(request: Request, env: IngestEnv): Prom
   if (!tempoChain(chainId) || typeof hash !== 'string' || !TEMPO_HASH.test(hash) ||
       typeof logIndex !== 'number' || !Number.isInteger(logIndex) || logIndex < 0 || logIndex > 2147483647 ||
       typeof baseUnits !== 'string' || !/^[1-9]\d{0,77}$/.test(baseUnits) || BigInt(baseUnits) > maxTokenAmount ||
-      (product !== null && (typeof product !== 'string' || product.trim() !== product || product.length === 0 || product.length > 120))) {
+      !isTempoSaleProduct(product)) {
     return json({ error: 'invalid_sale_record' }, 422);
   }
   const result = await recordTempoSale(env, { asset, chainId, hash: hash.toLowerCase(), logIndex, baseUnits, product });

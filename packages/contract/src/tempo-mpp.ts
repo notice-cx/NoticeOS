@@ -2,6 +2,7 @@ import type { TempoMppChain, TempoMppSettings } from './configuration.mjs';
 
 export const TEMPO_MPP_SETTINGS_PATH = '/api/integrations/tempo-mpp';
 export const TEMPO_MPP_SALE_PATH = '/api/tempo-mpp/sales';
+export const TEMPO_MPP_SALE_LOOKUP_PATH = '/api/internal/tempo-sales';
 export const TEMPO_MPP_SOURCE = 'tempo-mpp';
 
 export const TEMPO_NETWORKS = {
