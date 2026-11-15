@@ -5,6 +5,7 @@ import {
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
   DISCORD_REVENUE_KEY, NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
   readStripeProductMapping, STRIPE_PRODUCTS_POINTER, stripeRevenueAssignments, TOWER_CONFIG_FILES,
+  readTempoMppSettings, TEMPO_MPP_POINTER,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
 export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
@@ -119,7 +120,7 @@ export const ADDABLE_CONTAINERS: ReadonlyMap<string, { shape: "object" | "array"
 export const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]> = new Map([
   ['config/tower.json', ['/wall', '/countdown', WORKSPACE_VIEW_POINTER]],
   ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER, '/portfolio_brief']],
-  [TOWER_CONFIG_FILES.integrations, [STRIPE_PRODUCTS_POINTER]],
+  [TOWER_CONFIG_FILES.integrations, [STRIPE_PRODUCTS_POINTER, TEMPO_MPP_POINTER]],
 ]);
 
 /** Is this exact pointer one of the declared documents above? */
@@ -501,6 +502,12 @@ export function validateSchemaAndSafety(input: unknown): void {
         (op.pointer === STRIPE_PRODUCTS_POINTER || op.pointer.startsWith(`${STRIPE_PRODUCTS_POINTER}/`))) {
       if (op.pointer !== STRIPE_PRODUCTS_POINTER || (op.kind !== 'file-json-delete' && !readStripeProductMapping(op.value))) {
         throw new ChangesetError(`${at}: save the complete Stripe product mapping with valid account and asset IDs`);
+      }
+    }
+    if (op.file === TOWER_CONFIG_FILES.integrations && typeof op.pointer === 'string' &&
+        (op.pointer === TEMPO_MPP_POINTER || op.pointer.startsWith(`${TEMPO_MPP_POINTER}/`))) {
+      if (op.pointer !== TEMPO_MPP_POINTER || (op.kind !== 'file-json-delete' && !readTempoMppSettings(op.value))) {
+        throw new ChangesetError(`${at}: save complete Tempo MPP settings with a supported network and unique realm mappings`);
       }
     }
     const undeclarable = noNightlyReportOpRefusal(op);

@@ -4,6 +4,7 @@
  * Admission, identity, capabilities and standalone compatibility live elsewhere.
  */
 import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { TEMPO_MPP_POINTER, TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 import type { WorkspaceAction } from './workspace-admission.mjs';
 import { parsePointer, validateSchemaAndSafety } from './config-documents.mjs';
 import { fieldOf, isRowToken, matchKnob, matchRegister } from './config-registers.mjs';
@@ -362,7 +363,7 @@ const evidence = operation('evidence.read', [configRead]);
 const publicRead = operation(null, [], 'public');
 const standalone = operation(null, [], 'standalone-only');
 const ingestHttp: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  '/api/pulse': ['POST'], '/api/codebase-report': ['POST'], '/api/revenue': ['POST'], '/api/annotations': ['POST'],
+  '/api/tempo-mpp/sales': ['POST'], '/api/pulse': ['POST'], '/api/codebase-report': ['POST'], '/api/revenue': ['POST'], '/api/annotations': ['POST'],
   '/api/reclamation-targets': ['GET', 'POST'], '/api/watch-windows': ['POST'],
   '/api/watch-readbacks': ['GET', 'POST'], '/api/credentials/rotate-key': ['POST'],
   '/api/config-documents': ['GET'], '/api/config-documents/seed': ['POST'], '/api/config-documents/apply': ['POST'],
@@ -386,6 +387,7 @@ const hostedStoredRoutes: Readonly<Record<string, WorkspaceOperation>> = Object.
   '/api/integrations': operation('integrations.summary.read', [configRead]),
   '/api/integrations/health': operation('integrations.summary.read', ['integrationHealth']),
   '/api/integrations/providers': operation('integrations.summary.read', [configRead, 'listCredentialSummaries']),
+  '/api/integrations/tempo-mpp': operation('settings.read'),
   '/api/workflows': operation('workflows.read'),
   '/api/scheduled-jobs': operation('workflows.read'),
 });
@@ -497,6 +499,7 @@ function configAction(ops: unknown): WorkspaceAction {
       if (tokens.length !== 1 || !['wall', 'countdown', 'view'].includes(tokens[0]!)) refuse();
       continue;
     }
+    if (op.file === TOWER_CONFIG_FILES.integrations && op.pointer === TEMPO_MPP_POINTER) continue;
     const knob = matchKnob(op.file, op.pointer);
     if (knob) {
       if (knob.key === 'panel-freshness-bar') protectedOp = true;

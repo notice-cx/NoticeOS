@@ -15,7 +15,8 @@
   "dependencies": {
     "@noticeos/contract": "workspace:*",
     "@noticeos/mediavine": "workspace:*",
-    "@noticeos/postgres": "workspace:*"
+    "@noticeos/postgres": "workspace:*",
+    "mppx": "0.19.0"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.23.0",

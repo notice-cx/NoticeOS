@@ -265,6 +265,18 @@
       },
       "rule": "Retry state."
     },
+    "tempo_mpp_scans": {
+      "revision": { "insert": true, "update": ["scope", "next_block", "completed_at", "last_attempt_at", "failed"], "delete": false },
+      "rule": "Latest block scanned and collection result for the workspace's configured Tempo wallet."
+    },
+    "tempo_mpp_payments": {
+      "revision": { "insert": true, "update": [], "delete": false },
+      "rule": "Append-only deliveries with a matching Tempo MPP realm, including transfers awaiting a sale record."
+    },
+    "tempo_mpp_sale_records": {
+      "revision": { "insert": true, "update": [], "delete": false },
+      "rule": "Append-only sale evidence submitted by the asset that served the purchase."
+    },
     "revenue_observations": {
       "revision": {
         "insert": true,
@@ -715,6 +727,10 @@
     "ledger_entries.ref": {
       "unique": "excluded",
       "means": "A revenue or cost entry that points at nothing. Only a change's first entry takes part in the one-entry-per-change rule, and a change entry always names its change (a row check)."
+    },
+    "revenue_observations.item_ref": {
+      "unique": "many",
+      "means": "A total for the whole day. A Tempo sale always names the memo event that settled it."
     },
     "archive_runs.object_seq": {
       "means": "A failed run stored nothing; a success or unchanged run always names its object (a row check)."

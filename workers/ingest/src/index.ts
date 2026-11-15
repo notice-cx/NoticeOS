@@ -124,6 +124,8 @@ import {
   handleSignalArchives,
 } from './routes/panel-source.js';
 import { handlePulse } from './routes/pulse.js';
+import { handleTempoMppSale } from './routes/tempo-mpp.js';
+import { TEMPO_MPP_SALE_PATH } from '@noticeos/contract/tempo-mpp';
 import { handleCodebaseReport } from './routes/codebase-report.js';
 import { handleCodebaseHistory } from './routes/codebase-history.js';
 import { handleRotateCredentialKey } from './routes/rotate-key.js';
@@ -162,6 +164,7 @@ async function route(request: Request, env: IngestEnv): Promise<Response> {
   if (request.method === 'POST' && pathname === '/api/anomaly-refresh') return handleAnomalyRefresh(request, env);
   if (request.method === 'POST' && pathname === '/api/ga4-comparison-refresh') return handleGa4ComparisonRefresh(request, env);
 
+  if (request.method === 'POST' && pathname === TEMPO_MPP_SALE_PATH) return handleTempoMppSale(request, env);
   if (request.method === 'POST' && pathname === '/api/pulse') {
     return handlePulse(request, env);
   }

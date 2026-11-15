@@ -61,6 +61,33 @@ export const ASSET_ID_RE = /^[a-z0-9.-]+$/;
 export const CONFIG_ASSET_KEY_SOURCE = '[a-z0-9][a-z0-9._-]*';
 export const CONFIG_ASSET_KEY_RE = new RegExp(`^${CONFIG_ASSET_KEY_SOURCE}$`);
 export const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+export const TEMPO_MPP_POINTER = '/tempoMpp';
+export const TEMPO_MPP_MAINNET = 4217;
+export const TEMPO_MPP_TESTNET = 42431;
+export const TEMPO_ADDRESS = /^0x[0-9a-f]{40}$/i;
+export const TEMPO_HASH = /^0x[0-9a-f]{64}$/i;
+export function readTempoMppSettings(value) {
+    if (!isPlainObject(value) || Object.keys(value).length !== 6 ||
+        (value.chainId !== TEMPO_MPP_MAINNET && value.chainId !== TEMPO_MPP_TESTNET) ||
+        typeof value.wallet !== 'string' || !TEMPO_ADDRESS.test(value.wallet) ||
+        typeof value.token !== 'string' || !TEMPO_ADDRESS.test(value.token) ||
+        typeof value.startBlock !== 'number' || !Number.isSafeInteger(value.startBlock) || value.startBlock < 0 ||
+        typeof value.enabled !== 'boolean' || !Array.isArray(value.mappings) || value.mappings.length > 100 ||
+        (value.enabled && value.mappings.length === 0))
+        return null;
+    const realms = new Set();
+    const mappings = [];
+    for (const row of value.mappings) {
+        if (!isPlainObject(row) || Object.keys(row).length !== 2 ||
+            typeof row.realm !== 'string' || row.realm.length > 255 || row.realm.trim() !== row.realm ||
+            row.realm.length === 0 || /[\u0000-\u001f\u007f]/u.test(row.realm) || realms.has(row.realm) ||
+            typeof row.asset !== 'string' || row.asset.length > ASSET_ID_MAX || !ASSET_ID_RE.test(row.asset))
+            return null;
+        realms.add(row.realm);
+        mappings.push({ realm: row.realm, asset: row.asset });
+    }
+    return { chainId: value.chainId, wallet: value.wallet, token: value.token, startBlock: value.startBlock, enabled: value.enabled, mappings };
+}
 export const STRIPE_REVENUE_LANE = 'subscriptions';
 export const STRIPE_PRODUCTS_POINTER = '/stripeProducts';
 export const STRIPE_ACCOUNT_ID = /^acct_[a-zA-Z0-9]+$/;

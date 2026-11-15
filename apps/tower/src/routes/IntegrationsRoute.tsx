@@ -51,6 +51,7 @@ import { useView } from "@/hooks/useView";
 import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
 import { connectionCoverage, connectionUrgency, providerInView, SOURCE_CONTEXT } from "@/routes/operating-views";
 import type { ViewId } from "@shared/views";
+import { TempoMppIntegration } from '@/routes/integrations/TempoMppIntegration';
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
 
 /**
@@ -175,6 +176,7 @@ export function IntegrationsRoute() {
   };
   // `?setup=page` keeps a provider's own page (Google's service-account path).
   const providerParam = params.get("provider");
+  const tempoSelected = !readOnly && providerParam === "tempo-mpp";
   const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
   useEffect(() => {
     if (!linked) return;
@@ -217,7 +219,7 @@ export function IntegrationsRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 p-4 md:p-6">
       <PageHeader
         title={
-          selected ? (
+          tempoSelected ? "Tempo MPP" : selected ? (
             <>
               <IntegrationLogo provider={selected.provider.id} size="large" />
               {providerName(selected.provider)}
@@ -225,10 +227,10 @@ export function IntegrationsRoute() {
             </>
           ) : "Integrations"
         }
-        breadcrumb={selected ? [{ label: "Integrations", to: catalogHref }] : undefined}
-        documentTitle={selected ? providerName(selected.provider) : "Integrations"}
+        breadcrumb={selected || tempoSelected ? [{ label: "Integrations", to: catalogHref }] : undefined}
+        documentTitle={tempoSelected ? "Tempo MPP" : selected ? providerName(selected.provider) : "Integrations"}
       />
-      {isError ? (
+      {tempoSelected ? <TempoMppIntegration /> : isError ? (
         <ReadFailed title="Couldn't load integrations" subject="read:integrations" error={error} retrying={isFetching} onRetry={() => void refetch()} />
       ) : !data ? (
         <div className="grid min-h-[40vh] place-items-center text-muted-foreground">Loading integrations…</div>
@@ -305,7 +307,8 @@ export function IntegrationsRoute() {
                   .map((status, order) => ({ status, order, urgency: providerUrgency(status, monitoring.status.items) }))
                   .sort((a, b) => b.urgency - a.urgency || Number(providerInView(b.status.provider, choice.view)) - Number(providerInView(a.status.provider, choice.view)) || a.order - b.order)
                   .map(({ status }) => status);
-                if (members.length === 0) return null;
+                const showTempo = group === "Revenue" && !readOnly;
+                if (members.length === 0 && !showTempo) return null;
                 const headingId = `integrations-${group.replace(/\W+/g, "-").toLowerCase()}`;
                 return (
                   <section key={group} aria-labelledby={headingId} className="flex flex-col gap-2">
@@ -321,6 +324,12 @@ export function IntegrationsRoute() {
                           onOpen={(opened) => open(status, opened)}
                         />
                       ))}
+                      {showTempo ? <li data-integration-tile="tempo-mpp" className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+                        <span className="text-sm font-medium">Tempo MPP</span>
+                        <Button asChild variant="outline" size="sm">
+                          <Link aria-label="Manage Tempo MPP" to={`?${withProvider(params, "tempo-mpp")}`}>Manage</Link>
+                        </Button>
+                      </li> : null}
                     </ul>
                   </section>
                 );

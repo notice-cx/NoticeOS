@@ -1,3 +1,4 @@
+import { TEMPO_MPP_SETTINGS_PATH, type TempoMppSetup } from '@noticeos/contract/tempo-mpp';
 import { MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import type { AlertDailyPayload } from "@shared/alert-daily";
@@ -1275,6 +1276,13 @@ function credentialPath(provider: string): string {
  * read-only: credentials are store writes, so this page works the same in a
  * deployed Worker as on a local machine.
  */
+async function fetchTempoMppSetupRequest(fetch: ApiTransport, page: number, signal?: AbortSignal): Promise<TempoMppSetup> {
+  const res = await fetch(`${TEMPO_MPP_SETTINGS_PATH}?page=${page}`, { signal, headers: { accept: 'application/json' } });
+  if (!res.ok) throw await refusal(res, 'Could not load Tempo MPP settings.');
+  const { decodeTempoMppSetup } = await import('./integration-response');
+  return decodeTempoMppSetup(await responseJson(res, 'Tempo MPP settings'));
+}
+
 async function fetchIntegrationProvidersRequest(fetch: ApiTransport,
   signal?: AbortSignal,
 ): Promise<IntegrationCredentialsPayload> {
@@ -1708,6 +1716,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchTask: bind(fetchTaskRequest),
     createTask: bind(createTaskRequest),
     fetchIntegrationProviders: bind(fetchIntegrationProvidersRequest),
+    fetchTempoMppSetup: bind(fetchTempoMppSetupRequest),
     saveProviderCredential: bind(saveProviderCredentialRequest),
     saveProviderExpiry: bind(saveProviderExpiryRequest),
     deleteProviderCredential: bind(deleteProviderCredentialRequest),
@@ -1784,6 +1793,7 @@ export const {
   fetchTask,
   createTask,
   fetchIntegrationProviders,
+  fetchTempoMppSetup,
   saveProviderCredential,
   saveProviderExpiry,
   deleteProviderCredential,

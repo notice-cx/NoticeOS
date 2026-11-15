@@ -37,7 +37,10 @@ import { isRecord } from './shared.js';
  * declarations, so a new register is storable without a code change here. */
 export { CONFIG_DOCUMENT_FILES };
 
-import type { ConfigSource, ConfigDocumentRead, ApplyConfigOpsInput, ConfigWriteMismatch, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
+import {
+  readTempoMppSettings, TEMPO_MPP_POINTER, TOWER_CONFIG_FILES,
+  type ConfigSource, type ConfigDocumentRead, type ApplyConfigOpsInput, type ConfigWriteMismatch, type ApplyConfigOpsResult,
+} from '@noticeos/contract/configuration';
 import { isolateState } from './isolate-state.js';
 export type { ConfigSource, ConfigDocumentRead, ApplyConfigOpsInput, ConfigWriteMismatch, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
 
@@ -375,6 +378,10 @@ export async function applyConfigOps(
       ops_json: JSON.stringify(ops.filter((op) => (op as { file?: string }).file === file)),
     };
   });
+  const tempoOp = changeset.ops.find((op) => op.kind === 'file-json-set' &&
+    op.file === TOWER_CONFIG_FILES.integrations && op.pointer === TEMPO_MPP_POINTER);
+  const tempo = tempoOp && 'value' in tempoOp ? readTempoMppSettings(tempoOp.value) : null;
+  const tempoAssets = [...new Set(tempo?.mappings.map(({ asset }) => asset))];
   // One transaction for the whole changeset. Each document is written only if
   // the store still holds the version this write started from (a missing
   // document is version 0, so a concurrent first seed is a competing save), and
@@ -382,6 +389,13 @@ export async function applyConfigOps(
   let landed = true;
   try {
     await env.STORE.write(async (tx) => {
+      if (tempoAssets.length > 0) {
+        const assets = await tx.query<{ asset_id: string }>(
+          "SELECT asset_id FROM noticeos.assets WHERE asset_id = ANY($1::text[]) AND NOT is_os AND status <> 'retired' FOR SHARE",
+          [tempoAssets],
+        );
+        if (assets.length !== tempoAssets.length) throw new ChangesetError('Select an available asset for each Tempo MPP realm.');
+      }
       const changed = await tx.execute(
         `INSERT INTO noticeos.config_documents AS d (workspace_id, document_key, body, version, updated_at, updated_by)
          SELECT $1::uuid, p.document_key, p.body::json, p.version_after, $5::timestamptz, $6::text
@@ -411,6 +425,7 @@ export async function applyConfigOps(
       );
     });
   } catch (error) {
+    if (error instanceof ChangesetError) return { ok: false, error: 'invalid_changeset', detail: error.message };
     if (!(error instanceof StaleVersions)) throw error;
     landed = false;
   }

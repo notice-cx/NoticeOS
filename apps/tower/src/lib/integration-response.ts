@@ -1,4 +1,6 @@
 import { MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
+import { readTempoMppSettings, TEMPO_HASH, TEMPO_MPP_MAINNET, TEMPO_MPP_TESTNET } from '@noticeos/contract/configuration';
+import type { TempoMppSetup } from '@noticeos/contract/tempo-mpp';
 import type { IntegrationCredentialsPayload } from '@shared/integrations-page';
 import { integrationProvider } from '@noticeos/contract/integrations';
 import {
@@ -8,6 +10,27 @@ import {
 } from './response-value';
 
 const strings = list(string);
+
+export function decodeTempoMppSetup(value: unknown): TempoMppSetup {
+  const block = (entry: unknown) => integer(entry) && Number.isSafeInteger(entry) && Number(entry) >= 0;
+  if (!fields(value, {
+    settings: nullable(entry => readTempoMppSettings(entry) !== null),
+    assets: list(entry => fields(entry, { id: string, name: string })),
+    scan: nullable(entry => fields(entry, { lastAttemptAt: instant, completedAt: nullable(instant), failed: boolean, nextBlock: block })),
+    payments: list(entry => fields(entry, {
+      chainId: chain => chain === TEMPO_MPP_MAINNET || chain === TEMPO_MPP_TESTNET,
+      hash: hash => string(hash) && TEMPO_HASH.test(hash),
+      logIndex: block,
+      asset: string,
+      baseUnits: amount => string(amount) && /^[1-9]\d{0,77}$/.test(amount),
+      settledAt: instant,
+      product: nullable(string),
+      state: oneOf(['unmatched', 'pending', 'recorded', 'test-payment', 'amount-not-supported']),
+    })),
+    hasMore: boolean,
+  })) invalidResponse('Tempo MPP settings');
+  return value as unknown as TempoMppSetup;
+}
 
 /** Provider declarations are already shipped for the form. Check that the
  * response uses that same declaration, permitting only its resolved legacy

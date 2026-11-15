@@ -115,6 +115,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     collectNow: [{ provider: 'mediavine', step: 'revenue' }], connections: ['mediavine'] },
   { id: 'stripe', surface: 'system', label: 'Stripe revenue', group: 'Business signals', cron: '20 * * * *', source: 'Stripe',
     keywords: ['subscriptions', 'stripe', 'refunds'], connections: ['stripe'] },
+  { id: 'tempo-mpp', surface: 'system', label: 'Tempo MPP sales', group: 'Business signals', cron: '22 * * * *', source: 'Tempo' },
   { id: 'freshness', surface: 'system', label: 'Data freshness checks', group: 'Asset health', cron: '0 * * * *', keywords: ['missing reports', 'late reports', 'uptime', 'asset down', 'connection counts', 'source history'] },
   { id: 'notifications', surface: 'workflow', label: 'Operator notifications', group: 'Notifications', cron: '5 * * * *' },
   { id: 'pull', surface: 'system', label: 'Nightly reports', group: 'Business signals', cron: '30 2 * * *',

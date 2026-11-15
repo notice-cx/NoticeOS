@@ -125,6 +125,15 @@ INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month,
 VALUES (:'ws', 'change', :'site', '2026-09-01', 'copy', 'change-1', 'USD', 1500, 0.3, 2000, 28, 'operator',
   'synthetic shipped change');
 
+INSERT INTO noticeos.tempo_mpp_scans (workspace_id, scope, next_block, completed_at, last_attempt_at, failed)
+VALUES (:'ws', 'synthetic-tempo-scope', 2, now(), now(), false);
+INSERT INTO noticeos.tempo_mpp_payments (workspace_id, chain_id, transaction_hash, log_index, asset_id, token, wallet, memo,
+  amount_base_units, settled_at, observed_at)
+VALUES (:'ws', 42431, '0x' || repeat('1', 64), 2, :'site', '0x' || repeat('2', 40), '0x' || repeat('3', 40),
+  '0x' || repeat('4', 64), 10000, now(), now());
+INSERT INTO noticeos.tempo_mpp_sale_records (workspace_id, asset_id, chain_id, transaction_hash, log_index, amount_base_units, recorded_at)
+VALUES (:'ws', :'site', 42431, '0x' || repeat('1', 64), 2, 10000, now());
+
 INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES (:'ws', 'mv-' || :'slug', :'site');
 
 INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome)

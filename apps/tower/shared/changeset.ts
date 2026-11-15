@@ -53,7 +53,7 @@ export type RegisterFile =
  * exact pointer, that may be added and removed but never grown into
  * (`ADDABLE_DOCUMENTS` in `scripts/config-documents.mjs`): the Wall's saved
  * layout at `/wall`, and the countdown at `/countdown`. */
-export type DocumentFile = "config/tower.json" | "config/constants.json";
+export type DocumentFile = "config/tower.json" | "config/constants.json" | "config/integrations.json";
 
 // UI permissions narrow the portable operation vocabulary to declared files.
 export type FileJsonSetOp = Configuration.FileJsonSetOp<EditableFile | RegisterFile>;
