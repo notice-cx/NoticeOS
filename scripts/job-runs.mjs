@@ -340,6 +340,7 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
   // Subscription revenue: a day already saved with the same figure writes
   // nothing, so a late firing only fills what is missing.
   { job: 'cron 20 * * * *', expression: '20 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
+  { job: 'cron 22 * * * *', expression: '22 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   // Bank recovery reads current balances once rather than replaying missed snapshots.
   { job: 'cron 40 * * * *', expression: '40 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
   // Generate one current briefing after downtime; old summaries are not replayed.

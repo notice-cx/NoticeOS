@@ -885,7 +885,7 @@ END`; `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (f
 | `payment_count` | integer | no |  |
 | `refund_count` | integer | no |  |
 
-- **Keys:** primary (workspace_id, observation_id); unique (workspace_id, observation_number)
+- **Keys:** primary (workspace_id, observation_id); unique (workspace_id, observation_number); unique (workspace_id, item_ref) where `(source = 'tempo-mpp')`
 - **Links:** (source) → `noticeos_ref.revenue_sources`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Row checks:** `(((sales_minor IS NULL) AND (refunds_minor IS NULL) AND (fees_minor IS NULL) AND (payment_count IS NULL) AND (refund_count IS NULL)) OR ((sales_minor IS NOT NULL) AND (refunds_minor IS NOT NULL) AND (fees_minor IS NOT NULL) AND (payment_count IS NOT NULL) AND (refund_count IS NOT NULL) AND (sales_minor >= 0) AND (payment_count >= 0) AND (refund_count >= 0) AND (amount_minor = ((sales_minor - refunds_minor) - fees_minor))))`
 - **Triggers:** `number_in_workspace` (before insert)
@@ -999,6 +999,56 @@ END`; `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (f
 | `payload` | jsonb | yes | `(jsonb_typeof(payload) = 'object')` |
 
 - **Keys:** primary (workspace_id, snapshot_id)
+- **Links:** (workspace_id) → `workspaces`
+
+## `tempo_mpp_payments`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `chain_id` | integer | yes | `(chain_id IN (4217, 42431))` |
+| `transaction_hash` | text | yes | `(transaction_hash ~ '^0x[0-9a-f]{64}$')` |
+| `log_index` | integer | yes | `(log_index >= 0)` |
+| `asset_id` | text | yes |  |
+| `token` | text | yes | `(token ~ '^0x[0-9a-f]{40}$')` |
+| `wallet` | text | yes | `(wallet ~ '^0x[0-9a-f]{40}$')` |
+| `memo` | text | yes | `(memo ~ '^0x[0-9a-f]{64}$')` |
+| `amount_base_units` | numeric(78,0) | yes | `(amount_base_units > (0))` |
+| `settled_at` | timestamp with time zone | yes |  |
+| `observed_at` | timestamp with time zone | yes |  |
+
+- **Keys:** primary (workspace_id, chain_id, transaction_hash, log_index)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+
+## `tempo_mpp_sale_records`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `asset_id` | text | yes |  |
+| `chain_id` | integer | yes | `(chain_id IN (4217, 42431))` |
+| `transaction_hash` | text | yes | `(transaction_hash ~ '^0x[0-9a-f]{64}$')` |
+| `log_index` | integer | yes | `(log_index >= 0)` |
+| `amount_base_units` | numeric(78,0) | yes | `(amount_base_units > (0))` |
+| `product` | text | no | `((length(product) >= 1) AND (length(product) <= 120))` |
+| `recorded_at` | timestamp with time zone | yes |  |
+
+- **Keys:** primary (workspace_id, asset_id, chain_id, transaction_hash, log_index)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+
+## `tempo_mpp_scans`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `scope` | text | yes | `(length(scope) > 0)` |
+| `next_block` | bigint | yes | `(next_block >= 0)` |
+| `completed_at` | timestamp with time zone | no |  |
+| `last_attempt_at` | timestamp with time zone | yes |  |
+| `failed` | boolean | yes |  |
+| `next_log_index` | integer | yes | `(next_log_index >= 0)` |
+
+- **Keys:** primary (workspace_id)
 - **Links:** (workspace_id) → `workspaces`
 
 ## `traffic_comparison_reports`

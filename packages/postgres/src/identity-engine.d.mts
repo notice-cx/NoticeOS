@@ -121,11 +121,11 @@ export declare const AGENT_NAMES: {
         };
         readonly oauthRefreshToken: {
             modelName: string;
-            fields: Record<"expiresAt" | "createdAt" | "token" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
+            fields: Record<"expiresAt" | "token" | "createdAt" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
         };
         readonly oauthAccessToken: {
             modelName: string;
-            fields: Record<"expiresAt" | "createdAt" | "token" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
+            fields: Record<"expiresAt" | "token" | "createdAt" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
         };
         readonly oauthConsent: {
             modelName: string;

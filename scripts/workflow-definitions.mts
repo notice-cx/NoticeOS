@@ -13,6 +13,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   'portfolio-brief': [action('portfolio-brief', 'Refresh portfolio briefing', 'Compares saved portfolio and task evidence and generates cited guidance with the connected model.')],
   mercury: [action('banking', 'Collect bank balances and activity', 'Records deposit balances and recent bank transactions separately from revenue and cost.', 'collection')],
   mediavine: [action('revenue', 'Collect ad revenue', 'Checks the collection window and records revenue when due.', 'collection')],
+  'tempo-mpp': [action('tempo-sales', 'Reconcile Tempo payments', 'Records settled payments matched to an asset’s sale records.', 'collection')],
   stripe: [action('subscriptions', 'Collect subscription revenue', 'Records each completed day’s Stripe sales less refunds for the asset that names the account.', 'collection')],
   // `connection-counts` and `source-history` are the Tower's steps of this tick
   // (apps/tower/worker/tower-cron.ts), run once the ingest's checks are done.

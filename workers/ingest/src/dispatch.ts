@@ -44,6 +44,7 @@ import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
 import { runCruxVitals } from './crux.js';
 import { runStripeRevenue } from './stripe.js';
+import { runTempoMpp } from './tempo-mpp.js';
 import { runMercuryBanking } from './mercury.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
@@ -158,6 +159,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   mercury: { steps: { banking: (env) => runMercuryBanking(env) }, answeredBy: 'banking' },
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
   stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'subscriptions' },
+  'tempo-mpp': { steps: { 'tempo-sales': (env) => runTempoMpp(env) }, answeredBy: 'tempo-sales' },
   // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.
   freshness: { steps: { freshness: (env) => runFreshnessCheck(env), uptime: (env) => runUptimeChecks(env) } },

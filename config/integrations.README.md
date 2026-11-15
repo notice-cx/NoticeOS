@@ -287,3 +287,40 @@ console.log(errs.length?errs:"OK", file);
 
 The command prints `OK` and the resolved path: the generic default on a fresh
 checkout, or the installation's export when present.
+
+## Tempo MPP sales
+
+Open **Integrations → Tempo MPP**. Select the network, enter the receiving
+wallet and the contract address of a six-decimal USD token, and choose the
+first block to import. Add each service's MPP realm and select the asset that
+earns its sales. A wallet can receive payments for several assets. Select
+**Collect payments automatically** and save. The same page shows the
+collection schedule, which is hourly by default. Clear the checkbox and save
+to pause collection. Changing asset mappings rescans from the starting block.
+Existing payments keep their recorded asset and wallet; their sale records
+can still arrive after a wallet change.
+
+The payment list links matching transfers to Tempo. Each sale from mainnet
+appears in **Money** after a confirmed delivery matches a sale record from the
+asset. Testnet payments appear in the payment list. **Awaiting a sale record**
+means collection has found the transfer and is waiting for evidence from the
+site.
+
+On a standalone installation, the site sends each successful sale to the
+ingest endpoint `POST /api/tempo-mpp/sales` with its existing asset report
+bearer token. Send the asset ID, numeric chain ID, transaction hash,
+`TransferWithMemo` log index, and amount as a decimal string in token base
+units. Include a product name when the site recorded it. A retry with the same
+values returns success, and a conflicting report for the same payment returns
+409. The next successful scan reconciles the saved records.
+
+```json
+{
+  "asset": "example.com",
+  "chainId": 42431,
+  "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "logIndex": 14,
+  "baseUnits": "500000",
+  "product": "Carrier batch"
+}
+```

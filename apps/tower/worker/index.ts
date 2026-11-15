@@ -33,6 +33,8 @@ import { type CalendarReader, handleCalendarUpcomingRequest } from "./calendar-u
 import { handleConfigRequest } from "./config-route";
 import { handleStoredRead } from "./stored-read-route";
 import { handleIntegrationSummaryRead } from './integration-summary-route';
+import { handleTempoMppSetup } from './tempo-mpp-route';
+import { TEMPO_MPP_SETTINGS_PATH } from '@noticeos/contract/tempo-mpp';
 import { handleHostedWorkflowRead } from './hosted-workflow-read';
 import { handleDemoPresentationRead, type DemoPresentationBindings } from './demo-presentation-route';
 import { DEMO_PRESENTATION_PATH } from '../shared/demo-presentation';
@@ -328,6 +330,7 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
     return handleEnvImportRequest(request);
   }
 
+  if (url.pathname === TEMPO_MPP_SETTINGS_PATH) return handleTempoMppSetup(request, env.STORE);
   if (url.pathname === INTEGRATION_PROVIDERS_PATH) {
     const cfg = await config();
     return handleIntegrationProvidersRequest(
@@ -757,6 +760,9 @@ const towerHandler = {
             if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return value;
           };
+          if (pathname === TEMPO_MPP_SETTINGS_PATH) {
+            return call.withStore(ctx, store => handleTempoMppSetup(request, store));
+          }
           const response = storedRead
             ? await call.withStore(ctx, async store =>
                 await handleDemoPresentationRead(request, store, env)

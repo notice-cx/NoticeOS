@@ -20,6 +20,7 @@ export const MEDIAVINE_CRON = dispatchKey('mediavine');
 // :20 past every hour: Stripe subscription revenue. The collector asks only
 // once a completed day is missing, so the other ticks ask Stripe nothing.
 export const STRIPE_CRON = dispatchKey('stripe');
+export const TEMPO_MPP_CRON = dispatchKey('tempo-mpp');
 export const MERCURY_CRON = dispatchKey('mercury');
 // 02:30 UTC: pull pull-mode assets BEFORE the 03:00 asset-#0 self-pulse, so the
 // OS's own pulse counts the rows the pull just wrote.

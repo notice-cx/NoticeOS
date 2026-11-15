@@ -27,10 +27,8 @@ import { IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { SitePicker } from "@/components/SitePicker";
 import { SiteTokens } from "@/components/SiteTokens";
 import { useConnections } from "@/hooks/useConnections";
-import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { StripeProductAssignments } from "./StripeProductAssignments";
-import { useSettings } from "@/hooks/useSettings";
-import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
+import { ConnectionSchedule } from "./ConnectionSchedule";
 import { useInlineConfigSave } from "@/hooks/useConfigSave";
 import { useConfigSaveDelay } from "@/hooks/config-backed-queries";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
@@ -219,22 +217,6 @@ function ModelGenerationBudget({ field, value, canSave, disabledReason, onSaved 
     {mutation.isError ? <p role="alert" className="text-xs text-error">{mutation.error.message}</p> : mutation.isSuccess ? <p role="status" data-status-for="integration:local-model" className="text-xs text-muted-foreground">Generation budget saved.</p> : null}
     <Button type="submit" disabled={!canSave || parsed === null || parsed === saved || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save generation budget'}</Button>
   </form>;
-}
-
-/**
- * When this connection's collections run: the same rows Settings → Data
- * collection draws, for the collections this one feeds
- * (`connectionCollections`). A job two connections feed is the same row on
- * each of their panels; either pick writes the one saved schedule. Nothing
- * until the saved schedules have been read: a row drawn from no reading would
- * be guarded by a value the store never held.
- */
-function ConnectionSchedule({ provider }: { provider: string }) {
-  const jobs = connectionCollections(provider);
-  const { data } = useSettings();
-  const { writable } = useConfigWritable();
-  if (!data) return null;
-  return <ScheduleRows jobs={jobs} overrides={data.collection.schedules} writable={writable} />;
 }
 
 /**

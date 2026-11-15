@@ -1556,7 +1556,7 @@ describe("the page", () => {
       ]),
     );
 
-    expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(2);
+    expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(3);
     expect(screen.getAllByText(/Not connected/)).toHaveLength(2);
     expect(document.querySelector("[data-integrations-answer]")).toHaveTextContent("Nothing connected yet");
     expect(document.querySelectorAll("[data-provider-card]")).toHaveLength(0);
@@ -1585,7 +1585,8 @@ describe("the page", () => {
     const traffic = screen.getByRole("list", { name: "Traffic & search" });
     expect(within(traffic).getAllByRole("listitem").map((row) => row.getAttribute("data-integration-tile")))
       .toEqual(["dataforseo", "bing-webmaster"]);
-    expect(within(screen.getByRole("list", { name: "Revenue" })).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(screen.getByRole("list", { name: "Revenue" })).getAllByRole("listitem").map(row => row.getAttribute("data-integration-tile")))
+      .toEqual(["mediavine", "tempo-mpp"]);
   });
 
   it("gives each row a name, one status and one action — no explanation", () => {
@@ -2427,7 +2428,7 @@ describe("integration discovery and guided setup", () => {
     ]);
     expect(groups).toEqual([
       ["Traffic & search", ["dataforseo"]],
-      ["Revenue", ["mediavine"]],
+      ["Revenue", ["mediavine", "tempo-mpp"]],
       ["Coordination", ["discord"]],
     ]);
     expect(screen.queryByRole("textbox", { name: "Search integrations" })).toBeNull();
@@ -2437,7 +2438,7 @@ describe("integration discovery and guided setup", () => {
     renderPage(page([stored(), status("discord", [], {})]));
     openRow("dataforseo");
     fireEvent.click(screen.getByRole("link", { name: "All integrations" }));
-    expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(2);
+    expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(3);
     expect(api.test).not.toHaveBeenCalled();
     expect(api.save).not.toHaveBeenCalled();
     expect(api.remove).not.toHaveBeenCalled();

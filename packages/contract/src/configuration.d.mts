@@ -57,6 +57,24 @@ export declare const ASSET_ID_RE: RegExp;
 export declare const CONFIG_ASSET_KEY_SOURCE = "[a-z0-9][a-z0-9._-]*";
 export declare const CONFIG_ASSET_KEY_RE: RegExp;
 export declare const DOMAIN_RE: RegExp;
+export declare const TEMPO_MPP_POINTER = "/tempoMpp";
+export declare const TEMPO_MPP_MAINNET = 4217;
+export declare const TEMPO_MPP_TESTNET = 42431;
+export declare const TEMPO_ADDRESS: RegExp;
+export declare const TEMPO_HASH: RegExp;
+export type TempoMppChain = typeof TEMPO_MPP_MAINNET | typeof TEMPO_MPP_TESTNET;
+export type TempoMppSettings = {
+    chainId: TempoMppChain;
+    wallet: string;
+    token: string;
+    startBlock: number;
+    enabled: boolean;
+    mappings: {
+        realm: string;
+        asset: string;
+    }[];
+};
+export declare function readTempoMppSettings(value: unknown): TempoMppSettings | null;
 export declare const STRIPE_REVENUE_LANE = "subscriptions";
 export declare const STRIPE_PRODUCTS_POINTER = "/stripeProducts";
 export declare const STRIPE_ACCOUNT_ID: RegExp;
