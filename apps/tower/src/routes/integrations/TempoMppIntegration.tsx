@@ -11,6 +11,7 @@ import { ReadFailed } from '@/components/ReadFailed';
 import { useConfigSave } from '@/hooks/useConfigSave';
 import { useConfigWritable } from '@/hooks/useConfigWritable';
 import { useTowerApi } from '@/lib/browser-context';
+import { ConnectionSchedule } from './ConnectionSchedule';
 
 const setupKey = ['tempo-mpp-setup'] as const;
 
@@ -21,10 +22,13 @@ export function TempoMppIntegration() {
     placeholderData: keepPreviousData });
   if (setup.isError) return <ReadFailed title="Couldn't load Tempo MPP" subject="read:tempo-mpp"
     error={setup.error} retrying={setup.isFetching} onRetry={() => void setup.refetch()} />;
-  if (!setup.data) return <p role="status" className="text-sm text-muted-foreground">Loading Tempo settings…</p>;
+  if (!setup.data) return <p role="status" data-status-for="read:tempo-mpp" className="text-sm text-muted-foreground">Loading Tempo settings…</p>;
   return (
     <>
       <TempoMppForm key={JSON.stringify(setup.data.settings)} setup={setup.data} />
+      {setup.data.settings ? <section aria-label="Tempo collection schedule" className="max-w-3xl">
+        <ConnectionSchedule provider="tempo-mpp" />
+      </section> : null}
       <PaymentHistory setup={setup.data} page={page} onPage={setPage} loading={setup.isPlaceholderData} />
     </>
   );

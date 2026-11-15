@@ -294,8 +294,9 @@ Open **Integrations → Tempo MPP**. Select the network, enter the receiving
 wallet and the contract address of a six-decimal USD token, and choose the
 first block to import. Add each service's MPP realm and select the asset that
 earns its sales. A wallet can receive payments for several assets. Select
-**Collect payments automatically** and save to collect on the hourly schedule.
-Clear the checkbox and save to pause.
+**Collect payments automatically** and save. The same page shows the
+collection schedule, which is hourly by default. Clear the checkbox and save
+to pause collection.
 
 The payment list links matching transfers to Tempo. Each sale from mainnet
 appears in **Money** after a confirmed delivery matches a sale record from the

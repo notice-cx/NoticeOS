@@ -1,6 +1,7 @@
 export * from '../../../scripts/scheduled-jobs.mjs';
 import { SCHEDULED_JOBS, collectNowStep, scheduleFor, scheduleTimezone, type ScheduleOverrides, type ScheduleStatus, type ScheduledJob } from '../../../scripts/scheduled-jobs.mjs';
 import { Cron } from 'croner';
+import { TEMPO_MPP_SOURCE } from '@noticeos/contract/tempo-mpp';
 
 export interface ScheduledJobsPayload {
   overrides: ScheduleOverrides | null;
@@ -59,6 +60,7 @@ export function settingsCollections(): ScheduledJob[] {
  * there is no schedule to change.
  */
 export function scheduleHref(job: ScheduledJob, connected: (provider: string) => boolean): string | null {
+  if (job.id === TEMPO_MPP_SOURCE) return '/integrations?provider=tempo-mpp';
   const connections = job.connections ?? [];
   if (connections.length === 0) return '/settings/data-collection';
   const provider = connections.find(connected);

@@ -104,7 +104,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("where each collection's schedule is changed", () => {
   it("puts every collection on a connection's panel or in Settings, never both and never neither", () => {
     const collections = SCHEDULED_JOBS.filter(isCollectionJob);
-    const providers = INTEGRATION_PROVIDERS.map((provider) => provider.id);
+    const providers = [...INTEGRATION_PROVIDERS.map((provider) => provider.id), 'tempo-mpp'];
     const onPanels = new Set(providers.flatMap((provider) => connectionCollections(provider).map((job) => job.id)));
     const inSettings = new Set(settingsCollections().map((job) => job.id));
     for (const job of collections) expect(onPanels.has(job.id) !== inSettings.has(job.id), job.id).toBe(true);
@@ -116,6 +116,7 @@ describe("where each collection's schedule is changed", () => {
     expect(connectionCollections("bing-webmaster").map((job) => job.id)).toEqual(["signal-dumps"]);
     expect(connectionCollections("mediavine").map((job) => job.id)).toEqual(["mediavine"]);
     expect(connectionCollections("dataforseo").map((job) => job.id)).toEqual(["dataforseo"]);
+    expect(scheduleHref(connectionCollections("tempo-mpp")[0]!, () => false)).toBe("/integrations?provider=tempo-mpp");
     expect(connectionCollections("discord")).toEqual([]);
   });
 
