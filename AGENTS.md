@@ -409,6 +409,13 @@ follow the
 with the task id in a `Refs:` footer. Never amend and never force-push a
 branch someone else has.
 
+Start monitoring CI and CodeRabbit as soon as you open a pull request. Use any
+available PR tooling. Investigate failed checks, fix merge conflicts, and fix or
+respond to each CodeRabbit finding. Keep monitoring until GitHub confirms the
+merge. Enable squash auto-merge when opening an eligible PR and re-enable it
+if a push removes the PR from the merge queue. Follow the existing approval
+rules for merges and releases.
+
 CodeRabbit reviews about 10 pull request changes an hour per author, and the
 maintainers' agents all open pull requests as one author, so each new pull
 request and each push spends a review they share. Collect every fix known for
