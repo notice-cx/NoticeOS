@@ -6,8 +6,10 @@ import { TEMPO_MPP_SOURCE, tempoMppScope } from '@noticeos/contract/tempo-mpp';
 import type { Transaction } from '@noticeos/postgres';
 import { configDocumentKey } from '../../../scripts/config-documents.mjs';
 import { readTempoRange, type TempoDelivery, type TempoScanCursor } from './tempo-mpp-rpc.js';
+import { pullTempoSales, tempoSaleTokens, type TempoSaleKey, type TempoSaleRecord } from './tempo-mpp-sales.js';
 
 const integrationsKey = configDocumentKey(TOWER_CONFIG_FILES.integrations);
+const SALE_RETRY_PAGE = 12;
 type Scan = { scope: string; cursor: TempoScanCursor };
 
 async function settingsIn(tx: Transaction, writer = false): Promise<TempoMppSettings | null> {
@@ -82,12 +84,44 @@ async function bookSales(tx: Transaction, settings: TempoMppSettings, at: string
   );
 }
 
+async function pendingSales(tx: Transaction, settings: TempoMppSettings, assets: string[], now: Date) {
+  if (assets.length === 0) return [];
+  // Advance one page per scheduled hour so unmatched memos at the front cannot
+  // monopolize the retries. Newly scanned payments have their own immediate attempt.
+  const hour = Math.floor(now.getTime() / 3_600_000);
+  return tx.query<TempoSaleKey>(
+    `WITH pending AS (
+       SELECT p.asset_id AS asset, p.transaction_hash AS hash, p.log_index AS "logIndex",
+         p.amount_base_units::text AS "baseUnits", p.settled_at
+       FROM noticeos.tempo_mpp_payments p
+       JOIN noticeos.assets a ON a.asset_id = p.asset_id AND NOT a.is_os AND a.status <> 'retired'
+       WHERE p.chain_id = $1 AND p.token = $2 AND p.asset_id = ANY($3::text[])
+         AND NOT EXISTS (
+           SELECT 1 FROM noticeos.tempo_mpp_sale_records s
+           WHERE s.workspace_id = p.workspace_id AND s.asset_id = p.asset_id AND s.chain_id = p.chain_id
+             AND s.transaction_hash = p.transaction_hash AND s.log_index = p.log_index
+         )
+     )
+     SELECT asset, hash, "logIndex", "baseUnits" FROM pending
+     ORDER BY settled_at, hash, "logIndex"
+     LIMIT $4::bigint OFFSET (
+       SELECT $4::bigint * mod($5::bigint, greatest(1, (count(*) + $4::bigint - 1) / $4::bigint)) FROM pending
+     )`,
+    [settings.chainId, settings.token.toLowerCase(), assets, SALE_RETRY_PAGE, hour],
+  );
+}
+
 export async function runTempoMpp(env: IngestEnv, {
   fetchImpl = fetch, now = new Date(), deadline,
 }: { fetchImpl?: typeof fetch; now?: Date; deadline?: AbortSignal } = {}) {
-  const starting = await env.STORE.read(async (tx) => ({ settings: await settingsIn(tx), scan: await scanIn(tx) }));
+  const starting = await env.STORE.read(async (tx) => {
+    const settings = await settingsIn(tx);
+    if (!settings?.enabled) return null;
+    const tokens = tempoSaleTokens(env.ASSET_TOKENS, settings.mappings.map(({ asset }) => asset));
+    return { settings, tokens, scan: await scanIn(tx), pending: await pendingSales(tx, settings, [...tokens.keys()], now) };
+  });
+  if (!starting) return { outcome: 'skipped', detail: 'Tempo MPP collection is off.' } as const;
   const { settings } = starting;
-  if (!settings?.enabled) return { outcome: 'skipped', detail: 'Tempo MPP collection is off.' } as const;
   const at = now.toISOString();
   const scope = tempoMppScope(settings);
   const from = startOf(settings, scope, starting.scan);
@@ -98,6 +132,9 @@ export async function runTempoMpp(env: IngestEnv, {
     return cursor.block === from.block && cursor.logIndex === from.logIndex;
   };
   const batch = await readTempoRange(settings, from, fetchImpl, deadline).catch(() => null);
+  const sales = batch
+    ? await pullTempoSales(settings.chainId, [...batch.payments, ...starting.pending], starting.tokens, fetchImpl, deadline)
+    : [];
   return env.STORE.write(async (tx) => {
     await lock(tx);
     if (!(await unchanged(tx))) return { outcome: 'skipped', detail: 'Tempo MPP settings or scan progress changed.' } as const;
@@ -106,6 +143,7 @@ export async function runTempoMpp(env: IngestEnv, {
       return { outcome: 'failed', detail: 'Tempo MPP scan failed. The next scan will resume at the same block.' } as const;
     }
     await saveDeliveries(tx, settings, batch.payments, at);
+    for (const sale of sales) await insertTempoSale(tx, sale);
     const recorded = await bookSales(tx, settings, at);
     await noteScan(tx, scope, batch.cursor, at, batch.complete, false);
     return { outcome: 'ran', detail: batch.complete ? 'Tempo MPP scan complete.' : 'Tempo MPP scan will continue.',
@@ -113,13 +151,16 @@ export async function runTempoMpp(env: IngestEnv, {
   });
 }
 
-export interface TempoSaleRecord {
-  asset: string;
-  chainId: TempoMppChain;
-  hash: string;
-  logIndex: number;
-  baseUnits: string;
-  product: string | null;
+async function insertTempoSale(tx: Transaction, sale: TempoSaleRecord) {
+  const args = [tx.workspaceId, sale.asset, sale.chainId, sale.hash, sale.logIndex, sale.baseUnits, sale.product];
+  const changed = await tx.execute(
+    `INSERT INTO noticeos.tempo_mpp_sale_records
+         (workspace_id, asset_id, chain_id, transaction_hash, log_index, amount_base_units, product, recorded_at)
+       SELECT $1, a.asset_id, $3, $4, $5, $6, $7, now()
+         FROM noticeos.assets a WHERE a.asset_id = $2 AND NOT a.is_os AND a.status <> 'retired'
+       ON CONFLICT (workspace_id, asset_id, chain_id, transaction_hash, log_index) DO NOTHING`, args,
+  );
+  return { changed, args };
 }
 
 export async function recordTempoSale(env: IngestEnv, sale: TempoSaleRecord) {
@@ -127,14 +168,7 @@ export async function recordTempoSale(env: IngestEnv, sale: TempoSaleRecord) {
     await lock(tx);
     const settings = await settingsIn(tx, true);
     if (settings?.chainId !== sale.chainId || !settings.mappings.some(({ asset }) => asset === sale.asset)) return 'unmapped';
-    const args = [tx.workspaceId, sale.asset, sale.chainId, sale.hash, sale.logIndex, sale.baseUnits, sale.product];
-    const changed = await tx.execute(
-      `INSERT INTO noticeos.tempo_mpp_sale_records
-         (workspace_id, asset_id, chain_id, transaction_hash, log_index, amount_base_units, product, recorded_at)
-       SELECT $1, a.asset_id, $3, $4, $5, $6, $7, now()
-         FROM noticeos.assets a WHERE a.asset_id = $2 AND NOT a.is_os AND a.status <> 'retired'
-       ON CONFLICT (workspace_id, asset_id, chain_id, transaction_hash, log_index) DO NOTHING`, args,
-    );
+    const { changed, args } = await insertTempoSale(tx, sale);
     if (changed === 0) {
       const [held] = await tx.query<{ identical: boolean }>(
         `SELECT amount_base_units = $6 AND product IS NOT DISTINCT FROM $7::text AS identical

@@ -4,7 +4,7 @@ import { Attribution } from 'mppx/tempo';
 import {
   TEMPO_MPP_MAINNET, TEMPO_MPP_POINTER, TEMPO_MPP_TESTNET, TOWER_CONFIG_FILES, type TempoMppSettings,
 } from '@noticeos/contract/configuration';
-import { TEMPO_MPP_SALE_PATH, TEMPO_NETWORKS } from '@noticeos/contract/tempo-mpp';
+import { TEMPO_MPP_SALE_LOOKUP_PATH, TEMPO_MPP_SALE_PATH, TEMPO_NETWORKS } from '@noticeos/contract/tempo-mpp';
 import { applyConfigOps, forgetConfigCache, getConfigDocument } from '../src/config-store.js';
 import { runTempoMpp } from '../src/tempo-mpp.js';
 import { call, emptyTables, forgetConfigDocuments, pgRows } from './helpers.js';
@@ -43,12 +43,21 @@ function logs({
 
 function rpc(settings: TempoMppSettings, all = logs(), options: {
   fail?: boolean; chain?: number; beforeLogs?: () => Promise<void>; beforeReceipt?: (hash: string) => void;
+  seller?: (request: Request) => Response | Promise<Response>;
 } = {}) {
   const ranges: number[][] = [];
   const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
-    expect(url).toBe(TEMPO_NETWORKS[settings.chainId].rpc);
     const request = new Request(String(url), init);
     expect(request.redirect).toBe('manual');
+    if (request.method === 'GET') {
+      const endpoint = new URL(request.url);
+      expect(endpoint.pathname).toBe(TEMPO_MPP_SALE_LOOKUP_PATH);
+      expect(endpoint.protocol).toBe('https:');
+      expect(Object.keys(ASSET_TOKENS)).toContain(endpoint.hostname);
+      expect(request.headers.get('authorization')).toBe(`Bearer ${ASSET_TOKENS[endpoint.hostname as keyof typeof ASSET_TOKENS]}`);
+      return options.seller?.(request) ?? new Response(null, { status: 404 });
+    }
+    expect(url).toBe(TEMPO_NETWORKS[settings.chainId].rpc);
     const { method, params } = JSON.parse(await request.text());
     if (options.fail && method === 'eth_getTransactionReceipt') return new Response(null, { status: 503 });
     let result: unknown;
@@ -151,6 +160,68 @@ describe('Tempo MPP reconciliation', () => {
     expect((await sale(settings, { asset: SECOND, logIndex: 16, baseUnits: '10000', product: null }, ASSET_TOKENS[SECOND])).status).toBe(201);
     await runTempoMpp(env, provider);
     expect(await money()).toEqual([{ asset: FIRST, cents: '50', month: '2026-11-01' }, { asset: SECOND, cents: '1', month: '2026-11-01' }]);
+  });
+
+  it('pulls the seller’s two prices once, catches up after a failed read, and excludes a copied memo', async () => {
+    const settings: TempoMppSettings = { ...assetSettings, chainId: TEMPO_MPP_MAINNET };
+    const copiedHash = `0x${'ae'.repeat(32)}`;
+    const overage = { asset: FIRST, chainId: settings.chainId, hash: HASH, logIndex: 14, baseUnits: '10000', product: 'Extra API lookup' };
+    const batch = { ...overage, logIndex: 16, baseUnits: '500000', product: 'Carrier batch' };
+    let batchAvailable = false;
+    const seller = vi.fn((request: Request) => {
+      const url = new URL(request.url);
+      const logIndex = Number(url.searchParams.get('logIndex'));
+      expect(url.hostname).toBe(FIRST);
+      expect(url.searchParams.get('chainId')).toBe(String(settings.chainId));
+      expect(request.headers.get('authorization')).toBe(`Bearer ${ASSET_TOKENS[FIRST]}`);
+      if (url.searchParams.get('hash') === copiedHash) {
+        // A genuine proof for a different log in a different transaction cannot verify this transfer.
+        return Response.json(overage);
+      }
+      expect(url.searchParams.get('hash')).toBe(HASH);
+      expect([14, 16]).toContain(logIndex);
+      if (logIndex === 14) return Response.json(overage);
+      return batchAvailable ? Response.json(batch) : new Response(null, { status: 503 });
+    });
+    const provider = rpc(settings, [
+      ...logs({ amount: 10_000 }),
+      ...logs({ memoIndex: 16 }),
+      ...logs({ memoIndex: 18, amount: 10_000, hash: copiedHash }),
+    ], { seller });
+
+    expect(await save(settings)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, provider)).toMatchObject({ outcome: 'ran', matched: 3, recorded: 1 });
+    expect(seller).toHaveBeenCalledTimes(3);
+    batchAvailable = true;
+    expect(await runTempoMpp(env, provider)).toMatchObject({ outcome: 'ran', matched: 0, recorded: 1 });
+    expect(seller).toHaveBeenCalledTimes(5);
+    expect(await runTempoMpp(env, provider)).toMatchObject({ outcome: 'ran', matched: 0, recorded: 0 });
+    expect(seller).toHaveBeenCalledTimes(6);
+    expect(provider.ranges).toEqual([[BLOCK, BLOCK]]);
+    expect(await pgRows(`SELECT source, amount_minor::text AS cents FROM noticeos.revenue_observations
+      WHERE source = 'tempo-mpp' ORDER BY amount_minor`)).toEqual([
+      { source: 'tempo-mpp', cents: '1' }, { source: 'tempo-mpp', cents: '50' },
+    ]);
+    expect(await pgRows(`SELECT log_index AS log, product FROM noticeos.tempo_mpp_sale_records ORDER BY log_index`))
+      .toEqual([{ log: 14, product: 'Extra API lookup' }, { log: 16, product: 'Carrier batch' }]);
+  });
+
+  it('can verify a sale after the first four lookups stall', async () => {
+    const settings: TempoMppSettings = { ...assetSettings, chainId: TEMPO_MPP_MAINNET };
+    const all = [14, 16, 18, 20, 22, 24].flatMap(memoIndex => logs({ memoIndex }));
+    const seller = vi.fn(async (request: Request) => {
+      const logIndex = Number(new URL(request.url).searchParams.get('logIndex'));
+      if (logIndex < 22) {
+        await new Promise<void>(resolve => request.signal.addEventListener('abort', () => resolve(), { once: true }));
+        return new Response(null, { status: 503 });
+      }
+      return Response.json({ asset: FIRST, chainId: settings.chainId, hash: HASH, logIndex,
+        baseUnits: '500000', product: logIndex === 22 ? 'Carrier batch' : 'invalid\0product' });
+    });
+    expect(await save(settings)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, rpc(settings, all, { seller }))).toMatchObject({ matched: 6, recorded: 1 });
+    expect(seller).toHaveBeenCalledTimes(6);
+    expect(await pgRows('SELECT log_index AS log FROM noticeos.tempo_mpp_sale_records')).toEqual([{ log: 22 }]);
   });
 
   it('rejects ambiguous mappings and honors a saved pause and a later wallet change', async () => {
