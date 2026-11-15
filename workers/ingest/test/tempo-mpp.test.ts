@@ -43,7 +43,7 @@ function logs({
 
 function rpc(settings: TempoMppSettings, all = logs(), options: {
   fail?: boolean; chain?: number; beforeLogs?: () => Promise<void>; beforeReceipt?: (hash: string) => void;
-  seller?: (request: Request) => Response;
+  seller?: (request: Request) => Response | Promise<Response>;
 } = {}) {
   const ranges: number[][] = [];
   const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
@@ -204,6 +204,24 @@ describe('Tempo MPP reconciliation', () => {
     ]);
     expect(await pgRows(`SELECT log_index AS log, product FROM noticeos.tempo_mpp_sale_records ORDER BY log_index`))
       .toEqual([{ log: 14, product: 'Extra API lookup' }, { log: 16, product: 'Carrier batch' }]);
+  });
+
+  it('can verify a sale after the first four lookups stall', async () => {
+    const settings: TempoMppSettings = { ...assetSettings, chainId: TEMPO_MPP_MAINNET };
+    const all = [14, 16, 18, 20, 22, 24].flatMap(memoIndex => logs({ memoIndex }));
+    const seller = vi.fn(async (request: Request) => {
+      const logIndex = Number(new URL(request.url).searchParams.get('logIndex'));
+      if (logIndex < 22) {
+        await new Promise<void>(resolve => request.signal.addEventListener('abort', () => resolve(), { once: true }));
+        return new Response(null, { status: 503 });
+      }
+      return Response.json({ asset: FIRST, chainId: settings.chainId, hash: HASH, logIndex,
+        baseUnits: '500000', product: logIndex === 22 ? 'Carrier batch' : 'invalid\0product' });
+    });
+    expect(await save(settings)).toMatchObject({ ok: true });
+    expect(await runTempoMpp(env, rpc(settings, all, { seller }))).toMatchObject({ matched: 6, recorded: 1 });
+    expect(seller).toHaveBeenCalledTimes(6);
+    expect(await pgRows('SELECT log_index AS log FROM noticeos.tempo_mpp_sale_records')).toEqual([{ log: 22 }]);
   });
 
   it('rejects ambiguous mappings and honors a saved pause and a later wallet change', async () => {

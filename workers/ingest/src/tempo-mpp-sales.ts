@@ -28,7 +28,8 @@ export function tempoSaleTokens(assetTokens: string | undefined, assets: Iterabl
 }
 
 export function isTempoSaleProduct(value: unknown): value is string | null {
-  return value === null || (typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= 120);
+  return value === null || (typeof value === 'string' && !value.includes('\0') &&
+    value.trim() === value && value.length > 0 && value.length <= 120);
 }
 
 async function saleBody(response: Response): Promise<Record<string, unknown> | null> {
@@ -60,7 +61,7 @@ async function saleBody(response: Response): Promise<Record<string, unknown> | n
 export async function pullTempoSales(
   chainId: TempoMppChain, keys: TempoSaleKey[], tokens: Map<string, string>, fetchImpl: typeof fetch, deadline?: AbortSignal,
 ) {
-  const signal = AbortSignal.any([AbortSignal.timeout(8_000), ...(deadline ? [deadline] : [])]);
+  const batchDeadline = AbortSignal.any([AbortSignal.timeout(8_000), ...(deadline ? [deadline] : [])]);
   const candidates = new Map<string, TempoSaleKey>();
   for (const key of keys) {
     if (tokens.has(key.asset)) candidates.set(`${key.asset}:${key.hash}:${key.logIndex}`, key);
@@ -69,7 +70,8 @@ export async function pullTempoSales(
   const pending = candidates.values();
   async function pull() {
     for (const key of pending) {
-      if (signal.aborted) return;
+      if (batchDeadline.aborted) return;
+      const signal = AbortSignal.any([batchDeadline, AbortSignal.timeout(2_000)]);
       const url = new URL(TEMPO_MPP_SALE_LOOKUP_PATH, `https://${key.asset}`);
       url.search = new URLSearchParams({ chainId: String(chainId), hash: key.hash, logIndex: String(key.logIndex) }).toString();
       try {
