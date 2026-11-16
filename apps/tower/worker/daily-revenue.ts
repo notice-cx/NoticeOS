@@ -5,16 +5,15 @@ import {
   commonRevenueClock, operatorRevenueClock, revenueCalendarDate,
   type PortfolioDailyRevenue, type RevenueClock, type RevenueSource, type RevenueSourceHistory, type SiteRevenueHistory,
 } from '../shared/daily-revenue';
-import { shiftRevenueDate } from '../shared/revenue-projection';
+import { revenueExpectedThrough, shiftRevenueDate } from '../shared/revenue-projection';
 import type { RevenueDay } from '../shared/revenue-projection';
 import { calendarDayStart } from '../shared/reporting-calendar';
 import type { AssetCard } from '../shared/wall';
 import { cents } from './ledger-history';
 import { loadStripeCalendar, stripeCalendarKey } from './stripe-calendar';
 
-// Daily revenue from the one revenue ledger (`noticeos.current_revenue`), for
-// every source alike. Nothing here names a source: each source's provider,
-// family, name and clock come from its vocabulary row.
+// Daily revenue from the revenue ledger (`noticeos.current_revenue`). Stripe
+// receipts have timestamps and follow the operator's selected day.
 
 type SourceRow = {
   source: string; provider: string; family: string; displayName: string;
@@ -38,12 +37,16 @@ type SourcePair = { asset: string; source: string; currency: string; since: stri
 
 /** Each site's sources: every (site, source, currency) with a current figure,
  * ordered by site, then source. */
-async function readSourcePairs(store: WorkspaceStore, assets: readonly string[] | null): Promise<SourcePair[]> {
+async function readSourcePairs(store: WorkspaceStore, assets: readonly string[] | null, timeZone: string): Promise<SourcePair[]> {
   return store.read((tx) => tx.query<SourcePair>(
-    `SELECT asset_id AS asset, source, currency, MIN(revenue_date)::text AS since
-       FROM noticeos.current_revenue ${assets === null ? '' : 'WHERE asset_id = ANY($1::text[])'}
+    `SELECT asset_id AS asset, source, currency,
+            MIN(CASE WHEN source = $1 THEN COALESCE(
+                  (COALESCE(to_jsonb(r)->>'occurred_at', to_jsonb(r)->>'covered_from')::timestamptz AT TIME ZONE $2)::date,
+                  revenue_date) ELSE revenue_date END)::text AS since
+       FROM noticeos.current_revenue r ${assets === null ? '' : 'WHERE asset_id = ANY($3::text[])'}
       GROUP BY asset_id, source, currency
-      ORDER BY asset_id COLLATE "C", source COLLATE "C", currency`, assets === null ? [] : [[...assets]]));
+      ORDER BY asset_id COLLATE "C", source COLLATE "C", currency`,
+    assets === null ? [STRIPE_REVENUE_SOURCE, timeZone] : [STRIPE_REVENUE_SOURCE, timeZone, [...assets]]));
 }
 
 /** The window of `days` ending yesterday on `clock`. */
@@ -86,7 +89,7 @@ export interface RevenueHistoryOptions {
   now: Date;
   /** How many days the window holds, ending yesterday on the site's clock. */
   days: number;
-  /** The clock of a site with no source: the operator's. */
+  /** The operator's clock for Stripe receipts and empty histories. */
   fallback: RevenueClock;
   /** The sites to read; absent reads every site with a source. */
   assets?: readonly string[];
@@ -105,12 +108,13 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
   const { now, days, fallback } = options;
   const assets = options.assets ?? null;
   if (assets !== null && assets.length === 0) return new Map();
-  const [catalog, pairs] = await Promise.all([loadRevenueSources(store), readSourcePairs(store, assets)]);
+  const [catalog, pairs] = await Promise.all([loadRevenueSources(store), readSourcePairs(store, assets, fallback.timeZone)]);
   const sourceClock = (source: string) => source === STRIPE_REVENUE_SOURCE ? fallback : catalog.get(source)!.clock;
   const bySite = new Map<string, SourcePair[]>();
   for (const pair of pairs) bySite.set(pair.asset, [...(bySite.get(pair.asset) ?? []), pair]);
   const plans = [...bySite].map(([asset, sitePairs]) => {
-    const clock = commonRevenueClock(sitePairs.map((pair) => sourceClock(pair.source)), now) ?? fallback;
+    const clock = sitePairs.some(({ source }) => source === STRIPE_REVENUE_SOURCE) ? fallback
+      : commonRevenueClock(sitePairs.map((pair) => sourceClock(pair.source)), now) ?? fallback;
     const window = windowOn(clock, now, days);
     const sourceThrough = options.includeSourceDays
       ? sitePairs.reduce((latest, pair) => {
@@ -137,15 +141,19 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
                 CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.refund_count)::int END AS refunds
            FROM noticeos.current_revenue r
            JOIN unnest($1::text[], $2::date[], $3::date[]) AS b(asset_id, from_date, to_date) ON b.asset_id = r.asset_id
+           JOIN noticeos_ref.revenue_sources s ON s.source = r.source
           WHERE r.revenue_date BETWEEN b.from_date AND b.to_date AND r.source <> 'stripe'
+            AND r.revenue_date < ($4::timestamptz AT TIME ZONE s.time_zone)::date
           GROUP BY r.asset_id, r.source, r.currency, r.revenue_date
-          ORDER BY r.revenue_date`, [assetIds, fromDates, plans.map((plan) => plan.sourceThrough)]),
+          ORDER BY r.revenue_date`, [assetIds, fromDates, plans.map((plan) => plan.sourceThrough), now.toISOString()]),
       throughRows: await tx.query<{ asset: string; source: string; currency: string; through: string }>(
         `SELECT r.asset_id AS asset, r.source, r.currency, MAX(r.revenue_date)::text AS through
            FROM noticeos.current_revenue r
            JOIN unnest($1::text[], $2::date[], $3::date[]) AS b(asset_id, from_date, to_date) ON b.asset_id = r.asset_id
+           JOIN noticeos_ref.revenue_sources s ON s.source = r.source
           WHERE r.revenue_date <= b.to_date AND r.source <> 'stripe'
-          GROUP BY r.asset_id, r.source, r.currency`, [assetIds, fromDates, plans.map((plan) => plan.window.to)]),
+            AND r.revenue_date < ($4::timestamptz AT TIME ZONE s.time_zone)::date
+          GROUP BY r.asset_id, r.source, r.currency`, [assetIds, fromDates, plans.map((plan) => plan.window.to), now.toISOString()]),
     })),
   ]);
   const key = (row: { asset: string; source: string; currency: string }) => `${row.asset}\u0000${row.source}\u0000${row.currency}`;
@@ -158,9 +166,7 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
     const source = catalog.get(pair.source)!;
     if (pair.source === STRIPE_REVENUE_SOURCE) {
       const calendar = stripe.get(stripeCalendarKey(pair.asset, pair.currency));
-      const since = calendar?.days[0]?.date;
-      return { ...source, clock: fallback, currency: pair.currency,
-        since: since && since < pair.since ? since : pair.since, days: calendar?.days ?? [],
+      return { ...source, clock: fallback, currency: pair.currency, since: pair.since, days: calendar?.days ?? [],
         reportedThrough: calendar?.reportedThrough ?? null, partialDates: calendar?.partialDates };
     }
     return { ...source, currency: pair.currency, since: pair.since,
@@ -233,23 +239,24 @@ export async function loadDailyRevenue(store: WorkspaceStore, asset: string, opt
 }
 
 /** A reported subtotal, with explicit coverage of every site that reports.
- * The window ends at yesterday on the sources' common clock. A site owes a
- * day from each of its sources' first report onward; it reported a day when
- * every source it owed that day did. A site that has never reported owes
- * nothing yet. Sources in different currencies are not added: `days` is then
- * empty and the coverage still stands. */
+ * Stripe keeps local yesterday visible while other sources finish reporting.
+ * A site owes a day from each of its sources' first report onward. Sources in
+ * different currencies are not added. */
 export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: string, now: Date, operatorTimeZone: string): Promise<PortfolioDailyRevenue> {
   const from = `${period}-01`;
   const nextMonth = new Date(`${from}T12:00:00Z`);
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
   const monthEnd = shiftRevenueDate(nextMonth.toISOString().slice(0, 10), -1);
-  const [catalog, pairs] = await Promise.all([loadRevenueSources(store), readSourcePairs(store, null)]);
+  const [catalog, pairs] = await Promise.all([loadRevenueSources(store), readSourcePairs(store, null, operatorTimeZone)]);
   const operatorClock = operatorRevenueClock(operatorTimeZone);
   const stripeAssets = [...new Set(pairs.filter(pair => pair.source === STRIPE_REVENUE_SOURCE).map(pair => pair.asset))];
-  const clock = stripeAssets.length ? operatorClock
-    : commonRevenueClock([...new Set(pairs.map((pair) => pair.source))].map((source) => catalog.get(source)!.clock), now);
-  const yesterday = shiftRevenueDate(revenueCalendarDate(now, (clock ?? operatorClock).timeZone), -1);
+  const clocks = new Map(pairs.map(({ source }) => [source, catalog.get(source)!.clock]));
+  const clock = stripeAssets.length ? operatorClock : commonRevenueClock([...clocks.values()], now);
+  const yesterday = windowOn(clock ?? operatorClock, now, 1).to;
   const to = monthEnd < yesterday ? monthEnd : yesterday;
+  const expected = new Map([...clocks].map(([source, clock]) => [source, revenueExpectedThrough(now,
+    source === STRIPE_REVENUE_SOURCE ? { ...clock, timeZone: operatorTimeZone } : clock)]));
+  const closed = new Map([...clocks].map(([source, clock]) => [source, windowOn(clock, now, 1).to]));
   // Text is ordered byte for byte.
   const [stripe, { rows, names }] = await Promise.all([
     loadStripeCalendar(store, operatorTimeZone, from, to, stripeAssets),
@@ -266,10 +273,7 @@ export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: s
   const named = new Map(names.map((row) => [row.asset, assetDisplayName(row.isOs, row.displayName)]));
   const owedBy = new Map<string, SourcePair[]>();
   for (const pair of pairs) {
-    const firstLocal = pair.source === STRIPE_REVENUE_SOURCE
-      ? stripe.get(stripeCalendarKey(pair.asset, pair.currency))?.days[0]?.date : undefined;
-    const since = firstLocal && firstLocal < pair.since ? firstLocal : pair.since;
-    if (since <= to) owedBy.set(pair.asset, [...(owedBy.get(pair.asset) ?? []), { ...pair, since }]);
+    if (pair.since <= to) owedBy.set(pair.asset, [...(owedBy.get(pair.asset) ?? []), pair]);
   }
   const sources = [...owedBy].map(([asset, sitePairs]) => ({
     asset, displayName: named.get(asset) ?? asset, since: sitePairs.map((pair) => pair.since).sort()[0]!,
@@ -283,7 +287,9 @@ export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: s
     sites.set(asset, (sites.get(asset) ?? new Set()).add(source));
     byDate.set(date, sites);
   };
-  for (const row of rows) add(row.date, row.asset, row.source, cents(row.amountMinor), true);
+  for (const row of rows) {
+    if (row.date <= closed.get(row.source)!) add(row.date, row.asset, row.source, cents(row.amountMinor), true);
+  }
   for (const calendar of stripe.values()) {
     for (const day of calendar.days) add(day.date, calendar.asset, STRIPE_REVENUE_SOURCE, day.amountMinor, !calendar.partialDates.includes(day.date));
   }
@@ -295,13 +301,16 @@ export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: s
     if (oneCurrency && totals.has(date)) days.push({ date, amountMinor: totals.get(date)! });
     let complete = 0;
     const missingAssets: string[] = [];
+    const pendingAssets: string[] = [];
     for (const site of sources) {
       const owed = owedBy.get(site.asset)!.filter((pair) => pair.since <= date);
       if (owed.length === 0) continue;
-      if (owed.every((pair) => reported?.get(site.asset)?.has(pair.source))) complete += 1;
+      const absent = owed.filter((pair) => !reported?.get(site.asset)?.has(pair.source));
+      if (absent.length === 0) complete += 1;
+      else if (stripeAssets.length && absent.every((pair) => date > expected.get(pair.source)!)) pendingAssets.push(site.asset);
       else missingAssets.push(site.asset);
     }
-    coverage.push({ date, reported: complete, missingAssets });
+    coverage.push({ date, reported: complete, missingAssets, ...(pendingAssets.length ? { pendingAssets } : {}) });
   }
   return { from, to, days, sources, coverage, reportedThrough: days.at(-1)?.date ?? null, ...(clock ? { clock } : {}) };
 }

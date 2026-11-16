@@ -7,6 +7,8 @@ import { seedRevenueHistory } from './revenue-fixture';
 import { mapMediavineSite, writeMediavine, writeRevenue } from './money';
 import { loadDailyRevenue, loadPortfolioDailyRevenue, loadRevenueHistories } from '../worker/daily-revenue';
 import { operatorRevenueClock, revenueWindowDays } from '../shared/daily-revenue';
+import { monthDays } from '../src/lib/money-page';
+import { portfolioDailyRevenue } from '../src/lib/money-response';
 import { MEDIAVINE_REPORTING_CLOCK } from '../../../packages/mediavine/src/index';
 
 const MEDIAVINE_CLOCK = { timeZone: MEDIAVINE_REPORTING_CLOCK.timeZone, label: MEDIAVINE_REPORTING_CLOCK.label,
@@ -141,6 +143,39 @@ describe('saved daily earnings', () => {
       const later = await loadDailyRevenue(store, 'sample.test', { now: new Date('2026-09-13T15:00:00Z'), days: 1, fallback: FALLBACK });
       expect([later.from, later.to, later.days, later.reportedThrough]).toEqual(['2026-09-12', '2026-09-12', [], '2026-09-09']);
     } finally { await raw.close(); }
+  });
+
+  it('keeps local yesterday visible before an ad report is due, then marks a missed report', async () => {
+    const ctx = await createTestStore();
+    const asset = 'sample.test';
+    const zone = 'Asia/Tokyo';
+    const now = new Date('2026-11-16T00:05:00Z');
+    try {
+      await addSites(ctx, [{ id: asset, displayName: 'Sample', status: 'live', senseOnly: 0, createdAt: now.toISOString() }]);
+      await writeRevenue(ctx.call, [
+        { asset, date: '2026-11-14', amountMinor: 1_000 },
+        { asset, source: 'stripe', date: '2026-11-13', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-13T15:00:00Z', until: '2026-11-14T00:00:00Z' } },
+        { asset, source: 'stripe', date: '2026-11-14', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-14T00:00:00Z', until: '2026-11-15T00:00:00Z' } },
+        { asset, source: 'stripe', date: '2026-11-15', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-15T00:00:00Z', until: '2026-11-15T15:00:00Z' } },
+        { asset, source: 'stripe', date: '2026-11-15', item: 'txn_late', amountMinor: 2_500, occurredAt: '2026-11-15T14:00:00Z' },
+      ]);
+
+      const waiting = await loadPortfolioDailyRevenue(ctx.call, '2026-11', now, zone);
+      expect(portfolioDailyRevenue(waiting)).toBe(true);
+      expect(waiting.days.at(-1)).toEqual({ date: '2026-11-15', amountMinor: 2_500 });
+      expect(waiting.coverage.at(-1)).toEqual({ date: '2026-11-15', reported: 0, missingAssets: [], pendingAssets: [asset] });
+      expect(monthDays(waiting)).toMatchObject({ partial: ['2026-11-15'], short: [] });
+      const site = await loadDailyRevenue(ctx.call, asset, { now, days: 2, fallback: operatorRevenueClock(zone) });
+      expect(site.days.at(-1)).toEqual({ date: '2026-11-15', amountMinor: 2_500 });
+      expect(site.partialDates).toEqual(['2026-11-15']);
+
+      const late = await loadPortfolioDailyRevenue(ctx.call, '2026-11', new Date('2026-11-16T14:15:00Z'), zone);
+      expect(late.coverage.at(-1)).toEqual({ date: '2026-11-15', reported: 0, missingAssets: [asset] });
+      expect(monthDays(late).short).toEqual([{ asset, name: 'Sample', reported: 1, owed: 2 }]);
+    } finally { await ctx.close(); }
   });
 
   it('sums an asset\'s sources per day, marks a day a source it owes missed as partial, and never adds two currencies', async () => {

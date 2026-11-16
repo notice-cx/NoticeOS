@@ -5,7 +5,7 @@
 // recorded", never $0.
 import { minorToMajorUnits, moneyCurrency } from "@noticeos/contract/money";
 import type { BarStripContributor, BarStripPoint } from "@/components/viz/BarStrip";
-import type { PortfolioDailyRevenue } from "@shared/daily-revenue";
+import { portfolioPartialDates, type PortfolioDailyRevenue } from "@shared/daily-revenue";
 import type { FinancialMonth, FinancialProperty, FinancialsPayload, MoneyFigure } from "@shared/financials";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import type { SeriesPointOrGap } from "@shared/surface";
@@ -83,13 +83,13 @@ export interface MonthDays {
 
 export function monthDays(history: PortfolioDailyRevenue, currency = "USD"): MonthDays {
   const amounts = new Map(history.days.map((day) => [day.date, minorToMajorUnits(day.amountMinor, currency)]));
-  const partial = history.coverage.filter((day) => day.reported > 0 && day.missingAssets.length > 0).map((day) => day.date);
+  const partial = portfolioPartialDates(history);
   const days = history.coverage.length > 0
     ? history.coverage.map((day) => ({ t: day.date, v: amounts.get(day.date) ?? null }))
     : [...amounts].map(([t, v]) => ({ t, v }));
   const complete = days.filter((day) => day.v !== null && !partial.includes(day.t)).map((day) => day.v!);
   const short = history.sources.flatMap((source) => {
-    const owed = history.coverage.filter((day) => day.date >= source.since);
+    const owed = history.coverage.filter((day) => day.date >= source.since && !day.pendingAssets?.includes(source.asset));
     const reported = owed.filter((day) => !day.missingAssets.includes(source.asset)).length;
     return owed.length > 0 && reported < owed.length
       ? [{ asset: source.asset, name: source.displayName, reported, owed: owed.length }]

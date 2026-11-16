@@ -4,7 +4,7 @@ import { moneyCurrency } from "@noticeos/contract/money";
 import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
+import { portfolioPartialDates, revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
 import {
   PERIOD_PATTERN,
   type DomainOrder,
@@ -445,10 +445,13 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
   const coverage = (sites ?? history.sources.length) > 1 && history.sources.length > 0;
   const sourceNames = new Map(history.sources.map(source => [source.asset, source.displayName]));
   // A day owes only the sources already reporting by then.
-  const notesByDate = Object.fromEntries(history.coverage.map(day => [day.date,
-    `${day.reported} of ${day.reported + day.missingAssets.length} daily sources reported${day.missingAssets.length ? ` · Missing: ${day.missingAssets.map(asset => sourceNames.get(asset) ?? 'Unknown asset').join(', ')}` : ''}`,
-  ]));
-  const partialDates = history.coverage.filter(day => day.reported > 0 && day.missingAssets.length > 0).map(day => day.date);
+  const names = (assets: readonly string[]) => assets.map(asset => sourceNames.get(asset) ?? 'Unknown asset').join(', ');
+  const notesByDate = Object.fromEntries(history.coverage.map(({ date, reported, missingAssets, pendingAssets = [] }) => [date, [
+    `${reported} of ${reported + missingAssets.length + pendingAssets.length} daily sources reported`,
+    ...(missingAssets.length ? [`Missing: ${names(missingAssets)}`] : []),
+    ...(pendingAssets.length ? [`Waiting for ${names(pendingAssets)}`] : []),
+  ].join(' · ')]));
+  const partialDates = portfolioPartialDates(history);
   return <DailyRevenuePanel history={history} range={revenueWindowDays(history.from, history.to)}
     title="Daily revenue" notesByDate={notesByDate} partialDates={partialDates} totals={false}
     setupHref="/integrations"
@@ -464,7 +467,7 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
     <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0" data-source-coverage>
       {history.sources.map((source) => {
         // Its days are the ones since it first reported.
-        const owed = history.coverage.filter((day) => day.date >= source.since);
+        const owed = history.coverage.filter((day) => day.date >= source.since && !day.pendingAssets?.includes(source.asset));
         const days = owed.length;
         const reported = owed.filter(
           (day) => !day.missingAssets.includes(source.asset),

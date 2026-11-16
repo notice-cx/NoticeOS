@@ -46,15 +46,17 @@ export function dailyRevenueSummary(value: unknown): boolean {
 export function portfolioDailyRevenue(value: unknown): boolean {
   if (!dailyRevenueHistory(value) || !fields(value, {
     sources: list(item => fields(item, { asset: string, displayName: string, since: day })),
-    coverage: list(item => fields(item, { date: day, reported: integer, missingAssets: list(string) })),
+    coverage: list(item => fields(item, { date: day, reported: integer, missingAssets: list(string) }, { pendingAssets: list(string) })),
   }) || !Array.isArray(value.sources) || !Array.isArray(value.coverage)) return false;
   const assets = new Set(value.sources.map(item => (item as { asset: string }).asset));
   return assets.size === value.sources.length && unique(value.coverage, 'date')
     && value.coverage.every(item => record(item) && string(item.date)
       && item.date >= (value.from as string) && item.date <= (value.to as string)
       && integer(item.reported) && item.reported <= assets.size
-      && Array.isArray(item.missingAssets) && unique(item.missingAssets)
-      && item.missingAssets.every(asset => assets.has(asset)));
+      && Array.isArray(item.missingAssets)
+      && (item.pendingAssets === undefined || Array.isArray(item.pendingAssets))
+      && unique([...item.missingAssets, ...(item.pendingAssets ?? [])])
+      && [...item.missingAssets, ...(item.pendingAssets ?? [])].every(asset => assets.has(asset)));
 }
 
 /** Validate the received forecast, never recalculate it or fill its gaps. */
