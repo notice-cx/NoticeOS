@@ -550,7 +550,7 @@ by column; retention and maintenance privileges are checked separately.
 | `realtime_traffic_readings` | append-only | Append-only realtime readings; overlapping minutes use the newest provider observation. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |
 | `research_log` | append-only | Append-only. |
-| `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current. |
+| `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. Stripe receipts retain their occurrence time, and zero markers retain the interval collected. The newest per asset, source, account, day and item is current. |
 | `signal_observations` | append-only | Append-only; a revised value is a new row under a later run. |
 | `signal_runs` | append-only | Append-only. |
 | `stripe_subscription_snapshots` | append-only | Append-only observed subscription state. Reports expose customer aggregates. |

@@ -884,10 +884,13 @@ END`; `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (f
 | `fees_minor` | bigint | no |  |
 | `payment_count` | integer | no |  |
 | `refund_count` | integer | no |  |
+| `occurred_at` | timestamp with time zone | no |  |
+| `covered_from` | timestamp with time zone | no |  |
+| `covered_until` | timestamp with time zone | no |  |
 
 - **Keys:** primary (workspace_id, observation_id); unique (workspace_id, observation_number); unique (workspace_id, item_ref) where `(source = 'tempo-mpp')`
 - **Links:** (source) → `noticeos_ref.revenue_sources`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
-- **Row checks:** `(((sales_minor IS NULL) AND (refunds_minor IS NULL) AND (fees_minor IS NULL) AND (payment_count IS NULL) AND (refund_count IS NULL)) OR ((sales_minor IS NOT NULL) AND (refunds_minor IS NOT NULL) AND (fees_minor IS NOT NULL) AND (payment_count IS NOT NULL) AND (refund_count IS NOT NULL) AND (sales_minor >= 0) AND (payment_count >= 0) AND (refund_count >= 0) AND (amount_minor = ((sales_minor - refunds_minor) - fees_minor))))`
+- **Row checks:** `(((covered_from IS NULL) AND (covered_until IS NULL)) OR ((covered_from IS NOT NULL) AND (covered_until IS NOT NULL) AND (covered_from < covered_until) AND (occurred_at IS NULL) AND (amount_minor = 0)))`; `(((sales_minor IS NULL) AND (refunds_minor IS NULL) AND (fees_minor IS NULL) AND (payment_count IS NULL) AND (refund_count IS NULL)) OR ((sales_minor IS NOT NULL) AND (refunds_minor IS NOT NULL) AND (fees_minor IS NOT NULL) AND (payment_count IS NOT NULL) AND (refund_count IS NOT NULL) AND (sales_minor >= 0) AND (payment_count >= 0) AND (refund_count >= 0) AND (amount_minor = ((sales_minor - refunds_minor) - fees_minor))))`
 - **Triggers:** `number_in_workspace` (before insert)
 
 ## `signal_observations`

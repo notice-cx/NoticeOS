@@ -108,6 +108,8 @@ export interface RevenueRow {
   currency?: string;
   run?: string;
   recordedAt?: string;
+  occurredAt?: string;
+  coverage?: { from: string; until: string };
 }
 
 /** File each figure in the revenue ledger, in order. */
@@ -116,10 +118,11 @@ export async function writeRevenue(store: WorkspaceStore, rows: readonly Revenue
     for (const row of rows) {
       await tx.execute(
         `INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, item_ref, amount_minor,
-                                                    currency, run_ref, recorded_at)
-         VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7, $8, $9, $10::timestamptz)`,
+                                                    currency, run_ref, recorded_at, occurred_at, covered_from, covered_until)
+         VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7, $8, $9, $10::timestamptz, $11::timestamptz, $12::timestamptz, $13::timestamptz)`,
         [tx.workspaceId, row.asset, row.source ?? MEDIAVINE_REVENUE_SOURCE, row.account ?? `account-${row.asset}`, row.date,
-          row.item ?? null, row.amountMinor, row.currency ?? "USD", row.run ?? "test-run", row.recordedAt ?? new Date(0).toISOString()],
+          row.item ?? null, row.amountMinor, row.currency ?? "USD", row.run ?? "test-run", row.recordedAt ?? new Date(0).toISOString(),
+          row.occurredAt ?? null, row.coverage?.from ?? null, row.coverage?.until ?? null],
       );
     }
   });

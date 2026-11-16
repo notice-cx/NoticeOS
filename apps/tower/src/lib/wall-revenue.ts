@@ -116,7 +116,7 @@ export function monthRevenue(
   if (ledgerState === null && sources.length === 0) return null;
   // The month the figure is about. A projection is always about the month the
   // operator is standing in; the ledger's period can be an older one.
-  const period = lead || ledgerState !== null ? portfolio.period : (sources.find(isReady) ?? sources[0]!).period;
+  const period = lead || ledgerState !== null ? portfolio.wallRevenueUsd?.period ?? portfolio.period : (sources.find(isReady) ?? sources[0]!).period;
   const current = sources.filter((projection) => projection.period === period);
   const ready = current.filter(isReady);
 
@@ -148,8 +148,9 @@ export function monthRevenue(
   const reportedDays = new Map<string, number>();
   if (ledgerState !== "booked") {
     for (const asset of assets) {
-      if (isReady(asset.revenueProjection) && asset.revenueProjection.period === period) continue;
+      const paced = isReady(asset.revenueProjection) && asset.revenueProjection.period === period;
       for (const source of asset.revenueProjectionSources ?? []) {
+        if (paced && source.includedInProjection !== false) continue;
         for (const day of source.days) {
           if (day.date.startsWith(period)) reportedDays.set(day.date, (reportedDays.get(day.date) ?? 0) + day.amountMinor);
         }
@@ -167,7 +168,7 @@ export function monthRevenue(
 
   return {
     period,
-    periodIsCurrent: lead || ledgerState !== null ? portfolio.periodIsCurrent : true,
+    periodIsCurrent: lead || ledgerState !== null ? portfolio.wallRevenueUsd?.periodIsCurrent ?? portfolio.periodIsCurrent : true,
     revenue,
     state: ledgerState ?? "forecast",
     previousMonth,
@@ -187,8 +188,9 @@ export function cumulativeRevenueSources(
   const byDay = new Map<string, Map<string, number>>();
   const labels: MoneyChartSource[] = [];
   for (const asset of assets) {
-    if (!includeUnpaced && !(asset.revenueProjection?.period === period && isReady(asset.revenueProjection))) continue;
+    const paced = asset.revenueProjection?.period === period && isReady(asset.revenueProjection);
     for (const source of asset.revenueProjectionSources ?? []) {
+      if (!includeUnpaced && (!paced || source.includedInProjection === false)) continue;
       const days = source.days.filter(day => day.date.startsWith(period));
       if (days.length === 0) continue;
       labels.push(revenueChartSource(source.source, source.displayName));

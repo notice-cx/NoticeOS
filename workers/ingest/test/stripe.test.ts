@@ -1,7 +1,4 @@
-// Stripe subscription revenue: each completed UTC day's net sales less refunds
-// from the connected account's balance transactions, one daily total per site
-// in the revenue ledger. Stripe itself is a stub; the store is the test
-// Postgres.
+// Stripe is stubbed. The collector writes receipts and coverage to disposable Postgres.
 
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +6,7 @@ import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { putCredential } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
 import type { LaneRegister } from '../src/lane-mapping.js';
-import { STRIPE_WINDOW_DAYS, discoverStripeProducts, lastCompleteDay, runStripeRevenue, stripeWindow } from '../src/stripe.js';
+import { STRIPE_WINDOW_DAYS, discoverStripeProducts, lastCompleteDay, persistStripeDays, runStripeRevenue, stripeWindow } from '../src/stripe.js';
 import { credentialVerdict, pgCount, pgRows, reset, storedHealthStates } from './helpers.js';
 
 const NOW = Date.parse('2026-09-09T13:10:00Z');
@@ -33,7 +30,7 @@ const TRANSACTIONS = [
   { id: 'txn_07eur', type: 'charge', net: 7000, currency: 'eur', created: at('2026-09-07T12:00:00Z') },
   { id: 'txn_07p', type: 'payment', net: 1000, currency: 'usd', created: at('2026-09-07T11:00:00Z') },
   { id: 'txn_07c', type: 'charge', net: 4610, currency: 'usd', created: at('2026-09-07T10:00:00Z') },
-  // The padded day before the window: read, then dropped by date.
+  // The payment before the first collection window.
   { id: 'txn_before', type: 'charge', net: 123456, currency: 'usd', created: at('2026-08-04T23:00:00Z') },
 ].map((row) => ({ ...row, amount: row.net > 0 ? row.net + 30 : row.net, fee: row.net > 0 ? 30 : 0 }));
 
@@ -77,8 +74,8 @@ async function connect(): Promise<void> {
 
 async function stored(): Promise<{ day: string; amount: number; currency: string; account: string }[]> {
   const rows = await pgRows<{ day: string; amount: string; currency: string; account: string }>(
-    `SELECT revenue_date::text AS day, amount_minor::text AS amount, currency, account_ref AS account
-       FROM noticeos.current_revenue WHERE source = $1 ORDER BY revenue_date`, [STRIPE_REVENUE_SOURCE]);
+    `SELECT revenue_date::text AS day, SUM(amount_minor)::text AS amount, currency, account_ref AS account
+       FROM noticeos.current_revenue WHERE source = $1 GROUP BY revenue_date, currency, account_ref ORDER BY revenue_date`, [STRIPE_REVENUE_SOURCE]);
   return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
 }
 
@@ -103,7 +100,7 @@ describe('the Stripe window', () => {
 });
 
 describe('runStripeRevenue', () => {
-  it('sums each completed day’s sales less refunds, in minor units, one row a day', async () => {
+  it('sums completed days’ net sales and refunds in minor units', async () => {
     await connect();
     const { fetchImpl, calls } = stripe();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -121,13 +118,13 @@ describe('runStripeRevenue', () => {
     expect(days.at(-1)).toMatchObject({ day: '2026-09-08', amount: 990 });
     expect(days.reduce((sum, day) => sum + day.amount, 0)).toBe(3610 + 990);
     // The key travels in the header only, pages follow Stripe's cursor, and
-    // the window is read a day wider on each side.
+    // the declared interval is sent as a half-open range.
     expect(calls.every((call) => call.authorization === `Bearer ${KEY}`)).toBe(true);
     expect(calls.some((call) => call.params.toString().includes(KEY))).toBe(false);
     const lists = calls.filter((call) => call.path === '/v1/balance_transactions');
     expect(lists.length).toBeGreaterThan(1);
-    expect(lists[0]!.params.get('created[gte]')).toBe(String(at('2026-08-04T00:00:00Z')));
-    expect(lists[0]!.params.get('created[lt]')).toBe(String(at('2026-09-10T00:00:00Z')));
+    expect(lists[0]!.params.get('created[gte]')).toBe(String(at('2026-08-05T00:00:00Z')));
+    expect(lists[0]!.params.get('created[lt]')).toBe(String(at('2026-09-09T00:00:00Z')));
     // Evidence: the site's collection, and the key's verdict.
     expect((await storedHealthStates()).find((row) => row.capability === 'stripe-revenue')).toMatchObject({ asset: ASSET, outcome: 'success' });
     expect((await credentialVerdict('stripe'))?.lastError).toBeNull();
@@ -183,7 +180,7 @@ describe('runStripeRevenue', () => {
     });
 
     expect(result.outcomes[0]).toMatchObject({ asset: newAsset, status: 'collected', days: 1, written: 1 });
-    expect(await pgRows(`SELECT asset_id AS asset, COUNT(*)::int AS days FROM noticeos.current_revenue
+    expect(await pgRows(`SELECT asset_id AS asset, COUNT(DISTINCT revenue_date)::int AS days FROM noticeos.current_revenue
       WHERE source = $1 GROUP BY asset_id ORDER BY asset_id`, [STRIPE_REVENUE_SOURCE]))
       .toEqual([{ asset: ASSET, days: STRIPE_WINDOW_DAYS }, { asset: newAsset, days: 1 }]);
   });
@@ -262,7 +259,7 @@ describe('runStripeRevenue', () => {
     expect(result.outcome).toBe('ran');
     expect(mock.calls.filter(call => call.path === '/v1/subscriptions')).toHaveLength(2);
     const [row] = await pgRows<{ sales: string; refunds: string; fees: string; payments: number }>(
-      `SELECT sales_minor::text AS sales, refunds_minor::text AS refunds, fees_minor::text AS fees, payment_count AS payments
+      `SELECT SUM(sales_minor)::text AS sales, SUM(refunds_minor)::text AS refunds, SUM(fees_minor)::text AS fees, SUM(payment_count)::int AS payments
        FROM noticeos.current_revenue WHERE source = 'stripe' AND revenue_date = '2026-09-07'`);
     expect(row).toEqual({ sales: '5670', refunds: '2000', fees: '60', payments: 2 });
     const [held] = await pgRows<{ snapshot: string }>('SELECT snapshot::text AS snapshot FROM noticeos.stripe_subscription_snapshots');
@@ -401,8 +398,8 @@ describe('Stripe product mappings', () => {
 
   it('preserves whole-account days at cutover and keeps their refunds with the old asset', async () => {
     await connect();
-    const old = stripe();
-    await runStripeRevenue(env, { fetchImpl: old.fetchImpl, nowMs: NOW, laneRegister: register() });
+    await persistStripeDays(env, { account: ACCOUNT, asset: ASSET }, new Map([['2026-09-08', 990]]), 'USD', 'old-run',
+      new Date(NOW).toISOString(), new Map([['2026-09-08', { salesMinor: 1020, feesMinor: 30, refundsMinor: 0, payments: 1, refunds: 0 }]]));
     const original = productSale('tip', 1020);
     // Authorized one day and captured the next, when the balance transaction
     // was recorded. Look up the captured receipt when only the refund is due.
@@ -416,7 +413,35 @@ describe('Stripe product mappings', () => {
     expect(fresh.calls.map(({ path }) => path)).toContain('/v1/balance_transactions/txn_tip');
     const legacy = await pgRows(`SELECT COUNT(*)::int AS days FROM noticeos.current_revenue
       WHERE source = 'stripe' AND item_ref IS NULL AND asset_id = $1`, [ASSET]);
-    expect(legacy).toEqual([{ days: 35 }]);
+    expect(legacy).toEqual([{ days: 1 }]);
+  });
+
+  it('collects an 11 p.m. local payment and refund by the next morning and resumes the same accounting day', async () => {
+    await connect();
+    const sale = { ...productSale('tip', 2_530, '2026-11-02'), created: at('2026-11-02T07:00:00Z') };
+    const refund = { ...productRefund(sale, 400, '2026-11-02'), created: at('2026-11-02T07:30:00Z') };
+    const next = { ...productSale('new_tip', 500, '2026-11-02'), created: at('2026-11-02T08:00:01Z') };
+    const morning = productStripe([next, refund, sale]);
+    const options = { timeZone: 'America/Los_Angeles', laneRegister: productRegister() };
+    expect(await runStripeRevenue(env, { ...options, nowMs: at('2026-11-02T09:20:00Z') * 1000, fetchImpl: morning.fetchImpl }))
+      .toMatchObject({ outcome: 'ran' });
+    expect(morning.calls.find(call => call.path.endsWith('/balance_transactions'))?.params.get('created[lt]'))
+      .toBe(String(at('2026-11-02T08:00:00Z')));
+    expect((await receiptRows()).map(row => [row.item, row.day, row.net]))
+      .toEqual([['txn_partial', '2026-11-02', -400], ['txn_tip', '2026-11-02', 2500]]);
+    const covered = () => pgRows(`SELECT EXTRACT(EPOCH FROM covered_from)::bigint::text AS start,
+        EXTRACT(EPOCH FROM covered_until)::bigint::text AS finish
+      FROM noticeos.current_revenue WHERE source = 'stripe' AND asset_id = $1
+        AND revenue_date = '2026-11-02' AND covered_from IS NOT NULL`, [ASSET]);
+    expect(await covered()).toEqual([{ start: String(at('2026-11-02T00:00:00Z')), finish: String(at('2026-11-02T08:00:00Z')) }]);
+
+    const evening = productStripe([next, refund, sale]);
+    expect(await runStripeRevenue(env, { ...options, nowMs: at('2026-11-03T01:20:00Z') * 1000, fetchImpl: evening.fetchImpl }))
+      .toMatchObject({ outcome: 'ran' });
+    expect(evening.calls.find(call => call.path.endsWith('/balance_transactions'))?.params.get('created[gte]'))
+      .toBe(String(at('2026-11-02T08:00:00Z')));
+    expect(await covered()).toEqual([{ start: String(at('2026-11-02T00:00:00Z')), finish: String(at('2026-11-03T00:00:00Z')) }]);
+    expect(await receiptRows()).toHaveLength(3);
   });
 
   it('keeps collecting refunds for saved sales after all products are unassigned', async () => {

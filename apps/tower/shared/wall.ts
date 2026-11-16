@@ -97,7 +97,7 @@ export interface PortfolioBand {
    * payloads; a zero then carries no revenue evidence by itself. */
   revenueRecorded?: { booked: boolean; forecast: boolean };
   /** USD revenue for the Wall, independent of the currencies of other ledger rows. */
-  wallRevenueUsd?: { booked: number | null; forecast: number | null };
+  wallRevenueUsd?: { booked: number | null; forecast: number | null; period?: string; periodIsCurrent?: boolean };
   /** Revenue on record for the preceding ledger month, across assets. */
   previousRevenue?: { period: string; amount: number; currency: string };
   /** Net per period over reconciled current rows (chronological) — the booked
@@ -661,6 +661,8 @@ export interface AssetCard {
   revenueProjectionSources?: {
     source: string;
     displayName: string;
+    /** Receipts outside the traffic forecast also contribute to its observed base. */
+    includedInProjection?: false;
     days: { date: string; amountMinor: number }[];
   }[];
   /** Yesterday on the asset's reporting calendar, from complete reports. */

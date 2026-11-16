@@ -37,6 +37,8 @@ import { codebaseReport, commitOf, storeCodebaseReports, weeklyStoredReports } f
 import { CARD_CODEBASE_SQL, CARD_INSIGHTS_SQL } from "../worker/card-readings";
 import { PORTFOLIO_WATCH_WINDOWS_SQL } from "../worker/watch-window-reader";
 import { bookLedger, writeRevenue } from "./money";
+import { loadDailyRevenue, loadPortfolioDailyRevenue } from "../worker/daily-revenue";
+import { operatorRevenueClock } from "../shared/daily-revenue";
 import { cumulativeRevenueSources, monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
 import { addSites } from "./sites";
 import {
@@ -3651,42 +3653,73 @@ describe("an open fetch failure carries the nights behind it", () => {
 
 
 describe('saved Stripe contributions on the Wall', () => {
-  it('includes a Stripe contribution while the same asset waits for an ad report', async () => {
+  it('includes an 11 p.m. local payment while the same asset waits for an ad report', async () => {
     const ctx = await createTestStore();
     try {
       const asset = 'sample.test';
+      const source = 'stripe';
+      const zone = 'America/Los_Angeles';
       await insertAsset(ctx, asset, 'Sample', 'live', 0, 0);
       await writeRevenue(ctx.call, [
         { asset, date: '2026-11-14', amountMinor: 1_000 },
-        { asset, source: 'stripe', date: '2026-11-15', item: 'txn_contribution', amountMinor: 2_500 },
+        { asset, source, date: '2026-11-15', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-15T00:00:00Z', until: '2026-11-16T00:00:00Z' } },
+        { asset, source, date: '2026-11-16', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-16T00:00:00Z', until: '2026-11-16T08:00:00Z' } },
+        { asset, source, date: '2026-11-16', item: 'txn_contribution', amountMinor: 2_500, occurredAt: '2026-11-16T07:00:00Z' },
       ]);
       await bookLedger(ctx.call, [{
         asset, kind: 'cost', booking_state: 'estimated', currency: 'EUR',
         period: '2026-11', family: 'infra', amount_minor: 1_000,
       }]);
-      const early = new Date('2026-11-16T02:00:00Z');
-      const utcEarly = await buildWallPayload(ctx.call, { ...OPTIONS, now: early, osTimeZone: 'UTC' });
-      // The saved Pacific day still contributes its eight hours to yesterday in UTC.
-      expect(yesterdayTotal(utcEarly.assets, early.getTime(), 'UTC')).toMatchObject({ amount: 28.33, reported: 0, estimated: true });
-
       const now = new Date('2026-11-16T12:00:00Z');
-      const utc = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: 'UTC' });
-      const utcYesterday = yesterdayTotal(utc.assets, now.getTime(), 'UTC');
-      expect(utcYesterday).toMatchObject({ amount: 25, reported: 0, sites: 1, coverage: [{ reported: false }] });
-      expect(utcYesterday?.estimated).toBeUndefined();
-      const month = monthRevenue(utc.portfolio, utc.assets)!;
+      const local = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: zone });
+      const yesterday = yesterdayTotal(local.assets, now.getTime(), zone);
+      expect(yesterday).toMatchObject({ amount: 25, reported: 0, sites: 1, coverage: [{ reported: false }], basis: { date: '2026-11-15' } });
+      expect(yesterday?.estimated).toBeUndefined();
+      const month = monthRevenue(local.portfolio, local.assets)!;
       expect(month).toMatchObject({ revenue: 35, pace: null });
       expect(month.recorded.at(-1)).toMatchObject({ date: '2026-11-15', observed: 35, projected: false });
-      const chart = cumulativeRevenueSources(utc.assets, month.period, month.recorded, true);
+      const chart = cumulativeRevenueSources(local.assets, month.period, month.recorded, true);
       expect(chart.contributions.get('2026-11-15')?.get('stripe')).toBe(25);
 
-      const local = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: 'America/Los_Angeles' });
-      const yesterday = yesterdayTotal(local.assets, now.getTime(), local.osTimeZone);
-      expect(yesterday).toMatchObject({
-        amount: 16.67, reported: 0, sites: 1, estimated: true, basis: { date: '2026-11-15' },
-      });
+      const siteMoney = await loadDailyRevenue(ctx.call, asset, { now, days: 3, fallback: operatorRevenueClock(zone) });
+      expect(siteMoney.bySource.find(entry => entry.source === source)?.days.at(-1))
+        .toMatchObject({ date: '2026-11-15', amountMinor: 2_500 });
+      const money = await loadPortfolioDailyRevenue(ctx.call, '2026-11', now, zone);
+      expect(money.days.at(-1)).toEqual({ date: '2026-11-15', amountMinor: 2_500 });
       const nextDay = Date.parse('2026-11-17T12:00:00Z');
-      expect(yesterdayTotal(local.assets, nextDay, local.osTimeZone)?.amount).toBeNull();
+      expect(yesterdayTotal(local.assets, nextDay, zone)?.amount).toBeNull();
+
+      const utc = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: 'UTC' });
+      expect(yesterdayTotal(utc.assets, now.getTime(), 'UTC')).toMatchObject({ amount: 0, basis: { date: '2026-11-15' } });
+    } finally { await ctx.close(); }
+  });
+
+  it('moves an exact receipt and refund into the previous display month without moving the ledger', async () => {
+    const ctx = await createTestStore();
+    try {
+      const asset = 'sample.test';
+      const source = 'stripe';
+      await insertAsset(ctx, asset, 'Sample', 'live', 0, 0);
+      await writeRevenue(ctx.call, [
+        { asset, source, date: '2026-12-01', item: 'old-receipt', amountMinor: 900 },
+        { asset, source, date: '2026-11-30', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-11-30T00:00:00Z', until: '2026-12-01T00:00:00Z' } },
+        { asset, source, date: '2026-12-01', item: 'coverage', amountMinor: 0,
+          coverage: { from: '2026-12-01T00:00:00Z', until: '2026-12-01T08:00:00Z' } },
+        { asset, source, date: '2026-12-01', item: 'txn_late', amountMinor: 2_500, occurredAt: '2026-12-01T07:00:00Z' },
+        { asset, source, date: '2026-12-01', item: 'txn_refund', amountMinor: -400, occurredAt: '2026-12-01T07:30:00Z' },
+      ]);
+      const now = new Date('2026-12-01T12:00:00Z');
+      const zone = 'America/Los_Angeles';
+      const local = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: zone });
+      expect(yesterdayTotal(local.assets, now.getTime(), zone)?.amount).toBe(21);
+      expect(local.portfolio.forecast.revenue).toBe(30);
+      expect(local.portfolio.wallRevenueUsd).toMatchObject({ forecast: 9 });
+      expect(local.portfolio.previousRevenue).toMatchObject({ period: '2026-11', amount: 21 });
+      const money = await loadPortfolioDailyRevenue(ctx.call, '2026-11', now, zone);
+      expect(money.days.at(-1)).toEqual({ date: '2026-11-30', amountMinor: 2_100 });
     } finally { await ctx.close(); }
   });
 });

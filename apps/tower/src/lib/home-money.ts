@@ -33,31 +33,44 @@ export interface HomeMoney {
   bySite: { id: string; name: string; amount: number }[];
 }
 
-/** Each site's reported days this month, from its cumulative projection: a
- * day's revenue is its running total less the day before's. */
-function reportedDays(asset: Pick<AssetCard, "revenueProjection">): Map<string, number> {
+type RevenueAsset = Pick<AssetCard, "revenueProjection" | "revenueProjectionSources">;
+
+/** Daily amounts used by the projection, plus receipts it did not use. */
+function reportedDays(asset: RevenueAsset, period?: string, includeOutside = true): Map<string, number> {
   const days = new Map<string, number>();
-  const points = asset.revenueProjection?.points ?? [];
+  const projection = asset.revenueProjection;
+  const paced = projection?.status === "ready" && (!period || projection.period === period);
   let before = 0;
-  for (const point of points) {
-    if (point.projected) break;
-    days.set(point.date, (point.cumulativeMinor - before) / 100);
-    before = point.cumulativeMinor;
+  if (paced) {
+    for (const point of projection.points) {
+      if (point.projected) break;
+      days.set(point.date, (point.cumulativeMinor - before) / 100);
+      before = point.cumulativeMinor;
+    }
+  }
+  if (includeOutside) {
+    for (const source of asset.revenueProjectionSources ?? []) {
+      if (paced && source.includedInProjection !== false) continue;
+      for (const day of source.days) {
+        if (!period || day.date.startsWith(period)) days.set(day.date, (days.get(day.date) ?? 0) + day.amountMinor / 100);
+      }
+    }
   }
   return days;
 }
 
 /** One site's reported days this month, oldest first. */
-export function siteDays(asset: Pick<AssetCard, "revenueProjection">): BarStripPoint[] {
-  return [...reportedDays(asset).entries()].map(([t, v]) => ({ t, v }));
+export function siteDays(asset: RevenueAsset): BarStripPoint[] {
+  return [...reportedDays(asset)].sort(([a], [b]) => a.localeCompare(b)).map(([t, v]) => ({ t, v }));
 }
 
 export function homeMoney(portfolio: PortfolioBand, assets: readonly AssetCard[]): HomeMoney | null {
   const model = monthRevenue(portfolio, assets);
   if (!model) return null;
   const byDate = new Map<string, Record<string, number>>();
-  for (const asset of assets) {
-    for (const [date, amount] of reportedDays(asset)) {
+  const observations = assets.map(asset => ({ asset, readings: reportedDays(asset, model.period, model.state !== "booked") }));
+  for (const { asset, readings } of observations) {
+    for (const [date, amount] of readings) {
       const contributions = byDate.get(date) ?? {};
       contributions[asset.id] = amount;
       byDate.set(date, contributions);
@@ -65,10 +78,10 @@ export function homeMoney(portfolio: PortfolioBand, assets: readonly AssetCard[]
   }
   const days = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([t, contributions]) => ({ t, v: Object.values(contributions).reduce((sum, value) => sum + value, 0), contributions }));
   const usualDay = days.length >= 3 ? days.reduce((sum, day) => sum + (day.v ?? 0), 0) / days.length : null;
-  const bySite = assets
-    .flatMap((asset) => {
-      const earned = asset.revenueProjection?.status === "ready" ? asset.revenueProjection.earnedMinor : null;
-      return earned !== null && earned !== undefined && earned > 0 ? [{ id: asset.id, name: asset.displayName, amount: earned / 100 }] : [];
+  const bySite = observations
+    .flatMap(({ asset, readings }) => {
+      const amount = [...readings.values()].reduce((total, reading) => total + reading, 0);
+      return amount > 0 ? [{ id: asset.id, name: asset.displayName, amount }] : [];
     })
     .sort((a, b) => b.amount - a.amount);
   return {

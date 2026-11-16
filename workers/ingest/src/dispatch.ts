@@ -158,7 +158,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   'portfolio-brief': { steps: {} },
   mercury: { steps: { banking: (env) => runMercuryBanking(env) }, answeredBy: 'banking' },
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
-  stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'subscriptions' },
+  stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister, timeZone: cfg.osTimeZone }) }, answeredBy: 'subscriptions' },
   'tempo-mpp': { steps: { 'tempo-sales': (env) => runTempoMpp(env) }, answeredBy: 'tempo-sales' },
   // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.

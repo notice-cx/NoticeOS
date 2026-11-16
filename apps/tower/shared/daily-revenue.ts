@@ -28,6 +28,8 @@ export interface RevenueSourceHistory extends RevenueSource {
   since: string;
   days: (RevenueDay & { sales?: SalesBreakdown })[];
   reportedThrough: string | null;
+  /** Collected amounts on days whose full interval is still pending. */
+  partialDates?: string[];
 }
 
 /** The clock a site with no revenue source dates its empty window on: the

@@ -283,7 +283,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current."
+      "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. Stripe receipts retain their occurrence time, and zero markers retain the interval collected. The newest per asset, source, account, day and item is current."
     },
     "codebase_reports": {
       "revision": {
