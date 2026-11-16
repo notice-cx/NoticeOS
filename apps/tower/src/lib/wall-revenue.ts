@@ -8,12 +8,10 @@ import { chartSources, revenueChartSource, type MoneyChartSource } from "@/lib/m
 // is `ready` for that month (`shared/revenue-projection.ts` owns the
 // arithmetic), plus whatever revenue no projection covers.
 //
-// The chart sums the ready projections day by day. The percentage compares
-// the displayed projection against the available previous-month totals.
+// The chart combines daily receipts with forecasts where the data supports them.
+// The percentage compares the projection against the previous month's recorded revenue.
 //
-// Yesterday is the providers' own estimate, summed: a site whose report has
-// not arrived is left out of the sum and counted as not reported, while a
-// recorded $0 is a report like any other.
+// Yesterday adds the reports that arrived. The site check requires all of its reports.
 
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import type { RevenueProjection } from "@shared/revenue-projection";
@@ -69,6 +67,8 @@ export interface MonthRevenue {
   /** Recorded previous-month revenue and source coverage. */
   previousMonth: { period: string; revenue: number; reported: number; sites: number } | null;
   pace: MonthPace | null;
+  /** Recorded daily revenue to chart when a forecast cannot yet be made. */
+  recorded: MonthRevenuePoint[];
   /** Why there is no pace yet, in the projection's own words, or null. */
   waiting: string | null;
 }
@@ -99,17 +99,20 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
  */
 export function monthRevenue(
   portfolio: PortfolioBand,
-  assets: readonly Pick<AssetCard, "revenueProjection">[],
+  assets: readonly Pick<AssetCard, "revenueProjection" | "revenueProjectionSources" | "wallDailyRevenue">[],
 ): MonthRevenue | null {
   const lead = portfolioHeadline(portfolio);
-  const hasRecordedRevenue = (state: "booked" | "forecast") =>
-    portfolio.revenueRecorded?.[state] ?? portfolio[state].revenue !== 0;
+  const ledgerRevenue = (state: "booked" | "forecast") => portfolio.wallRevenueUsd
+    ? portfolio.wallRevenueUsd[state]
+    : (portfolio.revenueRecorded?.[state] ?? portfolio[state].revenue !== 0) ? portfolio[state].revenue : null;
+  const hasRecordedRevenue = (state: "booked" | "forecast") => ledgerRevenue(state) !== null;
   // The net headline can be cost-led. Revenue needs its own recorded side,
   // without combining estimates and reconciled money or inventing a zero.
   const ledgerState = lead && hasRecordedRevenue(lead.state) ? lead.state
     : hasRecordedRevenue("forecast") ? "forecast"
       : hasRecordedRevenue("booked") ? "booked" : null;
-  const sources = assets.flatMap(asset => hasRevenueSource(asset) && asset.revenueProjection ? [asset.revenueProjection] : []);
+  const sources = assets.flatMap(({ wallDailyRevenue, revenueProjection }) =>
+    wallDailyRevenue !== null && revenueProjection && revenueProjection.status !== "no-revenue" ? [revenueProjection] : []);
   if (ledgerState === null && sources.length === 0) return null;
   // The month the figure is about. A projection is always about the month the
   // operator is standing in; the ledger's period can be an older one.
@@ -123,7 +126,7 @@ export function monthRevenue(
   // there is no figure — never a $0 nobody reported.
   const reported = current.filter((projection) => projection.earnedMinor !== null);
   const revenue = ledgerState !== null
-    ? portfolio[ledgerState].revenue
+    ? ledgerRevenue(ledgerState)
     : reported.length > 0
       ? sum(reported.map((projection) => projection.earnedMinor!)) / 100
       : null;
@@ -141,6 +144,22 @@ export function monthRevenue(
       ? (current.find((projection) => projection.status !== "ready" && projection.reason !== null)?.reason ?? (revenue === null ? "Waiting for revenue reports." : null))
       : null;
   const readyEarnedMinor = sum(ready.map((projection) => projection.earnedMinor ?? 0));
+  const reportedDays = new Map<string, number>();
+  if (ledgerState !== "booked") {
+    for (const asset of assets) {
+      if (isReady(asset.revenueProjection) && asset.revenueProjection.period === period) continue;
+      for (const source of asset.revenueProjectionSources ?? []) {
+        for (const day of source.days) {
+          if (day.date.startsWith(period)) reportedDays.set(day.date, (reportedDays.get(day.date) ?? 0) + day.amountMinor);
+        }
+      }
+    }
+  }
+  let recordedMinor = 0;
+  const recorded = [...reportedDays].sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => {
+    recordedMinor += amount;
+    return { day: Number(date.slice(8, 10)), date, cumulative: recordedMinor / 100, observed: recordedMinor / 100, projected: false };
+  });
   const previousRevenue = portfolio.previousRevenue;
   const previousTotal = previousRevenue?.period === previousPeriod && previousRevenue?.currency === 'USD'
     ? previousRevenue.amount : previousMonth?.revenue ?? null;
@@ -151,26 +170,28 @@ export function monthRevenue(
     revenue,
     state: ledgerState ?? "forecast",
     previousMonth,
-    // What no ready projection covers — another source's booked money, or a
-    // learning site's reported days — joins the pace whole.
-    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
+    recorded,
+    pace: ready.length > 0 ? monthPace(ready, reportedDays, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
     waiting,
   };
 }
 
-/** Split only the provider observations that the existing forecast used. */
+/** Split observed revenue by source on the dates shown by the chart. */
 export function cumulativeRevenueSources(
   assets: readonly Pick<AssetCard, "revenueProjection" | "revenueProjectionSources">[],
   period: string,
   points: readonly MonthRevenuePoint[],
+  includeUnpaced: boolean,
 ): { sources: MoneyChartSource[]; contributions: ReadonlyMap<string, ReadonlyMap<string, number>> } {
-  const ready = assets.filter(asset => asset.revenueProjection?.period === period && isReady(asset.revenueProjection));
   const byDay = new Map<string, Map<string, number>>();
-  const sources = chartSources(ready.flatMap(asset => (asset.revenueProjectionSources ?? [])
-    .map(source => revenueChartSource(source.source, source.displayName))));
-  for (const asset of ready) {
+  const labels: MoneyChartSource[] = [];
+  for (const asset of assets) {
+    if (!includeUnpaced && !(asset.revenueProjection?.period === period && isReady(asset.revenueProjection))) continue;
     for (const source of asset.revenueProjectionSources ?? []) {
-      for (const day of source.days) {
+      const days = source.days.filter(day => day.date.startsWith(period));
+      if (days.length === 0) continue;
+      labels.push(revenueChartSource(source.source, source.displayName));
+      for (const day of days) {
         const values = byDay.get(day.date) ?? new Map<string, number>();
         values.set(source.source, (values.get(source.source) ?? 0) + day.amountMinor);
         byDay.set(day.date, values);
@@ -183,12 +204,14 @@ export function cumulativeRevenueSources(
     for (const [id, amount] of byDay.get(point.date) ?? []) running.set(id, (running.get(id) ?? 0) + amount);
     if (running.size) contributions.set(point.date, new Map([...running].map(([id, amount]) => [id, amount / 100])));
   }
-  return { sources, contributions };
+  return { sources: chartSources(labels), contributions };
 }
 
-function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, previousTotal: number | null): MonthPace {
+function monthPace(ready: readonly ReadyProjection[], recorded: ReadonlyMap<string, number>, uncoveredMinor: number, previousTotal: number | null): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
-  const projected = (coveredMinor + Math.max(0, uncoveredMinor)) / 100;
+  const datedMinor = sum([...recorded.values()]);
+  const undatedMinor = Math.max(0, uncoveredMinor - datedMinor);
+  const projected = (coveredMinor + datedMinor + undatedMinor) / 100;
 
   // Day by day across the covered sites. Every ready projection carries every
   // day of its month, so the dates line up; a date one site lacks is left to
@@ -206,19 +229,21 @@ function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, pr
     }
   }
   let observedMinor = 0;
+  let extraMinor = 0;
   const points = [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, day]) => {
+      extraMinor += recorded.get(date) ?? 0;
       observedMinor += day.observedMinor;
       return {
         day: Number(date.slice(8, 10)), date,
-        cumulative: day.cumulativeMinor / 100, observed: observedMinor / 100, projected: day.projected,
+        cumulative: (day.cumulativeMinor + extraMinor) / 100, observed: (observedMinor + extraMinor) / 100, projected: day.projected,
       };
     });
   const last = points.at(-1);
-  if (last && uncoveredMinor > 0) {
+  if (last && undatedMinor > 0) {
     // Recorded money with no daily series contributes at the endpoint only.
-    last.observed += uncoveredMinor / 100;
+    last.observed += undatedMinor / 100;
     last.cumulative = projected;
     last.projected = true;
   }
@@ -268,24 +293,36 @@ export interface YesterdayTotal {
 
 /** Yesterday on the selected display calendar. Fresh provider reports and
  * their stored history supply estimates for shifted daily boundaries. */
-export function yesterdayTotal<T extends Pick<AssetCard, "revenueProjection" | "dailyRevenue">>(
+export function yesterdayTotal<T extends Pick<AssetCard, "revenueProjection" | "dailyRevenue" | "wallDailyRevenue">>(
   assets: readonly T[],
   nowMs: number,
   timeZone?: string,
 ): (YesterdayTotal & { coverage: { asset: T; reported: boolean }[] }) | null {
-  const sources = assets.filter(hasRevenueSource);
+  const sources = assets.filter(asset => asset.wallDailyRevenue === undefined ? hasRevenueSource(asset) : asset.wallDailyRevenue !== null);
   if (sources.length === 0) return null;
   const coverage = sources.map(asset => ({ asset, reported: false }));
-  const displayZone = timeZone ?? sources.find(source => source.dailyRevenue)?.dailyRevenue?.timeZone;
+  const displayZone = timeZone ?? sources.find(source => source.wallDailyRevenue)?.wallDailyRevenue?.timeZone
+    ?? sources.find(source => source.dailyRevenue)?.dailyRevenue?.timeZone;
   const date = displayZone && yesterdayOn(displayZone, nowMs);
   if (!date || !displayZone) return { amount: null, reported: 0, sites: sources.length, basis: null, coverage };
   let amountMinor = 0;
+  let observed = false;
   let reported = 0;
   let estimated = false;
   const label = sources.find(source => source.dailyRevenue?.timeZone === displayZone)?.dailyRevenue?.timeZoneLabel;
   const basis = { date, timeZone: displayZone, ...(label ? { label } : {}) };
   for (const entry of coverage) {
-    const { dailyRevenue: summary, revenueProjection } = entry.asset;
+    const { dailyRevenue: summary, revenueProjection, wallDailyRevenue: reading } = entry.asset;
+    if (reading) {
+      if (reading.date === date && reading.timeZone === displayZone && reading.amountMinor !== null) {
+        amountMinor += reading.amountMinor;
+        observed = true;
+        estimated ||= reading.estimated;
+        entry.reported = reading.complete;
+        reported += Number(reading.complete);
+      }
+      continue;
+    }
     if (!summary || summary.amountMinor === null || summary.date !== yesterdayOn(summary.timeZone, nowMs)) continue;
     if (summary.timeZone === displayZone) {
       amountMinor += summary.amountMinor;
@@ -305,9 +342,10 @@ export function yesterdayTotal<T extends Pick<AssetCard, "revenueProjection" | "
       estimated = true;
     }
     entry.reported = true;
+    observed = true;
     reported += 1;
   }
-  return { amount: reported > 0 ? amountMinor / 100 : null, reported, sites: sources.length, basis, coverage, ...(estimated ? { estimated: true as const } : {}) };
+  return { amount: observed ? amountMinor / 100 : null, reported, sites: sources.length, basis, coverage, ...(estimated ? { estimated: true as const } : {}) };
 }
 
 /** Yesterday's date at `nowMs` on the clock a summary was dated on; `null` for

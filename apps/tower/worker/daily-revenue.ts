@@ -6,6 +6,8 @@ import {
 } from '../shared/daily-revenue';
 import { shiftRevenueDate } from '../shared/revenue-projection';
 import type { RevenueDay } from '../shared/revenue-projection';
+import { calendarDayStart } from '../shared/reporting-calendar';
+import type { AssetCard } from '../shared/wall';
 import { cents } from './ledger-history';
 
 // Daily revenue from the one revenue ledger (`noticeos.current_revenue`), for
@@ -59,6 +61,7 @@ function siteHistory(window: { from: string; to: string }, clock: RevenueClock, 
   if (currencies.size <= 1) {
     for (const source of bySource) {
       for (const day of source.days) {
+        if (day.date < window.from || day.date > window.to) continue;
         totals.set(day.date, (totals.get(day.date) ?? 0) + day.amountMinor);
         reporters.set(day.date, (reporters.get(day.date) ?? 0) + 1);
       }
@@ -85,6 +88,8 @@ export interface RevenueHistoryOptions {
   fallback: RevenueClock;
   /** The sites to read; absent reads every site with a source. */
   assets?: readonly string[];
+  /** Also read dates through yesterday on each source's own clock. */
+  includeSourceDays?: boolean;
 }
 
 /**
@@ -103,10 +108,18 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
   for (const pair of pairs) bySite.set(pair.asset, [...(bySite.get(pair.asset) ?? []), pair]);
   const plans = [...bySite].map(([asset, sitePairs]) => {
     const clock = commonRevenueClock(sitePairs.map((pair) => catalog.get(pair.source)!.clock), now) ?? fallback;
-    return { asset, pairs: sitePairs, clock, window: windowOn(clock, now, days) };
+    const window = windowOn(clock, now, days);
+    const sourceThrough = options.includeSourceDays
+      ? sitePairs.reduce((latest, pair) => {
+          const yesterday = windowOn(catalog.get(pair.source)!.clock, now, 1).to;
+          return yesterday > latest ? yesterday : latest;
+        }, window.to)
+      : window.to;
+    return { asset, pairs: sitePairs, clock, window, sourceThrough };
   });
   if (plans.length === 0) return new Map();
-  const bounds = [plans.map((plan) => plan.asset), plans.map((plan) => plan.window.from), plans.map((plan) => plan.window.to)];
+  const assetIds = plans.map((plan) => plan.asset);
+  const fromDates = plans.map((plan) => plan.window.from);
   const { dayRows, throughRows } = await store.read(async (tx) => ({
     dayRows: await tx.query<{ asset: string; source: string; currency: string; date: string; amountMinor: bigint; salesMinor: bigint | null; refundsMinor: bigint | null; feesMinor: bigint | null; payments: number | null; refunds: number | null }>(
       `SELECT r.asset_id AS asset, r.source, r.currency, r.revenue_date::text AS date, SUM(r.amount_minor)::bigint AS "amountMinor",
@@ -119,13 +132,13 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
          JOIN unnest($1::text[], $2::date[], $3::date[]) AS b(asset_id, from_date, to_date) ON b.asset_id = r.asset_id
         WHERE r.revenue_date BETWEEN b.from_date AND b.to_date
         GROUP BY r.asset_id, r.source, r.currency, r.revenue_date
-        ORDER BY r.revenue_date`, bounds),
+        ORDER BY r.revenue_date`, [assetIds, fromDates, plans.map((plan) => plan.sourceThrough)]),
     throughRows: await tx.query<{ asset: string; source: string; currency: string; through: string }>(
       `SELECT r.asset_id AS asset, r.source, r.currency, MAX(r.revenue_date)::text AS through
          FROM noticeos.current_revenue r
          JOIN unnest($1::text[], $2::date[], $3::date[]) AS b(asset_id, from_date, to_date) ON b.asset_id = r.asset_id
         WHERE r.revenue_date <= b.to_date
-        GROUP BY r.asset_id, r.source, r.currency`, bounds),
+        GROUP BY r.asset_id, r.source, r.currency`, [assetIds, fromDates, plans.map((plan) => plan.window.to)]),
   }));
   const key = (row: { asset: string; source: string; currency: string }) => `${row.asset}\u0000${row.source}\u0000${row.currency}`;
   const daysOf = new Map<string, RevenueSourceHistory['days']>();
@@ -137,6 +150,41 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
     ...catalog.get(pair.source)!, currency: pair.currency, since: pair.since,
     days: daysOf.get(key(pair)) ?? [], reportedThrough: throughOf.get(key(pair)) ?? null,
   })))]));
+}
+
+/** Sum saved portions of yesterday and track missing source days separately.
+ * A provider day that spans two display dates is weighted by elapsed time. */
+export function wallYesterdayRevenue(history: SiteRevenueHistory, today: string, timeZone: string, now: Date): NonNullable<AssetCard['wallDailyRevenue']> | null {
+  const date = shiftRevenueDate(today, -1);
+  const start = calendarDayStart(date, timeZone);
+  const end = calendarDayStart(today, timeZone);
+  let amount = 0;
+  let observed = false;
+  let due = false;
+  let complete = true;
+  let estimated = false;
+  for (const source of history.bySource) {
+    if (source.currency !== 'USD') continue;
+    const zone = source.clock.timeZone;
+    const first = revenueCalendarDate(new Date(start), zone);
+    const last = revenueCalendarDate(new Date(end - 1), zone);
+    const sourceToday = revenueCalendarDate(now, zone);
+    for (let day = first < source.since ? source.since : first; day <= last; day = shiftRevenueDate(day, 1)) {
+      due = true;
+      const recorded = source.days.find((reading) => reading.date === day)?.amountMinor;
+      if (recorded === undefined || day >= sourceToday) {
+        complete = false;
+        continue;
+      }
+      const from = calendarDayStart(day, zone);
+      const through = calendarDayStart(shiftRevenueDate(day, 1), zone);
+      const overlap = Math.min(end, through) - Math.max(start, from);
+      observed = true;
+      amount += recorded * overlap / (through - from);
+      estimated ||= overlap !== through - from;
+    }
+  }
+  return due ? { date, timeZone, amountMinor: observed ? Math.round(amount) : null, complete, estimated } : null;
 }
 
 /** A site with no revenue source: its empty window on the fallback clock. */

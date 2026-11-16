@@ -69,6 +69,27 @@ describe("the revenue widget", () => {
       .toBeCloseTo(Number(projected.getAttribute("data-value")));
   });
 
+  it("shows a saved Stripe contribution before the asset can forecast", () => {
+    const data = wallFixturePayload();
+    const asset = data.assets.find(asset => asset.revenueProjection?.status === "ready")!;
+    const projection = asset.revenueProjection!;
+    const date = asset.dailyRevenue!.date;
+    const timeZone = asset.dailyRevenue!.timeZone;
+    const { container } = render(<RevenueHero portfolio={{
+      ...data.portfolio, wallRevenueUsd: { booked: null, forecast: 25 },
+    }} assets={[{
+      ...asset,
+      revenueProjection: { ...projection, status: "waiting-revenue", projectedMinor: null, points: [] },
+      revenueProjectionSources: [{ source: "stripe", displayName: "Stripe", days: [{ date, amountMinor: 2_500 }] }],
+      wallDailyRevenue: { date, timeZone, amountMinor: 2_500, complete: false, estimated: false },
+    }]} nowMs={NOW} timeZone={timeZone} />);
+    expect(container.querySelector("[data-revenue-figure]")).toHaveTextContent("$25");
+    expect(container.querySelector("[data-revenue-yesterday-figure]")).toHaveTextContent("$25.00");
+    expect(container.querySelector("[data-revenue-site]")).toHaveAttribute("data-revenue-site", "waiting");
+    expect(container.querySelector('[data-revenue-source="stripe"]')).toHaveAttribute("data-source-value", "25");
+    expect(container.querySelector('[data-metric-cumulative-bar="forecast"]')).toBeNull();
+  });
+
   it.each([
     [2, "50% below Aug"],
     [0.5, "100% above Aug"],

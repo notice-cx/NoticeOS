@@ -20,7 +20,7 @@ import { cumulativeRevenueSources, monthRevenue, yesterdayTotal, type MonthPace 
 //
 // The shared comparison tile keeps the month's facts beside a contained chart.
 
-type RevenueAsset = Pick<AssetCard, "id" | "displayName" | "icons" | "revenueProjection" | "revenueProjectionSources" | "dailyRevenue">;
+type RevenueAsset = Pick<AssetCard, "id" | "displayName" | "icons" | "revenueProjection" | "revenueProjectionSources" | "dailyRevenue" | "wallDailyRevenue">;
 
 export interface RevenueHeroProps {
   portfolio: PortfolioBand;
@@ -63,19 +63,20 @@ export function RevenueHero({ portfolio, assets, nowMs, timeZone, widget }: Reve
     basis: `vs ${priorMonth}`,
     meaning: `Projected revenue ${formatPercent(Math.abs(pace.changePercent))}% ${comparisonDirection} recorded ${priorMonth} revenue`,
   };
-  const actual = pace?.points.filter(point => !point.projected) ?? [];
-  const projected = pace?.points.filter(point => point.projected) ?? [];
+  const points = pace?.points ?? model.recorded;
+  const actual = points.filter(point => !point.projected);
+  const projected = points.filter(point => point.projected);
   const forecast = projected.length > 0 && actual.length > 0 ? [actual.at(-1)!, ...projected] : projected;
   const point = (reading: MonthPace["points"][number]) => ({ t: reading.date, v: reading.cumulative });
-  const first = pace?.points[0], last = pace?.points.at(-1);
-  const chartProps: Omit<MetricComparisonChartProps, "label" | "className"> | undefined = pace && first && last ? {
+  const last = points.at(-1);
+  const chartProps: Omit<MetricComparisonChartProps, "label" | "className"> | undefined = last ? {
     current: actual.map(point), forecast: forecast.map(point),
-    previousTotal: pace.previousTotal === null ? undefined : { value: pace.previousTotal, label: `${priorMonth} ${formatUsd(pace.previousTotal)}` },
-    domain: { start: first.date, end: last.date },
+    previousTotal: pace?.previousTotal == null ? undefined : { value: pace.previousTotal, label: `${priorMonth} ${formatUsd(pace.previousTotal)}` },
+    domain: { start: `${model.period}-01`, end: last.date },
     showLabels: false,
     breakdown: {
-      ...cumulativeRevenueSources(assets, model.period, pace.points),
-      observed: new Map(pace.points.map(point => [point.date, point.observed])),
+      ...cumulativeRevenueSources(assets, model.period, points, model.state !== "booked"),
+      observed: new Map(points.map(point => [point.date, point.observed])),
       format: value => formatUsd(value, { cents: true }),
     },
     tone: "revenue",
@@ -113,7 +114,8 @@ function yesterdayFact(total: NonNullable<ReturnType<typeof yesterdayTotal<Reven
     label: "Yesterday", dividerBefore: true,
     value: total.amount === null
       ? <span data-revenue-yesterday="none" className="wall-revenue-unreported">Not reported yet</span>
-      : <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"}>
+      : <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"} title={total.estimated ? "Estimated across reporting time zones" : undefined}>
+        {total.estimated ? <span className="sr-only">Estimated across reporting time zones </span> : null}
         <span data-revenue-yesterday-figure>{formatUsd(total.amount, { cents: true })}</span>
       </span>,
     note: <span className="wall-revenue-sites" role="group" aria-label={basis ? `Reports for ${basis}` : "Yesterday’s reports"}>

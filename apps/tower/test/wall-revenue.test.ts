@@ -176,6 +176,18 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.sites).toBe(1);
   });
 
+  it("includes recorded Stripe receipts once in a forecast driven by another asset", () => {
+    const model = monthRevenue(portfolio(235), [
+      { revenueProjection: ready(1_000, 1_000, null) },
+      { revenueProjection: learning, revenueProjectionSources: [
+        { source: "stripe", displayName: "Stripe", days: [{ date: "2026-09-22", amountMinor: 2_500 }] },
+      ] },
+    ]);
+    expect(model?.pace?.points[20]).toMatchObject({ observed: 210, cumulative: 210, projected: false });
+    expect(model?.pace?.points[21]).toMatchObject({ observed: 235, cumulative: 245, projected: true });
+    expect(model?.pace?.projected).toBe(325);
+  });
+
   it("does not pace an older ledger month with this month's projections", () => {
     const model = monthRevenue(portfolio(900, { period: "2026-08", periodIsCurrent: false }), [
       { revenueProjection: ready(1_000, 1_000, null) },

@@ -37,7 +37,7 @@ import { SCHEDULED_JOBS, scheduleFor, type ScheduleOverrides } from "../../../sc
 import { projectRevenue, REVENUE_HISTORY_DAYS, shiftRevenueDate } from '../shared/revenue-projection';
 import { revenueHolidays } from './revenue-holidays';
 import { operatorRevenueClock, revenueCalendarDate, yesterdayRevenue, type SiteRevenueHistory } from '../shared/daily-revenue';
-import { emptyRevenueHistory, loadRevenueHistories } from './daily-revenue';
+import { emptyRevenueHistory, loadRevenueHistories, wallYesterdayRevenue } from './daily-revenue';
 import {
   releasedFreshnessFlag,
   reportingState,
@@ -119,6 +119,7 @@ interface LedgerStateRow {
   revenueMinor: number;
   costMinor: number;
   revenueRecorded: boolean;
+  dailySources: string[] | null;
 }
 
 type AttentionRow = {
@@ -486,9 +487,10 @@ export async function buildWallPayload(
 
   const ledgerRows: LedgerStateRow[] = (
     await store.read((tx) =>
-      tx.query<{ asset: string; bookingState: string; currency: string; revenueMinor: bigint; costMinor: bigint; revenueRecorded: boolean }>(
+      tx.query<Omit<LedgerStateRow, 'revenueMinor' | 'costMinor'> & { revenueMinor: bigint; costMinor: bigint }>(
         `SELECT asset_id AS asset, booking_state AS "bookingState", currency,
                 BOOL_OR(kind = 'revenue') AS "revenueRecorded",
+                ARRAY_AGG(DISTINCT source) FILTER (WHERE entry_id < 0) AS "dailySources",
                 COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE 0 END), 0)::bigint AS "revenueMinor",
                 COALESCE(SUM(CASE WHEN kind='cost'    THEN amount_minor ELSE 0 END), 0)::bigint AS "costMinor"
            FROM noticeos.financial_ledger
@@ -518,6 +520,10 @@ export async function buildWallPayload(
       portfolioFigure(bookingState).currency ?? 'USD');
   const booked = portfolioFigure("reconciled");
   const forecast = portfolioFigure("estimated");
+  const wallRevenueUsd = (state: string) => {
+    const rows = ledgerRows.filter(row => row.bookingState === state && row.currency === 'USD' && row.revenueRecorded);
+    return rows.length ? moneyFigure(rows.map(row => ({ ...row, costMinor: 0 }))).revenue : null;
+  };
   const residue: LedgerResidue = {
     booked: residueFigure("reconciled"),
     forecast: residueFigure("estimated"),
@@ -623,6 +629,7 @@ export async function buildWallPayload(
       booked: ledgerRows.some(row => row.bookingState === 'reconciled' && row.revenueRecorded),
       forecast: ledgerRows.some(row => row.bookingState === 'estimated' && row.revenueRecorded),
     },
+    wallRevenueUsd: { booked: wallRevenueUsd("reconciled"), forecast: wallRevenueUsd("estimated") },
     ...(previousRevenue ? { previousRevenue: { period: previousPeriod, amount: minorToMajorUnits(cents(previousRevenue.revenue), previousRevenue.currency), currency: previousRevenue.currency } } : {}),
     netTrend,
     netTrendCurrency,
@@ -735,7 +742,11 @@ export async function buildWallPayload(
   // Each site's saved daily revenue from every source, on its sources' own
   // reporting clock, back as far as the projection reads.
   const revenueClockFallback = operatorRevenueClock(osTimeZone);
-  const revenueHistories = await loadRevenueHistories(store, { now, days: REVENUE_HISTORY_DAYS + 1, fallback: revenueClockFallback });
+  const revenueHistories = await loadRevenueHistories(store, {
+    now, days: REVENUE_HISTORY_DAYS + 1, fallback: revenueClockFallback, includeSourceDays: true,
+  });
+  const dailyLedgerSources = new Map(ledgerRows.filter(row => row.currency === 'USD' && row.dailySources)
+    .map(row => [row.asset, new Set(row.dailySources)]));
   const revenueOf = (asset: string): SiteRevenueHistory =>
     revenueHistories.get(asset) ?? emptyRevenueHistory(now, REVENUE_HISTORY_DAYS + 1, revenueClockFallback);
   /** The clock a site's revenue days are on: its sources', or the operator's. */
@@ -793,7 +804,13 @@ export async function buildWallPayload(
     const observed = new Set(projection.points.filter(point => !point.projected).map(point => point.date));
     const revenueProjectionSources = history.bySource.flatMap(source => {
       if (source.currency !== "USD") return [];
-      const days = source.days.filter(day => observed.has(day.date))
+      // The financial ledger resolves overlap with imported monthly entries.
+      // A site without a forecast can still chart its recognized daily revenue.
+      const recorded = dailyLedgerSources.get(a.id)?.has(source.source);
+      const sourceToday = revenueCalendarDate(now, source.clock.timeZone);
+      const days = source.days.filter(day => projection.status === 'ready'
+        ? observed.has(day.date)
+        : recorded && day.date.startsWith(period) && day.date < sourceToday)
         .map(({ date, amountMinor }) => ({ date, amountMinor }));
       return days.length ? [{ source: source.source, displayName: source.displayName, days }] : [];
     });
@@ -826,6 +843,7 @@ export async function buildWallPayload(
       dailyRevenue: { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(history)),
         timeZoneLabel: revenueClockOf(a.id).label },
       revenueProjection: projection,
+      ...(history.bySource.length ? { wallDailyRevenue: wallYesterdayRevenue(history, operatorToday, osTimeZone, now) } : {}),
       ...(revenueProjectionSources.length ? { revenueProjectionSources } : {}),
       // Two providers, one measurement, one column; the merge is `shared/wall.ts`'s.
       searchClicks: mergeSignalTrends([
