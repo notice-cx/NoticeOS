@@ -176,8 +176,8 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.sites).toBe(1);
   });
 
-  it("includes recorded Stripe receipts once in a forecast driven by another asset", () => {
-    const model = monthRevenue(portfolio(235), [
+  it.each([235, 220])("includes Stripe receipts once when the ledger holds $%i", ledgerTotal => {
+    const model = monthRevenue(portfolio(ledgerTotal), [
       { revenueProjection: ready(1_000, 1_000, null) },
       { revenueProjection: learning, revenueProjectionSources: [
         { source: "stripe", displayName: "Stripe", days: [{ date: "2026-09-22", amountMinor: 2_500 }] },
@@ -186,6 +186,13 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.points[20]).toMatchObject({ observed: 210, cumulative: 210, projected: false });
     expect(model?.pace?.points[21]).toMatchObject({ observed: 235, cumulative: 245, projected: true });
     expect(model?.pace?.projected).toBe(325);
+  });
+
+  it("deducts a ledger-only refund from the final forecast and observed revenue", () => {
+    const model = monthRevenue(portfolio(185), [{ revenueProjection: ready(1_000, 1_000, null) }]);
+    expect(model?.pace?.points[20]).toMatchObject({ observed: 210, cumulative: 210 });
+    expect(model?.pace?.points.at(-1)).toMatchObject({ observed: 185, cumulative: 275 });
+    expect(model?.pace?.projected).toBe(275);
   });
 
   it("does not pace an older ledger month with this month's projections", () => {

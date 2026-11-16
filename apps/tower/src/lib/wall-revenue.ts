@@ -144,6 +144,7 @@ export function monthRevenue(
       ? (current.find((projection) => projection.status !== "ready" && projection.reason !== null)?.reason ?? (revenue === null ? "Waiting for revenue reports." : null))
       : null;
   const readyEarnedMinor = sum(ready.map((projection) => projection.earnedMinor ?? 0));
+  const uncoveredMinor = revenue === null ? 0 : Math.round(revenue * 100) - readyEarnedMinor;
   const reportedDays = new Map<string, number>();
   if (ledgerState !== "booked") {
     for (const asset of assets) {
@@ -171,7 +172,7 @@ export function monthRevenue(
     state: ledgerState ?? "forecast",
     previousMonth,
     recorded,
-    pace: ready.length > 0 ? monthPace(ready, reportedDays, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, previousTotal) : null,
+    pace: ready.length > 0 ? monthPace(ready, reportedDays, uncoveredMinor, previousTotal) : null,
     waiting,
   };
 }
@@ -210,7 +211,9 @@ export function cumulativeRevenueSources(
 function monthPace(ready: readonly ReadyProjection[], recorded: ReadonlyMap<string, number>, uncoveredMinor: number, previousTotal: number | null): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
   const datedMinor = sum([...recorded.values()]);
-  const undatedMinor = Math.max(0, uncoveredMinor - datedMinor);
+  // Preserve a ledger-only refund. An accounting subtotal below known daily
+  // receipts cannot establish a refund against those receipts.
+  const undatedMinor = datedMinor === 0 ? uncoveredMinor : Math.max(0, uncoveredMinor - datedMinor);
   const projected = (coveredMinor + datedMinor + undatedMinor) / 100;
 
   // Day by day across the covered sites. Every ready projection carries every
@@ -241,7 +244,7 @@ function monthPace(ready: readonly ReadyProjection[], recorded: ReadonlyMap<stri
       };
     });
   const last = points.at(-1);
-  if (last && undatedMinor > 0) {
+  if (last && undatedMinor !== 0) {
     // Recorded money with no daily series contributes at the endpoint only.
     last.observed += undatedMinor / 100;
     last.cumulative = projected;
