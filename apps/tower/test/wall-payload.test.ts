@@ -36,7 +36,8 @@ import { writeArchiveRun, writeInsightSnapshots, writeResearch } from "./provide
 import { codebaseReport, commitOf, storeCodebaseReports, weeklyStoredReports } from "./codebase-fixture";
 import { CARD_CODEBASE_SQL, CARD_INSIGHTS_SQL } from "../worker/card-readings";
 import { PORTFOLIO_WATCH_WINDOWS_SQL } from "../worker/watch-window-reader";
-import { bookLedger } from "./money";
+import { bookLedger, writeRevenue } from "./money";
+import { cumulativeRevenueSources, monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
 import { addSites } from "./sites";
 import {
   insertDataForSeoCollection,
@@ -3648,6 +3649,43 @@ describe("an open fetch failure carries the nights behind it", () => {
   });
 });
 
+
+describe('saved Stripe contributions on the Wall', () => {
+  it('includes a Stripe contribution while the same asset waits for an ad report', async () => {
+    const ctx = await createTestStore();
+    try {
+      const asset = 'sample.test';
+      await insertAsset(ctx, asset, 'Sample', 'live', 0, 0);
+      await writeRevenue(ctx.call, [
+        { asset, date: '2026-11-14', amountMinor: 0 },
+        { asset, source: 'stripe', date: '2026-11-15', item: 'txn_contribution', amountMinor: 2_500 },
+      ]);
+      await bookLedger(ctx.call, [{
+        asset, kind: 'cost', booking_state: 'estimated', currency: 'EUR',
+        period: '2026-11', family: 'infra', amount_minor: 1_000,
+      }]);
+      const utcNow = new Date('2026-11-16T02:00:00Z');
+      const utc = await buildWallPayload(ctx.call, { ...OPTIONS, now: utcNow, osTimeZone: 'UTC' });
+      expect(yesterdayTotal(utc.assets, utcNow.getTime(), 'UTC')).toMatchObject({
+        amount: 25, reported: 0, sites: 1, coverage: [{ reported: false }], estimated: true,
+      });
+      const month = monthRevenue(utc.portfolio, utc.assets)!;
+      expect(month).toMatchObject({ revenue: 25, pace: null });
+      expect(month.recorded.at(-1)).toMatchObject({ date: '2026-11-15', observed: 25, projected: false });
+      const chart = cumulativeRevenueSources(utc.assets, month.period, month.recorded, true);
+      expect(chart.contributions.get('2026-11-15')?.get('stripe')).toBe(25);
+
+      const now = new Date('2026-11-16T12:00:00Z');
+      const local = await buildWallPayload(ctx.call, { ...OPTIONS, now, osTimeZone: 'America/Los_Angeles' });
+      const yesterday = yesterdayTotal(local.assets, now.getTime(), local.osTimeZone);
+      expect(yesterday).toMatchObject({
+        amount: 16.67, reported: 0, sites: 1, estimated: true, basis: { date: '2026-11-15' },
+      });
+      const nextDay = Date.parse('2026-11-17T12:00:00Z');
+      expect(yesterdayTotal(local.assets, nextDay, local.osTimeZone)?.amount).toBeNull();
+    } finally { await ctx.close(); }
+  });
+});
 
 describe('month-start revenue evidence preserves reported zero separately from costs', () => {
   it.each([['cost', 'estimated'], ['cost', 'reconciled'], ['revenue', 'estimated'], ['revenue', 'reconciled']] as const)('preserves the %s / %s presence without changing money', async (kind, booking_state) => {

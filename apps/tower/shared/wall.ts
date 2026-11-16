@@ -96,6 +96,8 @@ export interface PortfolioBand {
    * zero. Cost-only rows do not establish reported revenue. Absent in older
    * payloads; a zero then carries no revenue evidence by itself. */
   revenueRecorded?: { booked: boolean; forecast: boolean };
+  /** USD revenue for the Wall, independent of the currencies of other ledger rows. */
+  wallRevenueUsd?: { booked: number | null; forecast: number | null };
   /** Revenue on record for the preceding ledger month, across assets. */
   previousRevenue?: { period: string; amount: number; currency: string };
   /** Net per period over reconciled current rows (chronological) — the booked
@@ -655,14 +657,22 @@ export interface AssetCard {
   activeUsers: SignalTrend;
   /** Future earnings estimate derived from stored daily revenue and traffic. */
   revenueProjection?: RevenueProjection;
-  /** Observed source contributions used in the projected month. */
+  /** Sources behind the observed projection, or the ledger's daily revenue when no projection is ready. */
   revenueProjectionSources?: {
     source: string;
     displayName: string;
     days: { date: string; amountMinor: number }[];
   }[];
-  /** Yesterday's saved provider estimate. Missing is not zero. */
+  /** Yesterday on the asset's reporting calendar, from complete reports. */
   dailyRevenue?: DailyRevenueSummary;
+  /** Available USD revenue for yesterday on the Wall's calendar, with report coverage. */
+  wallDailyRevenue?: {
+    date: string;
+    timeZone: string;
+    amountMinor: number | null;
+    complete: boolean;
+    estimated: boolean;
+  } | null;
   /**
    * Organic web-search clicks, Google and Bing read as one measurement
    * (`mergeSignalTrends`). Its date horizon is the union of the two, so it can
