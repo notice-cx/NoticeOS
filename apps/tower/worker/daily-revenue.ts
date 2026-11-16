@@ -168,9 +168,16 @@ export function wallYesterdayRevenue(history: SiteRevenueHistory, today: string,
     const zone = source.clock.timeZone;
     const first = revenueCalendarDate(new Date(start), zone);
     const last = revenueCalendarDate(new Date(end - 1), zone);
+    if (source.since > last) continue;
+    due = true;
     const sourceToday = revenueCalendarDate(now, zone);
+    const latestComplete = last < sourceToday ? last : shiftRevenueDate(sourceToday, -1);
+    // An older boundary slice cannot stand in for this source's missing report.
+    if (!source.days.some((reading) => reading.date === latestComplete)) {
+      complete = false;
+      continue;
+    }
     for (let day = first < source.since ? source.since : first; day <= last; day = shiftRevenueDate(day, 1)) {
-      due = true;
       const recorded = source.days.find((reading) => reading.date === day)?.amountMinor;
       if (recorded === undefined || day >= sourceToday) {
         complete = false;
