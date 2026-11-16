@@ -112,10 +112,10 @@ function yesterdayFact(total: NonNullable<ReturnType<typeof yesterdayTotal<Reven
   const basis = total.basis && `${formatSeriesDate(total.basis.date)} · ${total.basis.label ?? total.basis.timeZone}`;
   return {
     label: "Yesterday", dividerBefore: true,
+    valueDescription: total.estimated ? "Estimated" : undefined,
     value: total.amount === null
       ? <span data-revenue-yesterday="none" className="wall-revenue-unreported">Not reported yet</span>
-      : <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"} title={total.estimated ? "Estimated across reporting time zones" : undefined}>
-        {total.estimated ? <span className="sr-only">Estimated across reporting time zones </span> : null}
+      : <span data-revenue-yesterday={total.reported < total.sites ? "some" : "all"}>
         <span data-revenue-yesterday-figure>{formatUsd(total.amount, { cents: true })}</span>
       </span>,
     note: <span className="wall-revenue-sites" role="group" aria-label={basis ? `Reports for ${basis}` : "Yesterday’s reports"}>

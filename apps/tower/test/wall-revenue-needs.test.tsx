@@ -200,8 +200,16 @@ describe("yesterday on the revenue widget", () => {
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("all");
     expect(within(yesterday.closest('[data-metric-fact="Yesterday"]') as HTMLElement).getByRole('group')).toHaveAccessibleName('Reports for Sep 21 · Pacific');
-    expect(yesterday.querySelector("[data-revenue-yesterday-figure]")).not.toBeNull();
-    expect(yesterday.textContent).not.toContain("not reported");
+    const figure = yesterday.querySelector("[data-revenue-yesterday-figure]")!;
+    const value = yesterday.closest("dd")!;
+    expect(value).toHaveAccessibleDescription("Estimated");
+    const selection = window.getSelection()!;
+    selection.selectAllChildren(value);
+    try {
+      expect(selection.toString()).toBe(figure.textContent);
+    } finally {
+      selection.removeAllRanges();
+    }
   });
 
   it("labels the actual received day when another clock's report is missing", () => {
