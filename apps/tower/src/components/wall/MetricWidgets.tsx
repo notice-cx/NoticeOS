@@ -237,6 +237,7 @@ export interface CumulativeCompareMetricProps extends TileProps {
   secondary?: readonly {
     label: string;
     value: ReactNode;
+    valueDescription?: string;
     note?: ReactNode;
     size?: "figure" | "detail";
     labelPosition?: "above" | "below";
@@ -262,7 +263,7 @@ export function CumulativeCompareMetric({ value, qualifier, unit, valueNote, mov
       <div className="wall-metric-summary">
         <div className="wall-cumulative-primary">{qualifier != null ? <div className="wall-metric-note wall-metric-qualifier">{qualifier}</div> : null}<div className="wall-cumulative-total"><strong className="wall-metric-value" data-metric-value>{shown(value)}</strong>{unit != null ? <span className="wall-metric-note">{unit}</span> : null}</div>{valueNote != null ? <div className="wall-metric-note">{valueNote}</div> : null}</div>
         {!expanded ? comparison : null}
-        {secondary.length ? <dl className="wall-cumulative-facts">{secondary.map(fact => <div key={fact.label} data-metric-fact={fact.label} data-fact-size={fact.size ?? "figure"} data-label-position={fact.labelPosition ?? "above"} data-fact-divider={fact.dividerBefore || undefined}><dt>{fact.label}</dt><dd>{shown(fact.value)}</dd>{fact.note != null ? <dd className="wall-metric-note">{fact.note}</dd> : null}</div>)}</dl> : null}
+        {secondary.length ? <dl className="wall-cumulative-facts">{secondary.map(fact => <div key={fact.label} data-metric-fact={fact.label} data-fact-size={fact.size ?? "figure"} data-label-position={fact.labelPosition ?? "above"} data-fact-divider={fact.dividerBefore || undefined}><dt>{fact.label}</dt><dd aria-description={fact.valueDescription}>{shown(fact.value)}</dd>{fact.note != null ? <dd className="wall-metric-note">{fact.note}</dd> : null}</div>)}</dl> : null}
         {note != null ? <div className="wall-metric-note wall-cumulative-note">{note}</div> : null}
       </div>
       <div className="wall-metric-plot">
