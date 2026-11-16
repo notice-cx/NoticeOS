@@ -1,8 +1,5 @@
-// Subscription and product revenue from Stripe: each completed day's net
-// charges less refunds, read from the connected account's balance
-// transactions and written into the revenue ledger under the `stripe` source,
-// one daily total per site. The day and the hour it is complete come from the
-// source's vocabulary row (`noticeos_ref.revenue_sources`), never from here.
+// Stripe charges and refunds retain their transaction time and accounting date.
+// Successful collections record the intervals they covered, including quiet days.
 //
 // Product mappings split the connected account's receipts by asset. The
 // whole-account collector remains available for older configurations.
@@ -11,6 +8,7 @@ import { subscriptionSnapshot } from './stripe-subscriptions.js';
 import { stripeSnapshotRecord, type SalesBreakdown } from '@noticeos/contract/stripe-report';
 import type { Transaction } from '@noticeos/postgres';
 import type { ScheduledRunResult } from '@noticeos/contract';
+import { calendarDayStart } from '@noticeos/contract/reporting-calendar';
 import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { readStripeProductMapping, STRIPE_ACCOUNT_ID, STRIPE_REVENUE_LANE, stripeProductId, stripeProductTargets, stripeRevenueAssignments, type StripeProductMapping } from '@noticeos/contract/configuration';
 import { credentialConnected, recordCredentialOutcome, resolveCredential } from './credentials.js';
@@ -174,6 +172,7 @@ export interface StripeRunResult extends ScheduledRunResult {
 
 export interface StripeOptions {
   nowMs?: number;
+  timeZone?: string;
   fetchImpl?: typeof fetch;
   /** `config/integrations.json` as this fire read it; the compiled copy when absent. */
   laneRegister?: LaneRegister;
@@ -295,30 +294,6 @@ function stripeRefused(error: unknown): error is StripeFailure {
 
 /** Each day's net revenue in `currency`, minor units, every day of the window
  * present (a day with no sale is 0). */
-export function dailyNet(rows: readonly BalanceTransaction[], window: { start: string; end: string }, currency: string, timeZone: string): Map<string, number> {
-  const days = new Map(dayRange(window.start, window.end).map((day) => [day, 0]));
-  for (const row of rows) {
-    if (!REVENUE_TYPES.has(row.type) || row.currency !== currency) continue;
-    const day = clockAt(row.created * 1000, timeZone).date;
-    if (days.has(day)) days.set(day, days.get(day)! + row.net);
-  }
-  return days;
-}
-
-/** Daily sale composition reconciled to the same transactions as net receipts. */
-export function dailySales(rows: readonly BalanceTransaction[], window: { start: string; end: string }, currency: string, timeZone: string): Map<string, SalesBreakdown> {
-  const days = new Map(dayRange(window.start, window.end).map((day) => [day, { salesMinor: 0, refundsMinor: 0, feesMinor: 0, payments: 0, refunds: 0 }]));
-  for (const row of rows) {
-    if (!REVENUE_TYPES.has(row.type) || row.currency !== currency) continue;
-    const day = days.get(clockAt(row.created * 1000, timeZone).date);
-    if (!day) continue;
-    if (row.type === 'charge' || row.type === 'payment') { day.salesMinor += row.amount; day.payments++; }
-    else { day.refundsMinor -= row.amount; if (row.amount < 0) day.refunds++; }
-    day.feesMinor += row.fee;
-  }
-  return days;
-}
-
 async function readSubscriptions(apiKey: string, fetchImpl: typeof fetch, account: string): Promise<unknown[]> {
   return readStripeList(apiKey, '/subscriptions', { status: 'all' }, fetchImpl, account);
 }
@@ -365,21 +340,37 @@ async function paymentAsset(apiKey: string, intent: string, products: StripeProd
     .map((line) => stripeRecord(stripeRecord(line.pricing)?.price_details)?.product));
 }
 
-function transactionBounds(window: { start: string; end: string }) {
-  return {
-    gte: Date.parse(`${window.start}T00:00:00Z`) / 1000 - 86_400,
-    lt: Date.parse(`${shiftDay(window.end, 1)}T00:00:00Z`) / 1000 + 86_400,
-  };
+type CollectionWindow = { from: number; until: number };
+
+const dayStart = (date: string, clock: SourceClock) => calendarDayStart(date, clock.timeZone) / 1000;
+
+function collectionThrough(nowMs: number, clock: SourceClock, timeZone: string): number {
+  const localClock = { ...clock, timeZone };
+  const providerThrough = dayStart(shiftDay(lastCompleteDay(nowMs, clock), 1), clock);
+  const localThrough = dayStart(shiftDay(lastCompleteDay(nowMs, localClock), 1), localClock);
+  return Math.max(providerThrough, localThrough);
 }
 
-type ProductReceipt = {
+function collectionWindow(until: number, held: number | null, clock: SourceClock): CollectionWindow | null {
+  const lastDay = clockAt((until - 1) * 1000, clock.timeZone).date;
+  const earliest = dayStart(stripeWindow(lastDay, null)!.start, clock);
+  const from = Math.max(earliest, held ?? earliest);
+  return from < until ? { from, until } : null;
+}
+
+function collectionDays(window: CollectionWindow, clock: SourceClock): string[] {
+  return dayRange(clockAt(window.from * 1000, clock.timeZone).date,
+    clockAt((window.until - 1) * 1000, clock.timeZone).date);
+}
+
+type StripeReceipt = {
   row: BalanceTransaction;
   day: string;
   asset: string | null;
   original: { id: string; day: string; currency: string } | null;
 };
 
-type ProductObservation = {
+type StripeObservation = {
   asset: string;
   day: string;
   item: string;
@@ -390,6 +381,9 @@ type ProductObservation = {
   fees: number;
   payments: number;
   refundCount: number;
+  occurredAt?: number;
+  coveredFrom?: number;
+  coveredUntil?: number;
 };
 
 const STRIPE_PRODUCT_DAY = 'products:daily';
@@ -398,26 +392,29 @@ async function stripeLedgerLock(tx: Transaction, account: string) {
   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`noticeos.stripe-revenue:${tx.workspaceId}:${account}`]);
 }
 
-async function latestStripeDay(tx: Transaction, account: string): Promise<string | null> {
-  const [held] = await tx.query<{ day: string | null }>(
-    `SELECT MAX(revenue_date)::text AS day FROM noticeos.current_revenue
-      WHERE source = $1 AND account_ref = $2`, [STRIPE_REVENUE_SOURCE, account]);
-  return held?.day ?? null;
+async function latestStripeThrough(tx: Transaction, account: string, clock: SourceClock): Promise<number | null> {
+  const [held] = await tx.query<{ through: bigint | null }>(
+    `SELECT MAX(EXTRACT(EPOCH FROM COALESCE(covered_until, (revenue_date + 1)::timestamp AT TIME ZONE $3)))::bigint AS through
+       FROM noticeos.current_revenue
+      WHERE source = $1 AND account_ref = $2 AND occurred_at IS NULL`, [STRIPE_REVENUE_SOURCE, account, clock.timeZone]);
+  return held?.through == null ? null : Number(held.through);
+}
+
+function inWindow(row: BalanceTransaction, window: CollectionWindow): boolean {
+  return row.created >= window.from && row.created < window.until && REVENUE_TYPES.has(row.type);
 }
 
 async function resolveProductReceipts(
-  apiKey: string, window: { start: string; end: string }, clock: SourceClock, products: StripeProductMapping['products'], fetchImpl: typeof fetch,
-): Promise<ProductReceipt[]> {
-  const { gte, lt } = transactionBounds(window);
-  const rows = await readTransactions(apiKey, gte, lt, fetchImpl);
-  const receipts: ProductReceipt[] = [];
+  apiKey: string, window: CollectionWindow, clock: SourceClock, products: StripeProductMapping['products'], fetchImpl: typeof fetch,
+): Promise<StripeReceipt[]> {
+  const rows = await readTransactions(apiKey, window.from, window.until, fetchImpl);
+  const receipts: StripeReceipt[] = [];
   const payments = new Map<string, string | null>();
   const hasMappings = Object.keys(products).length > 0;
   const byId = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
-    if (!REVENUE_TYPES.has(row.type)) continue;
+    if (!inWindow(row, window)) continue;
     const day = clockAt(row.created * 1000, clock.timeZone).date;
-    if (day < window.start || day > window.end) continue;
     if (!stripeId(row.id, 'txn_')) throw new StripeFailure('stripe_invalid_response', 'Stripe sent an unreadable balance transaction ID.');
     if (isSale(row) && !hasMappings) continue;
     const charge = await chargeFor(apiKey, row, fetchImpl);
@@ -441,46 +438,46 @@ async function resolveProductReceipts(
   return receipts;
 }
 
-async function writeProductReceipts(
-  env: IngestEnv, mapping: StripeProductMapping, targets: Target[], refundAnchor: string | null, receipts: ProductReceipt[],
-  window: { start: string; end: string }, defaultCurrency: string, runId: string, at: string,
+async function writeReceipts(
+  env: IngestEnv, account: string, targets: Target[], refundAnchor: string | null, receipts: StripeReceipt[],
+  window: CollectionWindow, clock: SourceClock, defaultCurrency: string, runId: string, at: string,
 ) {
   return env.STORE.write(async (tx) => {
-    await stripeLedgerLock(tx, mapping.accountId);
+    await stripeLedgerLock(tx, account);
     // A competing collection can finish while Stripe is being read.
-    const held = await latestStripeDay(tx, mapping.accountId);
-    const days = dayRange(window.start, window.end).filter((day) => !held || day > held);
-    if (days.length === 0) return null;
+    const held = await latestStripeThrough(tx, account, clock);
+    const from = Math.max(window.from, held ?? window.from);
+    if (from >= window.until) return null;
 
-    const due = new Set(days);
+    const days = collectionDays({ from, until: window.until }, clock);
+    const due = receipts.filter(({ row }) => row.created >= from);
     const assetIds = new Set(targets.map(({ asset }) => asset));
-    const originalIds = receipts.flatMap(({ original }) => original ? [original.id] : []);
+    const originalIds = due.flatMap(({ original }) => original ? [original.id] : []);
     const originalSales = await tx.query<{ item: string; asset: string }>(
       `SELECT item_ref AS item, asset_id AS asset FROM noticeos.current_revenue
         WHERE source = $1 AND account_ref = $2 AND item_ref = ANY($3::text[]) AND payment_count > 0`,
-      [STRIPE_REVENUE_SOURCE, mapping.accountId, originalIds]);
+      [STRIPE_REVENUE_SOURCE, account, originalIds]);
     const assetsBySale = new Map(originalSales.map(({ item, asset }) => [item, asset]));
-    for (const { row, day, asset } of receipts) {
-      if (due.has(day) && asset && assetIds.has(asset) && isSale(row)) assetsBySale.set(row.id, asset);
+    for (const { row, asset } of due) {
+      if (asset && assetIds.has(asset) && isSale(row)) assetsBySale.set(row.id, asset);
     }
 
     // A legacy observation covered the entire day. Match refunds to a recorded
     // sale day in the same account and currency when there is no item history.
-    const legacyDays = [...new Set(receipts.flatMap(({ original }) => original && !assetsBySale.has(original.id) ? [original.day] : []))];
+    const legacyDays = [...new Set(due.flatMap(({ original }) => original && !assetsBySale.has(original.id) ? [original.day] : []))];
     const legacySales = await tx.query<{ day: string; currency: string; asset: string }>(
       `SELECT revenue_date::text AS day, currency, MIN(asset_id) AS asset
          FROM noticeos.current_revenue
         WHERE source = $1 AND account_ref = $2 AND item_ref IS NULL AND payment_count > 0
           AND revenue_date = ANY($3::date[])
         GROUP BY revenue_date, currency HAVING COUNT(*) = 1`,
-      [STRIPE_REVENUE_SOURCE, mapping.accountId, legacyDays]);
+      [STRIPE_REVENUE_SOURCE, account, legacyDays]);
     const assetsByLegacyDay = new Map(legacySales.map(({ day, currency, asset }) => [`${day}/${currency}`, asset]));
-    const observations: ProductObservation[] = [];
+    const observations: StripeObservation[] = [];
     let unattributedTransactions = 0;
-    for (const { row, day, asset, original } of receipts) {
-      if (!due.has(day)) continue;
+    for (const { row, day, asset, original } of due) {
       const sale = isSale(row);
-      const earnedBy = sale ? (asset && assetIds.has(asset) ? asset : null)
+      const earnedBy = asset && assetIds.has(asset) ? asset
         : original && (assetsBySale.get(original.id) ?? assetsByLegacyDay.get(`${original.day}/${original.currency}`));
       if (!earnedBy) {
         unattributedTransactions++;
@@ -489,42 +486,60 @@ async function writeProductReceipts(
       observations.push({
         asset: earnedBy, day, item: row.id, currency: row.currency, net: row.net,
         sales: sale ? row.amount : 0, refunds: sale ? 0 : -row.amount, fees: row.fee,
-        payments: sale ? 1 : 0, refundCount: !sale && row.amount < 0 ? 1 : 0,
+        payments: sale ? 1 : 0, refundCount: !sale && row.amount < 0 ? 1 : 0, occurredAt: row.created,
       });
     }
 
     const knownCurrencies = await tx.query<{ asset: string; currency: string }>(
       `SELECT DISTINCT asset_id AS asset, currency FROM noticeos.current_revenue
         WHERE source = $1 AND account_ref = $2 AND asset_id = ANY($3::text[])`,
-      [STRIPE_REVENUE_SOURCE, mapping.accountId, [...assetIds]]);
+      [STRIPE_REVENUE_SOURCE, account, [...assetIds]]);
     const currencies = new Map(targets.map(({ asset }) => [asset, new Set<string>()]));
     if (refundAnchor) currencies.set(refundAnchor, new Set());
-    for (const { asset, currency } of [...knownCurrencies, ...observations]) currencies.get(asset)?.add(currency);
+    for (const { asset, currency } of observations) {
+      if (!currencies.has(asset)) currencies.set(asset, new Set());
+      currencies.get(asset)!.add(currency);
+    }
+    for (const { asset, currency } of knownCurrencies) currencies.get(asset)?.add(currency);
+    const previous = await tx.query<{ asset: string; day: string; currency: string; from: bigint; until: bigint }>(
+      `SELECT asset_id AS asset, revenue_date::text AS day, currency,
+              EXTRACT(EPOCH FROM covered_from)::bigint AS "from", EXTRACT(EPOCH FROM covered_until)::bigint AS "until"
+         FROM noticeos.current_revenue WHERE source = $1 AND account_ref = $2
+          AND revenue_date = ANY($3::date[]) AND covered_from IS NOT NULL`, [STRIPE_REVENUE_SOURCE, account, days]);
+    const prior = new Map(previous.map(row => [JSON.stringify([row.asset, row.day, row.currency]), row]));
     for (const [asset, collected] of currencies) {
       if (collected.size === 0) collected.add(defaultCurrency);
       for (const currency of collected) {
-        for (const day of days) observations.push({
-          asset, day, item: `${STRIPE_PRODUCT_DAY}:${currency}`, currency, net: 0,
-          sales: 0, refunds: 0, fees: 0, payments: 0, refundCount: 0,
-        });
+        for (const day of days) {
+          const start = Math.max(from, dayStart(day, clock));
+          const earlier = prior.get(JSON.stringify([asset, day, currency]));
+          observations.push({
+            asset, day, item: `${STRIPE_PRODUCT_DAY}:${currency}`, currency, net: 0,
+            sales: 0, refunds: 0, fees: 0, payments: 0, refundCount: 0,
+            coveredFrom: earlier && Number(earlier.until) === start ? Number(earlier.from) : start,
+            coveredUntil: Math.min(window.until, dayStart(shiftDay(day, 1), clock)),
+          });
+        }
       }
     }
     await tx.execute(
       `INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, item_ref,
                                                  amount_minor, currency, run_ref, recorded_at, sales_minor, refunds_minor,
-                                                 fees_minor, payment_count, refund_count)
+                                                 fees_minor, payment_count, refund_count, occurred_at, covered_from, covered_until)
        SELECT $1::uuid, asset, $2, $3, day, item, net, currency, $4, $5::timestamptz,
-              sales, refunds, fees, payments, "refundCount"
+              sales, refunds, fees, payments, "refundCount",
+              to_timestamp("occurredAt"), to_timestamp("coveredFrom"), to_timestamp("coveredUntil")
          FROM jsonb_to_recordset($6::jsonb) AS x(asset text, day date, item text, net bigint, currency char(3),
-                sales bigint, refunds bigint, fees bigint, payments int, "refundCount" int)`,
-      [tx.workspaceId, STRIPE_REVENUE_SOURCE, mapping.accountId, runId, at, JSON.stringify(observations)]);
+                sales bigint, refunds bigint, fees bigint, payments int, "refundCount" int,
+                "occurredAt" bigint, "coveredFrom" bigint, "coveredUntil" bigint)`,
+      [tx.workspaceId, STRIPE_REVENUE_SOURCE, account, runId, at, JSON.stringify(observations)]);
     return { days: days.length, unattributedTransactions };
   });
 }
 
 async function runStripeProducts(
   env: IngestEnv, mapping: StripeProductMapping, apiKey: string | undefined,
-  resolved: Awaited<ReturnType<typeof resolveCredential>>, clock: SourceClock, end: string, at: string, fetchImpl: typeof fetch,
+  resolved: Awaited<ReturnType<typeof resolveCredential>>, clock: SourceClock, until: number, at: string, fetchImpl: typeof fetch,
 ): Promise<StripeRunResult> {
   const skipped = (detail: string): StripeRunResult => ({ outcome: 'skipped', detail, connected: true, outcomes: [] });
   const eligible = await env.STORE.read((tx) => tx.query<{ asset: string }>(
@@ -543,8 +558,8 @@ async function runStripeProducts(
   });
   if (targets.length === 0 && refundAnchor === null) return skipped('No Stripe products or collected sales.');
 
-  const held = await env.STORE.read((tx) => latestStripeDay(tx, mapping.accountId));
-  const window = stripeWindow(end, held);
+  const held = await env.STORE.read((tx) => latestStripeThrough(tx, mapping.accountId, clock));
+  const window = collectionWindow(until, held, clock);
   if (!window) return skipped('No Stripe day is due.');
 
   const health = await tryHealthConnection(env, 'stripe', resolved);
@@ -567,7 +582,7 @@ async function runStripeProducts(
 
     const products = Object.fromEntries(Object.entries(mapping.products).filter(([, asset]) => ids.has(asset)));
     const receipts = await resolveProductReceipts(apiKey, window, clock, products, fetchImpl);
-    const saved = await writeProductReceipts(env, mapping, targets, refundAnchor, receipts, window, currency, runId, at);
+    const saved = await writeReceipts(env, mapping.accountId, targets, refundAnchor, receipts, window, clock, currency, runId, at);
     if (!saved) return skipped('No Stripe day is due.');
     written = saved.days;
     unattributedTransactions = saved.unattributedTransactions;
@@ -586,7 +601,7 @@ async function runStripeProducts(
       ok: failure === null, ...(failure ? { code: failure.code } : {}),
     }))) monitoringAvailable = false;
     outcomes.push({ asset, account, status: failure ? 'failed' : 'collected',
-      days: dayRange(window.start, window.end).length, written, errorCode: failure?.code ?? null });
+      days: collectionDays(window, clock).length, written, errorCode: failure?.code ?? null });
   }
 
   return {
@@ -657,13 +672,18 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   if (resolved.source === 'demo' || (!mapping && targets.length === 0)) {
     return { outcome: 'skipped', detail: 'No assets are assigned to Stripe.', connected: true, outcomes: [] };
   }
-  const [clock] = await env.STORE.read((tx) => tx.query<SourceClock>(
-    `SELECT time_zone AS "timeZone", ready_after_minute AS "readyAfterMinute"
+  const [clock] = await env.STORE.read((tx) => tx.query<SourceClock & { paymentTimes: boolean }>(
+    `SELECT time_zone AS "timeZone", ready_after_minute AS "readyAfterMinute",
+            EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'noticeos.current_revenue'::regclass
+              AND attname = 'occurred_at' AND NOT attisdropped) AS "paymentTimes"
        FROM noticeos_ref.revenue_sources WHERE source = $1`, [STRIPE_REVENUE_SOURCE]));
   if (!clock) throw new Error(`The store names no revenue source ${STRIPE_REVENUE_SOURCE}; apply its migration.`);
-  const end = lastCompleteDay(nowMs, { timeZone: clock.timeZone, readyAfterMinute: Number(clock.readyAfterMinute) });
+  if (!clock.paymentTimes) {
+    return { outcome: 'failed', detail: 'Apply the Stripe payment times migration to collect revenue.', connected: true, outcomes: [] };
+  }
+  const until = collectionThrough(nowMs, clock, options.timeZone ?? clock.timeZone);
 
-  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, end, at, fetchImpl);
+  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, until, at, fetchImpl);
 
   const health = await tryHealthConnection(env, 'stripe', resolved);
   let monitoringAvailable = health !== null;
@@ -689,16 +709,13 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
     const target = targets[0]!;
     // Receipts already filed under this account stay with their original asset.
     // Changing the assignment must not collect those days a second time.
-    const [held] = await env.STORE.read((tx) => tx.query<{ day: string | null }>(
-      `SELECT MAX(revenue_date)::text AS day FROM noticeos.current_revenue
-        WHERE source = $1 AND account_ref = $2
-          AND (asset_id <> $3 OR sales_minor IS NOT NULL)`, [STRIPE_REVENUE_SOURCE, target.account, target.asset]));
-    const window = stripeWindow(end, held?.day ?? null);
+    const held = await env.STORE.read((tx) => latestStripeThrough(tx, target.account, clock));
+    const window = collectionWindow(until, held, clock);
     const [lastSnapshot] = await env.STORE.read((tx) => tx.query<{ at: string | null }>(
       `SELECT MAX(observed_at AT TIME ZONE 'UTC')::date::text AS at FROM noticeos.stripe_subscription_snapshots WHERE asset_id = $1 AND account_ref = $2`, [target.asset, target.account]));
     const subscriptionsDue = !lastSnapshot?.at || lastSnapshot.at.slice(0, 10) < at.slice(0, 10);
     if (window === null && !subscriptionsDue) return { outcome: 'skipped', detail: 'No Stripe day is due.', connected: true, outcomes: [] };
-    const days = window ? dayRange(window.start, window.end).length : 0;
+    const days = window ? collectionDays(window, clock).length : 0;
     try {
       // Connected, but the stored key could not be opened.
       if (!apiKey) throw new StripeFailure('credential_unavailable', 'The saved Stripe key could not be read.');
@@ -713,9 +730,11 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
       let written = 0;
       const runId = crypto.randomUUID();
       if (window) {
-        const { gte, lt } = transactionBounds(window);
-        const rows = await readTransactions(apiKey, gte, lt, fetchImpl, target.account);
-        written = await persistStripeDays(env, target, dailyNet(rows, window, currency, clock.timeZone), currency, runId, at, dailySales(rows, window, currency, clock.timeZone));
+        const rows = await readTransactions(apiKey, window.from, window.until, fetchImpl, target.account);
+        const receipts = rows.filter(row => row.currency === currency && inWindow(row, window))
+          .map(row => ({ row, day: clockAt(row.created * 1000, clock.timeZone).date, asset: target.asset, original: null }));
+        const saved = await writeReceipts(env, target.account, targets, null, receipts, window, clock, currency, runId, at);
+        written = saved?.days ?? 0;
         await observe(target, true, runId);
       }
       const outcome: StripeOutcome = { asset: target.asset, account: target.account, status: 'collected', days, written, errorCode: null };

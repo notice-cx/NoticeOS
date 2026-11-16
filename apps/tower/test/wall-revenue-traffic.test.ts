@@ -6,7 +6,9 @@
 
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it, vi } from "vitest";
-import { writeMediavine } from "./money";
+import { writeMediavine, writeRevenue } from "./money";
+import { monthRevenue } from "@/lib/wall-revenue";
+import { homeMoney } from "@/lib/home-money";
 import type { SignalTrendOptions } from "../worker/signal-trends";
 import { buildWallPayload, type BuildOptions } from "../worker/wall-payload";
 import { writeSignalRun } from "./collected-metrics";
@@ -106,6 +108,35 @@ describe("the Wall's revenue traffic is read only for assets with daily revenue"
     expect(card("traffic.test").revenueProjection).toMatchObject({ status: "no-revenue" });
     expect(card("traffic.test").activeUsers.series.length).toBeGreaterThan(0);
     expect(shippedCalls.map((call) => call.assets)).toEqual([undefined, ["earning.test", "second.test"]]);
+  });
+
+  it("adds a late Stripe payment once to the existing forecast for its asset", async () => {
+    const raw = await createTestStore();
+    try {
+      const id = "earning.test";
+      await asset(raw, id);
+      await seedRevenueHistory(raw.call, id, NOW.toISOString(), "2026-09-08");
+      const before = await buildWallPayload(raw.call, OPTIONS);
+      const original = monthRevenue(before.portfolio, before.assets)!;
+      expect(original.pace).not.toBeNull();
+      await writeRevenue(raw.call, [{
+        asset: id, source: "stripe", date: "2026-09-09", item: "txn_late",
+        amountMinor: 2_500, occurredAt: "2026-09-09T06:00:00Z",
+      }]);
+      const after = await buildWallPayload(raw.call, OPTIONS);
+      const updated = monthRevenue(after.portfolio, after.assets)!;
+      expect(updated.revenue).toBeCloseTo(original.revenue! + 25, 2);
+      expect(updated.pace?.projected).toBeCloseTo(original.pace!.projected + 25, 2);
+      const day = (model: typeof original) => model.pace?.points.find(point => point.date === "2026-09-08")?.observed;
+      expect(day(updated)).toBeCloseTo(day(original)! + 25, 2);
+      const home = homeMoney(after.portfolio, after.assets)!;
+      expect(home.projected).toBeCloseTo(updated.pace!.projected, 2);
+      const homeBefore = homeMoney(before.portfolio, before.assets)!;
+      const localDay = (report: typeof home) => report.days.find(point => point.t === "2026-09-08")!.v!;
+      expect(localDay(home)).toBeCloseTo(localDay(homeBefore) + 25, 2);
+    } finally {
+      await raw.close();
+    }
   });
 
   it("makes no traffic read when no asset has daily revenue", async () => {

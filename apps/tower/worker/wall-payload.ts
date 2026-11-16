@@ -37,7 +37,9 @@ import { SCHEDULED_JOBS, scheduleFor, type ScheduleOverrides } from "../../../sc
 import { projectRevenue, REVENUE_HISTORY_DAYS, shiftRevenueDate } from '../shared/revenue-projection';
 import { revenueHolidays } from './revenue-holidays';
 import { operatorRevenueClock, revenueCalendarDate, yesterdayRevenue, type SiteRevenueHistory } from '../shared/daily-revenue';
-import { emptyRevenueHistory, loadRevenueHistories, wallYesterdayRevenue } from './daily-revenue';
+import { emptyRevenueHistory, loadRevenueHistories, revenueForForecast, wallYesterdayRevenue } from './daily-revenue';
+import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
+import { loadStripeMonthShifts } from './stripe-calendar';
 import {
   releasedFreshnessFlag,
   reportingState,
@@ -520,9 +522,19 @@ export async function buildWallPayload(
       portfolioFigure(bookingState).currency ?? 'USD');
   const booked = portfolioFigure("reconciled");
   const forecast = portfolioFigure("estimated");
+  const previousOf = (month: string) => shiftRevenueDate(monthDate(month), -1).slice(0, 7);
+  const shifts = await loadStripeMonthShifts(store, osTimeZone, [...new Set([period, currentPeriod, previousOf(period), previousOf(currentPeriod)])]);
+  const wallPeriod = shifts.some(row => row.toPeriod === currentPeriod) ? currentPeriod : period;
+  const stripeShift = (month: string) => shifts.reduce((total, row) => total
+    + (row.toPeriod === month ? row.amountMinor : 0) - (row.fromPeriod === month ? row.amountMinor : 0), 0);
   const wallRevenueUsd = (state: string) => {
-    const rows = ledgerRows.filter(row => row.bookingState === state && row.currency === 'USD' && row.revenueRecorded);
-    return rows.length ? moneyFigure(rows.map(row => ({ ...row, costMinor: 0 }))).revenue : null;
+    const rows = wallPeriod === period ? ledgerRows.filter(row => row.bookingState === state && row.currency === 'USD' && row.revenueRecorded) : [];
+    const moved = state === 'estimated' ? stripeShift(wallPeriod) : 0;
+    if (rows.length === 0 && !shifts.some(row => state === 'estimated' && row.toPeriod === wallPeriod)) return null;
+    const total = moneyFigure([
+      ...rows.map(row => ({ ...row, costMinor: 0 })), { currency: 'USD', revenueMinor: moved, costMinor: 0 },
+    ]).revenue;
+    return total;
   };
   const residue: LedgerResidue = {
     booked: residueFigure("reconciled"),
@@ -569,9 +581,10 @@ export async function buildWallPayload(
   const netTrendAllCurrency = currencyOf(netTrendAllRows);
   const netTrendAll = netTrendAllCurrency === null ? [] : netTrendAllRows
     .map(row => ({ t: row.t, v: minorToMajorUnits(row.v, row.currency) })).slice(-12);
-  const previousPeriod = shiftRevenueDate(monthDate(period), -1).slice(0, 7);
-  const priorRevenue = netTrendAllRows.filter(row => row.t === previousPeriod && row.revenue !== null);
-  const previousRevenue = priorRevenue.length === 1 ? priorRevenue[0] : undefined;
+  const previousPeriod = previousOf(wallPeriod);
+  const priorRevenue = netTrendAllRows.find(row => row.t === previousPeriod && row.currency === 'USD' && row.revenue !== null);
+  const previousShift = stripeShift(previousPeriod);
+  const previousRevenueMinor = priorRevenue || previousShift !== 0 ? cents(priorRevenue?.revenue ?? 0n) + previousShift : null;
 
   // The delta the band is allowed to state: the newest two months strictly
   // before the current period, the like-for-like pair this grain supports.
@@ -629,8 +642,8 @@ export async function buildWallPayload(
       booked: ledgerRows.some(row => row.bookingState === 'reconciled' && row.revenueRecorded),
       forecast: ledgerRows.some(row => row.bookingState === 'estimated' && row.revenueRecorded),
     },
-    wallRevenueUsd: { booked: wallRevenueUsd("reconciled"), forecast: wallRevenueUsd("estimated") },
-    ...(previousRevenue ? { previousRevenue: { period: previousPeriod, amount: minorToMajorUnits(cents(previousRevenue.revenue), previousRevenue.currency), currency: previousRevenue.currency } } : {}),
+    wallRevenueUsd: { booked: wallRevenueUsd("reconciled"), forecast: wallRevenueUsd("estimated"), period: wallPeriod, periodIsCurrent: wallPeriod === currentPeriod },
+    ...(previousRevenueMinor !== null ? { previousRevenue: { period: previousPeriod, amount: minorToMajorUnits(previousRevenueMinor, 'USD'), currency: 'USD' } } : {}),
     netTrend,
     netTrendCurrency,
     netTrendAll,
@@ -745,8 +758,14 @@ export async function buildWallPayload(
   const revenueHistories = await loadRevenueHistories(store, {
     now, days: REVENUE_HISTORY_DAYS + 1, fallback: revenueClockFallback, includeSourceDays: true,
   });
-  const dailyLedgerSources = new Map(ledgerRows.filter(row => row.currency === 'USD' && row.dailySources)
+  const dailyLedgerSources = new Map(ledgerRows.filter(row => wallPeriod === period && row.currency === 'USD' && row.dailySources)
     .map(row => [row.asset, new Set(row.dailySources)]));
+  for (const row of shifts) {
+    if (row.toPeriod !== wallPeriod) continue;
+    const sources = dailyLedgerSources.get(row.asset) ?? new Set<string>();
+    sources.add(STRIPE_REVENUE_SOURCE);
+    dailyLedgerSources.set(row.asset, sources);
+  }
   const revenueOf = (asset: string): SiteRevenueHistory =>
     revenueHistories.get(asset) ?? emptyRevenueHistory(now, REVENUE_HISTORY_DAYS + 1, revenueClockFallback);
   /** The clock a site's revenue days are on: its sources', or the operator's. */
@@ -798,21 +817,26 @@ export async function buildWallPayload(
     // whose collection stopped sheds its marker.
     const latestPanelDate = panelLandingByAsset.get(a.id) ?? null;
     const history = revenueOf(a.id);
-    const projection = projectRevenue(now, revenueClockOf(a.id), completeRevenueDays(history), revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
+    const forecastHistory = revenueForForecast(history, now, REVENUE_HISTORY_DAYS + 1);
+    const forecastClock = forecastHistory.clock ?? revenueClockFallback;
+    const projection = projectRevenue(now, forecastClock, completeRevenueDays(forecastHistory), revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
         revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar,
-          Number(revenueCalendarDate(now, revenueClockOf(a.id).timeZone).slice(0, 4))));
+          Number(revenueCalendarDate(now, forecastClock.timeZone).slice(0, 4))));
     const observed = new Set(projection.points.filter(point => !point.projected).map(point => point.date));
+    const wallDailyRevenue = history.bySource.length ? wallYesterdayRevenue(history, operatorToday, osTimeZone, now) : undefined;
     const revenueProjectionSources = history.bySource.flatMap(source => {
       if (source.currency !== "USD") return [];
       // The financial ledger resolves overlap with imported monthly entries.
       // A site without a forecast can still chart its recognized daily revenue.
       const recorded = dailyLedgerSources.get(a.id)?.has(source.source);
       const sourceToday = revenueCalendarDate(now, source.clock.timeZone);
-      const days = source.days.filter(day => projection.status === 'ready'
+      const outsideForecast = source.source === STRIPE_REVENUE_SOURCE && forecastHistory !== history;
+      const days = source.days.filter(day => projection.status === 'ready' && !outsideForecast
         ? observed.has(day.date)
-        : recorded && day.date.startsWith(period) && day.date < sourceToday)
+        : recorded && day.date.startsWith(wallPeriod) && day.date < sourceToday)
         .map(({ date, amountMinor }) => ({ date, amountMinor }));
-      return days.length ? [{ source: source.source, displayName: source.displayName, days }] : [];
+      return days.length ? [{ source: source.source, displayName: source.displayName, days,
+        ...(outsideForecast ? { includedInProjection: false as const } : {}) }] : [];
     });
     return {
       id: a.id,
@@ -840,10 +864,13 @@ export async function buildWallPayload(
         declaredNoReport: declaredNoReport.has(a.id),
       }),
       activeUsers: signalTrends.activeUsers,
-      dailyRevenue: { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(history)),
-        timeZoneLabel: revenueClockOf(a.id).label },
+      dailyRevenue: history.bySource.some(source => source.source === STRIPE_REVENUE_SOURCE) && wallDailyRevenue
+        ? { date: wallDailyRevenue.date, timeZone: osTimeZone, amountMinor: wallDailyRevenue.amountMinor,
+          reportedThrough: wallDailyRevenue.complete ? wallDailyRevenue.date : null }
+        : { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(history)),
+          timeZoneLabel: revenueClockOf(a.id).label },
       revenueProjection: projection,
-      ...(history.bySource.length ? { wallDailyRevenue: wallYesterdayRevenue(history, operatorToday, osTimeZone, now) } : {}),
+      ...(wallDailyRevenue !== undefined ? { wallDailyRevenue } : {}),
       ...(revenueProjectionSources.length ? { revenueProjectionSources } : {}),
       // Two providers, one measurement, one column; the merge is `shared/wall.ts`'s.
       searchClicks: mergeSignalTrends([

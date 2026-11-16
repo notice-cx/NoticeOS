@@ -28,6 +28,8 @@ export interface RevenueSourceHistory extends RevenueSource {
   since: string;
   days: (RevenueDay & { sales?: SalesBreakdown })[];
   reportedThrough: string | null;
+  /** Collected amounts on days whose full interval is still pending. */
+  partialDates?: string[];
 }
 
 /** The clock a site with no revenue source dates its empty window on: the
@@ -101,9 +103,16 @@ export interface PortfolioDailyRevenue extends DailyRevenueHistory {
   /** Each source owed at least one day of the window. `since` is its first
    * reported day: it owes no day before it. */
   sources: { asset: string; displayName: string; since: string }[];
-  /** Per day: sources that reported, and the asset IDs of owed sources that
-   * did not. Resolve names through `sources` only when displaying them. */
-  coverage: { date: string; reported: number; missingAssets: string[] }[];
+  /** Per day: the number of complete assets and which assets have an overdue
+   * report or are still waiting. Resolve names through `sources`. */
+  coverage: { date: string; reported: number; missingAssets: string[]; pendingAssets?: string[] }[];
+}
+
+/** A subtotal can be shown while some of the day's reports are outstanding. */
+export function portfolioPartialDates(history: PortfolioDailyRevenue): string[] {
+  const observed = new Set(history.days.map(day => day.date));
+  return history.coverage.filter(day => observed.has(day.date) && (day.missingAssets.length || day.pendingAssets?.length))
+    .map(day => day.date);
 }
 
 export function revenueWindowDays(from: string, to: string): number {
