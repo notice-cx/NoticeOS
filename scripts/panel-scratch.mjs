@@ -1,4 +1,4 @@
-// Estimate interrupted report scratch in one explicit <asset>.reports directory.
+// Estimate the temporary files left by interrupted report jobs for one asset.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
