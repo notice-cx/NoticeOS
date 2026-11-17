@@ -816,6 +816,15 @@ and its `property_report` agent tool. If analysis or publication fails, those
 surfaces continue to serve the previous stored version. Local report files
 stay in the workspace's private runtime folder.
 
+Each customer site keeps up to 64 MiB of compressed downloads in the managed
+archive cache. The cache prefers later report dates and evicts a copy only
+when its checksum and the durable object's version both match. Existing
+unqualified files and uncompressed downloads from older versions retain
+their contents. The report reuses verified Parquet history for unchanged
+archives and reads the durable object if a rebuild needs earlier bytes.
+An updated history partition can fetch earlier objects that no longer fit
+in the cache. Missing durable bytes stop publication when they are needed.
+
 This launcher cannot adopt a Compose installation. A move from an existing
 standalone installation requires a separately tested rollout and rollback
 with the installation owner's approval.

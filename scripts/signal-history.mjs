@@ -147,7 +147,7 @@ import {
   resolveFamily,
   resolvesAcrossReportDays,
 } from './signal-archive.mjs';
-import { DOWNLOADS_MANIFEST, archiveFiles, readDownloadsManifest } from './signal-downloads.mjs';
+import { DOWNLOADS_MANIFEST, archiveFiles, archivePath, readDownloadsManifest } from './signal-downloads.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -336,6 +336,18 @@ async function readDownloads(input) {
   return { state, confirmations: manifestConfirmations(manifest), days };
 }
 
+function durablePaths(asset, input, downloads, readArchive) {
+  const paths = new Map();
+  if (!readArchive) return paths;
+  for (const row of downloads.days.values()) {
+    if (row.objectKey === null) continue;
+    const root = path.dirname(input);
+    const relative = posixPath(path.relative(path.join(root, asset), archivePath(root, asset, row)));
+    paths.set(relative, row);
+  }
+  return paths;
+}
+
 /** The envelope fields the analyzer's summary quotes, as the archive states
  * them: JSON, so a missing field stays missing and a value keeps its type. */
 function envelopeOf(archive) {
@@ -362,13 +374,27 @@ function checkedArchive(bytes, asset, source, counts) {
  * is new — read once for its row count and columns. The previous register
  * answers for an archive whose bytes and confirmation did not change.
  */
-async function scanArchives({ asset, input, downloads, previous, counts }) {
+async function scanArchives({ asset, input, downloads, previous, counts, durable, readBytes }) {
   const records = [];
-  for (const file of await archiveFiles(input)) {
-    const relative = posixPath(path.relative(input, file));
-    const bytes = await fs.readFile(file);
-    const hash = sha256(bytes);
+  const local = (await archiveFiles(input)).map(file => posixPath(path.relative(input, file)));
+  for (const relative of [...new Set([...local, ...durable.keys()])].sort()) {
     const prior = previous.get(relative);
+    const backed = durable.get(relative);
+    const key = backed ? reportDayKey(backed) : null;
+    // A hosted manifest is pinned to named immutable objects. Reuse the
+    // published lineage when the address and confirmation still match, even
+    // if there is no longer a second copy of the archive on disk.
+    if (backed && ['read', 'superseded'].includes(prior?.state)
+      && backed.objectKey === prior.object_key && backed.integration === prior.integration
+      && backed.report === prior.report && backed.reportDate === prior.report_date
+      && prior.confirmed_at === (downloads.confirmations.get(key) ?? null)) {
+      records.push({ path: relative, sha256: prior.sha256, bytes: prior.bytes, state: 'read',
+        ...backed, family: prior.family, key, confirmedAt: prior.confirmed_at, fingerprint: prior.fingerprint,
+        rows: prior.rows, columns: JSON.parse(prior.columns), envelope: prior.envelope });
+      continue;
+    }
+    const bytes = await readBytes(relative);
+    const hash = sha256(bytes);
     const known = prior?.sha256 === hash ? prior : null;
     let archive = null;
     let identity;
@@ -388,9 +414,10 @@ async function scanArchives({ asset, input, downloads, previous, counts }) {
       records.push({ ...base, state: 'unreadable', reason: identity.reason });
       continue;
     }
-    const key = reportDayKey(identity);
-    const confirmedAt = downloads.confirmations.get(key) ?? null;
-    const objectKey = downloads.days.get(key)?.objectKey ?? null;
+    const identityKey = reportDayKey(identity);
+    if (backed && key !== identityKey) throw new Error('An archived report differs from its stored identity.');
+    const confirmedAt = downloads.confirmations.get(identityKey) ?? null;
+    const objectKey = downloads.days.get(identityKey)?.objectKey ?? null;
     const fingerprint = sha256(JSON.stringify([relative, hash, confirmedAt, objectKey]));
     let rows;
     let columns;
@@ -412,7 +439,7 @@ async function scanArchives({ asset, input, downloads, previous, counts }) {
       report: identity.report,
       reportDate: identity.reportDate,
       family: archiveFamily(identity),
-      key,
+      key: identityKey,
       confirmedAt,
       objectKey,
       fingerprint,
@@ -446,8 +473,8 @@ async function scanArchives({ asset, input, downloads, previous, counts }) {
 }
 
 /** One source archive's rows, read again and checked against the scan. */
-async function sourceRows(record, { input, asset, confirmations, counts }) {
-  const bytes = await fs.readFile(path.join(input, record.path));
+async function sourceRows(record, { readBytes, asset, confirmations, counts }) {
+  const bytes = await readBytes(record.path);
   if (sha256(bytes) !== record.sha256) {
     throw new Error(`${record.path} changed while this run read it. Nothing was published; run again.`);
   }
@@ -507,10 +534,16 @@ function sourceRecords(scan) {
   return [...scan.records, ...scan.missing].map(row);
 }
 
-async function readPreviousSources(connection, output, previous) {
+async function readPreviousSources(connection, output, previous, verify) {
   const known = new Map();
   if (!previous || previous.sources.files.length === 0) return known;
-  const list = datasetFiles(output, previous, 'sources').map(sqlString).join(', ');
+  const files = datasetFiles(output, previous, 'sources');
+  if (verify) for (const [index, file] of files.entries()) {
+    const entry = previous.sources.files[index];
+    const bytes = await fs.readFile(file);
+    if (bytes.length !== entry.bytes || sha256(bytes) !== entry.sha256) throw new Error('The published source register failed its checksum.');
+  }
+  const list = files.map(sqlString).join(', ');
   const reader = await connection.runAndReadAll(`SELECT * FROM read_parquet([${list}]) WHERE path IS NOT NULL`);
   for (const row of reader.getRowObjectsJS()) known.set(row.path, row);
   return known;
@@ -551,7 +584,7 @@ async function removeAbandonedSpills(output) {
  * the clock the kept generations are judged by.
  */
 export async function publishSignalHistory(
-  { asset, input, output },
+  { asset, input, output, readArchive },
   deps = {},
 ) {
   if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
@@ -571,7 +604,7 @@ export async function publishSignalHistory(
     ? `Another signals:history run took ${output} first; nothing was changed.`
     : `Another signals:history run (process ${holder}) is writing ${output}; nothing was changed.`));
   try {
-    const result = await publishGeneration({ asset, from, to, output, now, writeFile: deps.writeFile ?? copyToParquet });
+    const result = await publishGeneration({ asset, from, to, output, now, readArchive, writeFile: deps.writeFile ?? copyToParquet });
     let retention;
     try {
       retention = await pruneHistory(to, now(), deps.beforeRemove);
@@ -586,7 +619,7 @@ export async function publishSignalHistory(
 }
 
 /** One run's publication, under the history's lock. */
-async function publishGeneration({ asset, from, to, output, now, writeFile }) {
+async function publishGeneration({ asset, from, to, output, now, readArchive, writeFile }) {
   const derivation = await derivationOf();
   const previous = await readCurrentGeneration(to);
   // A history the importer wrote first (only its tables) names no site yet.
@@ -606,15 +639,18 @@ async function publishGeneration({ asset, from, to, output, now, writeFile }) {
   try {
     const downloads = await readDownloads(from);
     const counts = { read: 0 };
+    const durable = durablePaths(asset, from, downloads, readArchive);
+    const readBytes = relative => durable.has(relative) ? readArchive(durable.get(relative)) : fs.readFile(path.join(from, relative));
     const scan = await scanArchives({
       asset,
       input: from,
       downloads,
-      previous: await readPreviousSources(connection, to, reusable),
+      previous: await readPreviousSources(connection, to, reusable, Boolean(readArchive)),
       counts,
+      durable, readBytes,
     });
     const context = { connection, output: to, derivation, writeFile, written: { files: [], tables: 0 } };
-    const reading = { input: from, asset, confirmations: downloads.confirmations, counts };
+    const reading = { readBytes, asset, confirmations: downloads.confirmations, counts };
 
     const families = new Map();
     for (const record of scan.records) {

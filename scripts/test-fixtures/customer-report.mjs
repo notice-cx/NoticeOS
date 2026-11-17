@@ -96,6 +96,9 @@ export async function verifyCustomerReports({ db, app, resources, cold, t }) {
     const root = path.join(db.customer, 'reports', east.workspaceId, 'reports', `${asset}.reports`);
     assert.ok(!readdirSync(root).some(name => name.startsWith('.staging')));
     assert.ok(!readdirSync(path.join(db.customer, 'reports', east.workspaceId, 'history', asset)).some(name => name.startsWith('.spill')));
+    assert.deepEqual(readdirSync(path.join(db.customer, 'reports', east.workspaceId, 'downloads', asset)), ['manifest.json']);
+    assert.ok(readdirSync(path.join(db.customer, 'reports', east.workspaceId, 'archive-cache', asset))
+      .every(name => /^[a-f0-9]{64}\.cache$/u.test(name)));
     const costs = ({ elapsedMs, objectReads, objectBytes, cost }) => ({ elapsedMs, objectReads, objectBytes, ...cost });
     t.diagnostic(`Report cold ${JSON.stringify(costs(cold))}. Warm ${JSON.stringify(costs(warm))}.`);
   } finally { await Promise.all([eastStore.close(), westStore.close()]); }

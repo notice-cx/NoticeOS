@@ -16,6 +16,7 @@
 // Run by the runner: scripts/runner/config.mjs CONFIG.panelRefreshCron.
 
 import { applyProductDataAvailability, productDataRows } from './product-data-pack.mjs';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -423,7 +424,25 @@ export function freshnessReport(input) {
 }
 
 /** Availability is read from the newest local product document, without contacting its asset. */
-export async function localProductDataAvailability(downloadsRoot, asset, manifest, report = 'metrics-availability') {
+async function readLimitedArchive(downloadsRoot, asset, row, maxBytes, readArchive) {
+  if (readArchive && typeof row.objectKey === 'string') {
+    const bytes = await readArchive(row);
+    return bytes.length > maxBytes ? null : bytes;
+  }
+  const handle = await fs.open(archivePath(downloadsRoot, asset, row), 'r');
+  try {
+    const bytes = Buffer.alloc(maxBytes + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const chunk = await handle.read(bytes, length, bytes.length - length, null);
+      if (!chunk.bytesRead) break;
+      length += chunk.bytesRead;
+    }
+    return length > maxBytes ? null : bytes.subarray(0, length);
+  } finally { await handle.close(); }
+}
+
+export async function localProductDataAvailability(downloadsRoot, asset, manifest, report = 'metrics-availability', readArchive) {
   const matching = manifest.filter(row => row.integration === 'product-data' && row.report === report);
   const stamp = row => /\/(\d{8}T\d{9}Z)-[a-f0-9]{16}\.json\.gz$/.exec(row.objectKey ?? '')?.[1] ?? null;
   const legacy = matching.filter(row => stamp(row) === null);
@@ -432,28 +451,17 @@ export async function localProductDataAvailability(downloadsRoot, asset, manifes
   const candidates = latestKeyed ? [...legacy, latestKeyed] : legacy;
   let newest = null;
   for (const candidate of candidates) {
-    const handle = await fs.open(archivePath(downloadsRoot, asset, candidate), 'r');
-    try {
-      const bytes = Buffer.alloc(16 * 1024 + 1);
-      let length = 0;
-      while (length < bytes.length) {
-        const chunk = await handle.read(bytes, length, bytes.length - length, null);
-        if (!chunk.bytesRead) break;
-        length += chunk.bytesRead;
-      }
-      if (length === bytes.length) throw new Error('Product availability archive exceeds its limit');
-      const archive = parseArchive(bytes.subarray(0, length).toString('utf8'), { asset, source: 'product availability' });
-      if (archive.integration !== 'product-data' || archive.report !== report || archive.reportDate !== candidate.reportDate || !Number.isFinite(Date.parse(archive.collectedAt))) throw new Error('Product availability archive identity differs');
-      if (!newest || Date.parse(archive.collectedAt) > Date.parse(newest.collectedAt)) newest = archive;
-    } finally {
-      await handle.close();
-    }
+    const bytes = await readLimitedArchive(downloadsRoot, asset, candidate, 16 * 1024, readArchive);
+    if (!bytes) throw new Error('Product availability archive exceeds its limit');
+    const archive = parseArchive(bytes.toString('utf8'), { asset, source: 'product availability' });
+    if (archive.integration !== 'product-data' || archive.report !== report || archive.reportDate !== candidate.reportDate || !Number.isFinite(Date.parse(archive.collectedAt))) throw new Error('Product availability archive identity differs');
+    if (!newest || Date.parse(archive.collectedAt) > Date.parse(newest.collectedAt)) newest = archive;
   }
   return newest ? productDataRows(newest).map(row => ({ ...row, collected_at: newest.collectedAt })) : [];
 }
 
 /** Bounded local evidence only; unavailable archives remain unknown. */
-export async function localStabilityReport(downloadsRoot, asset, manifest) {
+export async function localStabilityReport(downloadsRoot, asset, manifest, readArchive) {
   const families = new Map();
   for (const row of mergeManifest([], manifest)) {
     const family = `${row.integration}-${reportFamily(row.integration, row.report)}`;
@@ -473,19 +481,10 @@ export async function localStabilityReport(downloadsRoot, asset, manifest) {
       const unknown = { family, reportDate: row.reportDate, collectedAt: null, providerDates: [], comparisonKey: null, resultHash: null };
       if (read >= STABILITY_ARCHIVES) { readings.push(unknown); continue; }
       read++;
-      let handle;
       try {
-        handle = await fs.open(archivePath(downloadsRoot, asset, row), 'r');
-        // A bounded read also covers a file growing after stat.
-        const bytes = Buffer.alloc(STABILITY_ARCHIVE_BYTES + 1);
-        let length = 0;
-        while (length < bytes.length) {
-          const chunk = await handle.read(bytes, length, bytes.length - length, null);
-          if (chunk.bytesRead === 0) break;
-          length += chunk.bytesRead;
-        }
-        if (length > STABILITY_ARCHIVE_BYTES) { readings.push(unknown); continue; }
-        const archive = parseArchive(bytes.subarray(0, length).toString('utf8'), { asset, source: 'local stability evidence' });
+        const bytes = await readLimitedArchive(downloadsRoot, asset, row, STABILITY_ARCHIVE_BYTES, readArchive);
+        if (!bytes) { readings.push(unknown); continue; }
+        const archive = parseArchive(bytes.toString('utf8'), { asset, source: 'local stability evidence' });
         if (archive.integration !== row.integration || archive.report !== row.report || archive.reportDate !== row.reportDate) {
           readings.push(unknown); continue;
         }
@@ -494,10 +493,9 @@ export async function localStabilityReport(downloadsRoot, asset, manifest) {
           if (requests !== null) trackedSearchRosters.push({ reportDate: archive.reportDate, requests });
         }
         readings.push(archiveComparisonEvidence(archive));
-      } catch {
+      } catch (error) {
+        if (readArchive && typeof row.objectKey === 'string') throw error;
         readings.push(unknown);
-      } finally {
-        await handle?.close();
       }
     }
     assessed.push({ family, ...comparablePeriodStability(readings) });
@@ -534,6 +532,29 @@ async function fileExists(file) {
   }
 }
 
+async function hostedDownloadManifest(file, asset) {
+  const stat = await fs.lstat(file).catch(error => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!stat) return { objects: [] };
+  if (!stat.isFile()) throw new Error('The customer archive manifest must be a regular file.');
+  const manifest = await readJsonFile(file);
+  if (manifest?.source !== 'panel-refresh' || manifest.asset !== asset || !Array.isArray(manifest.objects)) {
+    throw new Error('The customer archive manifest is not owned by this report.');
+  }
+  return manifest;
+}
+
+async function writeHostedManifest(file, json) {
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  try {
+    const handle = await fs.open(temporary, 'wx', 0o600);
+    try { await handle.writeFile(json); await handle.sync(); } finally { await handle.close(); }
+    await fs.rename(temporary, file);
+  } finally { await fs.rm(temporary, { force: true }); }
+}
+
 /**
  * One property's pass. Every side effect is injectable. Returns what it did,
  * so a caller can tell a pass that refreshed nothing from a pass that never
@@ -565,6 +586,8 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     market = null,
     /** The pass's one collection-health read (readCollectionHealth). */
     collection = null,
+    readArchive,
+    validateArchives,
     writeHistory = publishSignalHistory,
     analyze = analyzeSignalHistory,
     publish = publishExecutiveSnapshot,
@@ -589,15 +612,14 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
   }
   const manifestRows = source.manifest;
   const trendRows = source.trend;
+  const manifestFile = path.join(downloadsDir, 'manifest.json');
 
   // Already-on-disk archives are skipped by (objectKey, file exists). The
   // object key carries the content hash, so an archive the collector revised
   // gets a new key and is re-fetched; one it re-confirmed unchanged keeps its
   // key and is not.
-  const previousManifest = await readJsonFile(
-    path.join(downloadsDir, 'manifest.json'),
-    { objects: [] },
-  );
+  const previousManifest = readArchive ? await hostedDownloadManifest(manifestFile, asset)
+    : await readJsonFile(manifestFile, { objects: [] });
   const heldKeys = new Map();
   for (const row of Array.isArray(previousManifest?.objects) ? previousManifest.objects : []) {
     if (row && typeof row.objectKey === 'string') {
@@ -606,7 +628,7 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
   }
 
   const fetched = [];
-  for (const row of manifestRows) {
+  for (const row of readArchive ? [] : manifestRows) {
     const destination = archivePath(options.downloadsRoot, asset, row);
     const key = `${row.integration}\0${row.report}\0${row.reportDate}`;
     if (heldKeys.get(key) === row.objectKey && (await fileExists(destination))) continue;
@@ -634,10 +656,9 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     Array.isArray(previousManifest?.objects) ? previousManifest.objects : [],
     manifestRows.map((row) => ({ ...row, asset })),
   );
+  validateArchives?.(merged);
   await fs.mkdir(downloadsDir, { recursive: true });
-  await fs.writeFile(
-    path.join(downloadsDir, 'manifest.json'),
-    `${JSON.stringify(
+  const manifestJson = `${JSON.stringify(
       {
         downloadedAt: refreshedAt,
         source: 'panel-refresh',
@@ -647,8 +668,9 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
       },
       null,
       2,
-    )}\n`,
-  );
+    )}\n`;
+  if (readArchive) await writeHostedManifest(manifestFile, manifestJson);
+  else await fs.writeFile(manifestFile, manifestJson);
 
   const freshness = freshnessReport({
     asset,
@@ -657,12 +679,12 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     refreshedAt,
     collection,
   });
-  applyProductDataAvailability(freshness, await localProductDataAvailability(options.downloadsRoot, asset, merged),
-    (await localProductDataAvailability(options.downloadsRoot, asset, merged, 'metrics-collection'))[0] ?? null);
-  const { trackedSearchRosters, ...stability } = await localStabilityReport(options.downloadsRoot, asset, merged);
+  applyProductDataAvailability(freshness, await localProductDataAvailability(options.downloadsRoot, asset, merged, 'metrics-availability', readArchive),
+    (await localProductDataAvailability(options.downloadsRoot, asset, merged, 'metrics-collection', readArchive))[0] ?? null);
+  const { trackedSearchRosters, ...stability } = await localStabilityReport(options.downloadsRoot, asset, merged, readArchive);
   freshness.stability = stability;
   if (trackedSearchRosters.length) freshness.trackedSearchRosters = trackedSearchRosters;
-  const history = await writeHistory({ asset, input: downloadsDir, output: historyDir });
+  const history = await writeHistory({ asset, input: downloadsDir, output: historyDir, ...(readArchive ? { readArchive } : {}) });
   const analysisStartedAt = now();
   const analysis = await analyze({
     asset, history: historyDir, generation: history.generation,
