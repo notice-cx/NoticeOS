@@ -427,19 +427,7 @@ export function seasonalInputsFrom(
 
   for (const [metric, current] of Object.entries(envelope.metrics)) {
     const daily = (date: string) => history.get(date)?.metrics[metric]?.last24h;
-    const windows = countWindowsFrom((back) => daily(shiftDate(currentDate, -back)), config.maxWindowDays, config.alpha);
-    const candidates: MetricBaseline[] = windows.map((window) => {
-      const earlier = windowTotal(daily, shiftDate(currentDate, -1), window.days - 1);
-      return {
-        perDay: window.forecast.historicalMean / window.days,
-        source: 'same-weekday-8-periods', forecast: window.forecast,
-        eligible: window.eligible, pooledGroups: window.pooledGroups,
-        sampleSize: SEASONAL_BASELINE_PERIODS,
-        comparisonDates: window.endOffsets.map((back) => shiftDate(currentDate, -back)),
-        windowHours: window.days * 24,
-        ...(earlier === undefined ? {} : { observed: current.last24h + earlier }),
-      };
-    });
+    const candidates = countBaselinesFrom(daily, currentDate, current.last24h, config);
     const preferred = candidates.find((candidate) => candidate.eligible) ?? candidates.at(-1);
     if (!preferred) continue;
     baselineByMetric[metric] = { ...preferred, candidates };
@@ -447,6 +435,27 @@ export function seasonalInputsFrom(
   }
 
   return { baselineByMetric, windowObservedByMetric };
+}
+
+export function countBaselinesFrom(
+  daily: (date: string) => number | undefined,
+  date: string,
+  observed: number,
+  config: RuleConfig,
+): MetricBaseline[] {
+  const windows = countWindowsFrom((back) => daily(shiftDate(date, -back)), config.maxWindowDays, config.alpha);
+  return windows.map((window) => {
+    const earlier = windowTotal(daily, shiftDate(date, -1), window.days - 1);
+    return {
+      perDay: window.forecast.historicalMean / window.days,
+      source: 'same-weekday-8-periods', forecast: window.forecast,
+      eligible: window.eligible, pooledGroups: window.pooledGroups,
+      sampleSize: SEASONAL_BASELINE_PERIODS,
+      comparisonDates: window.endOffsets.map((back) => shiftDate(date, -back)),
+      windowHours: window.days * 24,
+      ...(earlier === undefined ? {} : { observed: observed + earlier }),
+    };
+  });
 }
 
 /** The sum of `days` daily counts ending on `end`, or undefined when one is

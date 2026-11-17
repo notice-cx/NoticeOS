@@ -38,7 +38,8 @@ import {
   runDataForSeoRecovery,
 } from './dataforseo-dumps.js';
 import { resolveCredential } from './credentials.js';
-import { runAssetZeroPulse, runFreshnessCheck } from './db.js';
+import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
+import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { runGa4Realtime } from './ga4-realtime.js';
 import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
@@ -162,7 +163,11 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   'tempo-mpp': { steps: { 'tempo-sales': (env) => runTempoMpp(env) }, answeredBy: 'tempo-sales' },
   // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.
-  freshness: { steps: { freshness: (env) => runFreshnessCheck(env), uptime: (env) => runUptimeChecks(env) } },
+  freshness: { steps: {
+    freshness: (env) => runFreshnessCheck(env),
+    uptime: (env) => runUptimeChecks(env),
+    'search-traffic': (env, cfg) => checkSearchTraffic(env, ruleConfigFromConstants(cfg.constants)),
+  } },
   notifications: { steps: { notify: async (env, cfg) => {
     const result = schedulePaused(cfg.constants, 'notifications')
       ? { found: 0, fresh: 0, sent: 0, skipped: 'paused' as const }

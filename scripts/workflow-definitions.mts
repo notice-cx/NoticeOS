@@ -18,6 +18,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   // `connection-counts` and `source-history` are the Tower's steps of this tick
   // (apps/tower/worker/tower-cron.ts), run once the ingest's checks are done.
   freshness: [action('freshness', 'Check report freshness', 'Compares received reports with their reporting obligations.', 'check'), action('uptime', 'Check assets are up', 'Fetches each asset’s home page and records whether it answered.', 'check'),
+    action('search-traffic', 'Check for search traffic drops', 'Compares complete Bing and Google Search Console counts with past weeks.', 'check'),
     action('connection-counts', 'Record connection counts', 'Records today’s System health connection counts.', 'storage', ['freshness', 'uptime']),
     action('source-history', 'Record source history', 'Records today’s state and freshness of each data source.', 'storage', ['freshness', 'uptime'])],
   notifications: [action('notify', 'Deliver notifications', 'Delivers new error alerts and data-source failures, with retries for failed deliveries.')],
