@@ -73,6 +73,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { reportScratch } from './panel-scratch.mjs';
 import { assessSerpOrganicQuality, SERP_PANEL_FAMILY } from './panel-serp-organic.mjs';
 import { DuckDBInstance } from '@duckdb/node-api';
 import { readConfigSnapshot } from './config-store-client.mjs';
@@ -613,7 +614,19 @@ async function runJob(job, stage) {
 
   // Staged whole, within the temporary-disk limit, before anything is visible.
   await fs.mkdir(staging);
+  const previous = await linkedReport(output);
+  const previousFiles = new Map();
+  if (previous && (await fs.lstat(previous).catch(() => null))?.isDirectory()) {
+    try {
+      const recordPath = path.join(previous, REPORT_RECORD);
+      const record = (await fs.lstat(recordPath)).isFile() && JSON.parse(await fs.readFile(recordPath, 'utf8'));
+      if (record.asset === asset && Array.isArray(record.files)) {
+        for (const file of record.files) previousFiles.set(file.name, file.sha256);
+      }
+    } catch { /* An absent or damaged previous report is rebuilt from the pinned inputs. */ }
+  }
   let staged = 0;
+  let sharedCsvBytes = 0;
   const written = [];
   const files = [];
   const write = async (name, text) => {
@@ -622,9 +635,24 @@ async function runJob(job, stage) {
     if (staged > limits.tempDiskMb * MB) {
       throw new JobFailure('temp-disk', `The report needed more than its ${limits.tempDiskMb} MB of temporary disk (${LIMIT_FLAGS.tempDiskMb}).`);
     }
-    await fs.writeFile(path.join(staging, name), text, { flag: 'wx' });
+    const digest = sha256(text);
+    const destination = path.join(staging, name);
+    let shared = false;
+    if (previous && name.endsWith('.csv') && previousFiles.get(name) === digest) {
+      // Published CSVs are immutable. Older retention gzips a new file, then
+      // unlinks this name. Verify the actual bytes before sharing its inode.
+      const source = path.join(previous, name);
+      const stat = await fs.lstat(source).catch(() => null);
+      if (stat?.isFile() && stat.size === bytes && await fileSha256(source).catch(() => null) === digest) {
+        try { await fs.link(source, destination); shared = true; sharedCsvBytes += bytes; }
+        catch (error) {
+          if (!['ENOENT', 'EXDEV', 'EACCES', 'EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EMLINK', 'ENOSYS'].includes(error.code)) throw error;
+        }
+      }
+    }
+    if (!shared) await fs.writeFile(destination, text, { flag: 'wx' });
     written.push(name);
-    files.push({ name, bytes, sha256: sha256(text) });
+    files.push({ name, bytes, sha256: digest });
     if (written.length === 1) await stage('writing');
   };
   const { summary, executive } = await writeReport({
@@ -663,7 +691,6 @@ async function runJob(job, stage) {
 
   // One rename makes the report a report folder; one more swaps the link.
   const reports = reportsFolder(output);
-  const previous = await linkedReport(output);
   const id = panelVersionId(manifest.generation, analyzedAt);
   const folder = path.join(reports, id);
   await fs.rename(staging, folder);
@@ -689,6 +716,10 @@ async function runJob(job, stage) {
     },
     cost: {
       ...cost,
+      sharedCsvBytes,
+      stagedLogicalBytes: staged,
+      cpuUserMs: process.resourceUsage().userCPUTime / 1000,
+      cpuSystemMs: process.resourceUsage().systemCPUTime / 1000,
       // Node's start and this module's imports, before the job began.
       secondsStarting: Math.round(clock[0]) / 1000,
       secondsReading,
@@ -803,8 +834,8 @@ export async function analyzeSignalHistory({
   const unchanged = `Nothing was published; ${shown(to)} is unchanged.`;
   try {
     // Left by a job that died: no live job owns them while this lock is held.
-    for (const name of await fs.readdir(reports)) {
-      if (name.startsWith('.staging-') || name.startsWith('.link-')) await fs.rm(path.join(reports, name), { recursive: true, force: true });
+    for (const entry of await fs.readdir(reports, { withFileTypes: true })) {
+      if (reportScratch(entry)) await fs.rm(path.join(reports, entry.name), { recursive: true, force: true });
     }
     await linkedReport(to);
 
