@@ -76,10 +76,12 @@ export interface WallCanvasProps {
   /** The surface's own upcoming-meetings poll. */
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  calendarCheck?: WallStripProps['calendarCheck'];
   weather?: WallWeatherState;
   /** The independent 30-second GA4 read; failure never blanks a card. */
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
+  reportGa4Today?: boolean;
   /** Showing a held payload after a failed poll: the strip says so, with its age. */
   lastGood?: boolean;
   /** The reads every source mark is read from, the surface's own polls. */
@@ -150,9 +152,11 @@ export function WallCanvas({
   nowMs,
   meetings,
   calendarState,
+  calendarCheck,
   weather,
   ga4Realtime,
   ga4RealtimeError = false,
+  reportGa4Today,
   lastGood = false,
   connections,
   editing,
@@ -172,6 +176,7 @@ export function WallCanvas({
             countdown={data.dashboard.countdown}
             meetings={meetings}
             calendarState={calendarState}
+            calendarCheck={calendarCheck}
             weather={weather}
             weatherUnit={wallWeatherSettings(layout).unit}
             heldSince={lastGood ? data.generatedAt : null}
@@ -232,6 +237,7 @@ export function WallCanvas({
             workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
             ga4Realtime={ga4Realtime}
             ga4RealtimeError={ga4RealtimeError}
+            reportGa4Today={reportGa4Today}
             connections={connections}
             nowMs={nowMs}
           />

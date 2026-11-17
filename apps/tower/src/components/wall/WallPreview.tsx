@@ -249,6 +249,7 @@ export interface WallPreviewProps {
   weather?: WallWeatherState;
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
+  reportGa4Today?: boolean;
   /** The reads each source mark's status comes from, as on the TV. */
   connections?: ConnectionReads;
   nowMs: number;
@@ -297,6 +298,7 @@ export function WallPreview({
   weather,
   ga4Realtime,
   ga4RealtimeError,
+  reportGa4Today,
   connections,
   nowMs,
   selectedId,
@@ -407,7 +409,7 @@ export function WallPreview({
       cancelAnimationFrame(frame);
       document.fonts?.removeEventListener("loadingdone", schedule);
     };
-  }, [layout, data, meetings, calendarState, weather, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, screen.zoom, screen.width, screen.height, onMeasure, onPortfolioFit]);
+  }, [layout, data, meetings, calendarState, weather, ga4Realtime, ga4RealtimeError, reportGa4Today, connections, nowMs, scale, screen.zoom, screen.width, screen.height, onMeasure, onPortfolioFit]);
 
   // One watcher for every drag on the page that belongs to this editor: it
   // asks the grammar what the drop under the pointer would do and draws the
@@ -506,6 +508,7 @@ export function WallPreview({
               weather={weather}
               ga4Realtime={ga4Realtime}
               ga4RealtimeError={ga4RealtimeError}
+              reportGa4Today={reportGa4Today}
               connections={connections}
               nowMs={nowMs}
               // A "reconnecting" note inside a preview would read as a fault in

@@ -10,7 +10,10 @@
     "allowJs": true
   },
   "include": [
+    "scripts/hosted-task-summary.mts",
+    "scripts/ntasks-activation.mts",
     "scripts/hosted-scheduler.mts",
+    "scripts/customer-collection.mts",
     "scripts/published-image.mts",
     "scripts/hosted-demo.mts",
     "scripts/hosted-demo-runtime.mts",

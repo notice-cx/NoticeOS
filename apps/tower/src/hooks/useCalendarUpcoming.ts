@@ -1,6 +1,6 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useBrowserRuntime } from '@/lib/browser-context';
-import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CalendarUpcoming } from "@noticeos/contract";
 import { useMemo } from "react";
 import { CalendarUpcomingReadError } from "@/lib/api";
@@ -23,6 +23,10 @@ const attempts = new WeakMap<QueryClient, { failures: number; retryAt: number }>
 export function useCalendarUpcoming() {
   const demoReadonly = useDemoReadonly();
   const runtime = useBrowserRuntime();
+  // Viewing the hosted Wall must not make a calendar provider request.
+  const manual = runtime.owner.mode === 'hosted';
+  const available = demoViewer() === null;
+  const enabled = available && !manual;
   const client = useQueryClient();
   const read = useMemo(() => {
     let storage: Storage | undefined;
@@ -34,17 +38,17 @@ export function useCalendarUpcoming() {
       state = { failures: 0, retryAt: 0 };
       attempts.set(client, state);
     }
-    return { cache, saved: demoReadonly ? undefined : cache.read(), state };
-  }, [runtime, demoReadonly, client]);
+    return { cache, saved: demoReadonly || !enabled ? undefined : cache.read(), state };
+  }, [runtime, demoReadonly, enabled, client]);
   // A hosted demo visitor reads too, as for realtime: that demo answers with a
   // synthetic schedule. The local demo viewer refuses this provider read, so
   // it asks nothing there. The saved snapshot above stays off for any visitor.
   const query = useQuery<CalendarUpcoming>({
-    enabled: demoViewer() === null,
+    enabled,
     queryKey: ["calendar-upcoming"],
     initialData: read.saved,
     initialDataUpdatedAt: read.saved ? Date.parse(read.saved.fetchedAt) : undefined,
-    queryFn: async ({ signal }) => {
+    queryFn: available ? async ({ signal }) => {
       try {
         const snapshot = await runtime.api.fetchCalendarUpcoming(signal);
         // An unreadable configured calendar cannot replace saved event information.
@@ -52,7 +56,7 @@ export function useCalendarUpcoming() {
           throw new CalendarUpcomingReadError("Google Calendar is unavailable", Date.parse(snapshot.fetchedAt) + 300_000);
         }
         const held = retainCalendarEvents(snapshot, client.getQueryData<CalendarUpcoming>(["calendar-upcoming"]));
-        read.cache.write(held);
+        if (!manual) read.cache.write(held);
         if (snapshot.feedsOk < snapshot.feedsConfigured) {
           read.state.failures += 1;
           read.state.retryAt = Math.max(Date.now() + 30_000, Date.parse(snapshot.fetchedAt) + 300_000);
@@ -70,8 +74,8 @@ export function useCalendarUpcoming() {
         }
         throw error;
       }
-    },
-    refetchInterval: () => read.state.failures > 0 ? Math.max(1_000, read.state.retryAt - Date.now()) : 60_000,
+    } : skipToken,
+    refetchInterval: () => !enabled ? false : read.state.failures > 0 ? Math.max(1_000, read.state.retryAt - Date.now()) : 60_000,
     refetchIntervalInBackground: false,
     refetchOnMount: () => Date.now() >= read.state.retryAt,
     retryOnMount: Date.now() >= read.state.retryAt,
@@ -83,5 +87,5 @@ export function useCalendarUpcoming() {
     // inflate the failure count and ask again inside the server's cooldown.
     retry: false,
   });
-  return { ...query, consecutiveFailures: query.error instanceof CalendarUpcomingReadError ? query.error.consecutiveFailures : read.state.failures };
+  return { ...query, manual, consecutiveFailures: query.error instanceof CalendarUpcomingReadError ? query.error.consecutiveFailures : read.state.failures };
 }

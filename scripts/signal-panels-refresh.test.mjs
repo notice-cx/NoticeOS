@@ -104,6 +104,8 @@ test('archivePath: writes where signal-dumps-download writes', () => {
     archivePath('/root', 'northwind.example', { integration: 'gsc', report: 'query', reportDate: '2026-08-01' }),
     path.join('/root', 'northwind.example', 'gsc', 'query', '2026-08-01.json'),
   );
+  assert.throws(() => archivePath('/root', 'northwind.example',
+    { integration: 'gsc', report: '..', reportDate: '2026-08-01' }), /Invalid archive file name/);
 });
 
 // History outside the window stays on disk, so it must stay in the manifest —

@@ -23,7 +23,12 @@ function inventory(root, relative = '') {
 }
 /** Trusted build-time defaults root is useful for disposable fixture builds;
  * it never changes the source code or request-selected configuration. */
-export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT, 'config') }) {
+export async function buildHostedDemo(options) {
+  return buildHostedApp({ ...options, profile: 'demo' });
+}
+
+export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 'config'), profile }) {
+  if (!['hosted', 'demo'].includes(profile)) refuse('an explicit hosted entry profile is required');
   if (typeof out !== 'string' || !path.isAbsolute(out) || existsSync(out)
     || realpathSync(path.dirname(out)) !== path.dirname(out)
     || typeof configurationRoot !== 'string' || !path.isAbsolute(configurationRoot)
@@ -39,7 +44,7 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
     const original = JSON.parse(stripJsonc(readFileSync(path.join(ROOT, relative), 'utf8')));
     const target = path.join(work, relative); mkdirSync(path.dirname(target), { recursive: true });
     const clean = { name: original.name, main: path.join(ROOT, main), compatibility_date: original.compatibility_date,
-      compatibility_flags: original.compatibility_flags, vars: { NOTICEOS_WORKSPACE_PROFILE: 'demo' },
+      compatibility_flags: original.compatibility_flags, vars: { NOTICEOS_WORKSPACE_PROFILE: profile },
       ...(original.assets ? { assets: original.assets } : {}), ...(original.services ? { services: original.services } : {}), send_metrics: false };
     writeFileSync(target, JSON.stringify(clean));
   }
@@ -62,7 +67,7 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
   const selectors = ['NOTICEOS_WORKER_CONFIG_ROOT', 'NOTICEOS_WORKSPACE_PROFILE', 'CLOUDFLARE_ENV'];
   const previous = Object.fromEntries(selectors.map(key => [key, process.env[key]]));
   if (previous.CLOUDFLARE_ENV !== undefined) refuse('CLOUDFLARE_ENV is set');
-  process.env.NOTICEOS_WORKER_CONFIG_ROOT = work; process.env.NOTICEOS_WORKSPACE_PROFILE = 'demo';
+  process.env.NOTICEOS_WORKER_CONFIG_ROOT = work; process.env.NOTICEOS_WORKSPACE_PROFILE = profile;
   let release, towerConfig;
   try {
     const config = (await import(pathToFileURL(compiled).href)).default({ command: 'build', mode: 'production' });
@@ -73,7 +78,8 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
       const resolved = path.resolve(path.dirname(importer.split('?')[0]), specifier.split('?')[0]);
       if (path.dirname(resolved) === path.join(ROOT, 'config')) return path.join(configurationRoot, path.basename(resolved));
     } };
-    const builder = await createBuilder({ ...config, root: path.join(ROOT, 'apps/tower'), configFile: false, envDir: false,
+    const builder = await createBuilder({ ...config, ...(profile === 'hosted' ? { logLevel: 'warn' } : {}),
+      root: path.join(ROOT, 'apps/tower'), configFile: false, envDir: false,
       plugins: [defaults, ...config.plugins], build: { ...config.build, outDir: out, emptyOutDir: false, sourcemap: false } });
     await builder.buildApp();
     towerConfig = inventory(out).filter(name => name.endsWith('/wrangler.json')).map(name => ({ name, value: JSON.parse(readFileSync(path.join(out, name), 'utf8')) }))
@@ -123,9 +129,13 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
   try {
     const args = process.argv.slice(2);
-    if (![2, 4].includes(args.length) || args[0] !== '--out' || args.length === 4 && args[2] !== '--configuration-root') refuse('usage: --out <new folder> [--configuration-root <folder>]');
-    const manifest = await buildHostedDemo({ out: args[1], ...(args.length === 4 ? { configurationRoot: args[3] } : {}) });
-    process.stdout.write(`Demo artifact ${manifest.release}\n`);
+    if (![2, 4].includes(args.length) || args[0] !== '--out'
+      || args.length === 4 && args[2] !== '--configuration-root' && !(args[2] === '--profile' && args[3] === 'hosted')) {
+      refuse('usage: --out <new folder> [--configuration-root <folder>]');
+    }
+    const manifest = args[2] === '--profile' ? await buildHostedApp({ out: args[1], profile: args[3] })
+      : await buildHostedDemo({ out: args[1], configurationRoot: args[3] });
+    process.stdout.write(`${args[2] === '--profile' ? 'Hosted app' : 'Demo artifact'} ${manifest.release}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Refusal ? error.message : `Demo artifact build failed: ${error instanceof Error ? error.message : String(error)}`}\n`);
     process.exitCode = 1;

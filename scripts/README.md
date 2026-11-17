@@ -36,7 +36,7 @@
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
-| `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
+| `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
 | `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
@@ -58,6 +58,7 @@
 | `signals:collect` | Collect one asset's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
 | `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
 | `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
+| `signals:scratch` | Estimate the temporary files left by interrupted report jobs for one asset. | `scripts/panel-scratch.mjs` |
 | `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
 | `signals:refresh` | Keep every rostered asset's panel dir current. | `scripts/signal-panels-refresh.mjs` |
 | `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |
@@ -781,6 +782,63 @@ one: a database is seedable or real, never both); and a store that already
 holds data in `pulses`, `flags`, `ledger_entries`, `counter_readings` or
 `annotations`, or an asset on one of the fixture's ids or domains, because a
 seeded row is indistinguishable from a real one.
+
+## Run local customer workspaces
+
+```sh
+pnpm db:try-tower -- --profile hosted --dir /absolute/new-customer-folder --no-open
+```
+
+The hosted profile serves the normal Tower, Wall, and `/api/mcp` on
+`http://127.0.0.1:4747`. It requires PostgreSQL 18 on the path and an empty
+folder on first start. Open one of the two owner invitations in the private
+mail folder printed at startup. Enter the listed `@example.test` address on
+the sign-in page and open the new message in that folder to get its code.
+Use **Settings** to invite another fixture identity or change its role.
+
+Ctrl-C stops the app and database. Start with the same folder, profile, and
+Tower port to reopen the saved workspaces, sessions, and private object
+storage. The local setup prepares the two initial workspaces and their owner
+invitations. It has no customer backup job, hosted recovery service, or paid
+provider credentials. Add `--ntasks-origin http://127.0.0.1:4755` on first
+start if a separate local Ntasks is already running at that address. The app's
+outbound HTTP is restricted to that configured service. Its authentication
+messages are written to the local mailbox.
+
+For each active site enabled in the saved panel settings, the daily report
+reads archived signals and runs the same bounded DuckDB analysis used by the
+standalone profile. The complete findings appear in the Tower's site report
+and its `property_report` agent tool. If analysis or publication fails, those
+surfaces continue to serve the previous stored version. Local report files
+stay in the workspace's private runtime folder.
+
+This launcher cannot adopt a Compose installation. A move from an existing
+standalone installation requires a separately tested rollout and rollback
+with the installation owner's approval.
+
+### What the synthetic shadow rehearsal copies
+
+The rehearsal uses disposable PostgreSQL 18 databases and the pinned local
+Ntasks fixture. It verifies the first owner's email, activates a new workspace
+with the source workspace ID, and opens the copied portfolio through the Tower.
+The fixture copies an asset, its dated report, one saved reporting time zone
+and its audit entry, and one raw archive with a workspace-owned key and
+manifest. It checks the report and archive timestamps, the archive content
+hash, and the compressed bytes. The shared archive reader rejects an unscoped
+legacy key, even when the standalone reader can open it.
+
+The source keeps its provider credentials, sign-in records, other settings,
+and job state. The copied portfolio opens with no provider connection and no
+job runs. A separate step connects to the fixture Ntasks with a fresh grant.
+Closing the shadow returns the test to the ordinary standalone Tower, where
+it rechecks the original report, setting, archive, and credential fingerprint.
+The test reports row counts for both copies.
+
+`local-customer-ntasks.test.mjs` runs this test-only procedure when
+`NOTICEOS_NTASKS_ROOT` points at the local build pinned by
+[`deploy/demo/ntasks.json`](../deploy/demo/ntasks.json). An existing
+installation still needs an approved, installation-specific transfer and
+rollback procedure.
 
 ---
 

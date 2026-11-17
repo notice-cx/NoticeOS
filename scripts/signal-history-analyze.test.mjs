@@ -15,6 +15,7 @@ import {
 } from './signal-archive-fixture.mjs';
 import { resolvesAcrossReportDays } from './signal-archive.mjs';
 import { readJsonFile } from './json-file.mjs';
+import { previewPanelScratch } from './panel-scratch.mjs';
 import { createHash } from 'node:crypto';
 import { RETENTION, datasetFiles, publishSignalHistory, readCurrentGeneration } from './signal-history.mjs';
 import {
@@ -219,10 +220,15 @@ test('a run names its generation; the same generation gives the same report agai
     // Every other file of the version, with the bytes it was written with.
     files: [...raw.keys()].sort().map((name) => ({ name, bytes: raw.get(name).length, sha256: createHash('sha256').update(raw.get(name)).digest('hex') })),
   });
-  await analyze(ws);
+  const repeat = await analyze(ws);
   const again = await published(ws);
   assert.notEqual(again.target, first.target);
   assert.deepEqual(again.files, first.files);
+  const csvBytes = Array.from(raw, ([name, data]) => name.endsWith('.csv') ? data.length : 0).reduce((sum, value) => sum + value, 0);
+  assert.equal(repeat.cost.sharedCsvBytes, csvBytes);
+  assert.ok(csvBytes > 0);
+  const links = await Promise.all([first.target, again.target].map(folder => fs.stat(path.resolve(path.dirname(ws.output), folder, 'gsc-query.csv'))));
+  assert.equal(links[0].ino, links[1].ino);
 
   // A new report day is a new generation, and the newest is read by default …
   assert.equal((await addQueryDay(ws)).generation, 2);
@@ -354,6 +360,13 @@ test('a job stopped at any stage leaves the previous report readable and complet
     assert.deepEqual(await published(ws), before, stage);
     assert.deepEqual(await leftovers(ws), [], stage);
   }
+  const cancellation = new AbortController();
+  const stopped = new Error('Report job canceled');
+  await assert.rejects(analyze(ws, { signal: cancellation.signal }, { onStage(stage) {
+    if (stage === 'reading') cancellation.abort(stopped);
+  } }), stopped);
+  assert.deepEqual(await published(ws), before);
+  assert.deepEqual(await leftovers(ws), []);
   assert.equal((await analyze(ws)).report.generation, 2);
   assert.notDeepEqual((await published(ws)).files, before.files);
 });
@@ -375,14 +388,37 @@ test('it never replaces a folder it did not write, and one job at a time writes 
   await fs.mkdir(reports, { recursive: true });
   await fs.writeFile(path.join(reports, '.lock'), `${JSON.stringify({ pid: process.pid })}\n`);
   await assert.rejects(analyze(ws), { message: `Another analysis (process ${process.pid}) is writing ${reports}; nothing was changed.` });
+  assert.equal((await previewPanelScratch(reports)).busy, true);
+  await fs.unlink(path.join(reports, '.lock'));
   // A dead job's lock, staging and half-made link are cleared, and the run publishes.
   const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  const stage = `.staging-${dead}-00000000`, link = `.link-${dead}-00000000`;
+  await fs.mkdir(path.join(reports, stage));
+  await fs.writeFile(path.join(reports, stage, 'gsc-query.csv'), 'half\n');
+  await fs.symlink('nowhere', path.join(reports, link));
+  await fs.writeFile(path.join(reports, '.staging-unclassified'), 'keep');
+  const preview = await previewPanelScratch(reports);
+  assert.deepEqual(preview.entries, [link, stage]);
+  assert.equal(preview.files, 2);
+  assert.equal(preview.logicalBytes, 12);
   await fs.writeFile(path.join(reports, '.lock'), `${JSON.stringify({ pid: dead })}\n`);
-  await fs.mkdir(path.join(reports, `.staging-${dead}-0000`));
-  await fs.writeFile(path.join(reports, `.staging-${dead}-0000`, 'gsc-query.csv'), 'half\n');
-  await fs.symlink('nowhere', path.join(reports, `.link-${dead}-0000`));
   assert.equal((await analyze(ws)).report.generation, 1);
-  assert.deepEqual(await leftovers(ws), []);
+  assert.deepEqual(await leftovers(ws), ['.staging-unclassified']);
+  assert.equal((await previewPanelScratch(reports)).files, 0);
+});
+
+test('a scratch preview reports busy if a staging directory disappears during traversal', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-scratch-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const reports = path.join(root, 'asset.reports');
+  const staging = path.join(reports, '.staging-42-00000000');
+  await fs.mkdir(staging, { recursive: true });
+  const read = fs.readdir.bind(fs);
+  t.mock.method(fs, 'readdir', async (file, ...args) => {
+    if (file === staging) await fs.rmdir(staging);
+    return read(file, ...args);
+  });
+  assert.equal((await previewPanelScratch(reports)).busy, true);
 });
 
 test('the command line answers help and each refusal before it reads anything', () => {

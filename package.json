@@ -52,6 +52,7 @@
     "signals:collect": "node scripts/signal-collect.mjs",
     "signals:download": "node scripts/signal-dumps-download.mjs",
     "signals:history": "node scripts/signal-history.mjs",
+    "signals:scratch": "node scripts/panel-scratch.mjs",
     "signals:analyze-history": "node scripts/signal-history-analyze.mjs",
     "signals:refresh": "node scripts/signal-panels-refresh.mjs",
     "signals:publish-insights": "node scripts/signal-insights-publish.mjs",

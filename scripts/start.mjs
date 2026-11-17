@@ -1,17 +1,22 @@
 #!/usr/bin/env node
-// The Tower on a throwaway development database, for working on screens with invented data.
+// Run Tower locally with a disposable standalone store or persistent customer workspaces.
 //
 //   pnpm db:try-tower -- --dir <folder>                 # http://127.0.0.1:4747/
 //   pnpm db:try-tower -- --dir <folder> --port 6000     # the Tower on 6000, its ingest door on 6001, Postgres on 6002
 //   pnpm db:try-tower -- --dir <folder> --no-open       # do not open a browser
+//   pnpm db:try-tower -- --dir <folder> --profile hosted # persistent local customer workspaces and mailbox
 //
-// It is not an installation: `pnpm os:setup` makes one. The folder must be
-// empty or one this command made. Each run starts a Postgres cluster of its
+// `pnpm os:setup` makes a Compose installation. This command uses a new folder
+// or one it made. In standalone mode each run starts a Postgres cluster of its
 // own on --port + 2, applies the committed frozen schema, bootstraps one
 // workspace marked for development (scripts/start-development.mjs), starts the
 // Tower and ingest on loopback in the foreground and loads the default
 // settings. Ctrl-C stops it and discards the database. While it runs,
 // `pnpm db:seed-demo -- --dir <folder>` fills it with invented history.
+// With `--profile hosted`, the customer workspaces, local mail and private
+// object storage survive restarts. Open the initial invitations in the private
+// mail folder printed at startup. Optional `--ntasks-origin` names a separate
+// loopback Ntasks service. Restart with the same folder, profile and Tower port.
 //
 // It never reaches the NoticeOS stack: not its Postgres, its `.wrangler/state`,
 // its `installation/` or its secret files, and it refuses the stack's ports
@@ -37,6 +42,7 @@ import {
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import { DATABASE_URL, LOCAL_CONNECTION_VARIABLE, towerDatabase } from './database-address.mjs';
 import { readDevSecretBindings, syncDevVars } from './dev-secrets.mjs';
 import { runSeed } from './config-seed.mjs';
@@ -58,7 +64,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 /** Where the Tower answers unless `--port` says otherwise; the ingest door is the next port. */
 export const DEFAULT_PORT = 4747;
 /** How to run it, as every refusal of a missing folder says it. */
-export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open]';
+export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open] [--profile hosted [--ntasks-origin <url>]]';
 /**
  * The NoticeOS stack's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
  * its ingest door (CONFIG.ingestPort) and the shipped Postgres host port (postgres-secrets.mjs DEFAULT_PORT).
@@ -81,10 +87,19 @@ export function parseArgs(argv) {
     if (arg === '--') continue;
     else if (arg === '--port') opts.port = Number(argv[++i]);
     else if (arg === '--dir') opts.dir = argv[++i] ?? null;
+    else if (arg === '--profile') {
+      opts.profile = argv[++i];
+      if (!['standalone', 'hosted'].includes(opts.profile)) throw new Error('Choose --profile standalone or hosted.');
+    }
+    else if (arg === '--ntasks-origin') {
+      opts.ntasksOrigin = argv[++i];
+      if (!opts.ntasksOrigin) throw new Error('--ntasks-origin needs the address of a separate local Ntasks.');
+    }
     else if (arg === '--no-open') opts.open = false;
     else if (arg === '--help' || arg === '-h') opts.help = true;
-    else throw new Error(`unknown option ${arg} (known: --dir, --port, --no-open)`);
+    else throw new Error(`unknown option ${arg}. ${USAGE}`);
   }
+  if (opts.ntasksOrigin && opts.profile !== 'hosted') throw new Error('--ntasks-origin requires --profile hosted.');
   return opts;
 }
 
@@ -342,7 +357,16 @@ export async function main(argv = process.argv.slice(2)) {
   const plan = startPlan({ dir: opts.dir, port: opts.port });
   const refusal = planRefusal(plan) ?? developmentRefusal(plan);
   if (refusal) return refuse(refusal);
-  for (const port of [plan.port, plan.doorPort]) {
+  if (opts.profile === 'hosted') {
+    const { localNtasksOrigin } = await import('./local-customer.mjs');
+    if (opts.ntasksOrigin) {
+      try {
+        const ntasks = localNtasksOrigin(opts.ntasksOrigin);
+        if ([plan.port, plan.port + 2].includes(Number(new URL(ntasks).port))) return refuse('Ntasks needs a separate port.');
+      } catch { return refuse('--ntasks-origin needs the loopback HTTP address of a separate local Ntasks.'); }
+    }
+  }
+  for (const port of opts.profile === 'hosted' ? [plan.port] : [plan.port, plan.doorPort]) {
     if (await doorIsHeld(`http://127.0.0.1:${port}`)) {
       return refuse(`port ${port} is in use; stop what holds it, or choose another with --port.`);
     }
@@ -350,12 +374,39 @@ export async function main(argv = process.argv.slice(2)) {
 
   let development = null;
   try {
+    if (opts.profile === 'hosted') return await runCustomerStart(plan, opts);
     development = openDevelopmentStart(plan);
     return await runPreparedStart(plan, opts, development);
   } catch {
     return refuse('development startup could not finish; no existing installation was adopted.');
   } finally {
     development?.close();
+  }
+}
+
+async function runCustomerStart(plan, opts) {
+  // Miniflare registers process signal hooks. The launcher owns graceful shutdown.
+  const worker = new Worker(new URL('./local-customer-worker.mjs', import.meta.url), {
+    workerData: { plan, ntasksOrigin: opts.ntasksOrigin },
+  });
+  const stop = () => worker.postMessage('stop');
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  worker.on('message', customer => {
+    say(`NoticeOS customer workspaces are running at ${customer.publicOrigin}/`);
+    say(`Open an invitation message in ${shown(customer.outbox)} and sign in with the address it lists.`);
+    say('Ctrl-C stops NoticeOS. The workspaces and sessions are saved in this folder.');
+    if (opts.open) openBrowser(plan.url);
+  });
+  try {
+    const code = await new Promise(resolve => {
+      worker.once('error', () => {});
+      worker.once('exit', resolve);
+    });
+    return code === 0 ? 0 : refuse('customer startup or shutdown could not finish.');
+  } finally {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
   }
 }
 

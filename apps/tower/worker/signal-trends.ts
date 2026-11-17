@@ -6,9 +6,11 @@
 // narrows the same SQL to one asset.
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
+import { GA4_REPORTED_DAY_PATTERN } from '@noticeos/contract';
 import { signalEvidenceFloor } from "./integration-evidence";
-import type { SignalTrend, SignalTrendSet, TimeZoneChangePoint } from "../shared/wall";
+import type { ReportedGa4Day, SignalTrend, SignalTrendSet, TimeZoneChangePoint } from "../shared/wall";
 import { reportingCalendarTrend } from '../shared/reporting-calendar';
+import { revenueCalendarDate } from '../shared/daily-revenue';
 
 /** Compact asset cards keep four complete weeks legible at every viewport.
  * This is the drawn window. */
@@ -348,4 +350,51 @@ export async function loadSignalTrends(
     }
   }
   return map;
+}
+
+/** Today's count stays on the property's own calendar. The newest successful
+ * run proves whether the date was returned, even if the count did not change. */
+export async function loadReportedGa4Days(store: WorkspaceStore, assets: readonly string[], now: Date): Promise<Map<string, ReportedGa4Day>> {
+  if (assets.length === 0) return new Map();
+  const rows = await store.read(tx => tx.query<{
+    asset: string; reportedDate: string | null; timeZone: string | null;
+    value: number | null; checkedAt: string | null; checkFailed: boolean;
+  }>(`SELECT a.asset_id AS asset, run.time_zone AS "timeZone", run.finished_at AS "checkedAt",
+            substring(run.run_id FROM $2::text) AS "reportedDate", reported.value,
+            EXISTS (SELECT 1 FROM noticeos.signal_runs failure
+                     WHERE failure.workspace_id = a.workspace_id AND failure.asset_id = a.asset_id
+                       AND failure.integration = 'ga4' AND failure.status = 'error'
+                       AND (run.run_seq IS NULL OR (failure.finished_at, failure.run_seq) > (run.finished_at, run.run_seq))) AS "checkFailed"
+       FROM noticeos.assets a
+       LEFT JOIN LATERAL (
+         SELECT r.run_seq, r.run_id, r.property_ref, r.time_zone, r.finished_at, r.window_start, r.window_end
+           FROM noticeos.signal_runs r
+          WHERE r.workspace_id = a.workspace_id AND r.asset_id = a.asset_id
+            AND r.integration = 'ga4' AND r.status = 'success'
+          ORDER BY r.finished_at DESC, r.run_seq DESC LIMIT 1
+       ) run ON true
+       LEFT JOIN LATERAL (
+         SELECT o.value FROM noticeos.measurement_series s
+           JOIN noticeos.signal_observations o ON o.workspace_id = s.workspace_id AND o.series_id = s.series_id
+           JOIN noticeos.signal_runs written ON written.workspace_id = o.workspace_id AND written.run_seq = o.run_seq
+          WHERE s.workspace_id = a.workspace_id AND s.asset_id = a.asset_id AND s.integration = 'ga4'
+            AND s.property_ref = run.property_ref AND s.time_zone = run.time_zone AND s.metric = 'active_users'
+            AND o.observed_date BETWEEN run.window_start AND run.window_end
+            AND o.observed_date::text = substring(run.run_id FROM $2::text)
+            AND (written.finished_at, written.run_seq) <= (run.finished_at, run.run_seq)
+          ORDER BY written.finished_at DESC, o.observation_id DESC LIMIT 1
+       ) reported ON true
+      WHERE a.asset_id = ANY($1::text[])`, [assets, GA4_REPORTED_DAY_PATTERN]));
+  return new Map(rows.map(row => {
+    let date: string | null = null;
+    try { if (row.timeZone) date = revenueCalendarDate(now, row.timeZone); } catch { /* Unknown property clock. */ }
+    const value = toNum(row.value);
+    return [row.asset, {
+      date,
+      timeZone: date ? row.timeZone : null,
+      activeUsers: date !== null && date === row.reportedDate && !row.checkFailed && value !== null && value >= 0 ? value : null,
+      checkedAt: row.checkedAt === null ? null : javascriptInstant(row.checkedAt),
+      checkFailed: row.checkFailed,
+    }];
+  }));
 }

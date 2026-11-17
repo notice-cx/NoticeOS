@@ -29,6 +29,7 @@ async function assertCollectionAssets(store: WorkspaceStore, assets: readonly st
 // `IngestWorker`; the cron table lives in dispatch.ts and crons.ts.
 
 import { WorkerEntrypoint } from 'cloudflare:workers';
+export { CustomerSchedule } from './customer-schedule.js';
 import type {
   AssetStateRead,
   AssetStateWriteResult,
@@ -110,6 +111,8 @@ import { handleOpenReclamationTargets, handleReclamationTargets } from './routes
 import { handleAssetState, handleAssetStateEdit } from './routes/asset-state.js';
 import { handleTaskSnapshot } from './routes/task-snapshot.js';
 import { handleTaskService, handleTaskServiceApp, TASK_SERVICE_APP_PATH, TASK_SERVICE_PATH } from './routes/task-service.js';
+import { handleHostedTaskService } from './routes/hosted-task-service.js';
+import { refreshHostedTaskSummary } from './hosted-task-summary.js';
 import { handleCapacity } from './routes/capacity.js';
 import {
   CONFIG_DOCUMENTS_PREFIX,
@@ -578,6 +581,21 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, (env) => connectCredential(env, input));
+  }
+
+  /** Fixed Request-only receiver; hosted authority is resolved again here. */
+  async hostedTaskRequest(original: Request): Promise<Response> {
+    if (workspaceProfile(this.env) !== 'hosted' || !(original instanceof Request)) throw new WorkspaceEntryRefused();
+    await ingestOperation('hostedTaskRequest', original);
+    return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
+      store => handleHostedTaskService(original, { ...this.env, STORE: store }, call.context)));
+  }
+
+  async refreshHostedTaskSummary(original: Request): Promise<void> {
+    if (workspaceProfile(this.env) !== 'hosted' || !(original instanceof Request)) throw new WorkspaceEntryRefused();
+    await ingestOperation('refreshHostedTaskSummary', original);
+    await withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
+      store => refreshHostedTaskSummary({ ...this.env, STORE: store })));
   }
 
   /** Fixed Request-only receiver; hosted authority is resolved again here. */

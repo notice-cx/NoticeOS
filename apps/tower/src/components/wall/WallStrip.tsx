@@ -128,19 +128,19 @@ export interface WallStripProps {
   connections?: ConnectionReads;
   /** From `/countdown`; absent, the strip has no countdown. */
   countdown?: CountdownConfig;
-  /** The surface's own calendar poll. */
+  /** The surface's separate calendar read. */
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  calendarCheck?: { run(): void; checking: boolean };
   weather?: WallWeatherState;
   weatherUnit?: "fahrenheit" | "celsius";
-  /** When the Wall's last poll failed, the time the values on screen were
-   * read; null while polls succeed. */
+  /** The displayed report's time when a newer report could not be read. */
   heldSince?: string | null;
   /** The Wall's shared one-second tick; the strip shows minutes. */
   nowMs: number;
 }
 
-export function WallStrip({ countdown, meetings, calendarState, weather, weatherUnit, heldSince = null, nowMs }: WallStripProps) {
+export function WallStrip({ countdown, meetings, calendarState, calendarCheck, weather, weatherUnit, heldSince = null, nowMs }: WallStripProps) {
   const meeting = stripMeeting(meetings, nowMs);
   const left = countdown ? stripCountdown(nowMs, countdown.targetAt) : null;
   const [count, unit] = left?.split(" ") ?? [];
@@ -158,7 +158,7 @@ export function WallStrip({ countdown, meetings, calendarState, weather, weather
   const version = compiledSourceVersion();
   const liveSource = compiledLiveSource();
   const release = compiledAppRelease();
-  const hasAgenda = meeting !== null || calendarState !== undefined || heldSince !== null;
+  const hasAgenda = meeting !== null || calendarState !== undefined || heldSince !== null || calendarCheck !== undefined;
   const versionDate = version ? new Intl.DateTimeFormat(undefined, {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   }).format(new Date(version.committedAt)) : null;
@@ -176,8 +176,18 @@ export function WallStrip({ countdown, meetings, calendarState, weather, weather
       {calendarState === "partial" ? <ClockAlert className="size-4 shrink-0 self-center" aria-hidden /> : null}
       <span data-strip-caption>{calendarState === "loading" ? "Loading events…"
         : calendarState === "partial" ? "Some calendars unavailable"
+        : calendarCheck ? "Calendar unavailable"
         : meeting !== null && meetings ? `Retrying automatically · cached ${formatAge(ageMs(nowMs, meetings.fetchedAt))} old`
         : "Retrying automatically"}</span>
+    </span>
+  ) : null;
+  const calendarAction = calendarCheck ? (
+    <span className="inline-flex flex-wrap items-baseline gap-x-2 text-wall-strip-label">
+      <button type="button" disabled={calendarCheck.checking} onClick={calendarCheck.run}
+        className="rounded px-1 text-foreground underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground">
+        {calendarCheck.checking ? "Checking calendar…" : meetings ? "Refresh calendar" : "Check calendar"}
+      </button>
+      {meetings ? <span className="text-muted-foreground">Updated {formatAge(ageMs(nowMs, meetings.fetchedAt))} ago</span> : null}
     </span>
   ) : null;
   return (
@@ -247,11 +257,13 @@ export function WallStrip({ countdown, meetings, calendarState, weather, weather
                 {heldSince === null && !calendarState ? <span className="text-wall-strip-label text-muted-foreground" data-strip-meeting-cue data-strip-caption>{meeting.inProgress ? "Now" : "Up next"}</span> : null}
                 {calendarCaption}
                 {heldCaption}
+                {calendarAction}
               </div>
             </div>
           )
-        ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary data-strip-baseline="meeting">{calendarState ? "Calendar" : "Reconnecting"}</span>}
-        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}</div> : null}
+        ) : calendarCheck ? <div data-strip-primary data-strip-baseline="meeting">{calendarAction}</div>
+          : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary data-strip-baseline="meeting">{calendarState ? "Calendar" : "Reconnecting"}</span>}
+        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}{meeting === "none-today" ? calendarAction : null}{calendarCheck && meetings?.feedsConfigured === 0 ? <span className="text-wall-strip-label text-muted-foreground" role="status">No calendar connected</span> : null}</div> : null}
       </div> : null}
       {countdown && left !== null ? (
         <div

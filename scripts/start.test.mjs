@@ -35,6 +35,7 @@ import { DEVELOPMENT_MARK, developmentRefusal } from './start-development.mjs';
 import {
   FOLDER_MARK,
   MANAGED_PORTS,
+  USAGE,
   main as startMain,
   parseArgs,
   planRefusal,
@@ -158,7 +159,7 @@ test('a run refuses, in one line, a missing folder, a stack port, the checkout, 
   assert.equal(await startMain(['--port', '6510']), 1);
   const lines = stderr.mock.calls.map((call) => String(call.arguments[0]));
   stderr.mock.restore();
-  assert.deepEqual(lines, Array(2).fill('pnpm db:try-tower: --dir <folder> is required: pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open]\n'));
+  assert.deepEqual(lines, Array(2).fill(`pnpm db:try-tower: --dir <folder> is required: ${USAGE}\n`));
 
   const root = tempDir(t, 'start-root-');
   const refusal = (options, fsView) => planRefusal(startPlan({ root, dir: path.join(root, 'runtime'), ...options }), fsView);
@@ -201,10 +202,13 @@ test('its Worker configs are the checkout’s, with every path made absolute', (
   }
 });
 
-test('it takes no migration or installation flag: development is its only mode', () => {
+test('development profiles accept no installation, migration or standalone Ntasks override', () => {
   assert.throws(() => parseArgs(['--migrate']), /unknown option --migrate/);
   assert.throws(() => parseArgs(['--development']), /unknown option --development/);
   assert.deepEqual(parseArgs(['--', '--dir', 'here', '--port', '6000', '--no-open']), { port: 6000, dir: 'here', open: false, help: false });
+  assert.equal(parseArgs(['--profile', 'hosted']).profile, 'hosted');
+  assert.throws(() => parseArgs(['--profile', 'demo']));
+  assert.throws(() => parseArgs(['--ntasks-origin', 'http://127.0.0.1:6000']));
 });
 
 // ─── The proof: a real start, with a tripwire on the checkout ────────────────

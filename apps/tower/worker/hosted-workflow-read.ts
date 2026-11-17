@@ -68,7 +68,8 @@ function steps(value: unknown, attempt: number): WorkflowStepRun[] {
 
 /** Stored evidence only. The caller has already admitted workflows.read and
  * bound this store; no file, service secret or executable registry is read. */
-export async function handleHostedWorkflowRead(request: Request, store: WorkspaceStore, now = Date.now()): Promise<Response | null> {
+export async function handleHostedWorkflowRead(request: Request, store: WorkspaceStore, now = Date.now(),
+  localClock?: { fetch(request: Request): Promise<Response> }): Promise<Response | null> {
   const url = new URL(request.url);
   if (!['/api/workflows', '/api/scheduled-jobs'].includes(url.pathname)) return null;
   const selected = url.searchParams.get('run') ?? undefined;
@@ -77,13 +78,22 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
     || url.searchParams.getAll('run').length > 1 || (selected !== undefined && (!selected || selected.length > 240))) {
     return Response.json({ error: 'invalid_workflow_read' }, { status: 400, headers: JSON_HEADERS });
   }
+  // The native customer clock answers from memory only when an authorized
+  // reader asks. It writes no heartbeat to keep an idle database awake.
+  let snapshot: ReturnType<typeof status> | null = null;
+  if (localClock) {
+    try {
+      const clock = await localClock.fetch(new Request('https://schedule.internal/' + await store.workspaceId()));
+      if (clock.ok) snapshot = status(await clock.json());
+    } catch { /* History stays available after the clock disappears. */ }
+  }
   const payload = await store.read(async tx => {
-    const observations = await tx.query(`SELECT observed_at,running,payload::text FROM noticeos.hosted_scheduler_status
+    const observations = localClock ? [] : await tx.query(`SELECT observed_at,running,payload::text FROM noticeos.hosted_scheduler_status
       WHERE workspace_id=$1::uuid`, [tx.workspaceId]);
     const observed = observations[0];
-    const runtime = observed ? status(JSON.parse(String(observed.payload))) : null;
+    const runtime = snapshot ?? (observed ? status(JSON.parse(String(observed.payload))) : null);
     const age = observed ? now - Date.parse(String(observed.observed_at)) : NaN;
-    const fresh = observed?.running === true && age >= 0 && age < 45_000;
+    const fresh = snapshot !== null || observed?.running === true && age >= 0 && age < 45_000;
     const summary = { overrides: runtime?.overrides ?? null, runtime, runtimeFresh: fresh };
     if (url.pathname === '/api/scheduled-jobs') return summary;
     // A manual collection can exist before any scheduler is configured. Keep
@@ -95,9 +105,7 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
         AND started_at>=$4::timestamptz AND started_at<=$5::timestamptz AND finished_at>=started_at)
       SELECT job_run_id::text,job,started_at,finished_at,outcome FROM ranked WHERE position<=30 OR ($6::text IS NOT NULL AND job_run_id::text=$6) ORDER BY started_at DESC,job_run_id DESC`,
     [tx.workspaceId, MANUAL_RUN_DETAIL, WORKFLOW_DEFINITIONS.map(jobRunName), ...bounds, selected?.split('@manual/')[1] ?? null]);
-    const definitions = WORKFLOW_DEFINITIONS.filter(definition => runtime?.registeredJobs?.includes(definition.id)
-      || manual.some(row => row.job === jobRunName(definition)));
-    const lanes = definitions.map(definition => definition.id);
+    const lanes = WORKFLOW_DEFINITIONS.map(definition => definition.id);
     // Bound rich detail separately from complete hourly counts. No arbitrary
     // job payload or all-history JSON is transferred to the Worker/browser.
     const rows = await tx.query(`WITH ranked AS (
@@ -111,6 +119,8 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
       FROM ranked a JOIN noticeos.hosted_job_occurrences j USING(workspace_id,lane,occurrence)
       WHERE a.position<=30 OR ($5::text IS NOT NULL AND a.lane || '@' || a.occurrence || '/' || a.attempt::text=$5) ORDER BY a.started_at DESC,a.attempt DESC`,
     [tx.workspaceId, lanes, ...bounds, selected ?? null]);
+    const definitions = WORKFLOW_DEFINITIONS.filter(definition => runtime?.registeredJobs?.includes(definition.id)
+      || rows.some(row => row.lane === definition.id) || manual.some(row => row.job === jobRunName(definition)));
     const manualRuns: WorkflowRun[] = manual.map(row => {
       const workflowId = definitions.find(definition => jobRunName(definition) === row.job)!.id;
       return { id: `${workflowId}@manual/${String(row.job_run_id)}`, workflowId, definitionVersion: null,

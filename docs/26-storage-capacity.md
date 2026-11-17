@@ -28,6 +28,18 @@ estimate from the code alone is wrong in both directions:
 The inventory measures the Postgres operational store. The inventory does not
 change retention or migrate anything.
 
+### Temporary report files
+
+To estimate interrupted work for one asset, pass its report directory explicitly.
+
+```sh
+pnpm signals:scratch -- --reports /path/to/reports/example.com.reports
+```
+
+The command lists the analyzer's interrupted staging directories and temporary publication links. It counts logical bytes and allocated file blocks. Files also linked from a retained version contribute zero reclaimable blocks. A report lock makes the estimate unavailable. A successful report job removes its scratch. Its next run cleans up interrupted jobs while holding the lock.
+
+Published versions, downloaded archive inputs, Parquet generations, backups and runtime SQLite files stay outside the estimate. A finding can cite its report version for 14 days. History manifests identify the downloaded archives and Parquet files used to reproduce it.
+
 ## What the inventory measures
 
 `pnpm os:capacity` runs inside the app container and sends

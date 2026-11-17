@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { testFixtureRoot } from './test-fixture-root.mjs';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { captureHostedDemoSetupRequest, readHostedDemoSetupRequest, setupHostedDemo } from './hosted-demo-setup.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { applyMigrations } from './postgres-migrate.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { generateDemoScenario } from './demo-scenario.mjs';
 import { applyDemoNtasksProvision, demoNtasksProvisionRequest, demoNtasksWorker, openDemoTasks, DEMO_NTASKS_CREDENTIALS } from './demo-ntasks.mjs';
@@ -115,7 +116,7 @@ test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped d
   const disk = fs.statfsSync(base); assert.ok(disk.bavail * disk.bsize >= 8 * 1024 ** 3 + 1024 ** 3);
   const home = path.join(base, 'state'), bootstrap = path.join(base, 'bootstrap');
   fs.mkdirSync(bootstrap, { mode: 0o700 });
-  let pg, miniflare, tasks, activity, store;
+  let pg, customerPg, miniflare, tasks, activity, store, customerStore;
   try {
     const tools = findPostgres(); pg = await openOnLoopbackPort(path.join(base, 'pg'), tools);
     const secret = randomBytes(32).toString('hex'); pg.onDatabase('postgres').run(`ALTER ROLE postgres PASSWORD '${secret}';`);
@@ -169,13 +170,47 @@ test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped d
     const rows = () => store.read(tx => tx.query('SELECT (SELECT count(*)::int FROM noticeos.pulses) AS pulses,(SELECT count(*)::int FROM noticeos.task_snapshots) AS snapshots'));
     const before = await rows();
     assert.ok(before[0].snapshots > 0, 'setup wrote the task history');
+    // Keep the customer cluster online and idle. Collect its database counters
+    // through the maintenance database so the measurement adds no activity.
+    customerPg = await openOnLoopbackPort(path.join(base, 'customer-pg'), tools);
+    assert.notEqual(customerPg.loopbackPort, pg.loopbackPort);
+    applyMigrations(customerPg);
+    const customerId = randomUUID();
+    customerPg.onDatabase('noticeos_dev').run(`INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status)
+      VALUES ('${customerId}','customer-fixture','Customer fixture','active')`);
+    customerStore = openWorkspaceStore(customerPg.applicationLogin().url(), { workspaceId: customerId });
+    assert.equal(await customerStore.workspaceId(), customerId);
+    await customerStore.close(); customerStore = undefined;
+    const activityCounts = () => customerPg.onDatabase('postgres').sql(`SELECT sessions, xact_commit, xact_rollback
+      FROM pg_stat_database WHERE datname = 'noticeos_dev'`);
+    const idle = activityCounts();
+    assert.equal(idle.length, 1);
     activity = await openHostedDemo({ ...configuration.activity, now: () => Date.parse('2026-10-03T12:00:00Z') });
     const tick = await activity.tick(); assert.equal(tick.days.length, 1); assert.equal(tick.days[0].receipt.state, 'succeeded');
     const after = await rows(); assert.ok(after[0].pulses > before[0].pulses);
+    await activity.close(); activity = undefined;
+    const publishedDates = () => store.read(tx => tx.query(`SELECT pulse_date::text AS date,
+        to_char(max(generated_at) AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS generated_at
+      FROM noticeos.pulses WHERE pulse_date >= $1::date AND NOT asset_id IN (SELECT asset_id FROM noticeos.assets WHERE is_os)
+      GROUP BY pulse_date ORDER BY pulse_date`, [tick.days[0].date]));
+    const beforeRestart = await publishedDates();
+    assert.deepEqual(beforeRestart.map(row => row.date), [tick.days[0].date]);
+    const restartTime = '2026-10-05T12:00:00.000Z';
+    activity = await openHostedDemo({ ...configuration.activity, now: () => Date.parse(restartTime) });
+    const replay = await activity.tick();
+    assert.deepEqual(replay.days.map(day => [day.date, day.receipt.state]), [
+      ['2026-10-03', 'succeeded'], ['2026-10-04', 'succeeded'],
+    ]);
+    assert.deepEqual(await publishedDates(), [...beforeRestart, ...replay.days.map(day => ({ date: day.date, generated_at: `${day.date}T23:30:00.000Z` }))]);
+    assert.deepEqual((await activity.tick()).days, [], 'the completed days do not publish twice');
+    assert.deepEqual(activityCounts(), idle, 'demo work opens zero sessions and runs zero transactions on customer storage');
   } finally {
-    await Promise.allSettled([activity?.close(), tasks?.close(), store?.close()]);
+    await Promise.allSettled([activity?.close(), tasks?.close(), store?.close(), customerStore?.close()]);
     await miniflare?.dispose();
     if (pg) pg.close();
-    if (!pg || !fs.existsSync(path.join(pg.root, 'data/postmaster.pid'))) fs.rmSync(base, { recursive: true, force: true });
+    if (customerPg) customerPg.close();
+    if ([pg, customerPg].every(cluster => !cluster || !fs.existsSync(path.join(cluster.root, 'data/postmaster.pid')))) {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   }
 });

@@ -306,9 +306,9 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         }
         outside++; throw new Error('No outside HTTP in config fixture');
       } });
-    runtime = new Miniflare({ workers: [
+    const runtimeOptions = { resourcePersistencePath: path.join(root, 'resource-state'), workers: [
       worker('driver', { modules: true, script: driver, compatibilityDate: '2026-07-06' }, {}, { INGEST: 'ingest', TOWER: 'tower', DEMO: 'demo', DEMO_INGEST: 'demo-ingest' }),
-      worker('tower', tower, common, { INGEST: 'relay' }),
+      worker('tower', { ...tower, r2Buckets: { NOTICEOS_PORTFOLIO: 'portfolio-fixture' } }, common, { INGEST: 'relay' }),
       worker('ingest', { ...ingest, r2Buckets: { RAW_SIGNALS: 'retained-watch-fixture' } }, { ...common, CREDENTIALS_KEY: credentialsKey, MEDIAVINE_USER: legacyCanary, MEDIAVINE_PASSWORD: legacyCanary }, {}),
       worker('relay', { modules: true, script: relay, compatibilityDate: '2026-07-06' }, {}, { INGEST: 'ingest', CONTROL: async request => {
         if (new URL(request.url).pathname === '/summary' && revokeSummary) { await enginePool.query('DELETE FROM noticeos_identity.auth_member WHERE organization_id=$1 AND user_id=$2', [a, person.id]); revokeSummary = false; }
@@ -334,7 +334,8 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       } }),
       worker('demo', tower, { ...common, NOTICEOS_WORKSPACE_PROFILE: 'demo', NOTICEOS_DEMO_WORKSPACE_ID: demo }, { INGEST: 'demo-ingest' }),
       worker('demo-ingest', { ...ingest, r2Buckets: { RAW_SIGNALS: 'retained-watch-fixture' } }, { ...common, CREDENTIALS_KEY: credentialsKey, MEDIAVINE_USER: legacyCanary, MEDIAVINE_PASSWORD: legacyCanary, NOTICEOS_WORKSPACE_PROFILE: 'demo', NOTICEOS_DEMO_WORKSPACE_ID: demo }, {}),
-    ] });
+    ] };
+    runtime = new Miniflare(runtimeOptions);
     const dispatch = async asked => {
       const response = await runtime.dispatchFetch('https://fixture-driver/', { method: 'POST', body: JSON.stringify(asked) });
       // Complete the actual HTTP body even when an assertion needs only its
@@ -1134,6 +1135,55 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
     const researchReadCount = async () => Number((await admin.query(
       "SELECT COALESCE(sum(calls),0) n FROM pg_stat_statements WHERE query LIKE '%FROM noticeos.research_log%' OR query LIKE '%FROM noticeos.pulses%'")).rows[0].n);
     const storedWrites = async () => (await admin.query("SELECT (SELECT count(*) FROM noticeos.flags)::int flags,(SELECT count(*) FROM noticeos.config_changes)::int audit,(SELECT count(*) FROM noticeos.config_documents)::int documents,(SELECT count(*) FROM noticeos.research_log)::int purchases,(SELECT count(*) FROM noticeos.annotations)::int annotations")).rows;
+    await t.test('Tower and MCP use the same private, versioned portfolio report in local R2', async () => {
+      const bucket = await runtime.getR2Bucket('NOTICEOS_PORTFOLIO', 'tower');
+      const publications = [];
+      const calls = providerCalls.length;
+      for (const workspace of [a, b]) {
+        const wall = await towerFetch.fetch(origin + '/api/wall', { headers: headers(workspace) });
+        assert.equal(wall.status, 200, await wall.clone().text());
+        const payload = await wall.json();
+        assert.match(payload.portfolioSummary.version, /^[a-f0-9]{64}$/u);
+        assert.match(payload.portfolioSummary.reportingDate, /^\d{4}-\d{2}-\d{2}$/u);
+        const response = await stored(workspace, '/api/mcp', mcpQuestion('list_properties'));
+        assert.equal(response.status, 200, await response.clone().text());
+        const agent = (await response.json()).result.structuredContent;
+        assert.deepEqual(agent.portfolioSummary, payload.portfolioSummary);
+        assert.equal(agent.generatedAt, payload.generatedAt);
+        assert.deepEqual(agent.portfolio, payload.portfolio);
+        assert.deepEqual(agent.properties.map(property => property.displayName), payload.assets.map(asset => asset.displayName));
+        const object = await bucket.get(`workspaces/${workspace}/portfolio/summary-v1.json`);
+        assert.ok(object);
+        const snapshot = await object.json();
+        assert.equal(snapshot.workspaceId, workspace);
+        assert.equal(snapshot.version.version, payload.portfolioSummary.version);
+        publications.push(snapshot);
+      }
+      assert.notEqual(publications[0].version.version, publications[1].version.version);
+      assert.equal(providerCalls.length, calls);
+      assert.equal((await towerFetch.fetch(origin + '/api/wall', { headers: { ...headers(a), cookie: otherCookie } })).status, 403);
+
+      await runtime.dispose();
+      runtime = new Miniflare(runtimeOptions);
+      const reopened = await runtime.getR2Bucket('NOTICEOS_PORTFOLIO', 'tower');
+      const previous = await reopened.get(`workspaces/${a}/portfolio/summary-v1.json`);
+      assert.ok(previous, 'the object must survive the Worker restart');
+      assert.deepEqual(await previous.json(), publications[0]);
+      await admin.query('REVOKE SELECT ON noticeos.financial_ledger FROM noticeos_app');
+      try {
+        const wall = await towerFetch.fetch(origin + '/api/wall', { headers: headers(a) });
+        assert.equal(wall.status, 200, await wall.clone().text());
+        const retained = await wall.json();
+        assert.equal(retained.generatedAt, publications[0].wall.generatedAt);
+        assert.deepEqual(retained.portfolioSummary, { ...publications[0].version, retained: true });
+        const response = await stored(a, '/api/mcp', mcpQuestion('list_properties'));
+        assert.equal(response.status, 200, await response.clone().text());
+        const agent = (await response.json()).result.structuredContent;
+        assert.deepEqual(agent.portfolioSummary, retained.portfolioSummary);
+      } finally {
+        await admin.query('GRANT SELECT ON noticeos.financial_ledger TO noticeos_app');
+      }
+    });
     await t.test('MCP and real seasonal replay read colliding evidence only in their selected customer or fixed demo', async () => {
       const before = await storedWrites(), calls = providerCalls.length;
       for (const [workspace, marker, expected, judged] of [[a, 'tenant-a', 3, 28], [b, 'tenant-b', 0, 30], [demo, 'demo', 1, 30]]) {

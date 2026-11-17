@@ -5,7 +5,7 @@ import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useNtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { TASK_SERVICE_KEY } from "@/hooks/useTaskService";
-import { useOwnerPreferences, useOwnerToast, useTowerApi } from "@/lib/browser-context";
+import { useBrowserRuntime, useOwnerPreferences, useOwnerToast, useTowerApi } from "@/lib/browser-context";
 import { heldSentence, keepApp, keptApp, startSignIn } from "@/lib/ntasks-sign-in";
 
 /**
@@ -18,6 +18,8 @@ import { heldSentence, keepApp, keptApp, startSignIn } from "@/lib/ntasks-sign-i
  */
 export function useBeginNtasksSignIn(): () => Promise<boolean> {
   const signIn = useNtasksSignIn();
+  const { owner } = useBrowserRuntime();
+  const workspaceSession = owner.mode === "hosted" ? `${owner.workspaceId}/${owner.sessionId}` : undefined;
   const api = useTowerApi();
   const storage = useOwnerPreferences();
   const queryClient = useQueryClient();
@@ -32,13 +34,13 @@ export function useBeginNtasksSignIn(): () => Promise<boolean> {
       keepApp(storage, origin, { clientId, held });
       // The first registration is saved with the connection: every surface reads its client id.
       if (signIn.kind === "unconfigured") void queryClient.invalidateQueries({ queryKey: TASK_SERVICE_KEY });
-      window.location.assign(await startSignIn({ origin, clientId }, { towerOrigin: window.location.origin, returnTo, held }));
+      window.location.assign(await startSignIn({ origin, clientId }, { towerOrigin: window.location.origin, returnTo, held, workspaceSession }));
       return true;
     } catch (error) {
       toast.error("Not signed in to Ntasks", { description: error instanceof Error ? error.message : String(error) });
       return false;
     }
-  }, [signIn, api, storage, queryClient, returnTo, toast]);
+  }, [signIn, api, storage, queryClient, returnTo, toast, workspaceSession]);
 }
 
 /**

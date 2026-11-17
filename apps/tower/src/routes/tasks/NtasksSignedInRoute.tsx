@@ -7,7 +7,7 @@ import { useDocumentTitle } from "@/lib/document-title";
 import { finishSignIn, keepApp } from "@/lib/ntasks-sign-in";
 
 /** One exchange per code: a page drawn twice must not spend it twice. */
-const exchanges = new Map<string, ReturnType<typeof finishSignIn>>();
+const exchanges = new WeakMap<object, Map<string, ReturnType<typeof finishSignIn>>>();
 
 /** The address Ntasks returns the person's browser to after sign-in: the code
  * is exchanged for their tokens here, and the page they started from opens. */
@@ -20,10 +20,14 @@ export function NtasksSignedInRoute() {
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
-    let exchange = exchanges.get(search);
+    let answers = exchanges.get(runtime);
+    if (!answers) { answers = new Map(); exchanges.set(runtime, answers); }
+    let exchange = answers.get(search);
     if (!exchange) {
-      exchange = finishSignIn(search, { sessionFor: (app) => personSession(runtime, app, storage) });
-      exchanges.set(search, exchange);
+      const { owner } = runtime;
+      const workspaceSession = owner.mode === "hosted" ? `${owner.workspaceId}/${owner.sessionId}` : undefined;
+      exchange = finishSignIn(search, { workspaceSession, sessionFor: (app) => personSession(runtime, app, storage) });
+      answers.set(search, exchange);
     }
     exchange.then(({ returnTo, app }) => {
       // A sign-in that finished here shows Ntasks no longer holds this address.

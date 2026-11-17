@@ -13,14 +13,16 @@ import { PeriodNotFound, buildFinancialsPayload } from "./financials-payload";
 import { loadBanking } from './banking';
 import { buildIntegrationsMatrix, integrationsDeps } from "./integrations-payload";
 import { buildSettingsPayload } from "./settings-payload";
-import { buildWallPayload } from "./wall-payload";
+import { buildWallPayload, type BuildOptions } from "./wall-payload";
+import { readPortfolioSummary, type PortfolioSummaryStore } from './portfolio-summary';
 import { handleWallFeedRequest } from "./wall-feed";
 import { buildTaskBoard, buildTaskSourcePayload } from "./task-source";
 import { PERIOD_PATTERN } from "../shared/financials";
 
 export async function handleStoredRead(request: Request, {
-  store, config, compiledTimeZone,
-}: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string }): Promise<Response | null> {
+  store, config, compiledTimeZone, reportGa4Today, portfolioSummary,
+}: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string;
+  reportGa4Today?: boolean; portfolioSummary?: PortfolioSummaryStore }): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === "/api/alerts/daily") {
     return handleAlertDailyRequest(request, store, new Date());
@@ -123,7 +125,7 @@ export async function handleStoredRead(request: Request, {
   if (url.pathname === "/api/wall") {
     const cfg = await config();
     try {
-      const payload = await buildWallPayload(store, {
+      const options: BuildOptions = {
         now: new Date(),
         constants: cfg.monthlyCaps,
         integrations: cfg.integrations,
@@ -134,7 +136,11 @@ export async function handleStoredRead(request: Request, {
         noNightlyReport: cfg.noNightlyReport,
         counters: cfg.counters,
         schedules: cfg.schedules,
-      });
+        reportGa4Today,
+      };
+      const payload = portfolioSummary
+        ? (await readPortfolioSummary(store, portfolioSummary, options)).wall
+        : await buildWallPayload(store, options);
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       // Surface a clean error; the client keeps its last-good payload and

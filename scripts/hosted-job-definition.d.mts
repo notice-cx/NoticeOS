@@ -5,4 +5,5 @@ export declare function hostedJobDefinitionHash(version: string, steps: readonly
     readonly key: string;
     readonly kind: 'database' | 'effect';
     readonly action: string;
+    readonly terminalReportedFailure?: true;
 }[]): string;

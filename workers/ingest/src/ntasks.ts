@@ -7,6 +7,26 @@ import { isLocalAddress } from './local-model.js';
 
 export const NTASKS_URL = 'NTASKS_URL';
 export const NTASKS_TOKEN = 'NTASKS_TOKEN';
+export const NTASKS_WORKSPACE_ID = 'NTASKS_WORKSPACE_ID';
+const WORKSPACE = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
+declare global {
+  interface IngestEnv {
+    NOTICEOS_NTASKS_ORIGIN?: string;
+  }
+}
+
+/** Hosted connections share a deployment-selected origin, never a destination
+ * supplied by the workspace alone. Validate before any request or save. */
+export function hostedNtasksAddress(env: IngestEnv, fields: Record<string, unknown>): { origin: string; workspaceId: string } {
+  const origin = ntasksOrigin(env.NOTICEOS_NTASKS_ORIGIN ?? '');
+  const workspaceId = fields[NTASKS_WORKSPACE_ID];
+  if (typeof fields[NTASKS_URL] !== 'string' || ntasksOrigin(fields[NTASKS_URL]) !== origin
+    || typeof workspaceId !== 'string' || !WORKSPACE.test(workspaceId)
+    || typeof fields[NTASKS_TOKEN] !== 'string' || !/^ntasks_service\.[A-Za-z0-9._~-]+$/u.test(fields[NTASKS_TOKEN])) {
+    throw new TaskServiceError({ kind: 'configuration' });
+  }
+  return { origin, workspaceId };
+}
 /** The Tower's client id as a connected app of this Ntasks: public, and what
  * a person's browser signs in with (docs/guides/keep-tasks-in-ntasks.md). */
 export const NTASKS_APP_CLIENT_ID = 'NTASKS_APP_CLIENT_ID';
@@ -78,6 +98,8 @@ export function ntasksOrigin(value: string): string {
 
 export interface TaskServiceCall {
   readonly method: string;
+  /** A server-owned selection, absent from the standalone operator API. */
+  readonly workspaceId?: string;
   /** An Ntasks path with its query, such as `/api/tasks?project=…`. */
   readonly path: string;
   readonly body?: string;
@@ -122,6 +144,7 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
   const token = fields[NTASKS_TOKEN]?.trim();
   if (!token) throw new TaskServiceError({ kind: 'configuration' });
   const headers = new Headers({ accept: 'application/json', authorization: `Bearer ${token}` });
+  if (call.workspaceId !== undefined) headers.set('x-ntasks-workspace', call.workspaceId);
   if (call.body !== undefined) headers.set('content-type', 'application/json');
   if (call.idempotencyKey !== undefined) headers.set('idempotency-key', call.idempotencyKey);
   if (call.onBehalfOf !== undefined) headers.set('x-ntasks-on-behalf-of', call.onBehalfOf);
@@ -183,6 +206,48 @@ export async function checkNtasks(fields: Record<string, string>, fetchImpl: typ
     return { outcome: 'answered', facts };
   } catch (error) {
     if (error instanceof TaskServiceError && error.failure.kind === 'configuration') return { outcome: 'invalid', failing: ['Ntasks address'], failure: error.failure };
+    return { outcome: 'unreachable', ...(error instanceof TaskServiceError ? { failure: error.failure } : {}) };
+  }
+}
+
+/** Ntasks reports the grant's current projects and their owning workspace.
+ * A hosted connection uses a project-granted service credential. */
+export async function readHostedNtasksProjects(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch = fetch) {
+  const { origin, workspaceId } = hostedNtasksAddress(env, fields);
+  const [account, catalog] = await Promise.all(['/api/access/me', '/api/tasks/projects']
+    .map(path => callNtasks(fields, { method: 'GET', path, workspaceId }, fetchImpl)));
+  for (const reply of [account!, catalog!]) {
+    if (reply.status === 401 || reply.status === 403) throw new TaskServiceError({ kind: 'access', status: reply.status });
+    if (reply.status !== 200) throw new TaskServiceError({ kind: 'http', status: reply.status });
+  }
+  const grants = account!.body as { kind?: unknown; projects?: { workspaceId?: unknown; projectId?: unknown; access?: unknown }[] } | null;
+  const projects = (catalog!.body as { projects?: readonly (Record<string, unknown> & {
+    projectId: string; logicalKey: string; displayName: string; prefix: string;
+  })[] } | null)?.projects;
+  if (grants?.kind !== 'service' || !Array.isArray(grants.projects) || !Array.isArray(projects) || projects.length === 0 || projects.length > 64
+    || grants.projects.length !== projects.length || grants.projects.some(grant => grant?.workspaceId !== workspaceId
+      || typeof grant.projectId !== 'string' || !['read', 'write'].includes(String(grant.access)))
+    || projects.some(project => !project || typeof project.projectId !== 'string' || typeof project.logicalKey !== 'string'
+      || typeof project.displayName !== 'string' || typeof project.prefix !== 'string'
+      || !grants.projects!.some(grant => grant.projectId === project.projectId))
+    || new Set(projects.map(project => project.projectId)).size !== projects.length
+    || new Set(projects.map(project => project.prefix)).size !== projects.length) {
+    throw new TaskServiceError({ kind: 'access' });
+  }
+  return { origin, workspaceId, projects, writable: grants.projects.some(grant => grant.access === 'write') };
+}
+
+export async function checkHostedNtasks(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<ProbeResult> {
+  try {
+    const { projects } = await readHostedNtasksProjects(env, fields, fetchImpl);
+    return { outcome: 'answered', facts: { projects: projects.length } };
+  } catch (error) {
+    if (error instanceof TaskServiceError && error.failure.kind === 'configuration') {
+      return { outcome: 'invalid', failing: ['Ntasks connection'], failure: error.failure };
+    }
+    if (error instanceof TaskServiceError && error.failure.kind === 'access') {
+      return { outcome: 'refused', fix: { kind: 'replace' }, failure: error.failure };
+    }
     return { outcome: 'unreachable', ...(error instanceof TaskServiceError ? { failure: error.failure } : {}) };
   }
 }

@@ -574,6 +574,8 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
       { name: 'NTASKS_URL', label: 'Ntasks address', kind: 'url', secret: false, required: true, placeholder: 'https://ntasks.example.com',
         description: 'The task projects, the task tools and the Tower\'s task pages read and change tasks here.' },
       { name: 'NTASKS_TOKEN', label: 'Service credential', kind: 'password', secret: true, required: true },
+      { name: 'NTASKS_WORKSPACE_ID', label: 'Ntasks workspace ID', kind: 'text', secret: false, required: false,
+        description: 'Identifies the Ntasks workspace connected to a shared Tower.' },
       { name: 'NTASKS_APP_CLIENT_ID', label: 'Tower client ID', kind: 'text', secret: false, required: false,
         description: 'From Ntasks → Settings → Connected apps, after registering this Tower with its sign-in address. People then sign in to Ntasks on the Tasks page, and their decisions there are recorded under their own names.' },
     ],

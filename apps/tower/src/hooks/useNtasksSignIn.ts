@@ -50,7 +50,8 @@ export function useNtasksSignIn(): NtasksSignIn {
   // The app this Tower address signed in with wins over the installation's
   // saved one, which Ntasks registered for the address the Tower first signed in from.
   const kept = origin === null ? null : keptApp(storage, origin);
-  const clientId = app === null ? null : kept?.clientId ?? (app === "unconfigured" ? null : app.clientId);
+  const saved = app === "unconfigured" || app === null ? null : app.clientId;
+  const clientId = runtime.owner.mode === "hosted" || app === null ? saved : kept?.clientId ?? saved;
   const session = useMemo(() => origin !== null && clientId !== null ? personSession(runtime, { origin, clientId }, storage) : null,
     [runtime, origin, clientId, storage]);
   const state = useSyncExternalStore(session?.subscribe ?? NO_SUBSCRIPTION, session?.snapshot ?? (() => SIGNED_OUT), session?.snapshot ?? (() => SIGNED_OUT));

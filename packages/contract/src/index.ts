@@ -24,6 +24,7 @@ export * from './reporting.js';
 export * from './os-time-zone.js';
 export * from './time-zone-setting.js';
 export * from './ga4-realtime.js';
+export * from './ga4-daily.js';
 export * from './calendar-upcoming.js';
 export * from './asset-column.js';
 export * from './money.js';

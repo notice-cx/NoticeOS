@@ -45,7 +45,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
-| `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
+| `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
 | `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
@@ -67,6 +67,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `signals:collect` | Collect one asset's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
 | `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
 | `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
+| `signals:scratch` | Estimate the temporary files left by interrupted report jobs for one asset. | `scripts/panel-scratch.mjs` |
 | `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
 | `signals:refresh` | Keep every rostered asset's panel dir current. | `scripts/signal-panels-refresh.mjs` |
 | `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |

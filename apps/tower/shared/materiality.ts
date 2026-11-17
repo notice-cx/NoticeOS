@@ -185,6 +185,7 @@ export type PayloadConcern = CurrentConcern | SupportingConcern;
  * a screen that does not read it. */
 export const WALL_PAYLOAD_INVENTORY = {
   generatedAt: { class: "supporting-evidence", placement: "fixed-horizon", destination: "WallStrip held-since age" },
+  portfolioSummary: { class: 'supporting-evidence', placement: 'derived-only', destination: 'Wall publication status and MCP list_properties reporting date' },
   osTimeZone: { class: 'configuration', placement: 'derived-only', destination: 'Display calendar for Home and Wall daily metrics' },
   // The MCP `list_properties` tool hands the WHOLE band to agents, so the band
   // keeps fields no screen draws: `bookedDelta` (the last two closed months),

@@ -25,6 +25,8 @@ export type HostedJobStep = {
 } | {
     readonly kind: 'effect';
     readonly run: (call: StepCall) => Promise<unknown>;
+    /** This adapter's structured failure reports completed observation work. */
+    readonly terminalReportedFailure?: true;
 });
 /** Projectors select fields safe for operator history; omit credentials and raw provider bodies. */
 export interface HostedDiagnosticPolicy {
@@ -67,6 +69,8 @@ export declare class HostedJobRefused extends Error {
  * Only this registry's callbacks receive fresh action contexts. No platform,
  * operator session, filesystem root or bearer proof is accepted by run(). */
 export declare function createHostedJobRunner(options: {
+    /** Permit a longer bounded effect, with a lease long enough to commit it. */
+    readonly effectTimeoutMs?: number;
     readonly workspaceId: string;
     readonly serviceId: string;
     readonly grant: WorkspaceServiceGrant;

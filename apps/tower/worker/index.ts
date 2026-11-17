@@ -76,11 +76,13 @@ import {
   handleGooglePropertiesRequest,
 } from "./integrations-oauth-route";
 import { type McpIngest, handleMcpRequest, mcpDependencies } from "./mcp-route";
+import { portfolioSummaryStore, type PortfolioSummaryBucket } from './portfolio-summary';
 import { type RuleBacktester, handleRuleBacktestRequest } from "./rule-backtest-route";
 import { type RunnerIngest, handleRunnerRequest } from "./runner-route";
 import { runTowerCron } from "./tower-cron";
 import { handlePortfolioBriefRequest, type PortfolioBriefIngest } from './portfolio-brief-route';
 import { handleTasksRequest, isTasksPath } from "./tasks-route";
+import { hostedTaskRequest } from '../../../scripts/hosted-task-request.mjs';
 import { type WatchWindowWriter, handleWatchWindowRequest } from "./watch-window-route";
 import {
   type WatchQueryHistoryReader,
@@ -112,6 +114,8 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
    * pattern). Absent only where nothing reads the store — a test driving a
    * route that never does; every unit of work then refuses, naming it. */
   POSTGRES?: StoreBinding;
+  NOTICEOS_PORTFOLIO?: PortfolioSummaryBucket;
+  NOTICEOS_CUSTOMER_SCHEDULES?: { fetch(request: Request): Promise<Response> };
   INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader & ModelBudgetWriter &
     ConfigDocumentReader &
     AssetColumnWriter &
@@ -133,6 +137,8 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
       integrationHealth?(originalProof?: Request): Promise<unknown>;
       cloudflareD1?(original: Request): Promise<Response>;
       backupCloudflareD1?(original: Request): Promise<Response>;
+      hostedTaskRequest?(original: Request): Promise<Response>;
+      refreshHostedTaskSummary?(original: Request): Promise<void>;
     };
 }
 
@@ -476,6 +482,14 @@ const towerHandler = {
     }
     if (profile !== 'standalone') {
       const pathname = new URL(request.url).pathname;
+      if (profile === 'hosted' && hostedTaskRequest(request)) {
+        try {
+          return await withWorkspaceEntry(env, request.clone(), () => {
+            if (!env.INGEST.hostedTaskRequest) return Promise.resolve(jsonError('task_service_unavailable', 503));
+            return env.INGEST.hostedTaskRequest(request.clone());
+          });
+        } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403, headers: JSON_HEADERS }); }
+      }
       if (pathname === '/api/portfolio-brief') {
         if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
         return Response.json({ state: 'unsupported', briefing: null, lastAttemptAt: null, nextAttemptAt: null, error: null, stale: false }, { headers: { 'cache-control': 'no-store' } });
@@ -667,7 +681,9 @@ const towerHandler = {
               : await call.withStore(ctx, async store => {
                 const cfg = await towerConfigResolver(ingest, compiledConfig())();
                 if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
-                return handleMcpRequest(request, store, mcpDependencies(cfg, ingest), viewer);
+                const deps = mcpDependencies(cfg, ingest);
+                if (profile === 'hosted') deps.portfolioSummary = portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId);
+                return handleMcpRequest(request, store, deps, viewer);
               });
             if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
@@ -731,6 +747,9 @@ const towerHandler = {
         // Snapshot the original message before asynchronous authority reads.
         const proof = request.clone();
         return await withWorkspaceEntry(env, proof, async (call) => {
+          if (profile === 'hosted' && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary) {
+            await env.INGEST.refreshHostedTaskSummary(proof.clone()).catch(() => undefined);
+          }
           let receiverFailed = false;
           const ingest: ConfigDocumentReader & {
             listCredentialSummaries(): ReturnType<IntegrationCredentialWriter['listCredentialSummaries']>;
@@ -768,9 +787,10 @@ const towerHandler = {
           const response = storedRead
             ? await call.withStore(ctx, async store =>
                 await handleDemoPresentationRead(request, store, env)
-                ?? await handleHostedWorkflowRead(request, store)
+                ?? await handleHostedWorkflowRead(request, store, Date.now(), profile === 'hosted' ? env.NOTICEOS_CUSTOMER_SCHEDULES : undefined)
                 ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date() })
-                ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone }))
+                ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted',
+                  portfolioSummary: profile === 'hosted' ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId) : undefined }))
             : await handleConfigRequest(request, { ingest, config });
           // Hosted receiver denial never becomes the resolver's standalone
           // compiled-default fallback or a successful tenant response.

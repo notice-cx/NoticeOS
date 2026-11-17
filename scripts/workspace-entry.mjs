@@ -15,6 +15,7 @@ import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
+import { hostedTaskRequest, hostedTaskProof } from './hosted-task-request.mjs';
 export { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 export { workspaceProfile };
 export class WorkspaceEntryRefused extends Error {
@@ -254,6 +255,12 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
         refuse();
     }
     const selected = await towerOperation(proof);
+    const task = hostedTaskRequest(proof);
+    if (task) {
+        if (kind !== 'hosted')
+            refuse();
+        proof = hostedTaskProof(proof, task);
+    }
     const pathname = new URL(proof.url).pathname;
     const settings = pathname === '/api/config' && ['GET', 'PUT'].includes(proof.method);
     const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
@@ -262,7 +269,7 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
         && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
         && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
         && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
-        && !personPreferenceRequest(proof))
+        && !personPreferenceRequest(proof) && !task)
         || selected.kind !== 'workspace' || selected.action === null)
         refuse();
     const origin = binding(env, 'workspaceOrigin');

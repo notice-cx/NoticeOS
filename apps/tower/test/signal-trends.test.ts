@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import { SIGNAL_EVIDENCE_FLOOR_DAYS } from "../worker/integration-evidence";
-import { emptySignalTrendSet, loadSignalTrends, timeZoneChangesSql } from "../worker/signal-trends";
+import { GA4_REPORTED_DAY_SUFFIX } from "@noticeos/contract";
+import { emptySignalTrendSet, loadReportedGa4Days, loadSignalTrends, timeZoneChangesSql } from "../worker/signal-trends";
 import type { Transaction, WorkspaceStore } from "@noticeos/postgres";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { valuesOf, writeSignalRun, writeSignalValues } from "./collected-metrics";
@@ -72,6 +73,41 @@ beforeEach(async () => {
   await asset(ctx, "a.example");
   await asset(ctx, "b.example");
   await asset(ctx, "c.example");
+});
+
+it("reads only the current property's reported day and keeps a failed check distinct from zero", async () => {
+  const asset = "a.example";
+  const timeZone = "America/Los_Angeles";
+  const date = "2026-07-04";
+  const now = new Date("2026-07-05T04:00:00.000Z");
+  const record = (id: string, hour: number, options?: Pick<RunFixture, "status" | "propertyRef" | "timeZone">) => run({
+    id, asset, timeZone, finishedAt: `2026-07-05T0${hour}:00:00.000Z`,
+    windowStart: "2026-07-02", windowEnd: "2026-07-05", ...options,
+  });
+  const marked = (id: string) => `${id}${GA4_REPORTED_DAY_SUFFIX}${date}`;
+  const read = async (instant = now) => (await loadReportedGa4Days(ctx.call, [asset], instant)).get(asset);
+
+  await record("legacy", 0);
+  await observe("legacy", { [date]: 0 });
+  expect(await read()).toEqual({ date, timeZone, activeUsers: null, checkFailed: false, checkedAt: "2026-07-05T00:00:00.000Z" });
+
+  await record(marked("same-value"), 1);
+  expect(await read()).toMatchObject({ activeUsers: 0, checkedAt: "2026-07-05T01:00:00.000Z" });
+
+  await record(marked("updated"), 2);
+  await observe(marked("updated"), { [date]: 27 });
+  expect(await read()).toMatchObject({ activeUsers: 27 });
+  expect(await read(new Date("2026-07-05T08:00:00.000Z"))).toMatchObject({ date: "2026-07-05", activeUsers: null });
+
+  await record(marked("updated-again"), 3);
+  await observe(marked("updated-again"), { [date]: 19 });
+  expect(await read()).toMatchObject({ activeUsers: 19 });
+
+  await record("failed", 4, { status: "error" });
+  expect(await read()).toMatchObject({ activeUsers: null, checkFailed: true, checkedAt: "2026-07-05T03:00:00.000Z" });
+
+  await record(marked("another-property"), 5, { propertyRef: "replacement-property" });
+  expect(await read()).toMatchObject({ activeUsers: null, checkFailed: false });
 });
 
 describe("loadSignalTrends — which run a day's value comes from", () => {

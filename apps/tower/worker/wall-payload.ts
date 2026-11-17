@@ -27,6 +27,7 @@ import { siteIconAddresses } from "../shared/site-display";
 import {
   WALL_SIGNAL_CHART_DAYS,
   emptySignalTrendSet,
+  loadReportedGa4Days,
   loadSignalTrends,
 } from "./signal-trends";
 import { cents, loadAssetMonths, monthDate } from "./ledger-history";
@@ -107,6 +108,7 @@ export interface BuildOptions {
   noNightlyReport?: readonly string[] | null;
   counters?: CountersConfig;
   schedules?: ScheduleOverrides | null;
+  reportGa4Today?: boolean;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -432,6 +434,7 @@ export async function buildWallPayload(
     noNightlyReport,
     counters,
     schedules,
+    reportGa4Today = false,
   }: BuildOptions,
 ): Promise<WallPayload> {
   const nowMs = now.getTime();
@@ -747,11 +750,10 @@ export async function buildWallPayload(
   // for search clicks beside its users, so the search lane is read and the
   // two providers merged into one card field. Secondary series stay off: no
   // desk table asks a row for them.
-  const signalTrendsByAsset = await loadSignalTrends(store, WALL_SIGNAL_CHART_DAYS, {
-    timeZone: osTimeZone,
-    includeWebSearch: true,
-    nowMs,
-  });
+  const [signalTrendsByAsset, reportedGa4Days] = await Promise.all([
+    loadSignalTrends(store, WALL_SIGNAL_CHART_DAYS, { timeZone: osTimeZone, includeWebSearch: true, nowMs }),
+    reportGa4Today ? loadReportedGa4Days(store, cardAssets.map(asset => asset.id), now) : null,
+  ]);
   // Each site's saved daily revenue from every source, on its sources' own
   // reporting clock, back as far as the projection reads.
   const revenueClockFallback = operatorRevenueClock(osTimeZone);
@@ -864,6 +866,7 @@ export async function buildWallPayload(
         declaredNoReport: declaredNoReport.has(a.id),
       }),
       activeUsers: signalTrends.activeUsers,
+      reportedGa4Day: reportedGa4Days?.get(a.id),
       dailyRevenue: history.bySource.some(source => source.source === STRIPE_REVENUE_SOURCE) && wallDailyRevenue
         ? { date: wallDailyRevenue.date, timeZone: osTimeZone, amountMinor: wallDailyRevenue.amountMinor,
           reportedThrough: wallDailyRevenue.complete ? wallDailyRevenue.date : null }

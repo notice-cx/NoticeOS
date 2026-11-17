@@ -4,9 +4,8 @@ import { javascriptInstant, openWorkspaceStore } from '@noticeos/postgres';
 import { forgetConfigCache } from '../src/config-store.js';
 import { putCredential } from '../src/credentials.js';
 import { readGa4CoreReport } from '../src/ga4-core.js';
-import { parseGa4MinuteRows, runGa4Realtime, readGa4Realtime } from '../src/ga4-realtime.js';
-import { asOwner, reset } from './helpers.js';
-import { storedHealthEvents } from './helpers.js';
+import { parseGa4MinuteRows, runGa4Realtime, readGa4Realtime, refreshGa4Comparisons } from '../src/ga4-realtime.js';
+import { asOwner, reset, storedCount, storedHealthEvents } from './helpers.js';
 import { REALTIME_ATTEMPT_EVIDENCE } from '@noticeos/contract';
 
 const NOW = Date.parse('2026-07-29T12:00:00.000Z');
@@ -40,6 +39,29 @@ function realtimeFetch(status = 200, quota: QuotaFixture = {}, _unused = {}, min
 beforeEach(reset);
 
 describe('scheduled GA4 realtime collection', () => {
+  it('keeps existing minute history readable while hosted collection and manual refresh add no rows', async () => {
+    await putCredential(env, { provider: 'google', fields: { GOOGLE_SIGNAL_ACCOUNTS: env.GOOGLE_SIGNAL_ACCOUNTS! } });
+    const legacy = realtimeFetch();
+    const options = { fetchImpl: legacy.fetchImpl, nowMs: NOW, tokenCache: null };
+    const stored = () => Promise.all([
+      storedCount('SELECT count(*)::int AS n FROM noticeos.realtime_traffic_readings'),
+      storedCount('SELECT count(*)::int AS n FROM noticeos.traffic_comparison_reports'),
+    ]);
+    await runGa4Realtime(env, options);
+    expect(legacy.calls.filter(call => call.url.endsWith(':runRealtimeReport'))).toHaveLength(4);
+    expect(legacy.calls.filter(call => call.url.endsWith(':runReport'))).toHaveLength(4);
+    expect(await stored()).toEqual([2, 2]);
+
+    const hosted = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'hosted' };
+    const customer = realtimeFetch();
+    const later = { ...options, nowMs: NOW + 3_600_000, fetchImpl: customer.fetchImpl };
+    expect((await runGa4Realtime(hosted, later)).assets).toEqual([]);
+    expect(await refreshGa4Comparisons(hosted, later)).toEqual([]);
+    expect(customer.calls).toEqual([]);
+    expect(await stored()).toEqual([2, 2]);
+    expect((await readGa4Realtime(hosted, NOW)).assets[0]).toMatchObject({ status: 'success', activeUsers5m: 7 });
+  });
+
   it('keeps reading both live reports in successive clock minutes during Core quota backoff', async () => {
     await readGa4CoreReport(env.STORE, '123456', async () =>
       Response.json({ error: { message: 'Exhausted server errors quota.' } }, { status: 429 }),

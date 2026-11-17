@@ -16,6 +16,7 @@ import { useDocumentTitle } from "@/lib/document-title";
 import { useBootSplashRelease } from "@/lib/boot-splash";
 import { TV_ITEM } from "@/components/nav-items";
 import { calendarReadState } from "@/lib/meetings";
+import { useBrowserRuntime } from "@/lib/browser-context";
 import { wallWithAttentionStrip } from "@/lib/wall-attention-layout";
 
 /** The saved Wall composition, with one independent fallback for every viewer. */
@@ -35,12 +36,13 @@ export function drawnLayout(dashboard: { wall?: DashboardConfig["wall"] | null }
  * fails if desk editing or task code is fetched.
  */
 export function WallRoute() {
+  const reportGa4Today = useBrowserRuntime().owner.mode === 'hosted';
   const { data, isError, error, isFetching, refetch } = useWall();
   const realtime = useGa4Realtime();
   const upcoming = useCalendarUpcoming();
   // The same two reads Integrations derives every status from, so a site's
   // issue mark and the strip's state cannot disagree with it.
-  const { credentials, items, events } = useConnections();
+  const { credentials, items, events } = useConnections(!reportGa4Today);
   const now = useNow();
   const screen = useWallScreen();
   // The shell's name for this view, on the tab a TV shows.
@@ -83,10 +85,12 @@ export function WallRoute() {
         nowMs={now}
         meetings={upcoming.data}
         calendarState={calendarReadState(upcoming)}
+        calendarCheck={upcoming.manual ? { run: () => void upcoming.refetch(), checking: upcoming.isFetching } : undefined}
         weather={weather}
         ga4Realtime={realtime.data}
         ga4RealtimeError={realtime.isError}
-        lastGood={isError}
+        reportGa4Today={reportGa4Today}
+        lastGood={isError || data.portfolioSummary?.retained}
         connections={{ credentials, items, events }}
       />
     </div>

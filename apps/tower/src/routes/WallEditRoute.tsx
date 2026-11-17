@@ -40,6 +40,7 @@ import type { MetricTileSelection } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
 import { calendarReadState } from "@/lib/meetings";
+import { useBrowserRuntime } from "@/lib/browser-context";
 import { useConfigSave } from "@/hooks/useConfigSave";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { useConnections } from "@/hooks/useConnections";
@@ -113,10 +114,11 @@ export function readWallConfig(dashboard: DashboardConfig): {
  * the layout and history together through the existing concurrency guard.
  */
 export function WallEditRoute() {
+  const reportGa4Today = useBrowserRuntime().owner.mode === 'hosted';
   const { data, isError, error, isFetching, refetch } = useWall();
   const upcoming = useCalendarUpcoming();
   const realtime = useGa4Realtime();
-  const { credentials, items, events } = useConnections();
+  const { credentials, items, events } = useConnections(!reportGa4Today);
   // The canvas ticks its own clock and countdown every second (WallSeconds);
   // everything else here reads in minutes, as on the TV.
   const now = useNow();
@@ -208,7 +210,7 @@ export function WallEditRoute() {
   const widgets = wallLayoutWidgets(state.layout);
   const selectedWidget = widgets.find(widget => widget.id === state.selectedId);
   const metricWidget = selectedWidget && wallMetricSources(selectedWidget.type).length ? selectedWidget : null;
-  const selectedTiles = metricWidget ? wallMetricTiles(metricWidget) : [];
+  const selectedTiles = metricWidget ? wallMetricTiles(metricWidget).filter(tile => !reportGa4Today || tile.source !== "momentum") : [];
   const activeMetric = metricWidget && metricSelection?.widgetId === metricWidget.id
     ? { ...metricSelection, tileId: selectedTiles.some(tile => tile.id === metricSelection.tileId) ? metricSelection.tileId : selectedTiles[0]?.id ?? "" }
     : null;
@@ -519,6 +521,7 @@ export function WallEditRoute() {
               calendarState={calendarReadState(upcoming)}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
+              reportGa4Today={reportGa4Today}
               connections={{ credentials, items, events }}
               nowMs={now}
               metricEditing={{ ...metricEditing, focusAssetId: activeMetric?.assetId, onReorder: reorderMetric }}
@@ -533,6 +536,7 @@ export function WallEditRoute() {
               weather={weather}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
+              reportGa4Today={reportGa4Today}
               connections={{ credentials, items, events }}
               nowMs={now}
               selectedId={state.selectedId}
@@ -576,6 +580,7 @@ export function WallEditRoute() {
                   assets={data.assets}
                   disabled={disabled}
                   focused={rowFocused}
+                  reportGa4Today={reportGa4Today}
                   layout={rowFocused ? "side" : "bottom"}
                   onFocus={() => rowFocused ? backToWall() : setFocused(true)}
                   onSelectTile={tileId => selectMetric({ widgetId: metricWidget.id, tileId, ...(activeMetric?.assetId ? { assetId: activeMetric.assetId } : {}) })}

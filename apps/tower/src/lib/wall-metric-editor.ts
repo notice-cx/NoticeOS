@@ -39,10 +39,10 @@ export function removeWallMetricTile(widget: WallWidget, id: string): WallWidget
   return withTiles(widget, wallMetricTiles(widget).filter((tile) => tile.id !== id));
 }
 
-export function moveWallMetricTile(widget: WallWidget, id: string, direction: -1 | 1): WallWidgetSettings {
+export function moveWallMetricTile(widget: WallWidget, id: string, direction: -1 | 1, neighborId?: string): WallWidgetSettings {
   const metrics = wallMetricTiles(widget);
   const index = metrics.findIndex((tile) => tile.id === id);
-  const next = index + direction;
+  const next = neighborId === undefined ? index + direction : metrics.findIndex((tile) => tile.id === neighborId);
   if (index >= 0 && next >= 0 && next < metrics.length) [metrics[index], metrics[next]] = [metrics[next]!, metrics[index]!];
   return withTiles(widget, metrics);
 }

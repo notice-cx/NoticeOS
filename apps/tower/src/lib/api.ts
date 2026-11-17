@@ -117,7 +117,7 @@ async function fetchPortfolioBriefRequest(fetch: ApiTransport, signal?: AbortSig
  * slow union never delays the rest of the TV. */
 async function fetchWallFeedRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<WallFeedPayload> {
   const res = await fetch("/api/wall/feed", { signal, headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET /api/wall/feed failed: ${res.status}`);
+  if (!res.ok) throw new ApiError(`GET /api/wall/feed failed: ${res.status}`, res.status);
   return (await res.json()) as WallFeedPayload;
 }
 
