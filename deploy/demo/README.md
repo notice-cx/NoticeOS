@@ -13,6 +13,12 @@ on the namespace's loopback. Its one workspace is the demo's, and visitors
 read it with no credential; every change they send is refused. The demo
 reaches no other Ntasks.
 
+Run the demo with its own PostgreSQL server and volumes. A customer database
+can then suspend while the demo continues to advance. Use the same NoticeOS
+release for both deployments. The disposable setup test runs two separate
+PostgreSQL servers and compares customer sessions and transactions while the
+demo publishes a synthetic day.
+
 ## Before starting
 
 Use Docker with Compose, an exact source commit, and at least 8 GiB free **after**

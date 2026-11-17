@@ -618,19 +618,21 @@ function watchServer(data, socketDir, { started = false } = {}) {
 }
 
 /** Stop every server still running, immediately: this process is ending. */
-function stopEveryServer() {
-  for (const [data, { pgCtl }] of running) stopServer(pgCtl, data, { mode: 'immediate', seconds: 10 });
+function stopEveryServer(leaving = true) {
+  for (const [data, { pgCtl, managed }] of running) {
+    if (leaving || !managed) stopServer(pgCtl, data, { mode: 'immediate', seconds: 10 });
+  }
 }
 
 /** Remember a started server, and stop it however this process ends, but SIGKILL. */
-function stopOnExit(pgCtl, data, socketDir) {
-  running.set(data, { pgCtl, socketDir });
+function stopOnExit(pgCtl, data, socketDir, managed) {
+  running.set(data, { pgCtl, socketDir, managed });
   if (stopsOnExit) return;
   stopsOnExit = true;
-  process.on('exit', stopEveryServer);
+  process.on('exit', () => stopEveryServer());
   for (const signal of INTERRUPTS) {
     const onSignal = () => {
-      stopEveryServer();
+      stopEveryServer(false);
       // Alone, end the way the signal would have ended the process; beside
       // another listener (node --test has its own), that listener decides.
       if (process.listenerCount(signal) === 1) {
@@ -709,9 +711,9 @@ function checkLoopbackPort(port) {
  *
  * @param {string} dir
  * @param {ReturnType<typeof findPostgres>} [tools]
- * @param {{ loopbackPort?: number | null }} [options]
+ * @param {{ loopbackPort?: number | null, durable?: boolean }} [options]
  */
-export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null } = {}) {
+export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null, durable = false } = {}) {
   const found = requireTools(tools);
   const root = path.resolve(dir);
   const data = path.join(root, 'data');
@@ -733,7 +735,7 @@ export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null
       // PostgreSQL 17 added the builtin Unicode codepoint locale used by the
       // pinned fresh-install host. Older local binaries retain their argv.
       const locale = found.major >= 17 ? ['--locale-provider=builtin', '--builtin-locale=C.UTF-8'] : [];
-      run(found.initdb, ['-D', data, '-U', 'postgres', '-A', 'trust', '--no-sync', '-E', 'UTF8', '--no-instructions', ...locale]);
+      run(found.initdb, ['-D', data, '-U', 'postgres', '-A', 'trust', ...(durable ? [] : ['--no-sync']), '-E', 'UTF8', '--no-instructions', ...locale]);
     } catch (error) {
       rmSync(data, { recursive: true, force: true });
       throw new PostgresUnavailable(`a throwaway Postgres could not be created here: ${error.message.split('\n')[0]}`);
@@ -764,7 +766,7 @@ export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null
       '-D', data,
       '-l', path.join(root, 'server.log'),
       '-w',
-      '-o', `${listen} -k ${socketDir} -c fsync=off -c shared_buffers=16MB -c TimeZone=UTC${extra}`,
+      '-o', `${listen} -k ${socketDir} -c fsync=${durable ? 'on' : 'off'} -c shared_buffers=16MB -c TimeZone=UTC${extra}`,
       'start',
     ]);
   // pg_stat_statements is loaded at start; a server build without it starts
@@ -784,7 +786,7 @@ export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null
     if (!stillRunning) rmSync(socketDir, { recursive: true, force: true });
     throw new PostgresUnavailable(`a throwaway Postgres could not start here: ${error.message.split('\n')[0]}`);
   }
-  stopOnExit(found.pgCtl, data, socketDir);
+  stopOnExit(found.pgCtl, data, socketDir, durable);
   watchServer(data, socketDir, { started: true });
   const stop = () => {
     const stillRunning = stopServer(found.pgCtl, data);

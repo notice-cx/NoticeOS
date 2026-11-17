@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OS_TIME_ZONE } from '@noticeos/contract';
+import { GA4_REPORTED_DAY_PATTERN, OS_TIME_ZONE } from '@noticeos/contract';
 import {
   assumedTimeZoneEvent,
   googleTargets,
@@ -36,9 +36,11 @@ function googleFetch({
   gscStatus = 200,
   gscIncompleteDate = '2026-07-25',
   ga4TimeZone = null,
+  ga4CurrentUsers,
 }: {
   /** GA4's `metadata.timeZone`; null omits `metadata`, as the default fixture always has. */
   ga4TimeZone?: string | null;
+  ga4CurrentUsers?: number;
   ga4Status?: number;
   /** The provider's `error` object, verbatim — its `status` is load-bearing. */
   ga4Error?: Record<string, unknown>;
@@ -85,6 +87,10 @@ function googleFetch({
             dimensionValues: [{ value: '20260727' }],
             metricValues: [{ value: '20' }, { value: '16' }, { value: '35' }, { value: '104' }],
           },
+          ...(ga4CurrentUsers === undefined ? [] : [{
+            dimensionValues: [{ value: '20260728' }],
+            metricValues: ['0', String(ga4CurrentUsers), '0', '0'].map(value => ({ value })),
+          }]),
         ],
         ...(ga4Quota
           ? {
@@ -134,6 +140,47 @@ function googleFetch({
 beforeEach(reset);
 
 describe('Google signal collector', () => {
+  it('records only an explicit current property day, including a zero already stored by an older collector', async () => {
+    const asset = GOOGLE_PROPERTIES[0];
+    const nowMs = Date.parse('2026-07-29T02:00:00.000Z');
+    const timeZone = 'America/Los_Angeles';
+    const options = { nowMs, osTimeZone: 'UTC', assets: [asset], rawConfig: env.GOOGLE_SIGNAL_ACCOUNTS! };
+    const read = (ga4CurrentUsers?: number, ga4Status?: number) => googleFetch({ ga4TimeZone: timeZone, ga4CurrentUsers, ga4Status });
+    const hosted = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'hosted' };
+    const observed = () => pgRows<{ date: string; count: number }>(`SELECT o.observed_date AS date, o.value AS count
+      FROM noticeos.signal_observations o JOIN noticeos.measurement_series s USING (workspace_id, series_id)
+      WHERE s.integration = 'ga4' AND s.metric = 'active_users' AND o.observed_date >= '2026-07-25'
+      ORDER BY o.observation_id`);
+    const latest = () => pgRows<{ report_day: string | null; provisional_from: string | null; status: string }>(`SELECT
+      substring(run_id FROM $1::text) AS report_day, provisional_from, status
+      FROM noticeos.signal_runs WHERE integration = 'ga4' ORDER BY run_seq DESC LIMIT 1`, [GA4_REPORTED_DAY_PATTERN]);
+
+    await runGoogleSignals(env, { ...options, ...read() });
+    const previous = await observed();
+    expect(previous).toContainEqual({ date: '2026-07-28', count: 0 });
+    expect(previous).toContainEqual({ date: '2026-07-26', count: 14 });
+    expect(previous).toContainEqual({ date: '2026-07-25', count: 0 });
+
+    await runGoogleSignals(hosted, { ...options, ...read() });
+    expect(await latest()).toEqual([{ report_day: null, provisional_from: '2026-07-27', status: 'success' }]);
+    expect(await observed()).toEqual(previous);
+
+    await runGoogleSignals(hosted, { ...options, ...read(0) });
+    expect(await latest()).toEqual([{ report_day: '2026-07-28', provisional_from: '2026-07-27', status: 'success' }]);
+    expect(await observed()).toEqual(previous);
+
+    await runGoogleSignals(hosted, { ...options, ...read(23) });
+    await runGoogleSignals(hosted, { ...options, ...read() });
+    expect(await latest()).toEqual([{ report_day: null, provisional_from: '2026-07-27', status: 'success' }]);
+    await runGoogleSignals(hosted, { ...options, ...read(17) });
+    expect(await latest()).toEqual([{ report_day: '2026-07-28', provisional_from: '2026-07-27', status: 'success' }]);
+    expect(await observed()).toEqual([...previous, { date: '2026-07-28', count: 23 }, { date: '2026-07-28', count: 17 }]);
+
+    await runGoogleSignals(hosted, { ...options, ...read(undefined, 403) });
+    expect(await latest()).toEqual([{ report_day: null, provisional_from: null, status: 'error' }]);
+    expect(await observed()).toEqual([...previous, { date: '2026-07-28', count: 23 }, { date: '2026-07-28', count: 17 }]);
+  });
+
   it.each([false, true])('keeps the longer GA4 deadline only when slow reports were saved in multiple hours (%s)', async (repeated) => {
     const hour = 3_600_000;
     const fixture = googleFetch();

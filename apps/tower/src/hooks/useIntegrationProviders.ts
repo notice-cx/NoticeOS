@@ -18,12 +18,13 @@ export const INTEGRATION_PROVIDERS_KEY = ["integration-providers"] as const;
  * a television refresh, and re-reading a credential inventory every minute is
  * spend for nothing.
  */
-export function useIntegrationProviders() {
+export function useIntegrationProviders(watch = true) {
   const { fetchIntegrationProviders } = useTowerApi();
   return useQuery<IntegrationCredentialsPayload>({
     queryKey: INTEGRATION_PROVIDERS_KEY,
     queryFn: ({ signal }) => fetchIntegrationProviders(signal),
-    refetchInterval: 300_000,
+    refetchInterval: watch ? 300_000 : false,
+    refetchOnWindowFocus: !watch,
     staleTime: 60_000,
   });
 }

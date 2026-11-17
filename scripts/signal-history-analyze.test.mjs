@@ -360,6 +360,13 @@ test('a job stopped at any stage leaves the previous report readable and complet
     assert.deepEqual(await published(ws), before, stage);
     assert.deepEqual(await leftovers(ws), [], stage);
   }
+  const cancellation = new AbortController();
+  const stopped = new Error('Report job canceled');
+  await assert.rejects(analyze(ws, { signal: cancellation.signal }, { onStage(stage) {
+    if (stage === 'reading') cancellation.abort(stopped);
+  } }), stopped);
+  assert.deepEqual(await published(ws), before);
+  assert.deepEqual(await leftovers(ws), []);
   assert.equal((await analyze(ws)).report.generation, 2);
   assert.notDeepEqual((await published(ws)).files, before.files);
 });

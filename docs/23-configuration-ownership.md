@@ -78,12 +78,13 @@ does not expire the shared browser cookie, because a delayed response could
 otherwise erase a newer login from another tab. The revoked cookie grants no
 access and a successful sign-in replaces it.
 
-The current HTTP adapter requires a server-declared Cloudflare edge profile,
+The Cloudflare HTTP adapter requires a server-declared Cloudflare edge profile,
 Cloudflare request metadata and a valid `CF-Connecting-IP`; it rejects Worker
 subrequests and ignores arbitrary forwarded-address headers. This follows
 [Cloudflare's documented header behavior](https://developers.cloudflare.com/fundamentals/reference/http-headers/).
-A native host needs its own trusted-peer adapter; setting similarly named
-request headers does not make it an edge. Delivery uses the configured
+The [local customer runner](../scripts/README.md#run-local-customer-workspaces)
+uses a server-declared loopback profile. Its gateway verifies the socket peer
+and supplies an in-memory proof that a browser cannot set. Delivery uses the configured
 `NOTICEOS_IDENTITY_EMAIL` binding and server-selected sender after the code
 transaction commits. No real sender or hosted auth profile is enabled by the
 checked-in standalone configuration. The actual Tower proof in
@@ -96,6 +97,13 @@ provisioning creates a workspace and its first owner; an owner can invite people
 to that workspace. An invitation has a workspace, intended recipient, role,
 expiry and single-use acceptance. Signing in without an accepted invitation
 does not create a customer workspace. The public demo requires no membership.
+
+For a first owner using a separate Ntasks service, the platform verifier checks
+the deployment's exact project mapping and current project-scoped write grant
+before activation. Verification reads the service identity and project catalog.
+The first owner verifies the enrollment email through the ordinary sign-in
+flow. A complete standalone database restore preserves the workspace ID but
+does not create hosted membership.
 
 The hosted Tower's fixed membership route accepts owner commands and bounded
 member or invitation listings. It checks the tab's captured session and current
@@ -333,19 +341,19 @@ a Cloudflare Worker over one D1 database. NoticeOS keeps no task store of its
 own; it is one of Ntasks's clients, over outbound HTTPS. Ntasks authenticates
 every call.
 
-- The installation keeps one Ntasks service credential, encrypted in its store
-  like every other connection, and only the ingest Worker opens it
-  ([Keep tasks in Ntasks](guides/keep-tasks-in-ntasks.md)). The Tower's task
-  routes and the runner reach Ntasks through the ingest Worker. Each request
-  names who it is for, and Ntasks records the change as
+- Each workspace keeps one encrypted Ntasks service credential. The ingest
+  Worker opens it for that workspace after admitting the original request.
+  The Tower's task routes and the standalone runner reach Ntasks through the
+  ingest Worker. Each ordinary write names who it is for, and Ntasks records it as
   `service:<credential name>/<name>`.
-- The credential fixes which Ntasks projects the installation reaches. A site
+- The credential fixes which Ntasks projects the workspace reaches. A site
   maps to the Ntasks project with its task prefix; a project the credential does
   not reach does not exist for the installation.
-- A person's decisions are sent from their browser with their own Ntasks
-  sign-in, never with the installation's credential
-  ([Identity, membership and roles](#identity-membership-and-roles) lists what
-  a decision is).
+- A person's decisions use their own Ntasks sign-in. The hosted Tower forwards
+  the short-lived access token only after checking the current workspace and
+  connected app. The refresh token stays in the browser. The
+  [identity and roles section](#identity-membership-and-roles) lists the
+  operations that require a person.
 - Agents connect to Ntasks's own MCP endpoint and sign in to Ntasks. While
   Ntasks holds the tasks, NoticeOS's MCP server lists no task tools.
 
@@ -354,11 +362,24 @@ carries the revision it relied on, an idempotency key replays the original
 result, state and history commit together, and readiness, gates and epic rules
 are derived there. NoticeOS does not repeat them.
 
-A task request never selects the Ntasks address, the credential or the mapping
-of sites to projects. An operator saves them under **Settings** >
-**Task projects**. Ntasks is connected on standalone installations only; a
-hosted deployment has no task service, and connecting one Ntasks workspace to
-each NoticeOS workspace is not built.
+In the shared customer runtime, the host sets `NOTICEOS_NTASKS_ORIGIN`. Under
+**Settings** > **Task projects**, a workspace operator saves that address, the
+Ntasks workspace ID and a service credential restricted to the projects mapped
+by task prefix in the Tower. Each request checks the current grant. An unmapped
+project grant stops the connection, including workspace-wide task searches.
+Standalone installations continue to use their existing Ntasks connection.
+
+The hosted Wall and Work pages return the saved task summary. Each read also
+requests a background refresh for its selected workspace. A visible hosted
+Wall checks for completed reports hourly and when the viewer returns to the
+tab. Hidden tabs skip the hourly check. Ingest limits Ntasks change-feed
+reads to one per minute per workspace in each running Worker. It reads the project
+boards again after a relevant change, when the mapping changes, or after 15
+minutes to account for date-based changes such as the end of a deferral. It
+stores the dated summary and cursor together and preserves the last complete
+read and its date during an outage. A confirmed loss of access removes the
+current summary and preserves its dated history. A workspace with no Wall or
+Work reads performs no scheduled summary refresh.
 
 ## Public demo and simulator
 

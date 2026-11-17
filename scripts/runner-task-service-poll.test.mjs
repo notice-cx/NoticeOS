@@ -83,6 +83,19 @@ test('a board reads as the lists the snapshot summary takes', () => {
   assert.deepEqual(summarizeTaskProject(SPOKES[0], JSON.parse(JSON.stringify(reads))), entry);
 });
 
+test('the blocked list recognizes each unresolved blocking dependency type', () => {
+  const blockedBy = (id, type, status = 'open', ready = false) =>
+    task({ id, ready, dependencies: [{ id: 'ex-upstream', type, status }] });
+  const tasks = [
+    blockedBy('ex-blocks', 'blocks'), blockedBy('ex-waits', 'waits-for'),
+    blockedBy('ex-conditional', 'conditional-blocks'), blockedBy('ex-related', 'related'),
+    blockedBy('ex-closed', 'waits-for', 'closed'), blockedBy('ex-ready', 'conditional-blocks', 'open', true),
+  ];
+  const { blocked, counts } = summarizeTaskProject(SPOKES[0], boardReads({ tasks }, { tasks: [] }));
+  assert.equal(counts.blocked, 3);
+  assert.deepEqual(blocked.map(row => row.id), ['ex-blocks', 'ex-waits', 'ex-conditional']);
+});
+
 test('the change feed is read at most a bounded number of pages per tick', async () => {
   const pages = [];
   const { service } = ntasks({ feed: (after, limit) => { pages.push(after); return {

@@ -7,10 +7,11 @@ import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSectio
 import { useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { needsNtasks, useTaskService } from "@/hooks/useTaskService";
 import { useAppliedTheme } from "@/hooks/useTheme";
-import { useDemoReadonly, useVerifiedDemoMode } from "@/lib/browser-context";
+import { useBrowserRuntime, useDemoReadonly, useVerifiedDemoMode } from "@/lib/browser-context";
 import { documentTitle } from "@/lib/document-title";
 import { SignInToNtasks, useBeginNtasksSignIn } from "@/routes/tasks/ntasks-sign-in";
 import { demoViewer } from "@shared/demo-viewer";
+import { hostedTaskAuthorization } from "../../../../scripts/hosted-task-request.mjs";
 
 /** Where the Tower mounts the Ntasks UI; every task address is under it. */
 const BASE_PATH = "/tasks";
@@ -49,10 +50,21 @@ async function readVersion(origin: string, signal: AbortSignal): Promise<NtasksV
  */
 function useTokenSource(signIn: NtasksSignIn): TokenSource {
   const begin = useBeginNtasksSignIn();
+  const runtime = useBrowserRuntime();
   return useMemo(() => ({
-    token: () => (signIn.kind === "signed-in" ? signIn.session.token() : null),
+    async token() {
+      const active = runtime.guard(() => true);
+      if (active() !== true) throw new Error("This browser session has ended.");
+      const personal = signIn.kind === "signed-in" ? await signIn.session.token().catch(error => {
+        if (runtime.owner.mode !== "hosted") throw error;
+        return null;
+      }) : null;
+      if (active() !== true) throw new Error("This browser session has ended.");
+      const owner = runtime.owner;
+      return owner.mode === "hosted" ? hostedTaskAuthorization(owner.workspaceId, owner.sessionId, personal) : personal;
+    },
     signIn: () => void begin(),
-  }), [signIn, begin]);
+  }), [signIn, begin, runtime]);
 }
 
 function Notice({ children }: { children: ReactNode }) {
@@ -78,6 +90,7 @@ export function TasksRoute() {
 
 /** Mount the personal task board once Ntasks has granted this browser access. */
 function ConnectedTasks({ app }: { app: Pick<NtasksAppProps, "basePath" | "theme" | "onTitle" | "sidebar"> }) {
+  const hosted = useBrowserRuntime().owner.mode === "hosted";
   const status = useTaskService();
   const signIn = useNtasksSignIn();
   const tokenSource = useTokenSource(signIn);
@@ -85,12 +98,21 @@ function ConnectedTasks({ app }: { app: Pick<NtasksAppProps, "basePath" | "theme
   const version = useQuery({
     queryKey: ["ntasks-version", origin],
     queryFn: ({ signal }) => readVersion(origin!, signal),
-    enabled: origin !== null,
+    enabled: origin !== null && !hosted,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
   if (needsNtasks(status.data)) return <Notice><ConnectNtasks /></Notice>;
+  if (hosted && status.data?.connected === true) return (
+    <>
+      {status.data.writable && signIn.kind !== "signed-in" ? (
+        <div className="mx-auto w-full max-w-[1400px] px-4 pt-4 md:px-6"><SignInToNtasks /></div>
+      ) : null}
+      <NtasksApp {...app} tokenSource={tokenSource} />
+    </>
+  );
+  if (hosted && status.data?.reason) return <Notice><p role="alert" className="m-0 text-sm">{status.data.reason}</p></Notice>;
   if (origin === null) return status.isPending ? null : <Notice><TaskHubUnavailable /></Notice>;
   const problem = versionProblem(version.data);
   if (problem) return <Notice><p className="m-0 text-sm" role="alert" data-ntasks-version>{problem}</p></Notice>;

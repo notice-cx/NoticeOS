@@ -132,8 +132,11 @@ test('the handoff join keeps one task per finding, open first, and only this ass
     { id: 'shop-9', status: 'closed', closed_at: '2026-09-01T00:00:00Z', metadata: { noticeos_key: 'k1', noticeos_kind: 'finding' } },
     { id: 'shop-8', status: 'open', metadata: { noticeos_key: 'k1', noticeos_kind: 'finding' } },
     { id: 'shop-7', status: 'open', metadata: { noticeos_key: 'k2', noticeos_kind: 'finding', noticeos_asset: 'other.example' } },
+    { id: 'shop-6', status: 'open', metadata: { noticeos_key: ' k1 ', noticeos_kind: 'finding' } },
+    { id: 'shop-5', status: 'open', metadata: { noticeos_key: '   ', noticeos_kind: 'finding' } },
   ];
-  assert.deepEqual(handoffEntries(rows, 'shop.example').map((entry) => [entry.key, entry.beadId]), [['k1', 'shop-8']]);
+  assert.deepEqual(Object.fromEntries(handoffEntries(rows, 'shop.example').map(entry => [entry.key, entry.beadId])),
+    { k1: 'shop-8', ' k1 ': 'shop-6' });
 });
 
 test('a snapshot is filed at the given door, and a down runtime is one line, not one per tick', async (t) => {
@@ -256,6 +259,11 @@ test('the closes reach over this calendar week and last, every close is carried,
   assert.deepEqual(entry.recentlyClosed.map((row) => row.id), ['shop-3', 'shop-2']);
   assert.deepEqual(entry.closes, { since: '2026-10-02', items: [
     { at: '2026-10-06T09:00:00.000Z' }, { at: '2026-10-12T09:00:00.000Z', resolution: 'wont-do' }, { at: '2026-10-16T09:00:00.000Z' }] });
+  const malformed = summarizeTaskProject(PROJECT, { active: [], ready: [], blocked: [],
+    closed: [...closed, close('shop-bad-time', 'invalid timestamp')] },
+    { closedSince: tasksClosedSince(nowMs), closesSince: tasksClosesSince(nowMs) });
+  assert.equal(Object.hasOwn(malformed, 'closes'), false);
+  assert.deepEqual(malformed.recentlyClosed, entry.recentlyClosed);
 });
 
 test('a summary that cannot say how far its read reached, or that read more closes than the store keeps, carries none', async () => {

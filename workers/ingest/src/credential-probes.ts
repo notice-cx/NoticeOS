@@ -1,5 +1,5 @@
 import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
-import { checkNtasks } from './ntasks.js';
+import { checkHostedNtasks, checkNtasks } from './ntasks.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 // Connection tests: one least-privileged call per provider. Apart from the
 // store (credentials.ts) on purpose: every collector imports the resolver, the
@@ -35,6 +35,7 @@ import {
   deleteCredential,
   recordCredentialOutcome,
   resolveCredential,
+  usesLegacyCredentialBindings,
 } from './credentials.js';
 import {
   type GoogleAuth,
@@ -192,7 +193,7 @@ async function runProbe(
         ? { outcome: 'invalid', failing: ['Model'], failure: localModelFailure(error) } : { outcome: 'unreachable', failure: localModelFailure(error) } }; }
   }
   if (provider === 'ntasks') {
-    const result = await checkNtasks(fields, fetchImpl);
+    const result = await (usesLegacyCredentialBindings(env) ? checkNtasks(fields, fetchImpl) : checkHostedNtasks(env, fields, fetchImpl));
     return { ok: result.outcome === 'answered', result };
   }
   if (provider === 'cloudflare') {

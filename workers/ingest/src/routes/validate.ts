@@ -53,6 +53,7 @@ export function requiredString(
   value: unknown,
   path: string,
   maxLength: number,
+  { preserveWhitespace = false }: { preserveWhitespace?: boolean } = {},
 ): string | null {
   if (typeof value !== 'string') {
     issues.add(path, 'invalid_type', `${path} must be a string`);
@@ -63,11 +64,12 @@ export function requiredString(
     issues.add(path, 'too_small', `${path} must not be empty`);
     return null;
   }
-  if (trimmed.length > maxLength) {
+  const accepted = preserveWhitespace ? value : trimmed;
+  if (accepted.length > maxLength) {
     issues.add(path, 'too_big', `${path} must be at most ${maxLength} characters`);
     return null;
   }
-  return trimmed;
+  return accepted;
 }
 
 /**

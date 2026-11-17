@@ -464,6 +464,8 @@ export interface SignalDumpsOptions {
   egress?: EgressGate;
   /** Override {@link ARCHIVE_RETRY_LIMIT} (tests pin the bound with a small one). */
   retryLimit?: number;
+  /** One admitted customer occurrence covers a single Google report family. */
+  googleArchive?: { asset: string; integration: GoogleIntegrationId; report: string };
 }
 
 interface PriorDump {
@@ -601,6 +603,7 @@ export async function runSignalDumps(
   options: SignalDumpsOptions = {},
 ): Promise<SignalDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
+  const { googleArchive } = options;
   const requestedAt = new Date(nowMs).toISOString();
   const fetchImpl = options.fetchImpl ?? fetch;
   const revisionDays = options.revisionDays ?? DEFAULT_REVISION_DAYS;
@@ -635,7 +638,8 @@ export async function runSignalDumps(
     googleCredentialResolver(env),
     options.laneRegister,
     options.osTimeZone,
-  ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister));
+  ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister)
+    && (!googleArchive || target.asset === googleArchive.asset && target.integration === googleArchive.integration));
   const outcomes: SignalDumpOutcome[] = [];
   const journeyBudget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
   const timeoutRetries = { remaining: SEARCH_APPEARANCE_TIMEOUT_RETRIES };
@@ -647,6 +651,7 @@ export async function runSignalDumps(
   for (const target of targets) {
     const byReport = new Map<string, string[]>();
     for (const report of reportsFor(target.integration, target.asset, ga4CustomDimensions)) {
+      if (googleArchive && report !== googleArchive.report) continue;
       const dates = await resolveReportDates(env.STORE, target, report, reportDates, scheduledRevisions);
       const due = scheduledRevisions && dates.length > 1
         ? await dueGoogleRevisions(env.STORE, target, report, dates, nowMs) : dates;
@@ -662,6 +667,7 @@ export async function runSignalDumps(
     plans,
     reportDates.at(-1)!,
     options.retryLimit ?? ARCHIVE_RETRY_LIMIT,
+    googleArchive?.report,
   );
   let retried = 0;
   let deferredByQuota = 0;
@@ -670,6 +676,8 @@ export async function runSignalDumps(
     for (const integration of ['ga4', 'gsc'] as const) {
       const scopedTargets = accountTargets.filter((target) => target.integration === integration);
       if (scopedTargets.length === 0) continue;
+      if (googleArchive && !scopedTargets.some(target => (retry.dates.get(target)?.length ?? 0) > 0
+        || [...(plans.get(target)?.values() ?? [])].some(dates => dates.length > 0))) continue;
 
       let accessToken: string;
       try {
@@ -755,7 +763,7 @@ export async function runSignalDumps(
             outcomes.push(outcome);
           }
         }
-        if (target.integration === 'ga4') {
+        if (target.integration === 'ga4' && !googleArchive) {
           outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, journeyBudget, googleMonitoring, clock));
         }
       }
@@ -775,16 +783,15 @@ export async function runSignalDumps(
     );
   }
 
-  const bing = await resolveCredential(env, 'bing-webmaster');
-  const bingHealth = await tryHealthConnection(env, 'bing-webmaster', bing);
-  const bingMonitoring = beginCollection(env.STORE, bingHealth);
-  // Bing not connected at all is no work, not a failure per site and family.
-  // A caller that passed a key is a test: `env`.
-  const bingConnected =
-    options.bingApiKey !== undefined || (await credentialConnected(env, 'bing-webmaster', bing));
-  const skipped = !bingConnected
-    ? 0
-    : await collectBingDumps(
+  let bingMonitoring: CollectionMonitoring | null = null;
+  let skipped = 0;
+  if (!googleArchive) {
+    const bing = await resolveCredential(env, 'bing-webmaster');
+    const bingHealth = await tryHealthConnection(env, 'bing-webmaster', bing);
+    bingMonitoring = beginCollection(env.STORE, bingHealth);
+    // A caller that passed a key is a test: `env`.
+    if (options.bingApiKey !== undefined || await credentialConnected(env, 'bing-webmaster', bing)) {
+      skipped = await collectBingDumps(
         env,
         requestedAt,
         reportDates.at(-1)!,
@@ -798,6 +805,8 @@ export async function runSignalDumps(
         options.laneRegister,
         bingMonitoring,
       );
+    }
+  }
 
   // What this run answered for on the flag's `signal-dumps` entry: a dated
   // obligation leaves it only once something asked for that exact date and
@@ -810,6 +819,8 @@ export async function runSignalDumps(
   );
   const covers = (asset: string, part: string | null): boolean => {
     const dated = part === null ? null : parseArchivePart(part);
+    if (googleArchive && (!dated || asset !== googleArchive.asset || dated.integration !== googleArchive.integration
+      || dated.report !== googleArchive.report)) return false;
     if (dated === null) return true;
     const target = targets.find((candidate) => candidate.asset === asset && candidate.integration === dated.integration);
     if (target === undefined || !plans.get(target)?.has(dated.report)) return true;
@@ -865,7 +876,7 @@ export async function runSignalDumps(
       unmeasured: outcomes.length - measured.length,
     }),
   );
-  return { ...result, ...collectionMonitoring(googleMonitoring), ...collectionMonitoring(bingMonitoring) };
+  return { ...result, ...collectionMonitoring(googleMonitoring), ...(bingMonitoring ? collectionMonitoring(bingMonitoring) : {}) };
 }
 
 /** How many (property, family) pairs this run left alone because the provider
@@ -1936,6 +1947,7 @@ async function owedArchiveDates(
   plans: Map<GooglePropertyTarget, Map<string, string[]>>,
   latestCompleted: string,
   limit: number,
+  selectedReport?: string,
 ): Promise<ArchiveRetryPass> {
   const owed = new Map<string, { target: GooglePropertyTarget } & OwedArchiveDate>();
   const targetFor = (asset: string, integration: string) =>
@@ -1951,7 +1963,10 @@ async function owedArchiveDates(
     });
   };
 
-  for (const row of await retryableFailedArchiveDates(env.STORE, ['ga4', 'gsc'])) {
+  const failures = !targets.length ? [] : await retryableFailedArchiveDates(env.STORE,
+    selectedReport === undefined ? ['ga4', 'gsc'] : [targets[0]!.integration],
+    selectedReport === undefined ? undefined : { target: targets[0]!, report: selectedReport });
+  for (const row of failures) {
     const target = targetFor(row.asset, row.integration);
     if (target?.propertyRef === row.propertyRef) consider(target, row.report, row.reportDate);
   }
@@ -1991,6 +2006,7 @@ async function owedArchiveDates(
 async function retryableFailedArchiveDates(
   store: WorkspaceStore,
   integrations: readonly DumpIntegration[],
+  selected?: { target: GooglePropertyTarget; report: string },
 ): Promise<{ asset: string; integration: string; propertyRef: string; report: string; reportDate: string }[]> {
   const rows = await store.read((tx) =>
     tx.query<{
@@ -2006,6 +2022,7 @@ async function retryableFailedArchiveDates(
               e.report_date AS "reportDate", e.error_code AS "errorCode"
          FROM noticeos.archive_runs e
         WHERE e.integration = ANY($1::text[])
+          ${selected ? 'AND e.asset_id = $2 AND e.property_ref = $3 AND e.report = $4' : ''}
           AND e.status = 'error'
           AND (e.error_code ILIKE '%timeout%' OR e.error_code ILIKE '%network%'
                OR e.error_code ILIKE '%request_failed%' OR e.error_code ILIKE '%unreachable%'
@@ -2016,8 +2033,9 @@ async function retryableFailedArchiveDates(
                AND later.integration = e.integration AND later.report = e.report
                AND later.report_date = e.report_date AND later.property_ref = e.property_ref
                AND later.requested_at > e.requested_at
-          )`,
-      [[...integrations]],
+          )
+        ${selected ? 'ORDER BY e.report_date ASC LIMIT 32' : ''}`,
+      [[...integrations], ...(selected ? [selected.target.asset, selected.target.propertyRef, selected.report] : [])],
     ),
   );
   return rows.filter((row) => archiveFailureIsRetryable(row.integration, row.errorCode));

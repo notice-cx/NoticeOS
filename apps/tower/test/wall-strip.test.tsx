@@ -2,7 +2,7 @@
 // recognizable countdown. System problems live in Needs attention rather than as
 // an aggregate header badge.
 
-import { render } from "./render";
+import { fireEvent, render } from "./render";
 import { describe, expect, it, vi } from "vitest";
 import type { CalendarUpcoming } from "@noticeos/contract";
 import { NO_READS } from "@shared/connection-status";
@@ -56,6 +56,17 @@ const CALENDAR: CalendarUpcoming = {
   calendars: [{ id: "work", color: null, status: "ok" }],
   meetings: [],
 } as CalendarUpcoming;
+
+it('lets a hosted viewer request a calendar check and keeps its source age separate', () => {
+  const run = vi.fn();
+  const { getByRole, getByText, rerender } = render(<WallStrip system={HEALTHY} assets={[]} nowMs={NOW}
+    calendarCheck={{ run, checking: false }} />);
+  fireEvent.click(getByRole('button', { name: 'Check calendar' }));
+  expect(run).toHaveBeenCalledTimes(1);
+  rerender(<WallStrip system={HEALTHY} assets={[]} nowMs={NOW} meetings={CALENDAR}
+    calendarCheck={{ run, checking: false }} />);
+  expect(getByText('Updated 1m ago')).toBeVisible();
+});
 
 /** Renders as a viewer whose locale is `locale`: every `Intl.DateTimeFormat`
  * the strip makes is made in it. */

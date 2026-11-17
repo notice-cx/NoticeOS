@@ -328,7 +328,21 @@ export function installScriptTestConfigGuard({ testFile = process.argv[1], allow
       resolve(specifier, context, nextResolve) {
         const resolved = nextResolve(specifier, context);
         const error = refused(resolved.url);
-        if (error) throw error;
+        if (error) {
+          // The released-defaults modules use static JSON imports. Exercise the
+          // same loaders against the frozen inputs used by the ingest suite.
+          const configFile = ownerConfigFile(resolved.url);
+          const defaults = new URL("./config-defaults.mjs", import.meta.url).href;
+          const released = new URL("./released-defaults.mjs", import.meta.url).href;
+          if (configFile?.startsWith("config/") && CONFIG_DOCUMENT_FILES.includes(configFile)
+            && (context.parentURL === defaults || context.parentURL === released)) {
+            const name = path.basename(configFile);
+            const local = new URL("./fixture-config/" + name, import.meta.url);
+            const fixture = fs.existsSync(local) ? local : new URL("../workers/ingest/test/fixture-config/" + name, import.meta.url);
+            return nextResolve(fixture.href, context);
+          }
+          throw error;
+        }
         return resolved;
       },
     });

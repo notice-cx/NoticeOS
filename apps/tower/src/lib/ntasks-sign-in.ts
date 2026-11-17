@@ -6,9 +6,9 @@ import { ApiError } from "@/lib/api";
 // The Tower is a connected app of that Ntasks (Ntasks docs/sign-in.md,
 // "Connected apps"): this page runs the authorization code flow with PKCE as
 // a public client, keeps the person's tokens in this browser's storage and
-// sends their decisions to Ntasks itself. The Tower's server never sees these
-// tokens and never vouches for a person; it keeps the installation's service
-// credential for the machine reads and writes (vite/task-service-lane.ts).
+// sends their decisions to Ntasks. In a hosted workspace the Tower forwards
+// the person's short-lived access token after checking that workspace. The
+// refresh token stays in the browser.
 
 /** The first Ntasks HTTP API version whose connected-app tokens act as the person. */
 export const NTASKS_API_VERSION = 2;
@@ -156,6 +156,8 @@ interface PendingSignIn {
   returnTo: string;
   /** Whether Ntasks held this Tower address when the sign-in began. */
   held: boolean;
+  /** Captured NoticeOS workspace and session, for a hosted sign-in. */
+  workspaceSession?: string;
 }
 
 /** The sign-in this tab started, or null when it started none; a sign-in kept before `held` existed was not held. */
@@ -176,6 +178,7 @@ export interface StartOptions {
   returnTo: string;
   /** Whether Ntasks holds this Tower address until a workspace owner allows it, as its registration answered. */
   held?: boolean;
+  workspaceSession?: string;
   session?: SessionStore;
   fetch?: typeof globalThis.fetch;
   crypto?: Crypto;
@@ -211,7 +214,7 @@ export async function startSignIn(app: NtasksApp, options: StartOptions): Promis
   const verifier = randomText(crypto, 48);
   const challenge = challengeOf(verifier);
   const pending: PendingSignIn = { origin: app.origin, clientId: app.clientId, redirectUri: returnAddress(options.towerOrigin),
-    verifier, state: randomText(crypto), returnTo: options.returnTo, held };
+    verifier, state: randomText(crypto), returnTo: options.returnTo, held, workspaceSession: options.workspaceSession };
   session.setItem(PENDING_KEY, JSON.stringify(pending));
   const query = new URLSearchParams({ response_type: "code", client_id: app.clientId, redirect_uri: pending.redirectUri,
     scope: SCOPE, state: pending.state, code_challenge: challenge, code_challenge_method: "S256", resource: resourceOf(app) });
@@ -220,6 +223,7 @@ export async function startSignIn(app: NtasksApp, options: StartOptions): Promis
 
 export interface FinishOptions {
   session?: SessionStore;
+  workspaceSession?: string;
   /** The holder for the app the sign-in began with, which keeps the tokens. */
   sessionFor: (app: NtasksApp) => PersonSession;
 }
@@ -235,6 +239,7 @@ export async function finishSignIn(search: string, options: FinishOptions): Prom
   session.removeItem(PENDING_KEY);
   const params = new URLSearchParams(search);
   if (pending === null || params.get("state") !== pending.state) throw new Error("This sign-in was not started from this tab. Sign in to Ntasks again.");
+  if (pending.workspaceSession !== options.workspaceSession) throw new Error("This sign-in belongs to a different workspace session. Sign in to Ntasks again.");
   const refused = params.get("error");
   if (refused === "access_denied" && pending.held) throw new Error(heldSentence(new URL(pending.redirectUri).origin));
   if (refused !== null) throw new Error(refused === "access_denied" ? "Ntasks was not allowed to sign this Tower in." : `Ntasks refused the sign-in (${refused}).`);

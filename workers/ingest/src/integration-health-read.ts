@@ -7,6 +7,7 @@ import {
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import { SCHEDULED_JOBS, cronIntervalMinutes, scheduleFor, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
+import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { ga4CoreCooldown } from './ga4-core.js';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
@@ -137,6 +138,7 @@ async function savedBingProperties(env: IngestEnv, asset: string): Promise<{ pro
  * health writes occur here. Failure of one inventory leaves other providers
  * visible, with completeness explicitly unknown. */
 export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()): Promise<IntegrationHealthPayload> {
+  const hiddenCapabilities = workspaceProfile(env) === 'hosted' ? ['ga4-realtime', 'ga4-comparison'] : [];
   const payload: IntegrationHealthPayload = { generatedAt: new Date(nowMs).toISOString(), available: true, items: [], events: [] };
   let eventRows: EventRow[] = [];
   const limitedProviders = new Set<string>();
@@ -150,8 +152,9 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         FROM noticeos.integration_health_events e
         JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
         WHERE e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}'
+          AND t.capability <> ALL($1::text[])
           AND (t.capability <> 'mediavine-revenue' OR e.safe_code IS DISTINCT FROM 'incomplete-report')
-        ORDER BY e.recorded_at DESC, e.started_at DESC, e.event_id COLLATE "C" LIMIT 100`);
+        ORDER BY e.recorded_at DESC, e.started_at DESC, e.event_id COLLATE "C" LIMIT 100`, [hiddenCapabilities]);
       return rows.map(row => ({ ...row, recorded_at: javascriptInstant(row.recorded_at), started_at: javascriptInstant(row.started_at) }));
     });
   } catch { observerAvailable = false; payload.available = false; }
@@ -179,6 +182,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
 
   const realtimeCadenceMs = (cronIntervalMinutes(realtimeSchedule.cron) ?? 1) * 60_000;
   const add = async (spec: Spec) => {
+    if (hiddenCapabilities.includes(spec.capability)) return;
     const def = definition(spec.connection.provider, spec.capability);
     const scope = await healthScope(spec.connection, spec.capability, spec.asset, spec.target, spec.family);
     const key = integrationScopeKey(scope);
@@ -352,9 +356,9 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       const credential = await resolveCredential(env, provider);
       const connection = await healthConnection(env, provider, credential);
       if (observerAvailable) {
-        const archives = INTEGRATION_MONITORS[provider].filter(def => def.evidence === 'signal_dump_runs').map(def => def.id);
+        const excluded = [...hiddenCapabilities, ...INTEGRATION_MONITORS[provider].filter(def => def.evidence === 'signal_dump_runs').map(def => def.id)];
         const states = await env.STORE.read(tx => healthStates(tx,
-          `t.provider = $1 AND t.connection_revision = $2 AND t.capability <> ALL($3::text[])`, [provider, connection.revision, archives], 2049));
+          `t.provider = $1 AND t.connection_revision = $2 AND t.capability <> ALL($3::text[])`, [provider, connection.revision, excluded], 2049));
         if (states.length > 2048) { limitedProviders.add(provider); payload.available = false; }
         for (const row of states.slice(0, 2048)) observed.set(integrationScopeKey(observationFromRow(row).scope), row);
       }

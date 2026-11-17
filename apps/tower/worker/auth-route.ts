@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { timingSafeEqual } from 'node:crypto';
 import { openEmailCodeLogin, type EmailCodeLogin, type EmailCodeOptions } from '@noticeos/postgres/email-code';
 import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, type EmailEnrollment } from '../../../scripts/identity-protocol.mjs';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
@@ -8,18 +9,27 @@ import { captureIdentityMail, type IdentityMailBindings } from './identity-mail'
 
 export interface AuthEntryBindings extends WorkspaceEntryBindings, IdentityMailBindings {
   NOTICEOS_IDENTITY_EDGE?: string;
+  NOTICEOS_LOCAL_PEER_PROOF?: string;
 }
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HEADERS = { 'cache-control': 'no-store', vary: 'Cookie' };
 function refuse(): never { throw new Error('Identity entry unavailable'); }
 
-/** Cloudflare replaces the edge peer header. Worker subrequests have different
- * peer semantics and are refused; arbitrary forwarded-IP headers are ignored.
- * This adapter is only for a server-declared Cloudflare deployment, never a
- * native proxy trusting similarly named browser headers.
- * https://developers.cloudflare.com/fundamentals/reference/http-headers/ */
+/** The configured gateway supplies the peer used for sign-in limits. */
 export function edgePeer(request: Request, env: AuthEntryBindings): string {
+  if (env[PRODUCT_ENV.identityEdge.name] === 'local-loopback') {
+    // The native gateway replaces this proof after checking its socket peer.
+    const expected = env.NOTICEOS_LOCAL_PEER_PROOF, proof = request.headers.get('x-noticeos-local-peer-proof');
+    const origin = new URL(workspaceEntryOrigin(env));
+    const key = /^[A-Za-z0-9_-]{43}$/u;
+    if (origin.protocol !== 'http:' || origin.hostname !== '127.0.0.1'
+      || typeof expected !== 'string' || !key.test(expected) || !proof || !key.test(proof)
+      || !timingSafeEqual(Buffer.from(expected), Buffer.from(proof))) refuse();
+    return '127.0.0.1';
+  }
   if (env[PRODUCT_ENV.identityEdge.name] !== 'cloudflare') refuse();
+  // Cloudflare replaces the edge peer header. Worker subrequests have different peer semantics.
+  // https://developers.cloudflare.com/fundamentals/reference/http-headers/
   const metadata = (request as Request & { readonly cf?: unknown }).cf;
   if (!metadata || typeof metadata !== 'object' || request.headers.has('cf-worker')) refuse();
   const peer = request.headers.get('cf-connecting-ip');

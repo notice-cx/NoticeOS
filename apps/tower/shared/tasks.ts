@@ -121,6 +121,8 @@ export interface LiveTasksPayload {
  * `connected` is null when the installation's ingest cannot say. */
 export interface TaskServiceStatus {
   connected: boolean | null;
+  /** Whether this hosted session may file or edit tasks through the connection. */
+  writable?: boolean;
   origin: string | null;
   projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string; projectId: string } | null }[] | null;
   /** Why `projects` is null while connected. */

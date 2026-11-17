@@ -1,6 +1,7 @@
-import { useChangesPushed, useTowerApi } from '@/lib/browser-context';
+import { useBrowserRuntime, useChangesPushed } from '@/lib/browser-context';
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { WALL_FEED_POLL_MS, type WallFeedPayload } from "@shared/wall-feed";
+import { ApiError } from '@/lib/api';
 
 
 /**
@@ -11,16 +12,20 @@ import { WALL_FEED_POLL_MS, type WallFeedPayload } from "@shared/wall-feed";
  * While the change stream delivers it, it is read only when it changed.
  */
 export function useWallFeed() {
-  const { fetchWallFeed } = useTowerApi();
+  const runtime = useBrowserRuntime();
+  const hosted = runtime.owner.mode === 'hosted';
   const pushed = useChangesPushed();
-  return useQuery<WallFeedPayload>({
+  const query = useQuery<WallFeedPayload>({
     queryKey: ["wall-feed"],
-    queryFn: ({ signal }) => fetchWallFeed(signal),
-    refetchInterval: pushed ? false : WALL_FEED_POLL_MS,
+    queryFn: ({ signal }) => runtime.api.fetchWallFeed(signal),
+    refetchInterval: hosted || pushed ? false : WALL_FEED_POLL_MS,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnMount: hosted ? 'always' : true,
+    refetchOnWindowFocus: hosted ? 'always' : true,
     placeholderData: keepPreviousData,
     staleTime: WALL_FEED_POLL_MS / 2,
     retry: 1,
   });
+  const denied = hosted && query.error instanceof ApiError && (query.error.status === 401 || query.error.status === 403);
+  return denied ? { ...query, data: undefined } : query;
 }

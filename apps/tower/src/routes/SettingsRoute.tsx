@@ -174,7 +174,8 @@ export function SettingsRoute() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" description={runtime.owner.mode === 'hosted'
+        ? 'Customer workspace' : showsInstallation ? 'Standalone installation' : undefined} />
       {/* When saves are paused the page says so once: every editor below shows
           only its lock (`statesReadOnly={false}`). */}
       <SavesPaused />

@@ -26,6 +26,7 @@ import { buildAssetDetailPayload } from "./asset-detail-payload";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { JSON_HEADERS } from "./http";
 import { buildWallPayload } from "./wall-payload";
+import { PORTFOLIO_HISTORY_DAYS, readPortfolioSummary, type PortfolioSummaryStore } from './portfolio-summary';
 import {
   loadPropertyHistories, PROPERTY_HISTORY_MAX_DAYS, PROPERTY_HISTORY_MAX_MONTHS, summarizePropertyHistory,
 } from "./property-history";
@@ -92,6 +93,7 @@ export interface McpDeps {
   schedules?: ScheduleOverrides | null;
   /** The private INGEST Service Binding, or null where it is not bound. */
   ingest: McpIngest | null;
+  portfolioSummary?: PortfolioSummaryStore;
 }
 
 /** Both entry profiles use the same released read-model configuration. */
@@ -126,7 +128,7 @@ function wholeNumber(args: Record<string, unknown>, name: string, min: number, m
 }
 
 /** The days `list_properties` totals each property over. */
-const LIST_DAYS = 28;
+const LIST_DAYS = PORTFOLIO_HISTORY_DAYS;
 /** A property's totals over those days, or null for a property the history
  * read did not reach. */
 const summaryOf = (history: Parameters<typeof summarizePropertyHistory>[0] | undefined) =>
@@ -142,12 +144,16 @@ function requireAsset(args: Record<string, unknown>): string {
 
 const RUNS: Record<string, ToolDefinition["run"]> = {
   async list_properties(store, deps) {
-    const [wall, histories] = await Promise.all([
+    const saved = deps.portfolioSummary
+      ? await readPortfolioSummary(store, deps.portfolioSummary, { ...wallOptions(deps), reportGa4Today: true })
+      : null;
+    const [wall, histories] = saved ? [saved.wall, null] : await Promise.all([
       buildWallPayload(store, wallOptions(deps)),
       loadPropertyHistories(store, { now: deps.now, days: LIST_DAYS, months: 0, osTimeZone: deps.osTimeZone }),
     ]);
     return {
       generatedAt: wall.generatedAt,
+      ...(wall.portfolioSummary ? { portfolioSummary: wall.portfolioSummary } : {}),
       portfolio: wall.portfolio,
       ledgerRecordedAt: wall.ledgerRecordedAt,
       properties: wall.assets.map((card) => ({
@@ -167,7 +173,8 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
         // Yesterday's figure on its sources' clock, and the last 28 days in
         // totals, each source and each provider named.
         yesterdayRevenue: card.dailyRevenue ?? null,
-        last28Days: summaryOf(histories.get(card.id)),
+        ...(card.reportedGa4Day ? { reportedGa4Day: card.reportedGa4Day } : {}),
+        last28Days: saved?.histories.get(card.id) ?? summaryOf(histories?.get(card.id)),
       })),
       attention: wall.attention,
     };

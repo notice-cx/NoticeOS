@@ -15,7 +15,7 @@ import {
 } from "../shared/task-source";
 import { unreadOperatorPosture, type OperatorPosture } from "../shared/wall";
 import type { WorkPayload } from "../shared/work";
-import { loadLatestTaskSnapshot, scopeTaskSnapshot, type TaskSnapshot } from "./task-snapshot";
+import { loadLatestTaskSnapshot, scopeTaskSnapshot, type TaskSnapshot, type TaskSnapshotRefresh } from "./task-snapshot";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { buildWorkPayload } from "./work-payload";
 import { readSites, type SiteRecord } from "./asset-registry";
@@ -31,6 +31,7 @@ export interface TaskSourceContext {
   projects?: readonly { asset: string; prefix: string }[];
   /** The installation's clock, which decides where the board's week starts. */
   timeZone?: string;
+  refreshTaskSnapshot?: TaskSnapshotRefresh;
 }
 
 /** One source, read once, with every answer bound to that read. */
@@ -170,8 +171,8 @@ export function snapshotReading(
 
 export const snapshotTaskSource = {
   id: TASK_SNAPSHOTS,
-  async read({ store, savedProjects, timeZone, projects }: TaskSourceContext): Promise<SnapshotTaskSourceReading> {
-    const [snapshot, sites] = await Promise.all([loadLatestTaskSnapshot(store), readSites(store)]);
+  async read({ store, savedProjects, timeZone, projects, refreshTaskSnapshot }: TaskSourceContext): Promise<SnapshotTaskSourceReading> {
+    const [snapshot, sites] = await Promise.all([loadLatestTaskSnapshot(store, refreshTaskSnapshot), readSites(store)]);
     return snapshotReading(store, snapshot, savedProjects?.snapshots, timeZone, sites, projects);
   },
 } satisfies TaskSourceAdapter;

@@ -20,6 +20,7 @@ import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.j
 import type { WatchQueryHistoryInput } from '../packages/contract/src/create-watch-window.js';
 import { deepEqual } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES, type ApplyConfigOpsInput, type ChangesetOp } from '../packages/contract/src/configuration.mjs';
+import { hostedTaskRequest, hostedTaskProof } from './hosted-task-request.mjs';
 
 export { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 export { workspaceProfile, type WorkspaceProfile };
@@ -248,6 +249,11 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   let proof: Request;
   try { proof = request.clone(); } catch { refuse(); }
   const selected = await towerOperation(proof);
+  const task = hostedTaskRequest(proof);
+  if (task) {
+    if (kind !== 'hosted') refuse();
+    proof = hostedTaskProof(proof, task);
+  }
   const pathname = new URL(proof.url).pathname;
   const settings = pathname === '/api/config' && ['GET', 'PUT'].includes(proof.method);
   const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
@@ -257,7 +263,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
       && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
       && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
-      && !personPreferenceRequest(proof) && !reportGrant)
+      && !personPreferenceRequest(proof) && !task && !reportGrant)
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);

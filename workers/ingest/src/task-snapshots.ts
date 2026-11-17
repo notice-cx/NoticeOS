@@ -132,6 +132,15 @@ export type TaskSnapshotResult =
     }
   | { ok: false; error: 'validation'; issues: { path: string; code: string; message: string }[] };
 
+/** Private refresh state stored with the summary so a failed publication never
+ * advances the cursor. It has no service token or raw board rows. */
+export interface HostedTaskSnapshotSource {
+  readonly mapping: string;
+  readonly cursor: number;
+  readonly checkedAt: string;
+  readonly boardReadAt: string;
+}
+
 /** The normalized row body. Normalizing rather than storing the caller's object
  * means an extra key the poller grows tomorrow cannot silently become part of
  * the Tower's contract. */
@@ -612,7 +621,7 @@ function parseHandoff(
     return UNKNOWN_KIND;
   }
   const kind = enumValue(issues, raw.kind, `${path}.kind`, BEADS_HANDOFF_KINDS);
-  const key = requiredString(issues, raw.key, `${path}.key`, TASK_KEY_MAX);
+  const key = requiredString(issues, raw.key, `${path}.key`, TASK_KEY_MAX, { preserveWhitespace: true });
   const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, TASK_ID_MAX);
   const status = enumValue(issues, raw.status, `${path}.status`, TASK_HANDOFF_STATUSES);
   const closedAt = optionalInstant(issues, raw.closedAt, `${path}.closedAt`);
@@ -891,6 +900,7 @@ export async function writeTaskSnapshot(
   env: Pick<IngestEnv, 'STORE'>,
   input: BeadsSnapshotInput,
   nowMs: number = Date.now(),
+  source?: HostedTaskSnapshotSource,
 ): Promise<TaskSnapshotResult> {
   const issues = new Issues();
 
@@ -920,7 +930,7 @@ export async function writeTaskSnapshot(
     console.warn(JSON.stringify(droppedHandoffEvent(dropped)));
   }
 
-  const payload = JSON.stringify({ projects });
+  const payload = JSON.stringify({ projects, ...(source ? { ntasks: source } : {}) });
 
   // One transaction, one writer at a time: a capture reads the newest row and
   // then touches, replaces or compacts it, so each takes the workspace's
@@ -934,7 +944,7 @@ export async function writeTaskSnapshot(
     // per distinct state. The store compares the two as jsonb values. The same
     // order the Tower's reader uses (apps/tower/worker/task-snapshot.ts).
     const [latest] = await tx.query<{ snapshot_id: bigint; captured_at: string; payload: string; same: boolean }>(
-      `SELECT snapshot_id, captured_at, payload::text AS payload, payload = $1::jsonb AS same
+      `SELECT snapshot_id, captured_at, payload::text AS payload, (payload - 'ntasks') = ($1::jsonb - 'ntasks') AS same
          FROM noticeos.task_snapshots
         ORDER BY captured_at DESC, snapshot_id DESC
         LIMIT 1`,
@@ -968,8 +978,10 @@ export async function writeTaskSnapshot(
       // newer, and walking the newest row behind an older one would hand the
       // Tower a compacted photograph.
       await tx.execute(
-        `UPDATE noticeos.task_snapshots SET captured_at = GREATEST(captured_at, $1::timestamptz) WHERE snapshot_id = $2`,
-        [capturedAt, latest.snapshot_id],
+        `UPDATE noticeos.task_snapshots SET
+           payload = CASE WHEN $1::timestamptz >= captured_at THEN $3::jsonb ELSE payload END,
+           captured_at = GREATEST(captured_at, $1::timestamptz) WHERE snapshot_id = $2`,
+        [capturedAt, latest.snapshot_id, payload],
       );
       // Retention still sweeps on a touch, so a long-unchanged board does not
       // exempt its older distinct states from the window.

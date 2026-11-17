@@ -45,7 +45,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
-| `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
+| `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
 | `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
@@ -96,7 +96,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 |---|---|---|
 | `test` | Every workspace's unit tests. | `pnpm -r --if-present run test` |
 | `test:scripts` | The root suite: every scripts/*.test.mjs. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
-| `test:demo-ntasks` | The public demo's suites against its own Ntasks. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:demo-ntasks` | Test the public demo and local customer workspaces against separate instances of the pinned Ntasks release. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
 | `test:journeys` | The Tower's browser journeys, then the flow walker. | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` |
 
 ### The repository

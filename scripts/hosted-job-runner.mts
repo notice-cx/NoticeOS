@@ -25,7 +25,9 @@ export type HostedJobStep = {
   readonly action: WorkspaceAction;
 } & (
   | { readonly kind: 'database'; readonly run: (call: StepCall, tx: Transaction) => Promise<unknown> }
-  | { readonly kind: 'effect'; readonly run: (call: StepCall) => Promise<unknown> }
+  | { readonly kind: 'effect'; readonly run: (call: StepCall) => Promise<unknown>;
+      /** This adapter's structured failure reports completed observation work. */
+      readonly terminalReportedFailure?: true }
 );
 /** Projectors select fields safe for operator history; omit credentials and raw provider bodies. */
 export interface HostedDiagnosticPolicy {
@@ -160,6 +162,8 @@ function observed(value: unknown, startedAt: string, input: JobInput, policy: Ho
  * Only this registry's callbacks receive fresh action contexts. No platform,
  * operator session, filesystem root or bearer proof is accepted by run(). */
 export function createHostedJobRunner(options: {
+  /** Permit a longer bounded effect, with a lease long enough to commit it. */
+  readonly effectTimeoutMs?: number;
   readonly workspaceId: string;
   readonly serviceId: string;
   readonly grant: WorkspaceServiceGrant;
@@ -167,6 +171,9 @@ export function createHostedJobRunner(options: {
   readonly definitions: readonly HostedJobDefinition[];
 }): HostedJobRunner {
   const { workspaceId, serviceId, grant, store } = options;
+  const effectTimeoutMs = options.effectTimeoutMs ?? EFFECT_MS;
+  if (!Number.isInteger(effectTimeoutMs) || effectTimeoutMs < 1 || effectTimeoutMs > 15 * 60_000) refuse();
+  const leaseSeconds = Math.max(LEASE_SECONDS, Math.ceil(effectTimeoutMs / 1000) + 30);
   if (!uuid(workspaceId) || !uuid(serviceId) || !grant || !store
     || !Array.isArray(options.definitions) || options.definitions.length > 64) refuse();
   const definitions = new Map<string, HostedJobDefinition & { hash: string }>();
@@ -176,7 +183,9 @@ export function createHostedJobRunner(options: {
       || !Array.isArray(source.steps) || source.steps.length === 0 || source.steps.length > 16) refuse();
     const steps: readonly HostedJobStep[] = source.steps.map((step: HostedJobStep) => {
       if (!key(step.key) || !['database', 'effect'].includes(step.kind) || typeof step.run !== 'function' || typeof step.action !== 'string') refuse();
-      return Object.freeze({ key: step.key, kind: step.kind, action: step.action, run: step.run }) as HostedJobStep;
+      if (step.kind === 'effect' && step.terminalReportedFailure !== undefined && step.terminalReportedFailure !== true) refuse();
+      return Object.freeze({ key: step.key, kind: step.kind, action: step.action, run: step.run,
+        ...(step.kind === 'effect' && step.terminalReportedFailure ? { terminalReportedFailure: true } : {}) }) as HostedJobStep;
     });
     if (new Set(steps.map(step => step.key)).size !== steps.length) refuse();
     const hash = hostedJobDefinitionHash(source.version, steps);
@@ -270,7 +279,7 @@ export function createHostedJobRunner(options: {
       await publishAttempts(tx, row);
       await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET state='running',attempt=attempt+1,
         lease_id=$4::uuid,lease_expires_at=clock_timestamp()+$5::int*interval '1 second',updated_at=clock_timestamp()
-        WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, token, LEASE_SECONDS]);
+        WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, token, leaseSeconds]);
       await tx.execute(`INSERT INTO noticeos.hosted_job_attempts(workspace_id,lane,occurrence,attempt,lease_id,state)
         VALUES($1::uuid,$2,$3,$4,$5::uuid,'running')`, [...selected, row.attempt + 1, token]);
       return null;
@@ -278,7 +287,7 @@ export function createHostedJobRunner(options: {
     if (start) return start;
     for (const step of definition.steps) {
       const controller = new AbortController(); controllers.add(controller);
-      const timer = setTimeout(() => controller.abort(), EFFECT_MS);
+      const timer = setTimeout(() => controller.abort(), step.kind === 'effect' ? effectTimeoutMs : EFFECT_MS);
       const startedAt = new Date().toISOString();
       let effectStarted = false, startAttempted = false, admitted = false;
       let returned: unknown, hasReturned = false;
@@ -291,7 +300,7 @@ export function createHostedJobRunner(options: {
             boundEvidence(steps);
             await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb,effect_step=NULL,
               lease_expires_at=clock_timestamp()+$5::int*interval '1 second',updated_at=clock_timestamp()
-              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps), LEASE_SECONDS]);
+              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps), leaseSeconds]);
           };
           if (step.kind === 'database') {
             await write(async tx => {
@@ -313,7 +322,7 @@ export function createHostedJobRunner(options: {
               startAttempted = true;
               await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET effect_step=$4,
                 lease_expires_at=clock_timestamp()+$5::int*interval '1 second',updated_at=clock_timestamp()
-                WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, step.key, LEASE_SECONDS]);
+                WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, step.key, leaseSeconds]);
               return true;
             });
             if (!shouldRun) return;
@@ -333,10 +342,21 @@ export function createHostedJobRunner(options: {
       } catch (error) {
         // Failure after an outside start cannot prove no effect. Diagnostics
         // record only redacted arguments and the observed error, never authority.
-        return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
-          key: step.key, evidence: { state: 'failed', summary: hasReturned && stepResult(returned).state === 'failed' ? stepResult(returned).summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
+        let verdict: ReturnType<typeof stepResult> | null = null;
+        if (hasReturned) {
+          try { verdict = stepResult(returned); } catch { /* Keep the original classification failure. */ }
+        }
+        const reportedFailure = effectStarted && step.kind === 'effect' && step.terminalReportedFailure === true
+          && !controller.signal.aborted && verdict?.state === 'failed';
+        let output: WorkflowStepOutput | undefined;
+        if (reportedFailure) {
+          try { output = captureWorkflowOutput(returned); } catch { /* The verdict can be recorded without output. */ }
+        }
+        return finish(reportedFailure ? 'exhausted' : effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
+          key: step.key, evidence: { state: 'failed', summary: verdict?.state === 'failed' ? verdict.summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
+            ...(output ? { output } : {}),
             diagnostics: diagnostics(definition.diagnostics, input, returned, hasReturned,
-              !hasReturned || stepResult(returned).state !== 'failed' ? error : undefined) },
+              verdict?.state === 'failed' ? undefined : error) },
         } : undefined);
       } finally { clearTimeout(timer); controllers.delete(controller); }
     }

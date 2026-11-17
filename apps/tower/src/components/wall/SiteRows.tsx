@@ -3,6 +3,7 @@ import { useMemo, type CSSProperties } from "react";
 import { ChartNoAxesCombined, Globe, Layers, ListTodo, TrendingUp } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
 import { wallMetricTiles, type WallWidget, type WallMetricTile } from "@shared/wall-layout";
+import { revenueCalendarDate } from "@shared/daily-revenue";
 import { CADENCE_HOURS } from "@shared/wall";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { ageMs, isAmber } from "@shared/freshness";
@@ -21,7 +22,7 @@ import { MetricTile, MultiMetric, NumberMetric, SparklineCompareMetric } from "@
 import { WallMetricBinding, useWallMetricBinding } from "./WallMetricEditing";
 import { WorkStatus } from "./WorkStatus";
 import { readingRuns, type ChartPoint } from "@/lib/chart-path";
-import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
+import { formatInt, formatPercent, formatSeriesDate, formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { currentHourlyReading, fourWeeks, type FourWeeks, type HourlyActiveUsers } from "@/lib/wall-sites";
 import "./SiteRows.css";
@@ -32,6 +33,7 @@ export interface SiteRowsProps {
   pulseMetrics?: WallPulseMetrics;
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
+  reportGa4Today?: boolean;
   nowMs: number;
   connections?: ConnectionReads;
   /** Work visibility is separate from an asset's TV visibility. */
@@ -39,8 +41,9 @@ export interface SiteRowsProps {
   widget?: WallWidget;
 }
 
-export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError = false, nowMs, connections, workAssets, widget }: SiteRowsProps) {
-  const tiles = wallMetricTiles(widget ?? { id: "sites", type: "sites", width: 1 });
+export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError = false, reportGa4Today = false, nowMs, connections, workAssets, widget }: SiteRowsProps) {
+  const tiles = wallMetricTiles(widget ?? { id: "sites", type: "sites", width: 1 })
+    .filter(tile => !reportGa4Today || tile.source !== "momentum");
   const configured = widget?.settings?.metrics !== undefined;
   const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
   if (assets.length === 0) return <section aria-label="Portfolio" className="flex items-center gap-3 text-wall-body text-muted-foreground" data-wall-sites="none"><Globe aria-hidden />No assets yet</section>;
@@ -52,7 +55,9 @@ export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError =
         const renderTile = (tile: WallMetricTile) => {
           switch (tile.source) {
             case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} connections={connections} metric />;
-            case "today": return <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} />;
+            case "today": return reportGa4Today
+              ? <ReportedTodayMetric reading={asset.reportedGa4Day} nowMs={nowMs} />
+              : <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} />;
             case "four-weeks": return <TrendMetric asset={asset} />;
             case "asset-work": return !workAssets || workAssets.has(asset.id) ? <AssetWork asset={asset} nowMs={nowMs} /> : null;
             case "product-counts": return <ProductCounts asset={asset} choices={pulseMetrics} nowMs={nowMs} />;
@@ -109,6 +114,27 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
           <div className="wall-asset-work-week"><strong data-site-work-closed>{closed === null ? <span aria-label="Unavailable">—</span> : formatInt(closed)}</strong> Done this week</div>
         </MetricTile>}
   </div>;
+}
+
+function ReportedTodayMetric({ reading, nowMs }: { reading: AssetCard["reportedGa4Day"]; nowMs: number }) {
+  const timeZone = reading?.timeZone;
+  const date = timeZone ? revenueCalendarDate(new Date(nowMs), timeZone) : null;
+  const count = date !== null && date === reading?.date && !reading.checkFailed ? reading.activeUsers : null;
+  const checked = reading?.checkedAt ? new Date(reading.checkedAt) : null;
+  const checkedToday = checked && timeZone && revenueCalendarDate(checked, timeZone) === date;
+  const checkLabel = checked && new Intl.DateTimeFormat("en-US", {
+    timeZone: timeZone ?? undefined,
+    ...(!checkedToday ? { month: "short", day: "numeric" } : {}),
+    hour: "numeric", minute: "2-digit",
+  }).format(checked);
+  return <NumberMetric title="Today" icon={TrendingUp} className="wall-metric-today"
+    qualifier={count === null ? undefined : "Active users so far"}
+    value={count === null ? null : <span data-site-today-total>{formatInt(count)}</span>}
+    note={<>
+      {count === null && <div>{reading?.checkFailed ? "Latest check failed" : "Waiting for Google Analytics"}</div>}
+      {date && <div><time dateTime={date}>{formatSeriesDate(date)}</time> · {timeZone}</div>}
+      {reading?.checkedAt && <div>{reading.checkFailed ? "Last successful check" : "Last checked"} <time dateTime={reading.checkedAt} title={formatTimestamp(reading.checkedAt, timeZone ?? undefined)}>{checkLabel}</time></div>}
+    </>} />;
 }
 
 function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number }) {

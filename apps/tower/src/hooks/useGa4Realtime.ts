@@ -1,6 +1,6 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useBrowserRuntime } from '@/lib/browser-context';
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
 import { revenueCalendarDate } from "@shared/daily-revenue";
 import { useMemo } from "react";
@@ -15,8 +15,10 @@ import { calendarDayStart } from '@shared/reporting-calendar';
 export function useGa4Realtime() {
   const demoReadonly = useDemoReadonly();
   const runtime = useBrowserRuntime();
+  const enabled = runtime.owner.mode !== 'hosted';
   const client = useQueryClient();
   const display = useMemo(() => {
+    if (!enabled) return null;
     let storage: Storage | undefined;
     try { storage = window.sessionStorage; } catch { /* The in-memory cache still works. */ }
     const active = () => { if (runtime.guard(() => true)() !== true) throw new Error("This browser context is no longer active."); };
@@ -24,21 +26,23 @@ export function useGa4Realtime() {
       (value): value is Ga4RealtimePayload => isGa4RealtimePayload(value) && value.assets.some(asset => asset.status === "success"));
     const saved = demoReadonly ? undefined : cache.read();
     return { cache, saved: saved ? currentDayReadings(saved, new Date(Date.now()).toISOString()) : undefined };
-  }, [runtime, demoReadonly]);
+  }, [runtime, demoReadonly, enabled]);
   // A demo visitor reads too: the demo answers with synthetic readings, so the
   // Wall's live pulse and today chart show there as well. Only the session
   // cache above stays off for a visitor.
   return useQuery<Ga4RealtimePayload>({
     queryKey: ["ga4-realtime"],
-    initialData: display.saved,
-    initialDataUpdatedAt: display.saved ? Date.parse(display.saved.generatedAt) : undefined,
-    queryFn: async ({ signal }) => {
+    enabled,
+    initialData: display?.saved,
+    initialDataUpdatedAt: display?.saved ? Date.parse(display.saved.generatedAt) : undefined,
+    queryFn: display ? async ({ signal }) => {
       const next = await runtime.api.fetchGa4Realtime(signal);
       const held = keepReadingsInProgress(client.getQueryData<Ga4RealtimePayload>(["ga4-realtime"]), next);
       display.cache.write(held);
       return held;
-    },
+    } : skipToken,
     refetchInterval: (query) => {
+      if (!enabled) return false;
       const assets = query.state.data?.assets;
       if (!assets?.length || assets.some((asset) => asset.status === 'success')) return 30_000;
       const next = Math.min(...assets.map((asset) => Date.parse(asset.nextAttemptAt ?? '') || 0));
