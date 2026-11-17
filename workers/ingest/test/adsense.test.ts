@@ -2,11 +2,11 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
-import { applyConfigOps } from '../src/config-store.js';
+import { applyConfigOps, forgetConfigCache } from '../src/config-store.js';
 import { runCollectNow } from '../src/dispatch.js';
 import { importLedgerRows } from '../src/routes/revenue.js';
 import { discoverSites } from '../src/site-discovery.js';
-import { pgCount, pgRows, reset } from './helpers.js';
+import { asOwner, forgetConfigDocuments, pgCount, pgRows, reset } from './helpers.js';
 
 const NOW = Date.parse('2026-09-09T15:00:00Z');
 const ASSET = 'meadow.example';
@@ -59,7 +59,18 @@ function google(scope = SCOPE) {
   return { fetchImpl, reports };
 }
 
-beforeEach(async () => { await reset(); });
+async function mapSite() {
+  expect(await applyConfigOps(env, { actor: 'operator', reason: 'Map the AdSense site', ops: [{
+    kind: 'file-json-insert', file: 'config/integrations.json', pointer: `/assets/${ASSET}/adsense`,
+    value: { status: 'needs-setup', since: '2026-09-09', adsenseSite: SITE },
+  }] })).toMatchObject({ ok: true });
+}
+
+beforeEach(async () => {
+  await reset();
+  await forgetConfigDocuments(['config/integrations.json']);
+  forgetConfigCache(env.STORE);
+});
 
 it('refuses grants outside read-only AdSense before calling the AdSense API or storing a credential', async () => {
   const { fetchImpl } = google('https://www.googleapis.com/auth/adsense');
@@ -79,10 +90,7 @@ it('collects only the mapped site, refreshes changed earnings and keeps one curr
       { ref: OTHER_SITE, host: 'northwind.example' },
     ],
   });
-  expect(await applyConfigOps(env, { actor: 'operator', reason: 'Map the AdSense site', ops: [{
-    kind: 'file-json-insert', file: 'config/integrations.json', pointer: `/assets/${ASSET}/adsense`,
-    value: { status: 'needs-setup', since: '2026-09-09', adsenseSite: SITE },
-  }] })).toMatchObject({ ok: true });
+  await mapSite();
 
   const manual = await importLedgerRows([{
     kind: 'revenue', asset: ASSET, period: '2026-09', family: 'ads', source: 'adsense-report',
@@ -112,4 +120,21 @@ it('collects only the mapped site, refreshes changed earnings and keeps one curr
     `SELECT amount_minor::text AS amount, source FROM noticeos.financial_ledger
       WHERE asset_id = $1 AND period_month = '2026-09-01' AND kind = 'revenue'`, [ASSET],
   )).toEqual([{ amount: '275', source: 'adsense' }]);
+});
+
+it('reports a missing revenue-source migration before requesting a report', async () => {
+  const { fetchImpl } = google();
+  const options = { fetchImpl, nowMs: NOW };
+  expect(await connectCredential(env, credential, options)).toMatchObject({ ok: true, verdict: 'accepted' });
+  await mapSite();
+  fetchImpl.mockClear();
+  await asOwner("UPDATE noticeos_ref.revenue_sources SET source = 'adsense-withheld-test' WHERE source = 'adsense'");
+  try {
+    expect(await runCollectNow(env, { provider: 'adsense', assets: [ASSET] }, options)).toMatchObject({
+      ok: false, error: 'database-update-required',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  } finally {
+    await asOwner("UPDATE noticeos_ref.revenue_sources SET source = 'adsense' WHERE source = 'adsense-withheld-test'");
+  }
 });

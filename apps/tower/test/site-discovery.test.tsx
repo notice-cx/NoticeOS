@@ -83,6 +83,26 @@ it("saves an AdSense site from the first collection when the asset has no AdSens
   });
 });
 
+it.each([false, true])("leaves an AdSense domain with multiple matches unselected by default (saved mapping: %s)", (mapped) => {
+  const ref = "accounts/pub-123/sites/site-1";
+  const site: DiscoveredSite = {
+    lane: "adsense", ref, label: "journey.example", host: "journey.example", mapping: { adsenseSite: ref }, ready: true,
+  };
+  const plan = planSites({
+    discovery: { ok: true, provider: "adsense", kind: "account", checkedAt: AT, sites: [site] },
+    assets: [
+      asset("www.journey.example", { cells: { adsense: null } }),
+      asset("journey.example", { cells: { adsense: mapped ? { status: "needs-setup", mapping: site.mapping } : null } }),
+    ],
+    spend: null,
+  });
+  expect(startPlan(plan, initialSelection(plan))).toMatchObject({
+    assets: mapped ? ["journey.example"] : [],
+    ops: [],
+  });
+  expect(plan.rows.find(row => row.asset.id === "www.journey.example")?.lanes[0]?.choices).toEqual(mapped ? [] : [site]);
+});
+
 /** Mediavine: the account's sites, each mapped by its id. */
 const mediavineSite = (id: string, domain: string): DiscoveredSite => ({
   lane: "ad-network", ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,

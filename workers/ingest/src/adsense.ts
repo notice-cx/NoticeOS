@@ -193,7 +193,7 @@ async function persistReport(tx: Transaction, target: Target, report: Report, ow
 }
 
 type Options = { laneRegister?: LaneRegister; assets?: string[]; fetchImpl?: typeof fetch; nowMs?: number };
-type AdSenseRun = ScheduledRunResult & { sites: CollectNowSite[] };
+type AdSenseRun = ScheduledRunResult & { sites: CollectNowSite[]; databaseUpdateRequired?: true };
 
 export async function runAdSenseRevenue(env: IngestEnv, options: Options): Promise<AdSenseRun> {
   const eligible = new Set((await eligibleAssets(env)).map(({ asset }) => asset));
@@ -210,7 +210,10 @@ export async function runAdSenseRevenue(env: IngestEnv, options: Options): Promi
   const fetchImpl = options.fetchImpl ?? fetch;
   const [source] = await env.STORE.read(tx => tx.query<{ time_zone: string }>(
     'SELECT time_zone FROM noticeos_ref.revenue_sources WHERE source = $1', [ADSENSE_REVENUE_SOURCE]));
-  if (!source) return { outcome: 'failed', detail: 'The AdSense revenue source requires a database update.', sites: [] };
+  if (!source) return {
+    outcome: 'failed', detail: 'The AdSense revenue source requires a database update.',
+    sites: [], databaseUpdateRequired: true,
+  };
   const range = reportWindow(now, source.time_zone);
   let token: string;
   try {

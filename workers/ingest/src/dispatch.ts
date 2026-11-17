@@ -516,6 +516,7 @@ export async function runCollectNow(
     }
   } else if (plan.step.step === 'adsense-revenue') {
     const run = await runAdSenseRevenue(env, { laneRegister: cfg.laneRegister, assets, ...narrow });
+    if (run.databaseUpdateRequired) return { ok: false, provider, job, error: 'database-update-required' };
     sites = run.sites;
   } else if (plan.step.step === 'revenue') {
     // Mediavine: run now for each named site through the one Mediavine lease.

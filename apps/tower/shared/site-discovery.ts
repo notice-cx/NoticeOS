@@ -33,6 +33,7 @@ export const COLLECT_REFUSAL_LABEL: Record<CollectNowRefusal, string> = {
   "in-flight": "Already collecting · try again soon",
   "not-connected": "Not connected",
   "no-sites": "Nothing to collect",
+  "database-update-required": "Apply the NoticeOS database update before collecting AdSense revenue",
   "not-supported": "Collects on its schedule",
   "over-cap": "Over the monthly data cap",
 };
@@ -167,6 +168,18 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
   const kind = discovery.ok ? discovery.kind : "account";
   const lanes = lanesOf(payload);
   const claimed = new Set<DiscoveredSite>();
+  const reservedAdSense = new Set<string>();
+  const adSenseHosts = new Map<string, number>();
+  if (discovery.provider === "adsense") {
+    for (const asset of payload.assets) {
+      const ref = asset.cells.adsense?.mapping.adsenseSite;
+      if (typeof ref === "string") reservedAdSense.add(ref);
+      const host = siteHost(asset.domain);
+      if (host !== null && exclusionOf(asset, ["adsense"], kind, false) === null) {
+        adSenseHosts.set(host, (adSenseHosts.get(host) ?? 0) + 1);
+      }
+    }
+  }
 
   // First pass: what each asset's lanes already point at or match by domain.
   const drafts = payload.assets.map((asset) => {
@@ -193,7 +206,8 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
         } : null);
         return { lane, saved, site, state: (site ? "mapped" : "unlisted") as SiteLaneState };
       }
-      const onDomain = host === null ? [] : ofLane.filter((site) => site.host === host);
+      const onDomain = host === null ? [] : ofLane.filter((site) =>
+        site.host === host && (lane !== "adsense" || (adSenseHosts.get(host) === 1 && !reservedAdSense.has(site.ref))));
       const ready = preferred(onDomain.filter((site) => site.ready));
       const site = mapped ?? ready ?? preferred(onDomain);
       const state: SiteLaneState = mapped ? "mapped" : ready ? "matched" : site ? "not-ready" : "unlisted";
@@ -203,7 +217,8 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
     return { asset, entries, listed: own.length > 0 };
   });
 
-  const unclaimed = sites.filter((site) => !claimed.has(site));
+  const unclaimed = sites.filter((site) =>
+    !claimed.has(site) && (site.lane !== "adsense" || !reservedAdSense.has(site.ref)));
   const domainMatch = new Set(payload.domainMatch ?? []);
   const rows: SiteRow[] = drafts.map(({ asset, entries, listed }) => {
     const excluded = savedOnly && entries.some((entry) => entry.site?.ready) ? null : exclusionOf(asset, lanes, kind, listed);

@@ -152,9 +152,10 @@ export type CollectNowResult =
  * the job on its schedule; `in-flight` — the lane's own lease is held by a
  * run already collecting; `no-sites` — none of the named assets is one the
  * lane collects (or has the named families); `over-cap` — the named families'
- * reserve would cross the monthly data cap, so nothing was bought.
+ * reserve would cross the monthly data cap; `database-update-required` — the
+ * collector's revenue source is missing from the database.
  */
-export type CollectNowRefusal = 'not-supported' | 'not-connected' | 'paused' | 'in-flight' | 'no-sites' | 'over-cap';
+export type CollectNowRefusal = 'not-supported' | 'not-connected' | 'paused' | 'in-flight' | 'no-sites' | 'over-cap' | 'database-update-required';
 
 /**
  * A metered provider's spend preview, shown before its first collection
