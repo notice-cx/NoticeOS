@@ -15,7 +15,7 @@ import { isAttentionEligible } from "../shared/signal-liveness";
 import type { PullConfigEntry, SerpPanelConfig } from "./asset-config";
 import { loadDataForSeoSpend } from "./metered-spend";
 import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
-import { alertHandoffsOf, type TaskSnapshot, loadLatestTaskSnapshot, type SnapshotProject } from "./task-snapshot";
+import { alertHandoffsOf, type TaskSnapshot, type TaskSnapshotRefresh, loadLatestTaskSnapshot, type SnapshotProject } from "./task-snapshot";
 import { snapshotReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
 import { readBackupLastGoodAt, readLatestJobRuns } from "./job-runs";
@@ -109,6 +109,7 @@ export interface BuildOptions {
   counters?: CountersConfig;
   schedules?: ScheduleOverrides | null;
   reportGa4Today?: boolean;
+  refreshTaskSnapshot?: TaskSnapshotRefresh;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -435,6 +436,7 @@ export async function buildWallPayload(
     counters,
     schedules,
     reportGa4Today = false,
+    refreshTaskSnapshot,
   }: BuildOptions,
 ): Promise<WallPayload> {
   const nowMs = now.getTime();
@@ -689,7 +691,7 @@ export async function buildWallPayload(
 
   // One task-hub snapshot feeds every site's work, its panel review and the
   // task source's one reading (`./task-source`).
-  const tasks = snapshotReading(store, await loadLatestTaskSnapshot(store), undefined, osTimeZone, sites);
+  const tasks = snapshotReading(store, await loadLatestTaskSnapshot(store, refreshTaskSnapshot), undefined, osTimeZone, sites);
   const taskSnapshot = tasks.snapshot;
   const workByAsset = cardWorkOf(taskSnapshot, await loadWorkWeeks(store, taskSnapshot, now, osTimeZone));
 

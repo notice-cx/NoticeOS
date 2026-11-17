@@ -1,4 +1,5 @@
 import { HANDOFF_LABELS } from '../packages/contract/src/task-metadata.mjs';
+import { TASK_BLOCKING_DEPENDENCIES } from '../packages/contract/src/task-gate.mjs';
 import { PANEL_REVIEW_LABEL } from './panel-review-summary.mjs';
 import { TaskServiceUnavailable, withNoticeosRecords } from './task-records.mjs';
 import { taskRecord } from './task-snapshot-values.mjs';
@@ -76,7 +77,8 @@ export function runnerRow(ntasksTask: TaskRow) {
   };
 }
 
-const waitsOnBlocker = (task: TaskRow) => dependenciesOf(task).some((edge) => edge.type === 'blocks' && edge.status !== 'closed');
+const waitsOnBlocker = (task: TaskRow) => dependenciesOf(task).some((edge) =>
+  typeof edge.type === 'string' && TASK_BLOCKING_DEPENDENCIES.includes(edge.type) && edge.status !== 'closed');
 const labelReads = Object.keys(LABEL_READS) as (keyof typeof LABEL_READS)[];
 
 /** The snapshot summary's lists (TASK_REQUIRED_READS, TASK_OPTIONAL_READS)

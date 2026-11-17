@@ -59,12 +59,12 @@ export function handoffEntries(rows, asset) {
         const metadata = taskRecord(row?.metadata);
         if (beadId === '' || metadata === null)
             continue;
-        const key = taskText(taskMetadataValue(metadata, 'key'));
+        const key = taskMetadataValue(metadata, 'key');
         const rawKind = taskText(taskMetadataValue(metadata, 'kind'));
         const kind = HANDOFF_KINDS.find(kind => kind === rawKind);
         // No key or an unknown surface: dropped rather than guessed, because a
         // marker on the wrong finding is worse than no marker.
-        if (key === '' || kind === undefined)
+        if (typeof key !== 'string' || key.trim() === '' || kind === undefined)
             continue;
         const owner = taskText(taskMetadataValue(metadata, 'asset'));
         if (owner !== '' && owner !== asset)
@@ -624,16 +624,17 @@ export function summarizeTaskProject(project, reads, { closedSince, closesSince 
         ...taskCloses(everyClose, closesSince),
     };
 }
-/** Every close the read returned, oldest first, for the week counts: none when
- * the read's reach is not known or it held more than the store keeps, so a
- * week is never counted short. */
+/** Every close the read returned, oldest first. Missing reach, an invalid
+ * close or more closes than the store keeps leaves the week unmeasured. */
 function taskCloses(issues, since) {
-    if (since === undefined)
+    if (since === undefined || issues.length > BEADS_CLOSES_MAX)
         return {};
-    const items = issues
-        .flatMap((issue) => issue.closedAt === null ? [] : [
-        { at: issue.closedAt, ...(issue.resolution === undefined ? {} : { resolution: issue.resolution }) },
-    ])
-        .sort((a, b) => a.at.localeCompare(b.at) || (a.resolution ?? '').localeCompare(b.resolution ?? ''));
-    return items.length > BEADS_CLOSES_MAX ? {} : { closes: { since, items } };
+    const items = [];
+    for (const { closedAt, resolution } of issues) {
+        if (closedAt === null)
+            return {};
+        items.push({ at: closedAt, ...(resolution === undefined ? {} : { resolution }) });
+    }
+    items.sort((a, b) => a.at.localeCompare(b.at) || (a.resolution ?? '').localeCompare(b.resolution ?? ''));
+    return { closes: { since, items } };
 }

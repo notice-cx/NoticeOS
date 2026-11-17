@@ -2,7 +2,7 @@
 import { gateReason, gateTitle, TASK_BLOCKING_DEPENDENCIES } from '../packages/contract/src/task-gate.mjs';
 import { recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { BEADS_ATTENTION_TASKS_MAX, BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
-import type { BeadsEpicInput, BeadsHandoffInput, BeadsIssueInput, BeadsProjectInput, BeadsWorkerInput, BeadsWorkEventInput } from '../packages/contract/src/task-snapshot.mjs';
+import type { BeadsCloseInput, BeadsEpicInput, BeadsHandoffInput, BeadsIssueInput, BeadsProjectInput, BeadsWorkerInput, BeadsWorkEventInput } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { readTaskCard } from '../packages/contract/src/task-card.mjs';
 import { readTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
@@ -65,12 +65,12 @@ export function handoffEntries(rows: unknown, asset: string): BeadsHandoffInput[
     const beadId = taskText(row?.id);
     const metadata = taskRecord(row?.metadata);
     if (beadId === '' || metadata === null) continue;
-    const key = taskText(taskMetadataValue(metadata, 'key'));
+    const key = taskMetadataValue(metadata, 'key');
     const rawKind = taskText(taskMetadataValue(metadata, 'kind'));
     const kind = HANDOFF_KINDS.find(kind => kind === rawKind);
     // No key or an unknown surface: dropped rather than guessed, because a
     // marker on the wrong finding is worse than no marker.
-    if (key === '' || kind === undefined) continue;
+    if (typeof key !== 'string' || key.trim() === '' || kind === undefined) continue;
     const owner = taskText(taskMetadataValue(metadata, 'asset'));
     if (owner !== '' && owner !== asset) continue;
     const closed = taskText(row?.status) === 'closed';
@@ -661,15 +661,15 @@ export function summarizeTaskProject(project: Project, reads: Record<string, unk
   };
 }
 
-/** Every close the read returned, oldest first, for the week counts: none when
- * the read's reach is not known or it held more than the store keeps, so a
- * week is never counted short. */
+/** Every close the read returned, oldest first. Missing reach, an invalid
+ * close or more closes than the store keeps leaves the week unmeasured. */
 function taskCloses(issues: TaskIssue[], since: string | undefined): Pick<BeadsProjectInput, 'closes'> {
-  if (since === undefined) return {};
-  const items = issues
-    .flatMap((issue) => issue.closedAt === null ? [] : [
-      { at: issue.closedAt, ...(issue.resolution === undefined ? {} : { resolution: issue.resolution }) },
-    ])
-    .sort((a, b) => a.at.localeCompare(b.at) || (a.resolution ?? '').localeCompare(b.resolution ?? ''));
-  return items.length > BEADS_CLOSES_MAX ? {} : { closes: { since, items } };
+  if (since === undefined || issues.length > BEADS_CLOSES_MAX) return {};
+  const items: BeadsCloseInput[] = [];
+  for (const { closedAt, resolution } of issues) {
+    if (closedAt === null) return {};
+    items.push({ at: closedAt, ...(resolution === undefined ? {} : { resolution }) });
+  }
+  items.sort((a, b) => a.at.localeCompare(b.at) || (a.resolution ?? '').localeCompare(b.resolution ?? ''));
+  return { closes: { since, items } };
 }

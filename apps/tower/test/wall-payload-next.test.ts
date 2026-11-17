@@ -242,6 +242,33 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
   const stored = (over: Record<string, unknown>) => ({ asset: "meadow.example", prefix: "md", ok: true, error: null, counts: {},
     ready: [], inProgress: [], recentlyClosed: [], ...over });
 
+  it("returns a saved board while its refresh is still pending", async () => {
+    let release!: (published: boolean) => void;
+    const refreshing = new Promise<boolean>(resolve => { release = resolve; });
+    let started = false, saved: TaskSnapshot | null | undefined;
+    const read = loadLatestTaskSnapshot(storing({ projects: [stored({})] }), () => {
+      started = true;
+      return refreshing;
+    }).then(value => { saved = value; });
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      expect(started).toBe(true);
+      expect(saved?.projects.map(project => project.asset)).toEqual(["meadow.example"]);
+    } finally {
+      release(false);
+      await read;
+    }
+  });
+
+  it("leaves nonblank handoff keys distinct through the stored snapshot read", async () => {
+    const handoff = (key: string, beadId: string) => ({ key, beadId, kind: "query", status: "open" });
+    const found = await loadLatestTaskSnapshot(storing({ projects: [stored({
+      handoffs: [handoff("query", "md-plain"), handoff(" query ", "md-spaced"), handoff(" ", "md-blank")],
+    })] }));
+    expect(found?.projects[0]?.handoffs?.map(({ key, taskId }) => [key, taskId]))
+      .toEqual([["query", "md-plain"], [" query ", "md-spaced"]]);
+  });
+
   it("reads complete attention lists independently and drops malformed coverage without inventing an empty list", async () => {
     const valid = { items: [{ ...item("md-full", { priority: 1 }), decision: false }], complete: true };
     const result = await loadLatestTaskSnapshot(storing({ projects: [stored({ attentionTasks: valid }), stored({ asset: "older.example" }), stored({ asset: "bad.example", attentionTasks: { items: [{ id: "bad", decision: "yes" }], complete: true } })] }));

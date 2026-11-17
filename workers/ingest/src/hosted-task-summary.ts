@@ -26,11 +26,11 @@ function sourceOf(raw: string | null | undefined): HostedTaskSnapshotSource | nu
 
 /** Only a Wall or Work read can request this refresh. A weak network keeps
  * the last published summary and its date. Timing covers an entire attempt. */
-export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fetch, now = Date.now } = {}): Promise<void> {
-  if (!env.NOTICEOS_NTASKS_ORIGIN) return;
+export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fetch, now = Date.now } = {}): Promise<boolean> {
+  if (!env.NOTICEOS_NTASKS_ORIGIN) return false;
   const workspace = await env.STORE.workspaceId();
   const started = now();
-  if (started - (attempts.get(workspace) ?? -Infinity) < CHECK_INTERVAL_MS) return;
+  if (started - (attempts.get(workspace) ?? -Infinity) < CHECK_INTERVAL_MS) return false;
   attempts.delete(workspace);
   if (attempts.size >= RECENT_ATTEMPTS) attempts.delete(attempts.keys().next().value!);
   attempts.set(workspace, started);
@@ -38,7 +38,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     `SELECT snapshot_id, captured_at, (payload -> 'ntasks')::text AS source FROM noticeos.task_snapshots
       ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1`));
   const prior = sourceOf(latest?.source);
-  if (prior && started - Date.parse(prior.checkedAt) < CHECK_INTERVAL_MS) return;
+  if (prior && started - Date.parse(prior.checkedAt) < CHECK_INTERVAL_MS) return false;
 
   const deadline = started + REFRESH_DEADLINE_MS;
   const boundedFetch: typeof fetch = (input, init) => {
@@ -57,7 +57,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
   };
   try {
     const connection = await readHostedTaskConnection(env, boundedFetch);
-    if (connection === null) { await retire(); return; }
+    if (connection === null) { await retire(); return false; }
     const { credential, workspaceId } = connection;
     const mapping = JSON.stringify([credential.connectionId, credential.secretVersion, workspaceId,
       connection.projects.map(project => [project.asset, project.prefix, project.project?.projectId ?? null])]);
@@ -72,7 +72,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     } };
     const feed = await hostedTaskChanges(service, previous?.cursor ?? 0);
     const checkedAt = new Date(now()).toISOString();
-    if (!await connection.stillCurrent()) return;
+    if (!await connection.stillCurrent()) return false;
     if (latest && previous && feed.complete && !feed.reset && started - Date.parse(previous.boardReadAt) < BOARD_MAX_AGE_MS
       && ![...feed.changed].some(project => connection.selectedIds.has(project))) {
       // An interrupted or concurrent capture cannot move a newer row's cursor.
@@ -84,16 +84,17 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
               AND snapshot_id = $3 AND captured_at = $4::timestamptz`,
           [checkedAt, JSON.stringify({ ...previous, cursor: feed.cursor, checkedAt }), latest.snapshot_id, javascriptInstant(latest.captured_at)]);
       });
-      return;
+      return false;
     }
     const projects = await readHostedTaskBoards(service, connection.projects, now());
     const boardReadAt = new Date(now()).toISOString();
     // If a connection was replaced while the reads were in flight, do not
     // publish the old credential's data as the new connection's summary.
-    if (!(await connection.stillCurrent())) return;
-    await writeTaskSnapshot(env, { capturedAt: boardReadAt, projects }, now(), { mapping, cursor: feed.cursor, checkedAt, boardReadAt });
+    if (!(await connection.stillCurrent())) return false;
+    return (await writeTaskSnapshot(env, { capturedAt: boardReadAt, projects }, now(), { mapping, cursor: feed.cursor, checkedAt, boardReadAt })).ok;
   } catch (error) {
     if (error instanceof TaskServiceUnavailable && error.reason === 'refused'
       || error instanceof TaskServiceError && ['access', 'configuration'].includes(error.failure.kind)) await retire();
+    return false;
   }
 }

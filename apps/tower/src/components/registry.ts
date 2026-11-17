@@ -1465,6 +1465,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["rank funnel with shares and an unmeasured step"],
   },
   {
+    name: "WallHealthStamp",
+    file: "components/wall/WallHealthStamp.tsx",
+    purpose: "Shows when the hosted Wall last checked connection health and whether that check succeeded.",
+    variants: ["dated reading", "stale reading", "failed refresh", "unknown"],
+  },
+  {
     name: "WallHealth",
     file: "components/wall/WallHealth.tsx",
     purpose:

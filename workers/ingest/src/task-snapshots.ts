@@ -621,7 +621,7 @@ function parseHandoff(
     return UNKNOWN_KIND;
   }
   const kind = enumValue(issues, raw.kind, `${path}.kind`, BEADS_HANDOFF_KINDS);
-  const key = requiredString(issues, raw.key, `${path}.key`, TASK_KEY_MAX);
+  const key = requiredString(issues, raw.key, `${path}.key`, TASK_KEY_MAX, { preserveWhitespace: true });
   const beadId = requiredString(issues, raw.beadId, `${path}.beadId`, TASK_ID_MAX);
   const status = enumValue(issues, raw.status, `${path}.status`, TASK_HANDOFF_STATUSES);
   const closedAt = optionalInstant(issues, raw.closedAt, `${path}.closedAt`);

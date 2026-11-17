@@ -1,7 +1,7 @@
 import { buildAssetDetailPayload, buildAssetDetailView } from "./asset-detail-payload";
 import { isAssetDetailView } from "../shared/asset-detail-views";
 /** One payload dispatcher for stored reads in standalone and hosted profiles.
- * Its dependencies cannot call providers, mutate configuration or run tasks. */
+ * Its only refresh is an admitted read of the configured task service. */
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { timeZoneEverSaved, type TowerConfig } from './config-source';
 import { JSON_HEADERS, jsonError } from './http';
@@ -17,12 +17,13 @@ import { buildWallPayload, type BuildOptions } from "./wall-payload";
 import { readPortfolioSummary, type PortfolioSummaryStore } from './portfolio-summary';
 import { handleWallFeedRequest } from "./wall-feed";
 import { buildTaskBoard, buildTaskSourcePayload } from "./task-source";
+import type { TaskSnapshotRefresh } from "./task-snapshot";
 import { PERIOD_PATTERN } from "../shared/financials";
 
 export async function handleStoredRead(request: Request, {
-  store, config, compiledTimeZone, reportGa4Today, portfolioSummary,
+  store, config, compiledTimeZone, reportGa4Today, portfolioSummary, refreshTaskSnapshot,
 }: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string;
-  reportGa4Today?: boolean; portfolioSummary?: PortfolioSummaryStore }): Promise<Response | null> {
+  reportGa4Today?: boolean; portfolioSummary?: PortfolioSummaryStore; refreshTaskSnapshot?: TaskSnapshotRefresh }): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === "/api/alerts/daily") {
     return handleAlertDailyRequest(request, store, new Date());
@@ -137,6 +138,7 @@ export async function handleStoredRead(request: Request, {
         counters: cfg.counters,
         schedules: cfg.schedules,
         reportGa4Today,
+        refreshTaskSnapshot,
       };
       const payload = portfolioSummary
         ? (await readPortfolioSummary(store, portfolioSummary, options)).wall
@@ -193,7 +195,7 @@ export async function handleStoredRead(request: Request, {
   if (url.pathname === "/api/work") {
     try {
       const cfg = await config();
-      const payload = await buildTaskBoard({ store, timeZone: cfg.osTimeZone, projects: cfg.beads.spokes }, new Date());
+      const payload = await buildTaskBoard({ store, timeZone: cfg.osTimeZone, projects: cfg.beads.spokes, refreshTaskSnapshot }, new Date());
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

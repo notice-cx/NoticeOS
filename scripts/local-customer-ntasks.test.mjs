@@ -119,6 +119,12 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     const work = await summary.json();
     assert.ok(work.capturedAt);
     assert.ok(JSON.stringify(work.projects).includes(id));
+    const firstWall = await http('/api/wall', { headers: oak.headers });
+    assert.equal(firstWall.status, 200, await firstWall.clone().text());
+    const wall = await firstWall.json();
+    assert.equal(wall.workProjects.length, 1);
+    assert.ok(wall.workProjects[0]?.capturedAt);
+    assert.equal(wall.workProjects[0].open, 0);
     assert.equal((await http(`/api/tasks/${id}/respond`, { headers: elm.board, body: { projectId: elm.projectId, response: 'A fixture answer' } })).status, 401);
     await app.close(); app = undefined;
     await t.test('first-owner activation, dated shadow evidence, and rollback use the normal access boundary', t =>

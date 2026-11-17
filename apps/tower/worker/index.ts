@@ -138,7 +138,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
       cloudflareD1?(original: Request): Promise<Response>;
       backupCloudflareD1?(original: Request): Promise<Response>;
       hostedTaskRequest?(original: Request): Promise<Response>;
-      refreshHostedTaskSummary?(original: Request): Promise<void>;
+      refreshHostedTaskSummary?(original: Request): Promise<boolean>;
     };
 }
 
@@ -747,9 +747,13 @@ const towerHandler = {
         // Snapshot the original message before asynchronous authority reads.
         const proof = request.clone();
         return await withWorkspaceEntry(env, proof, async (call) => {
-          if (profile === 'hosted' && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary) {
-            ctx.waitUntil(env.INGEST.refreshHostedTaskSummary(proof.clone()).catch(() => undefined));
-          }
+          const refreshTaskSnapshot = profile === 'hosted' && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary
+            ? () => {
+              const refresh = env.INGEST.refreshHostedTaskSummary!(proof.clone()).catch(() => false);
+              ctx.waitUntil(refresh);
+              return refresh;
+            }
+            : undefined;
           let receiverFailed = false;
           const ingest: ConfigDocumentReader & {
             listCredentialSummaries(): ReturnType<IntegrationCredentialWriter['listCredentialSummaries']>;
@@ -789,7 +793,7 @@ const towerHandler = {
                 await handleDemoPresentationRead(request, store, env)
                 ?? await handleHostedWorkflowRead(request, store, Date.now(), profile === 'hosted' ? env.NOTICEOS_CUSTOMER_SCHEDULES : undefined)
                 ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date() })
-                ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted',
+                ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted', refreshTaskSnapshot,
                   portfolioSummary: profile === 'hosted' ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId) : undefined }))
             : await handleConfigRequest(request, { ingest, config });
           // Hosted receiver denial never becomes the resolver's standalone

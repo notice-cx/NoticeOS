@@ -591,10 +591,10 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       store => handleHostedTaskService(original, { ...this.env, STORE: store }, call.context)));
   }
 
-  async refreshHostedTaskSummary(original: Request): Promise<void> {
+  async refreshHostedTaskSummary(original: Request): Promise<boolean> {
     if (workspaceProfile(this.env) !== 'hosted' || !(original instanceof Request)) throw new WorkspaceEntryRefused();
     await ingestOperation('refreshHostedTaskSummary', original);
-    await withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
+    return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
       store => refreshHostedTaskSummary({ ...this.env, STORE: store })));
   }
 
