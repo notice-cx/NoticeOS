@@ -356,7 +356,7 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
     if (url.pathname === '/v2/accounts') return Response.json({ accounts: [{ name: 'accounts/pub-123' }] });
     if (url.pathname === '/v2/accounts/pub-123/sites') return Response.json({ sites: [{
       name: 'accounts/pub-123/sites/example', domain: JOURNEY_ASSET, state: 'READY',
-    }] });
+    }, { name: 'accounts/pub-123/sites/alternate', domain: 'other.example', state: 'READY' }] });
     throw new Error('The journey AdSense fixture only supports account and domain discovery');
   }
   if (url.origin === "https://analyticsadmin.googleapis.com") {

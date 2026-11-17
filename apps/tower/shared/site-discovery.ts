@@ -141,6 +141,12 @@ function preferred(sites: DiscoveredSite[]): DiscoveredSite | null {
   return [...sites].sort((a, b) => rank(a) - rank(b))[0] ?? null;
 }
 
+/** Publisher identity distinguishes the same domain listed by several accounts. */
+export function siteChoiceLabel(site: DiscoveredSite): string {
+  const account = site.lane === "adsense" ? site.ref.split("/")[1] : undefined;
+  return account ? `${site.label} · ${account}` : site.label;
+}
+
 /** Does this saved mapping name that site? Every field the site writes must
  * already hold the site's value. */
 export function holdsSiteMapping(saved: Record<string, string | number> | null, site: DiscoveredSite): boolean {
@@ -208,8 +214,9 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
       }
       const onDomain = host === null ? [] : ofLane.filter((site) =>
         site.host === host && (lane !== "adsense" || (adSenseHosts.get(host) === 1 && !reservedAdSense.has(site.ref))));
-      const ready = preferred(onDomain.filter((site) => site.ready));
-      const site = mapped ?? ready ?? preferred(onDomain);
+      const automatic = lane === "adsense" && onDomain.length !== 1 ? [] : onDomain;
+      const ready = preferred(automatic.filter((site) => site.ready));
+      const site = mapped ?? ready ?? preferred(automatic);
       const state: SiteLaneState = mapped ? "mapped" : ready ? "matched" : site ? "not-ready" : "unlisted";
       return { lane, saved, site, state };
     });

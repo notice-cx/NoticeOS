@@ -6,7 +6,7 @@ import { changesetSlug, escapePointerToken, type FileOp, type JsonValue, type Se
 import { fieldOf, fieldRefusal } from "@shared/config-registers";
 import { declineNote, declineOps, resumeOps, undeclineOps } from "@shared/lane-decline";
 import { LANE_REGISTER, laneFieldOp, laneFieldUnsetOp } from "@shared/lane-mapping-ops";
-import { holdsSiteMapping, planSites, type SitesAsset, type SitesPayload } from "@shared/site-discovery";
+import { holdsSiteMapping, planSites, siteChoiceLabel, type SitesAsset, type SitesPayload } from "@shared/site-discovery";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { FunnelListEditor } from "@/components/FunnelListEditor";
@@ -228,7 +228,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
 
   const chosen = available.find((site) => site.ref === selected);
   const needsSave = selection !== null && selected !== derived;
-  const choices = available.map((site) => <option key={site.ref} value={site.ref}>{site.label}</option>);
+  const choices = available.map((site) => <option key={site.ref} value={site.ref}>{siteChoiceLabel(site)}</option>);
   const funnelList = Array.isArray(cell?.funnels) ? cell.funnels as unknown as PosthogFunnel[] : null;
   const changesProject = lane === "posthog" && !!funnelList?.length && (needsSave || (manual !== null && field.keys.some((key) => manual[key] !== held[key])));
   return (

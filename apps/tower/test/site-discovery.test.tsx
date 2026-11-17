@@ -103,6 +103,24 @@ it.each([false, true])("leaves an AdSense domain with multiple matches unselecte
   expect(plan.rows.find(row => row.asset.id === "www.journey.example")?.lanes[0]?.choices).toEqual(mapped ? [] : [site]);
 });
 
+it('requires a choice between publisher accounts for the same AdSense domain and preserves a saved override', () => {
+  const sites: DiscoveredSite[] = ['pub-123', 'pub-456'].map(account => ({
+    lane: 'adsense', ref: `accounts/${account}/sites/example`, label: 'journey.example', host: 'journey.example',
+    mapping: { adsenseSite: `accounts/${account}/sites/example` }, ready: true,
+  }));
+  const listing: SitesPayload = {
+    discovery: { ok: true, provider: 'adsense', kind: 'account', checkedAt: AT, sites },
+    assets: [asset('journey.example', { cells: { adsense: null } })], spend: null,
+  };
+  const suggested = planSites(listing);
+  expect(startPlan(suggested, initialSelection(suggested)).assets).toEqual([]);
+  expect(suggested.rows[0]?.lanes[0]?.choices.map(site => site.ref)).toEqual(sites.map(site => site.ref));
+  listing.assets[0]!.cells.adsense = { status: 'needs-setup', mapping: sites[1]!.mapping };
+  const saved = planSites(listing);
+  expect(saved.rows[0]?.lanes[0]?.site?.ref).toBe(sites[1]!.ref);
+  expect(startPlan(saved, initialSelection(saved))).toMatchObject({ assets: ['journey.example'], ops: [] });
+});
+
 /** Mediavine: the account's sites, each mapped by its id. */
 const mediavineSite = (id: string, domain: string): DiscoveredSite => ({
   lane: "ad-network", ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,

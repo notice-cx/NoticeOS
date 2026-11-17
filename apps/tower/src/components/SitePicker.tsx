@@ -8,6 +8,7 @@ import { googleListingGrant, providerName } from "@shared/connect-panel";
 import {
   COLLECT_REFUSAL_LABEL,
   chosenSite,
+  siteChoiceLabel,
   reconcileSiteChoices,
   marketOf,
   planSites,
@@ -345,7 +346,7 @@ function SitePickerSession({
           <ul className="overflow-hidden rounded-xl border border-border">
             {others.map((site) => (
               <li key={site.ref} className="flex min-h-11 items-center gap-3 border-t border-border px-4 py-2 first:border-t-0" data-other-site={site.ref} data-subject={`account-site:${provider.id}:${site.ref}`}>
-                <code className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{site.label}</code>
+                <code className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{siteChoiceLabel(site)}</code>
                 {site.ready ? null : <StateChip tone="na" label="Not verified" subject={`account-site:${provider.id}:${site.ref}`} />}
               </li>
             ))}
@@ -478,7 +479,7 @@ function ChoiceRow({
           <option value="">{LANE_PICK[lane.lane]?.pick ?? "Choose asset"}</option>
           {lane.choices.map((site) => (
             <option key={site.ref} value={site.ref}>
-              {site.label}
+              {siteChoiceLabel(site)}
             </option>
           ))}
         </select>
@@ -542,9 +543,9 @@ function choiceDetail(row: SiteRow, lane: SiteLane, selection: SiteSelection, ki
   // A PostHog project reads as its name and the number its PostHog address
   // shows; a GA4 property as its number.
   const project = site.mapping.projectId;
-  if (project !== undefined) return `${site.label} · ${project}`;
+  if (project !== undefined) return `${siteChoiceLabel(site)} · ${project}`;
   const property = site.mapping.propertyId;
-  return property !== undefined ? `GA4 ${property}` : site.label;
+  return property !== undefined ? `GA4 ${property}` : siteChoiceLabel(site);
 }
 
 /** Under a collected row: why it failed, what it cost, or the site itself. */

@@ -2724,6 +2724,21 @@ test('AdSense connects with Google and returns to its own domain matches', { tag
   const back = page.getByRole('dialog', { name: 'Google AdSense' });
   await expect(back.locator(`[data-site-row="${JOURNEY_ASSET}"]`)).toHaveAttribute('data-site-state', 'matched', { timeout: 15_000 });
   await expect(back.locator('[data-sites-start]')).toBeEnabled();
+  await back.getByRole('button', { name: 'Edit mappings' }).click();
+  const mapping = back.getByRole('combobox', { name: 'AdSense domain for Journey Example' });
+  await expect(mapping.getByRole('option', { name: 'other.example · pub-123' })).toHaveCount(1);
+  await mapping.selectOption('accounts/pub-123/sites/alternate');
+  await back.getByRole('button', { name: 'Save', exact: true }).click();
+  const savedMapping = async () => (await (await page.request.get('/__journey/status')).json()).documents['config/integrations.json'].assets[JOURNEY_ASSET].adsense;
+  await expect.poll(async () => (await savedMapping())?.adsenseSite).toBe('accounts/pub-123/sites/alternate');
+  await back.getByRole('button', { name: 'Reload list' }).click();
+  await expect(mapping).toHaveValue('accounts/pub-123/sites/alternate');
+  await mapping.selectOption('');
+  await back.getByRole('button', { name: 'Remove mapping' }).click();
+  await expect.poll(async () => (await savedMapping())?.status).toBe('skipped');
+  expect((await savedMapping())?.adsenseSite).toBeUndefined();
+  await testInfo.attach('adsense-editable-mapping', { body: await page.screenshot(), contentType: 'image/png' });
+
   await expect(back.getByRole('button', { name: 'Reconnect with Google' })).toBeVisible();
   await back.getByRole('button', { name: 'Reconnect with Google' }).click();
   await expect(back.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
