@@ -10,6 +10,22 @@ const TASK_DECIDE = new RegExp(`^/api/(?:tasks/${TASK}/(?:respond|choose|dismiss
 const BOARD_READS = new Set(['/api/workspaces', '/api/access/me', '/api/fields', '/api/changes', '/api/tasks', '/api/tasks/projects',
   '/api/tasks/capabilities', '/api/tasks/search', '/api/tasks/wins', '/api/tasks/burndown', '/api/tasks/agent-stats']);
 
+function taskOperation(pathname: string, method: string) {
+  if (method === 'GET' && (BOARD_READS.has(pathname) || TASK_READ.test(pathname))) {
+    return { kind: 'read', action: 'tasks.read' } as const;
+  }
+  if (method === 'POST' && TASK_DECIDE.test(pathname)) return { kind: 'decide', action: 'tasks.decide' } as const;
+  if ((method === 'POST' && (pathname === '/api/tasks' || pathname === '/api/tasks/move' || TASK_WRITE.test(pathname)))
+    || (method === 'PATCH' && TASK_EDIT.test(pathname))) return { kind: 'write', action: 'tasks.write' } as const;
+  return null;
+}
+
+/** The existing board operations and service registration the ingest can
+ * forward to its deployment-configured Ntasks. */
+export function hostedTaskProviderOperation(pathname: string, method: string): boolean {
+  return taskOperation(pathname, method) !== null || (method === 'POST' && pathname === '/api/auth/oauth2/register');
+}
+
 /** The embedded client's token hook carries the browser's captured selection.
  * Only the app's optional Ntasks token leaves NoticeOS, for personal decisions. */
 export function hostedTaskAuthorization(workspaceId: string, sessionId: string, token: string | null): string {
@@ -29,13 +45,8 @@ export function hostedTaskRequest(request: Request) {
     return null;
   }
   const selection = { workspaceId: browser[1]!, sessionId: browser[2]!, token: browser[3] ?? null };
-  if (method === 'GET' && (BOARD_READS.has(pathname) || TASK_READ.test(pathname))) {
-    return { kind: 'read', action: 'tasks.read', ...selection } as const;
-  }
-  if (method === 'POST' && TASK_DECIDE.test(pathname)) return { kind: 'decide', action: 'tasks.decide', ...selection } as const;
-  if ((method === 'POST' && (pathname === '/api/tasks' || pathname === '/api/tasks/move' || TASK_WRITE.test(pathname)))
-    || (method === 'PATCH' && TASK_EDIT.test(pathname))) return { kind: 'write', action: 'tasks.write', ...selection } as const;
-  return null;
+  const operation = taskOperation(pathname, method);
+  return operation && { ...operation, ...selection };
 }
 
 /** Preserve the original browser evidence and reject ambiguous selectors. */

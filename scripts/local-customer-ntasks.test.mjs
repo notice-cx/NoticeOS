@@ -11,6 +11,7 @@ import { configDocumentKey } from './config-documents.mjs';
 import { applyDemoNtasksProvision, demoNtasks, demoNtasksWorker } from './demo-ntasks.mjs';
 import { hostedTaskAuthorization } from './hosted-task-request.mjs';
 import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
+import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { startPlan } from './start.mjs';
@@ -127,6 +128,22 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     assert.ok(wall.workProjects[0]?.capturedAt);
     assert.equal(wall.workProjects[0].open, 0);
     assert.equal((await http(`/api/tasks/${id}/respond`, { headers: elm.board, body: { projectId: elm.projectId, response: 'A fixture answer' } })).status, 401);
+    const { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(postgres.customer, 'settings.json'), 'utf8'));
+    const attachedConfig = path.join(root, 'attached.json');
+    writeFileSync(attachedConfig, JSON.stringify({ format: 'noticeos-customer-operating/1', database: {
+      app: postgres.address, identity: postgres.identityDatabase, grant: postgres.grantConnectionString,
+    }, identitySecret, credentialsKey, ntasksOrigin, mailRecipients: app.workspaces.map(workspace => workspace.email),
+    workspaces: app.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) }), { mode: 0o600 });
+    await app.close(); app = undefined;
+    app = await startAttachedCustomer(startPlan({ dir: path.join(root, 'attached'), port: plan.port }), attachedConfig);
+    const reopened = await http('/api/tasks/projects', { headers: elm.board });
+    assert.equal(reopened.status, 200);
+    assert.deepEqual((await reopened.json()).projects.map(project => project.projectId), [elm.projectId]);
+    assert.equal((await http(`/api/tasks?project=${elm.projectId}`, { headers: oak.board })).status, 404);
+    const mcp = await http('/api/mcp', { headers: elm.headers,
+      body: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
+    assert.equal(mcp.status, 200);
+    assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
     await app.close(); app = undefined;
     await t.test('first-owner activation, dated shadow evidence, and rollback use the normal access boundary', t =>
       assertNtasksShadowActivation({ root, cluster: postgres.cluster, ntasksOrigin, ntasks: actors[2], t }));

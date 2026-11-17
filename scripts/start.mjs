@@ -5,6 +5,7 @@
 //   pnpm db:try-tower -- --dir <folder> --port 6000     # the Tower on 6000, its ingest door on 6001, Postgres on 6002
 //   pnpm db:try-tower -- --dir <folder> --no-open       # do not open a browser
 //   pnpm db:try-tower -- --dir <folder> --profile hosted # persistent local customer workspaces and mailbox
+//   pnpm db:try-tower -- --dir <folder> --profile hosted --customer-config <file> # use a separate customer database
 //
 // `pnpm os:setup` makes a Compose installation. This command uses a new folder
 // or one it made. In standalone mode each run starts a Postgres cluster of its
@@ -64,7 +65,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 /** Where the Tower answers unless `--port` says otherwise; the ingest door is the next port. */
 export const DEFAULT_PORT = 4747;
 /** How to run it, as every refusal of a missing folder says it. */
-export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open] [--profile hosted [--ntasks-origin <url>]]';
+export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open] [--profile hosted [--ntasks-origin <url> | --customer-config <file>]]';
 /**
  * The NoticeOS stack's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
  * its ingest door (CONFIG.ingestPort) and the shipped Postgres host port (postgres-secrets.mjs DEFAULT_PORT).
@@ -95,11 +96,18 @@ export function parseArgs(argv) {
       opts.ntasksOrigin = argv[++i];
       if (!opts.ntasksOrigin) throw new Error('--ntasks-origin needs the address of a separate local Ntasks.');
     }
+    else if (arg === '--customer-config') {
+      opts.customerConfig = argv[++i];
+      if (!opts.customerConfig) throw new Error('--customer-config needs a private customer settings file.');
+    }
     else if (arg === '--no-open') opts.open = false;
     else if (arg === '--help' || arg === '-h') opts.help = true;
     else throw new Error(`unknown option ${arg}. ${USAGE}`);
   }
   if (opts.ntasksOrigin && opts.profile !== 'hosted') throw new Error('--ntasks-origin requires --profile hosted.');
+  if (opts.customerConfig && (opts.profile !== 'hosted' || opts.ntasksOrigin)) {
+    throw new Error('--customer-config requires --profile hosted and owns the Ntasks address.');
+  }
   return opts;
 }
 
@@ -355,7 +363,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (!opts.dir) return refuse(`--dir <folder> is required: ${USAGE}`);
   const plan = startPlan({ dir: opts.dir, port: opts.port });
-  const refusal = planRefusal(plan) ?? developmentRefusal(plan);
+  const refusal = planRefusal(plan) ?? (opts.customerConfig ? null : developmentRefusal(plan));
   if (refusal) return refuse(refusal);
   if (opts.profile === 'hosted') {
     const { localNtasksOrigin } = await import('./local-customer.mjs');
@@ -387,15 +395,21 @@ export async function main(argv = process.argv.slice(2)) {
 async function runCustomerStart(plan, opts) {
   // Miniflare registers process signal hooks. The launcher owns graceful shutdown.
   const worker = new Worker(new URL('./local-customer-worker.mjs', import.meta.url), {
-    workerData: { plan, ntasksOrigin: opts.ntasksOrigin },
+    workerData: { plan, ntasksOrigin: opts.ntasksOrigin, customerConfig: opts.customerConfig && path.resolve(opts.customerConfig) },
   });
   const stop = () => worker.postMessage('stop');
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
   worker.on('message', customer => {
+    if (customer.problem) { say(customer.problem); return; }
     say(`NoticeOS customer workspaces are running at ${customer.publicOrigin}/`);
-    say(`Open an invitation message in ${shown(customer.outbox)} and sign in with the address it lists.`);
-    say('Ctrl-C stops NoticeOS. The workspaces and sessions are saved in this folder.');
+    if (opts.customerConfig) {
+      say(`Sign in with your workspace email and find the code in ${shown(customer.outbox)}.`);
+      say('Ctrl-C stops NoticeOS and releases the customer database scheduler.');
+    } else {
+      say(`Open an invitation message in ${shown(customer.outbox)} and sign in with the address it lists.`);
+      say('Ctrl-C stops NoticeOS. The workspaces and sessions are saved in this folder.');
+    }
     if (opts.open) openBrowser(plan.url);
   });
   try {
