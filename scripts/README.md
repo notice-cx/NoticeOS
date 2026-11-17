@@ -87,7 +87,7 @@
 |---|---|---|
 | `test` | Every workspace's unit tests. | `pnpm -r --if-present run test` |
 | `test:scripts` | The root suite: every scripts/*.test.mjs. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
-| `test:demo-ntasks` | The public demo's suites against its own Ntasks. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:demo-ntasks` | Test the public demo and local customer workspaces against separate instances of the pinned Ntasks release. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
 | `test:journeys` | The Tower's browser journeys, then the flow walker. | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` |
 
 ### The repository
