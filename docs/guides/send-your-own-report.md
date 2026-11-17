@@ -12,7 +12,7 @@ Most of the data NoticeOS has about an asset comes from data sources you connect
 ## Before you begin
 
 - The asset added in NoticeOS. Its id is its domain as added in the product.
-- The asset's token. In a local customer workspace with report intake enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
+- In a local customer workspace, report intake requires `NOTICEOS_LOCAL_SITE_REPORTS=1` and `NOTICEOS_WORKSPACE_ORIGIN` set to the Tower's exact `http://127.0.0.1:<port>` origin in both the Tower and ingest Worker bindings. Once enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
 - In a standalone installation, the operator keeps the token map under `ASSET_TOKENS` in `workers/ingest/.dev.secrets.json`. The token authenticates a push and, when configured, NoticeOS presents it to the asset's metrics endpoint for a fetch. See [the bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment).
 
 ### What belongs in a report
@@ -49,7 +49,7 @@ Each metric is one name with three numbers: how many in the last 24 hours, the a
 ## Push the report each night
 
 1. In your product, build the report in the shape each night.
-2. Send it to the installation's ingest at `POST /api/pulse`, with the header `Authorization: Bearer <token>`.
+2. Send it to `POST /api/pulse` with the header `Authorization: Bearer <token>`. Use the Tower's exact loopback origin for a local customer workspace or the ingest origin for a standalone installation.
 
 Local customer report intake uses the opted-in Tower's exact loopback address. The sender runs on the same machine.
 
@@ -64,10 +64,10 @@ The same panel shows **Report endpoint** and **Auth source** for push, **Schedul
 
 ## Push by hand once
 
-1. In a terminal, with the report saved as `report.json`, run:
+1. In a terminal with the report saved as `report.json`, replace `<origin>` with the configured address, such as `http://127.0.0.1:5173` for a local customer workspace or the ingest origin for a standalone installation.
 
    ```sh
-   curl -sS -X POST https://<your-installation>/api/pulse \
+   curl -sS -X POST '<origin>/api/pulse' \
      -H 'authorization: Bearer <token>' \
      -H 'content-type: application/json' \
      -d @report.json
