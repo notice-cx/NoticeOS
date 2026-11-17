@@ -177,7 +177,7 @@ window so Google’s revisions reach **Money**. Dates with no figure stay blank.
 The **Daily revenue** panel shows the last reported date.
 
 1. Open **Integrations → Google AdSense → Connect**.
-2. Enable **AdSense Management API** using the setup link. In **Google Auth Platform → Data Access**, add `https://www.googleapis.com/auth/adsense.readonly`.
+2. Create a Google Cloud project dedicated to NoticeOS AdSense and enable **AdSense Management API** using the setup link. In **Google Auth Platform → Data Access**, add `https://www.googleapis.com/auth/adsense.readonly`.
 3. Create an OAuth client with **Application type** set to **Web application**. Paste the callback address shown in NoticeOS into **Authorized redirect URIs**. Leave **Authorized JavaScript origins** empty and **Use this client for an AI-powered agent** unchecked.
 4. Download the client's JSON file from Google Cloud and select or drop it into NoticeOS. This is the installation's one-time client setup. AdSense uses its own client, stored separately from the Analytics and Search Console client.
 5. Select **Continue with Google**, choose the account that can read your AdSense domains, and grant read-only access. NoticeOS exchanges the authorization code and stores the refresh token encrypted.
@@ -185,7 +185,7 @@ The **Daily revenue** panel shows the last reported date.
 
 Publish the external app under **Google Auth Platform → Audience** for recurring collection. While the app is in Testing, add your Google account under **Test users**. Google's Testing grants expire after seven days. If Google displays an unverified-app screen, continue only for the client you created for this installation. Publishing removes Testing's seven-day refresh-token expiry. Google's verification requirements depend on the app's audience and requested scopes.
 
-AdSense requires OAuth authorization from a person. Its API does not support service accounts or API-key access to earnings. NoticeOS requests the read-only AdSense scope together with account identity. Existing connections made with a client ID, secret and refresh token continue collecting. **Manage → Reconnect with Google** replaces that connection through sign-in. Disconnect removes the stored grant and attempts revocation at Google.
+AdSense requires OAuth authorization from a person. Its API does not support service accounts or API-key access to earnings. NoticeOS requests the read-only AdSense scope together with account identity. Existing connections made with a client ID, secret and refresh token continue collecting. **Manage → Reconnect with Google** replaces that connection through sign-in. Disconnect removes the stored grant and attempts revocation at Google. Google applies revocation across all OAuth clients in that project for the same Google account, so the AdSense project must be separate from projects containing Analytics, Search Console or other Google sign-in clients. [Google’s token revocation documentation](https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke) describes this scope.
 
 For a manual import of an older month, set the revenue source to
 `adsense-report`. When the collected daily figures cover at least the same

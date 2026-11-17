@@ -130,12 +130,13 @@ describe("the sign-in in the panel", () => {
 });
 
 
-it('keeps missing-redirect guidance visible after the parent refreshes an AdSense client, then compacts a corrected upload', async () => {
+it('keeps missing-redirect guidance visible after the parent refreshes an AdSense client, keeps replacement failures retryable and compacts after correction', async () => {
   const adsenseRedirect = REDIRECT.replace('/google/', '/adsense/');
+  const saveClient = vi.fn(async () => {});
   function AdSenseSetup() {
     const [state, setState] = useState<GoogleOAuthCardState['state']>('app-missing');
     return <GoogleSignInSetup provider="adsense" card={card(state, { redirectUri: adsenseRedirect })} selfHosted startHref="/api/integrations/adsense/oauth/start"
-      publish={null} onSaveClient={async () => setState('ready')} />;
+      publish={null} onSaveClient={async () => { await saveClient(); setState('ready'); }} />;
   }
   render(<MemoryRouter><AdSenseSetup /></MemoryRouter>);
   await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
@@ -143,6 +144,20 @@ it('keeps missing-redirect guidance visible after the parent refreshes an AdSens
   }));
   expect(screen.getByText('Redirect address not in the client')).toBeVisible();
   expect(document.querySelector('[data-google-redirect-uri]')).toBeVisible();
+  let rejectSave!: (error: Error) => void;
+  const pendingSave = new Promise<void>((_resolve, reject) => { rejectSave = reject; });
+  saveClient.mockImplementationOnce(() => pendingSave);
+  try {
+    await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
+      target: { files: [drop(web([adsenseRedirect]))] },
+    }));
+    expect(screen.getByText('Saving')).toBeVisible();
+    expect(screen.getByLabelText('client_secret.json')).toBeDisabled();
+  } finally {
+    await act(async () => rejectSave(new Error('store unavailable')));
+  }
+  expect(document.querySelector('[data-google-client-refused]')).toBeVisible();
+  expect(screen.getByLabelText('client_secret.json')).toBeEnabled();
   await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
     target: { files: [drop(web([adsenseRedirect]))] },
   }));

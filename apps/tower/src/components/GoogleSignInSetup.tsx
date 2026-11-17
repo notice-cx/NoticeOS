@@ -100,7 +100,8 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
   );
 
   const redirectMissing = upload.phase === "saved" && !upload.redirectListed;
-  if ((!selfHosted || adsense) && clientReady && !editingClient && !redirectMissing) {
+  const showClientSetup = editingClient || redirectMissing || upload.phase === "saving" || upload.phase === "refused";
+  if ((!selfHosted || adsense) && clientReady && !showClientSetup) {
     return (
       <div className="flex flex-1 flex-col gap-4" data-google-setup="hosted">
         <ul className="flex flex-wrap gap-1.5" aria-label="Google access">
@@ -119,7 +120,9 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
   return (
     <div className="flex flex-1 flex-col gap-4" data-google-setup="self-hosted">
       <ol className="flex flex-col gap-3">
-        <Step n={1} label={adsense ? "Enable AdSense Management API" : "Turn on the 3 APIs"} href={adsense ? "https://console.cloud.google.com/apis/library/adsense.googleapis.com" : GOOGLE_CONSOLE.apis} />
+        <Step n={1} label={adsense ? "Enable AdSense Management API" : "Turn on the 3 APIs"} href={adsense ? "https://console.cloud.google.com/apis/library/adsense.googleapis.com" : GOOGLE_CONSOLE.apis}>
+          {adsense ? <p className="text-sm text-muted-foreground">Use a project dedicated to NoticeOS AdSense. Disconnecting revokes access for this Google account across that project’s apps.</p> : null}
+        </Step>
         <Step n={2} label="Create a web client" href={GOOGLE_CONSOLE.client}>
           {adsense ? <p className="mb-2 text-sm text-muted-foreground">Choose Web application. Add this address under Authorized redirect URIs. Leave JavaScript origins empty and the AI-powered agent box unchecked.</p> : null}
           <CopyCommand command={card.redirectUri} mark={{ "data-google-redirect-uri": "" }} />
