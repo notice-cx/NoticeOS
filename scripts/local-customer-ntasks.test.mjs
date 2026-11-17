@@ -12,6 +12,7 @@ import { applyDemoNtasksProvision, demoNtasks, demoNtasksWorker } from './demo-n
 import { hostedTaskAuthorization } from './hosted-task-request.mjs';
 import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
+import { assertSameStoreHandoff } from './test/customer-runtime-handoff.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { startPlan } from './start.mjs';
@@ -145,6 +146,8 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     assert.equal(mcp.status, 200);
     assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
     await app.close(); app = undefined;
+    await t.test('switch both profiles over the same isolated stores and retain the hosted writes on return', t =>
+      assertSameStoreHandoff({ root, postgres, ownerOrigin: origin, ntasksOrigin, actor: actors[2], t }));
     await t.test('first-owner activation, dated shadow evidence, and rollback use the normal access boundary', t =>
       assertNtasksShadowActivation({ root, cluster: postgres.cluster, ntasksOrigin, ntasks: actors[2], t }));
     await t.test('the operator commands prepare and import a separate private target for signed-in Tower', targetTest =>
