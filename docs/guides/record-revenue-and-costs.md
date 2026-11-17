@@ -11,18 +11,20 @@ NoticeOS keeps money in one **ledger**: revenue and cost rows per asset, per mon
 
 ## Before you begin
 
-- For ad revenue, Mediavine connected. See [Connect data sources](/guides/connect-data-sources).
+- For ad revenue, connect [AdSense](../11-integrations.md#adsense) or Mediavine. See [Connect data sources](/guides/connect-data-sources).
 - For Stripe, a restricted key with the [read permissions for Stripe collection](../11-integrations.md#stripe).
 - For a recurring cost, what the statement calls it, its monthly amount in USD and its first month.
 - For a domain order, the registrar's receipt.
 
 ### Where revenue comes from
 
+AdSense estimated earnings are collected daily for each mapped site. Set it up in **Integrations → Google AdSense**. The asset’s **Money** tab shows the figures and last reported date. See [AdSense setup](../11-integrations.md#adsense).
+
 Ad revenue from Mediavine is collected automatically once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests the previous day by its date. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the asset's **Money** tab lists the latest date under **Reported through**. The **Mediavine revenue** section also has **Refresh revenue**, backfill and forecast settings.
 
 Open **Integrations → Stripe**, connect the restricted key, then select **Map products**. Choose the asset that earns each product’s revenue and select **Save mappings**. The asset’s **Money** tab shows receipts after refunds and Stripe fees, including one-time contributions. See [Stripe setup](../11-integrations.md#stripe).
 
-Revenue from other networks has no connector yet. NoticeOS's data receiver has an import route for revenue rows, but it requires the installation's operator token, so only whoever runs the installation can use it.
+For other networks, NoticeOS’s data receiver has an import route for revenue rows, but it requires the installation's operator token, so only whoever runs the installation can use it.
 
 ### Where the tables are
 

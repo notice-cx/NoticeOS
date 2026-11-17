@@ -65,6 +65,44 @@ const PAYLOAD: SitesPayload = {
   domainMatch: ["bing-webmaster"],
 };
 
+it("saves an AdSense site from the first collection when the asset has no AdSense entry", () => {
+  const ref = "accounts/pub-123/sites/site-1";
+  const payload: SitesPayload = {
+    discovery: { ok: true, provider: "adsense", kind: "account", checkedAt: AT, sites: [
+      { lane: "adsense", ref, label: "journey.example", host: "journey.example", mapping: { adsenseSite: ref }, ready: true },
+      { lane: "adsense", ref: "accounts/pub-123/sites/site-2", label: "shop.example", host: "shop.example",
+        mapping: { adsenseSite: "accounts/pub-123/sites/site-2" }, ready: true },
+    ] },
+    assets: [asset("journey.example", { cells: { adsense: null }, hasIntegrationEntry: true }), asset("second.example", { cells: { adsense: null } })],
+    spend: null,
+  };
+  const plan = planSites(payload);
+  expect(startPlan(plan, initialSelection(plan))).toMatchObject({
+    assets: ["journey.example"],
+    ops: [{ kind: "file-json-insert", pointer: "/assets/journey.example/adsense", value: { adsenseSite: ref } }],
+  });
+});
+
+it.each([false, true])("leaves an AdSense domain with multiple matches unselected by default (saved mapping: %s)", (mapped) => {
+  const ref = "accounts/pub-123/sites/site-1";
+  const site: DiscoveredSite = {
+    lane: "adsense", ref, label: "journey.example", host: "journey.example", mapping: { adsenseSite: ref }, ready: true,
+  };
+  const plan = planSites({
+    discovery: { ok: true, provider: "adsense", kind: "account", checkedAt: AT, sites: [site] },
+    assets: [
+      asset("www.journey.example", { cells: { adsense: null } }),
+      asset("journey.example", { cells: { adsense: mapped ? { status: "needs-setup", mapping: site.mapping } : null } }),
+    ],
+    spend: null,
+  });
+  expect(startPlan(plan, initialSelection(plan))).toMatchObject({
+    assets: mapped ? ["journey.example"] : [],
+    ops: [],
+  });
+  expect(plan.rows.find(row => row.asset.id === "www.journey.example")?.lanes[0]?.choices).toEqual(mapped ? [] : [site]);
+});
+
 /** Mediavine: the account's sites, each mapped by its id. */
 const mediavineSite = (id: string, domain: string): DiscoveredSite => ({
   lane: "ad-network", ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,

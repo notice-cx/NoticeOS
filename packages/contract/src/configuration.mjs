@@ -88,6 +88,21 @@ export function readTempoMppSettings(value) {
     }
     return { chainId: value.chainId, wallet: value.wallet, token: value.token, startBlock: value.startBlock, enabled: value.enabled, mappings };
 }
+export const ADSENSE_SITE_PATTERN = '^accounts/pub-[0-9]+/sites/[A-Za-z0-9_-]+$';
+const ADSENSE_SITE = new RegExp(ADSENSE_SITE_PATTERN, 'u');
+export function isAdSenseSite(value) {
+    return typeof value === 'string' && value.length <= 160 && ADSENSE_SITE.test(value);
+}
+export function adSenseAssignments(register) {
+    if (!isPlainObject(register) || !isPlainObject(register.assets))
+        return [];
+    return Object.entries(register.assets).flatMap(([asset, lanes]) => {
+        if (!isPlainObject(lanes) || !isPlainObject(lanes.adsense))
+            return [];
+        const { adsenseSite, status } = lanes.adsense;
+        return isAdSenseSite(adsenseSite) ? [{ asset, site: adsenseSite, paused: status === 'skipped' || status === 'not-applicable' }] : [];
+    });
+}
 export const STRIPE_REVENUE_LANE = 'subscriptions';
 export const STRIPE_PRODUCTS_POINTER = '/stripeProducts';
 export const STRIPE_ACCOUNT_ID = /^acct_[a-zA-Z0-9]+$/;

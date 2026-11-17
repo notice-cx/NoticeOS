@@ -541,6 +541,7 @@ export type IntegrationProviderId =
   | 'calendar'
   | 'discord'
   | 'mediavine'
+  | 'adsense'
   | 'clarity'
   | 'posthog'
   | 'cloudflare'
@@ -614,6 +615,22 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     fields: [
       { name: 'MEDIAVINE_USER', label: 'Email', secret: false, kind: 'text', required: true, placeholder: 'you@example.com' },
       { name: 'MEDIAVINE_PASSWORD', label: 'Password', secret: true, kind: 'password', required: true },
+    ],
+  },
+  {
+    id: 'adsense', label: 'Google AdSense', scope: 'shared', lanes: ['adsense'],
+    docRef: 'docs/11-integrations.md#adsense',
+    expiry: { known: 'operator' }, test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'connection' },
+    fields: [
+      { name: 'ADSENSE_CLIENT_ID', label: 'OAuth client ID', secret: false, kind: 'text', required: true,
+        link: { url: 'https://console.cloud.google.com/apis/credentials', label: 'Create a client' },
+        description: 'Use a dedicated Google Cloud client with the AdSense Management API enabled.' },
+      { name: 'ADSENSE_CLIENT_SECRET', label: 'OAuth client secret', secret: true, kind: 'password', required: true },
+      { name: 'ADSENSE_REFRESH_TOKEN', label: 'Refresh token', secret: true, kind: 'password', required: true,
+        link: { url: 'https://developers.google.com/oauthplayground/', label: 'Authorize in Google' },
+        description: 'In Google’s OAuth Playground, use your own client and authorize the adsense.readonly scope.',
+        grants: ['AdSense: read only'] },
     ],
   },
   {
@@ -1084,8 +1101,8 @@ export function readEnvCredential(
 ): EnvCredentialRead {
   const fields: Record<string, string> = {};
   const legacySlots: Record<string, string> = {};
-  // Mediavine never had an env login; Disconnect must not revive one.
-  if (provider.id === 'mediavine') return { fields, legacySlots };
+  // These connections are created in Integrations and have no legacy bindings.
+  if (provider.id === 'mediavine' || provider.id === 'adsense') return { fields, legacySlots };
   for (const field of provider.fields) {
     const direct = bindings[field.name];
     let value = typeof direct === 'string' && direct.trim() !== '' ? direct : undefined;

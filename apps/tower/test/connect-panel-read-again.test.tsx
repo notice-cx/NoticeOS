@@ -21,7 +21,10 @@ vi.mock("@/hooks/useIntegrationHealth", () => ({
   useIntegrationHealth: () => ({ data: undefined, isError: false, status: { items: [] } }),
 }));
 const reads = vi.hoisted(() => ({ answers: [] as SitesPayload[], fetchProviderSites: vi.fn(), collectProviderSites: vi.fn(), save: vi.fn() }));
-vi.mock("@/hooks/useConfigSave", () => ({ useInlineConfigSave: () => reads.save }));
+vi.mock("@/hooks/useConfigSave", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useConfigSave")>()),
+  useFieldStructuralSave: () => reads.save,
+}));
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   fetchProviderSites: reads.fetchProviderSites,

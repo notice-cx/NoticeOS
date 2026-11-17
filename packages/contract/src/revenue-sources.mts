@@ -10,6 +10,8 @@
  * revenue estimate. */
 export const MEDIAVINE_REVENUE_SOURCE = 'mediavine-journey';
 
+export const ADSENSE_REVENUE_SOURCE = 'adsense';
+
 /** What the connected Stripe account's balance transactions add up to: a
  * site's daily net subscription and product sales, less refunds. */
 export const STRIPE_REVENUE_SOURCE = 'stripe';

@@ -433,6 +433,7 @@ const GROUP_OF: Record<string, (typeof GROUPS)[number]> = {
   posthog: "Traffic & search",
   clarity: "Traffic & search",
   mediavine: "Revenue",
+  adsense: "Revenue",
   stripe: "Revenue",
   calendar: "Coordination",
   discord: "Coordination",

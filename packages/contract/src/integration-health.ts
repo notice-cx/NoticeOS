@@ -62,6 +62,10 @@ export const INTEGRATION_MONITORS = {
     // Explicit connection test only.
     monitor('bing-discovery', 'Bing site discovery', ['bing-webmaster'], 'credential-probes', 'account', 'event', 'live-only', 'Review Bing site verification in Integrations.'),
   ],
+  adsense: [
+    monitor('adsense-revenue', 'Daily AdSense earnings', ['adsense'], 'adsense', 'property', 'scheduled', 'live-only', 'Review AdSense access and site mappings in Integrations.'),
+    monitor('adsense-test', 'AdSense connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review read-only AdSense access in Integrations.'),
+  ],
   mediavine: [
     // Existing daily target and bounded retry plan in mediavine_state.
     monitor('mediavine-revenue', 'Daily ad revenue', ['ad-network'], 'mediavine', 'property', 'scheduled', 'mediavine_runs', 'Review missing report dates; reconnect if the session is blocked.'),

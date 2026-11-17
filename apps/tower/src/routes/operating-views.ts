@@ -6,7 +6,7 @@ import type { ViewId } from "@shared/views";
 const SOURCES: Record<ViewId, readonly string[]> = {
   overview: [],
   growth: ["gsc", "ga4", "bing-webmaster", "dataforseo", "clarity", "posthog"],
-  revenue: ["ad-network", "affiliate-cj", "affiliate-amazon", "subscriptions", "stripe", "nightly-report"],
+  revenue: ["ad-network", "adsense", "affiliate-cj", "affiliate-amazon", "subscriptions", "stripe", "nightly-report"],
   delivery: ["github-app", "deploy-annotations", "nightly-report", "calendar", "discord-webhooks"],
   reliability: ["uptime", "egress", "nightly-report", "crux", "cloudflare"],
 };

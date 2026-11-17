@@ -188,7 +188,10 @@ export async function resolveTowerConfig(
   const stripe = (stripeProducts !== null || stripeRevenueAssignments(integrationsDoc).length > 0)
     ? fallbacks.integrations.catalog.find((row) => row.id === STRIPE_REVENUE_LANE)
     : undefined;
-  const hasStripe = integrationsCatalog?.some((row) => isObject(row) && row.id === STRIPE_REVENUE_LANE);
+  const addedCatalog = [
+    stripe,
+    fallbacks.integrations.catalog.find((row) => row.id === "adsense"),
+  ].filter(row => row && !integrationsCatalog?.some(held => isObject(held) && held.id === row.id));
   let integrationsAssets = storedAssets as IntegrationsConfig["assets"] | null;
   if (integrationsAssets !== null && stripeProducts !== null) {
     integrationsAssets = Object.fromEntries(Object.entries(integrationsAssets).map(([asset, lanes]) => {
@@ -206,7 +209,7 @@ export async function resolveTowerConfig(
   }
   const integrations =
     integrationsAssets !== null && integrationsCatalog !== null
-      ? ({ catalog: stripe && !hasStripe ? [...integrationsCatalog, stripe] : integrationsCatalog, assets: integrationsAssets, ...(stripeProducts ? { stripeProducts } : {}) } as IntegrationsConfig)
+      ? ({ catalog: [...integrationsCatalog, ...addedCatalog], assets: integrationsAssets, ...(stripeProducts ? { stripeProducts } : {}) } as IntegrationsConfig)
       : fallbacks.integrations;
 
   const countersDoc = stored.get(TOWER_CONFIG_FILES.counters);

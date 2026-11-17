@@ -92,6 +92,7 @@ export function integrationLabel(id: string, fallback: string): string {
     crux: "Chrome UX Report",
     uptime: "Uptime monitoring",
     "ad-network": "Ad revenue",
+    adsense: "AdSense revenue",
     "affiliate-cj": "CJ affiliate revenue",
     "affiliate-amazon": "Amazon affiliate revenue",
     subscriptions: "Stripe",
@@ -165,6 +166,7 @@ export interface IntegrationsConfigCatalogRow {
 export interface IntegrationsConfigCell {
   stripeAccountId?: string;
   mediavineSiteId?: string;
+  adsenseSite?: string;
   mediavineEnabled?: boolean;
   revenueHolidayCalendar?: 'none' | 'US' | 'CA' | 'US,CA';
   status: IntegrationState;
@@ -246,7 +248,7 @@ export function configuredWithoutVerification(cell: IntegrationCellBase, nowMs: 
 /** Existing source cadences, shared by the read model and its presentation.
  * Event-triggered checks (including egress) have no scheduled freshness claim. */
 export function collectionCadenceHours(laneId: string): number | null {
-  if (laneId === 'ad-network') return 24;
+  if (laneId === 'ad-network' || laneId === 'adsense') return 24;
   if (laneId === "ga4" || laneId === "gsc") return CADENCE_HOURS.googleSignals;
   if (laneId === "bing-webmaster") return CADENCE_HOURS.bingSignals;
   if (laneId === "dataforseo") return CADENCE_HOURS.dataforseoSignals;
@@ -595,6 +597,8 @@ export function undeclaredLanes(
 ): UndeclaredLane[] {
   const gaps: UndeclaredLane[] = [];
   for (const lane of catalog) {
+    // AdSense mappings are created from the account’s domain list.
+    if (lane.id === "adsense") continue;
     const owing = assets
       .filter((asset) => derivedNotApplicable(lane.scope, asset.isOs) === null)
       .filter((asset) => (declared[asset.id] ?? {})[lane.id] === undefined)

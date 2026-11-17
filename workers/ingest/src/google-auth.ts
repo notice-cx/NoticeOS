@@ -141,6 +141,7 @@ export async function mintGoogleAccessToken(
 export async function refreshGoogleAccessToken(
   grant: GoogleOAuthGrant,
   fetchImpl: typeof fetch,
+  onlyScope?: string,
 ): Promise<string> {
   return tokenRequest(
     new URLSearchParams({
@@ -150,6 +151,7 @@ export async function refreshGoogleAccessToken(
       refresh_token: grant.refreshToken,
     }),
     fetchImpl,
+    onlyScope,
   );
 }
 
@@ -175,6 +177,7 @@ export function isGoogleOAuthRevoked(error: unknown): boolean {
 async function tokenRequest(
   body: URLSearchParams,
   fetchImpl: typeof fetch,
+  onlyScope?: string,
 ): Promise<string> {
   const response = await fetchImpl(TOKEN_URL, {
     method: 'POST',
@@ -192,6 +195,9 @@ async function tokenRequest(
   }
   const token = stringField(asRecord(payload), 'access_token');
   if (!token) throw new SignalError('token_invalid_response', 'Google returned no access token.');
+  if (onlyScope !== undefined && stringField(asRecord(payload), 'scope')?.trim() !== onlyScope) {
+    throw new SignalError('google_oauth_scope', 'Authorize the requested read-only permission with a dedicated OAuth client.');
+  }
   return token;
 }
 

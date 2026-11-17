@@ -14,6 +14,7 @@ import { resolveCredential } from './credentials.js';
 import { dataForSeoCandidates } from './dataforseo-dumps.js';
 import { discoverMediavineSites } from './mediavine-connection.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT, discoverPosthogProjects } from './posthog-account.js';
+import { adSenseFailure, discoverAdSense } from './adsense.js';
 import { discoverStripeProducts, STRIPE_KEY_FIELD } from './stripe.js';
 import { POSTHOG_KEY_SLOT, resolvePosthogKeys } from './posthog-dumps.js';
 
@@ -30,7 +31,7 @@ export async function discoverSites(
 ): Promise<SiteDiscovery> {
   const checkedAt = new Date(options.nowMs ?? Date.now()).toISOString();
   const declared = integrationProvider(provider);
-  if (declared === null || !['bing-webmaster', 'dataforseo', 'posthog', 'mediavine', 'google', 'stripe'].includes(declared.id)) {
+  if (declared === null || !['bing-webmaster', 'dataforseo', 'posthog', 'mediavine', 'google', 'stripe', 'adsense'].includes(declared.id)) {
     return { ok: false, provider, checkedAt, reason: 'not-supported' };
   }
   const credential = await resolveCredential(env, declared.id as IntegrationProviderId);
@@ -43,6 +44,15 @@ export async function discoverSites(
   if (declared.id === 'mediavine') return { provider, checkedAt, ...(await mediavineSites(env, options)) };
 
   if (declared.id === 'google') return { provider, checkedAt, ...(await discoverGoogleSites(env, options)) };
+
+  if (declared.id === 'adsense') {
+    try {
+      const sites = await discoverAdSense(credential.fields, options.fetchImpl ?? fetch);
+      return { ok: true, provider, checkedAt, kind: 'account', sites };
+    } catch (error) {
+      return { ok: false, provider, checkedAt, reason: adSenseFailure(error) };
+    }
+  }
 
   if (declared.id === 'stripe') {
     const key = credential.fields[STRIPE_KEY_FIELD];

@@ -12,7 +12,7 @@ A **data source** is a service that already holds numbers about your asset: Goog
 ## Before you begin
 
 - At least one asset added. See [Add your first asset](/guides/add-your-first-site).
-- What the provider issued: **API key** (Bing), **API login** and **API password** (DataForSEO), **Personal API key** (PostHog), **Email** and **Password** (Mediavine), or a token per project (Microsoft Clarity). Google uses a sign-in instead of a key. See [Connect Google](/guides/connect-google).
+- What the provider issued: **API key** (Bing), **API login** and **API password** (DataForSEO), **Personal API key** (PostHog), **Email** and **Password** (Mediavine), or a token per project (Microsoft Clarity). Google Analytics and Search Console use [Google sign-in](/guides/connect-google). AdSense uses [read-only OAuth credentials](../11-integrations.md#adsense).
 
 ### Two places to connect, one panel
 
@@ -23,7 +23,7 @@ Both open the same panel. Opening it from an asset pre-selects that asset.
 
 ### Connected once, or per asset
 
-Google, Bing Webmaster Tools, DataForSEO, PostHog and Mediavine use one credential for the whole workspace and then collect for every asset that matches. Connect them once on **Integrations**.
+Google, Bing Webmaster Tools, DataForSEO, PostHog, AdSense and Mediavine use one credential for the whole workspace and then collect for every asset that matches. Connect them once on **Integrations**.
 
 Microsoft Clarity issues a token per project, so its panel lists your assets with a **Paste token** field on each row. Pasting a token saves it. **Run now** fetches at once, and its label shows that it uses one of the day's calls; Clarity allows ten calls per project per day.
 
@@ -33,7 +33,7 @@ Uptime needs no connection: the product checks each asset's home page every hour
 
 ### What each source costs
 
-Google, Bing, Clarity, PostHog, Mediavine, Discord and calendar feeds are free to read, within each provider's own limits.
+Google, Bing, Clarity, PostHog, AdSense, Mediavine, Discord and calendar feeds are free to read, within each provider's own limits.
 
 DataForSEO is metered. Its panel shows the spend before you start, its row shows the account credit, and collection stops at the **Monthly data cap** in **Settings** > **General**. The product ships with a cap of $25 a month.
 
@@ -61,7 +61,7 @@ Use **Integrations** → **Manage** to edit Google properties or PostHog project
 A collection that uses a connection is scheduled on that connection's **Manage** panel.
 
 1. Open **Integrations** and select **Manage** on the row.
-2. Open **Collection schedule** when it is collapsed. On the job's row, select **Paused**, **Every few minutes**, **Hourly**, **Daily** or **Weekly**, then the time. The jobs are **Ad revenue** (Mediavine), **Traffic and search archives** (Google and Bing), **Product analytics archives** (PostHog), **Search rankings and backlinks** (DataForSEO, weekly) and **Clarity recordings summary**. Each choice is saved with **Undo** beside it.
+2. Open **Collection schedule** when it is collapsed. On the job's row, select **Paused**, **Every few minutes**, **Hourly**, **Daily** or **Weekly**, then the time. The jobs are **Ad revenue** (Mediavine), **AdSense revenue**, **Traffic and search archives** (Google and Bing), **Product analytics archives** (PostHog), **Search rankings and backlinks** (DataForSEO, weekly) and **Clarity recordings summary**. Each choice is saved with **Undo** beside it.
 
 Collections that use no connection, such as **Nightly reports** and **Live traffic and counters**, are scheduled on **Settings** > **Data collection**.
 

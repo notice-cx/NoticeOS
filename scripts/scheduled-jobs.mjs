@@ -45,6 +45,8 @@ export const SCHEDULED_JOBS = [
         keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
     { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
         collectNow: [{ provider: 'mediavine', step: 'revenue' }], connections: ['mediavine'] },
+    { id: 'adsense', surface: 'system', label: 'AdSense revenue', group: 'Business signals', cron: '35 16 * * *',
+        collectNow: [{ provider: 'adsense', step: 'adsense-revenue' }], connections: ['adsense'] },
     { id: 'stripe', surface: 'system', label: 'Stripe revenue', group: 'Business signals', cron: '20 * * * *', source: 'Stripe',
         keywords: ['subscriptions', 'stripe', 'refunds'], connections: ['stripe'] },
     { id: 'tempo-mpp', surface: 'system', label: 'Tempo MPP sales', group: 'Business signals', cron: '22 * * * *', source: 'Tempo', connections: ['tempo-mpp'] },
