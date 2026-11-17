@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import { DEFAULT_RULE_CONFIG } from '@noticeos/contract';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { checkSearchTraffic } from '../src/search-traffic-alerts.js';
-import { recordSignalSuccess, type SignalIntegration, type SignalObservation } from '../src/signal-store.js';
+import { recordSignalSuccess, type SignalDateWindow, type SignalIntegration, type SignalObservation } from '../src/signal-store.js';
 import { shiftUtcDay } from '../src/shared.js';
 import { pgCount, pgRows, reset } from './helpers.js';
 
@@ -21,11 +21,15 @@ function history(metric: string, weekdayCount: number): SignalObservation[] {
   return Array.from({ length: 63 }, (_, index) => typical(shiftUtcDay(DROP, index - 63), metric, weekdayCount));
 }
 
-async function save(integration: SignalIntegration, rows: SignalObservation[], provisionalFrom: string | null = null,
-  collectedOn = shiftUtcDay(rows.at(-1)!.date, 1)) {
+async function save(integration: SignalIntegration, rows: SignalObservation[], options: {
+  provisionalFrom?: string; collectedOn?: string; window?: SignalDateWindow;
+} = {}) {
+  const window = options.window ?? { start: rows[0]!.date, end: rows.at(-1)!.date };
+  const collectedOn = options.collectedOn ?? shiftUtcDay(window.end, 1);
+  const provisionalFrom = options.provisionalFrom ?? null;
   await recordSignalSuccess(env, {
     asset: ASSET, integration, credentialRef: 'synthetic', propertyRef: 'synthetic-property',
-  }, { start: rows[0]!.date, end: rows.at(-1)!.date }, `${collectedOn}T02:30:00Z`, {
+  }, window, `${collectedOn}T02:30:00Z`, {
     observations: rows, providerRows: rows.length, provisionalFrom,
     dataState: provisionalFrom ? 'includes-provisional' : 'final',
   });
@@ -78,19 +82,22 @@ describe('search traffic alerts from stored provider counts', () => {
 
   it('requires a later Bing collection to confirm a value first reported before its day ended', async () => {
     const zero = { date: DROP, metric: 'impressions', value: 0 };
-    await save('bing-webmaster', [...history('impressions', 5_000), zero], null, DROP);
+    await save('bing-webmaster', [...history('impressions', 5_000), zero], { collectedOn: DROP });
     expect(await sweep(Date.parse(`${DROP}T12:00:00Z`))).toMatchObject({ raised: 0 });
+    await save('bing-webmaster', [], { window: { start: DROP, end: shiftUtcDay(DROP, 1) } });
     expect(await sweep()).toMatchObject({ raised: 0 });
     expect(await alerts(BING_RULE)).toEqual([]);
 
     await save('bing-webmaster', [zero]);
     expect(await sweep()).toMatchObject({ raised: 1 });
     expect(JSON.parse((await alerts(BING_RULE))[0]!.inputs)).toMatchObject({ observationEnd: DROP });
+    await save('bing-webmaster', [zero]);
+    expect(await pgCount('SELECT count(*) AS n FROM noticeos.signal_observations WHERE observed_date = $1::date', [DROP])).toBe(2);
   });
 
   it('skips provisional Google counts until a later run confirms the same values', async () => {
     const zero = { date: DROP, metric: 'clicks', value: 0 };
-    await save('gsc', [...history('clicks', 200), zero], DROP);
+    await save('gsc', [...history('clicks', 200), zero], { provisionalFrom: DROP });
     expect(await sweep()).toMatchObject({ raised: 0 });
     expect(await alerts(GOOGLE_RULE)).toEqual([]);
 

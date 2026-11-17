@@ -3,7 +3,8 @@ import { persistCollectionAttempt, type CollectionMonitoring } from './collectio
 //
 // Every attempt is durable. Successful observations are change-only snapshots:
 // a provider revision appends a new fact, while an unchanged rolling window
-// records a zero-change success without duplicating the whole history.
+// records a zero-change success without duplicating the whole history. A Bing
+// count becomes a new fact when a later pull first confirms its complete day.
 //
 // "Changed" is judged within one measurement series: the same asset,
 // integration and provider resource (`property_ref`), measured under the same
@@ -11,7 +12,7 @@ import { persistCollectionAttempt, type CollectionMonitoring } from './collectio
 // part of the series: rotating the credential does not change what is measured.
 
 import type { Ga4PropertyQuota } from '@noticeos/contract';
-import { shiftUtcDay, utcDayStartMs } from './shared.js';
+import { shiftUtcDay, utcDay, utcDayStartMs } from './shared.js';
 
 export type SignalIntegration = 'ga4' | 'gsc' | 'bing-webmaster';
 
@@ -137,7 +138,8 @@ export type SignalStoreEnv = Pick<IngestEnv, 'STORE'>;
  * reporting zone. `IS NOT DISTINCT FROM`, not `=`: a provider that states no
  * zone (Bing) records NULL, and NULL must match NULL — and only NULL — or
  * every run of that provider would re-record its whole window. */
-const PRIOR_VALUES_SQL = `SELECT o.observed_date AS date, s.metric, o.value
+const PRIOR_VALUES_SQL = `SELECT o.observed_date AS date, s.metric, o.value,
+    (r.started_at AT TIME ZONE 'UTC')::date AS collected_day
   FROM noticeos.measurement_series s
   JOIN noticeos.signal_observations o ON o.workspace_id = s.workspace_id AND o.series_id = s.series_id
   JOIN noticeos.signal_runs r ON r.workspace_id = o.workspace_id AND r.run_seq = o.run_seq
@@ -192,16 +194,18 @@ export async function recordSignalSuccess(
     // One transaction: the prior values read, then the run and its changed
     // values written, or nothing.
     env.STORE.write(async (tx) => {
-      const priorRows = await tx.query<{ date: string; metric: string; value: number }>(PRIOR_VALUES_SQL, [
+      const priorRows = await tx.query<{ date: string; metric: string; value: number; collected_day: string }>(PRIOR_VALUES_SQL, [
         target.asset, target.integration, target.propertyRef, timeZone, window.start, window.end,
       ]);
       const prior = new Map(
-        priorRows.map((row) => [`${row.date}\0${row.metric}`, row.value]),
+        priorRows.map((row) => [`${row.date}\0${row.metric}`, row]),
       );
-      const changes = result.observations.filter(
-        (observation) =>
-          prior.get(`${observation.date}\0${observation.metric}`) !== observation.value,
-      );
+      const bingDay = target.integration === 'bing-webmaster' ? utcDay(startedAt) : null;
+      const changes = result.observations.filter((observation) => {
+        const previous = prior.get(`${observation.date}\0${observation.metric}`);
+        return previous?.value !== observation.value || (bingDay !== null
+          && previous.collected_day <= observation.date && observation.date < bingDay);
+      });
       const [run] = await tx.query<{ run_seq: bigint }>(INSERT_RUN_SQL, [
         tx.workspaceId, runId, target.asset, target.integration, target.credentialRef, target.propertyRef, timeZone,
         startedAt, finishedAt, 'success', window.start, window.end, result.dataState, result.provisionalFrom,

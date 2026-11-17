@@ -152,8 +152,8 @@ export async function readPanelManifest(
  * change log, so a day first reported while still filling in would otherwise
  * stay provisional forever. The confirmation is the newest successful run of
  * the same resource and time zone whose window covers the day, or the writer
- * itself; age alone never finalizes a day. Bing does not publish a provisional
- * boundary, so a pull started during the reported UTC day cannot confirm it.
+ * itself; age alone never finalizes a day. A Bing response can omit dates inside
+ * its window. Its writer records the date again once a later pull confirms it.
  */
 export async function readDailySignalTrend(
   tx: Transaction,
@@ -193,7 +193,7 @@ export async function readDailySignalTrend(
            JOIN noticeos.signal_runs AS r
              ON r.workspace_id = o.workspace_id AND r.run_seq = o.run_seq AND r.status = 'success'
           ORDER BY o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C",
-                   r.finished_at DESC, r.run_id COLLATE "C" DESC
+                   r.finished_at DESC, o.observation_id DESC
        )
        SELECT newest.observed_date AS date,
               newest.integration,
@@ -217,9 +217,9 @@ export async function readDailySignalTrend(
                  AND c.property_ref = newest.property_ref
                  AND c.time_zone IS NOT DISTINCT FROM newest.time_zone
                  AND c.status = 'success'
-                 AND (c.run_seq = newest.run_seq
-                      OR newest.observed_date BETWEEN c.window_start AND c.window_end)
-               ORDER BY c.finished_at DESC, c.run_id COLLATE "C" DESC
+                 AND (c.run_seq = newest.run_seq OR (newest.integration <> 'bing-webmaster'
+                      AND newest.observed_date BETWEEN c.window_start AND c.window_end))
+               ORDER BY c.finished_at DESC, c.run_seq DESC
                LIMIT 1
               ) AS confirmation
         ORDER BY newest.observed_date, newest.integration COLLATE "C", newest.metric COLLATE "C"`,
