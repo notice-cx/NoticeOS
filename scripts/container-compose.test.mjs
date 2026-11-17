@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { startPlan, prepareFolder } from './start.mjs';
 import { prepareFreshPostgres, startPostgresPlan, databaseEmpty } from './start-postgres.mjs';
@@ -16,9 +17,12 @@ import { openStore } from '../packages/postgres/src/store.mjs';
 import { CONFIG_DOCUMENT_FILES, configDocumentKey } from './config-documents.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 import { INITIAL_DOCUMENTS } from '../apps/tower/e2e/fixtures.ts';
+import { EMAIL_CODE_PATHS } from './identity-protocol.mjs';
+import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER === '1';
+const customer = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER === '1';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 function fixtureSource(base) {
@@ -78,6 +82,8 @@ test('the prepared application container runs its schedules with no task service
   const state = path.join(base, 'state');
   const spokes = path.join(base, 'spokes');
   const plan = startPlan({ root: fixtureSource(base), dir: state, port: await freePortBlock() });
+  if (customer) fs.appendFileSync(path.join(plan.root, 'db/postgres/host/pg_hba.conf'),
+    'host noticeos noticeos_identity all scram-sha-256\nhost noticeos noticeos_service_grant all scram-sha-256\n');
   const pg = startPostgresPlan(plan);
   const toolEnv = Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'TMPDIR', 'LANG'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
   const endpoint = await localDockerEndpoint(runCommand, { cwd: ROOT, env: toolEnv });
@@ -145,19 +151,18 @@ test('the prepared application container runs its schedules with no task service
       }
     });
     await store.close();
-    // Preparation needs the disposable loopback ports. Before starting the
-    // app, recreate only its owned network with external routing disabled;
-    // the prepared database volumes remain untouched.
+    // The standalone proof isolates its network. The customer proof uses the
+    // real bridge and published loopback address with providers disabled.
     const config = await runCommand('docker', ['compose', '-p', pg.project, '-f', pg.compose, '--env-file', os.devNull, 'config', '--format', 'json'], { cwd: ROOT, env: databaseEnv });
     assert.equal(config.code, 0);
     const definition = JSON.parse(config.stdout);
     write(isolatedDatabases, { name: pg.project, services: definition.services, volumes: definition.volumes ?? {}, secrets: definition.secrets ?? {},
-      networks: { default: { name: `${pg.project}_default`, internal: true } } });
+      networks: { default: { name: `${pg.project}_default`, internal: !customer } } });
     assert.equal((await databases(['down'])).code, 0);
     const isolated = await databases(['up', '--detach', '--wait', '--wait-timeout', '90', 'postgres'], true);
     if (isolated.code !== 0) assert.fail(isolated.stderr);
     const network = await runCommand('docker', ['network', 'inspect', `${pg.project}_default`, '--format', '{{.Internal}}'], { env });
-    assert.equal(network.code, 0); assert.equal(network.stdout.trim(), 'true');
+    assert.equal(network.code, 0); assert.equal(network.stdout.trim(), String(!customer));
     const secretsHeld = `${plan.secrets}.held`;
     fs.renameSync(plan.secrets, secretsHeld);
     try {
@@ -225,5 +230,62 @@ test('the prepared application container runs its schedules with no task service
     assert.ok(fs.readFileSync(recordsFile, 'utf8').startsWith(before), 'scheduled-lane evidence survives an app restart');
     const settings = await query('SELECT document_key FROM noticeos.config_documents');
     assert.equal(settings.length, CONFIG_DOCUMENT_FILES.length);
+    if (customer) await t.test('customer mode uses the same app, database and ingress and can return to standalone', async () => {
+      const identity = randomBytes(32).toString('base64url'), grant = randomBytes(32).toString('base64url');
+      const user = randomUUID(), serviceId = randomUUID(), email = 'fixture-owner@example.test';
+      const prepared = await ownerSql(`ALTER ROLE noticeos_identity LOGIN PASSWORD '${identity}';
+        ALTER ROLE noticeos_service_grant LOGIN PASSWORD '${grant}';
+        GRANT CONNECT ON DATABASE noticeos TO noticeos_identity, noticeos_service_grant;
+        INSERT INTO noticeos_identity.auth_organization(id,name,slug,created_at) VALUES ('${workspace}','Fixture','container-fixture',now()) ON CONFLICT (id) DO NOTHING;
+        INSERT INTO noticeos_identity.auth_user(id,email,name,email_verified) VALUES ('${user}','${email}','Fixture owner',true);
+        INSERT INTO noticeos_identity.auth_member(organization_id,user_id,role,created_at) VALUES ('${workspace}','${user}','owner',now());
+        INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
+          VALUES ('${serviceId}','${workspace}',ARRAY['workflows.run'],now()+interval '1 hour');`);
+      assert.equal(prepared.code, 0, 'prepare only this disposable identity and schedule grant');
+      const address = (role, password) => {
+        const url = new URL(internalAddress);
+        url.username = role; url.password = password;
+        return url.href;
+      };
+      write(path.join(plan.installation, 'customer-runtime.json'), { format: 'noticeos-compose-customer/1',
+        database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
+        identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }] });
+      const preflight = await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', 'customer-check']);
+      assert.equal(preflight.code, 0, preflight.stderr);
+      const db = async () => (await databases(['ps', '--status', 'running', '--quiet', 'postgres'])).stdout.trim();
+      const dbId = await db();
+      assert.match(dbId, /^[a-f0-9]{12,64}$/u);
+      const marker = path.join(plan.installation, 'customer-runtime.enabled');
+      fs.writeFileSync(marker, 'noticeos-compose-customer/1\n', { mode: 0o600, flag: 'wx' });
+      const restart = async () => {
+        assert.equal((await compose(['stop', 'noticeos'])).code, 0);
+        const start = await compose(['start', '--wait', '--wait-timeout', '180', 'noticeos']);
+        assert.equal(start.code, 0, start.stderr);
+        assert.equal(await db(), dbId);
+        assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), containerId.stdout.trim());
+      };
+      await restart();
+      const origin = `http://127.0.0.1:${plan.port}`;
+      const post = (route, body, headers) => fetch(origin + route, { method: 'POST', signal: AbortSignal.timeout(10_000),
+        headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+      assert.equal((await fetch(origin + '/api/assets/' + osAsset)).status, 403);
+      assert.equal((await post(EMAIL_CODE_PATHS.request, { email })).status, 202);
+      const outbox = path.join(state, '.local/compose-customer/customer/mail');
+      const message = fs.readdirSync(outbox).map(file => read(path.join(outbox, file))).find(item => item.to === email);
+      const otp = message?.text.match(/\b([0-9]{6})\.$/u)?.[1];
+      assert.ok(otp, 'the fixture mailbox receives the ordinary code');
+      const verified = await post(EMAIL_CODE_PATHS.verify, { email, otp });
+      assert.equal(verified.status, 200);
+      const cookie = verified.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+      const session = await (await fetch(origin + '/api/session', { headers: { cookie } })).json();
+      const headers = { cookie, [WORKSPACE_SELECTION_HEADER]: workspace, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
+      const mcp = await post('/api/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' }, headers);
+      assert.equal(mcp.status, 200);
+      assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
+      fs.unlinkSync(marker);
+      await restart();
+      assert.equal((await get('api/health')).ok, true);
+      assert.equal((await query('SELECT document_key FROM noticeos.config_documents')).length, settings.length);
+    });
   } finally { await store.close(); }
 });

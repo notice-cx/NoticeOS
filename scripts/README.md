@@ -24,6 +24,7 @@
 | `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
 | `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
+| `os:customer-check` | Run the installation's Docker Compose stack: status, logs, start, stop, restart, and one-off jobs in the app. | `scripts/stack-control.mjs customer-check` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |

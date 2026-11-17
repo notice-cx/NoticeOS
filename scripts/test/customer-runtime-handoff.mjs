@@ -1,18 +1,23 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../browser-request-policy.mjs';
 import { hostedTaskAuthorization } from '../hosted-task-request.mjs';
+import { buildHostedApp } from '../hosted-demo-build.mjs';
+import { startPreparedCustomer } from '../local-customer-attach.mjs';
+import { openCustomerTarget } from '../local-customer-operating.mjs';
 import { applyMigrations, bootstrapWorkspace } from '../postgres-migrate.mjs';
+import { releasedDefaultDocuments } from '../released-defaults.mjs';
 import { REPO_ROOT } from '../test-config-isolation.mjs';
 import { shadowEvidence } from '../test-fixtures/customer-shadow-evidence.mjs';
 import { bundleWorkerFixture, Miniflare } from '../worker-entry-test-fixture.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../../packages/postgres/src/email-code.mjs';
 import { openIdentity } from '../../packages/postgres/src/identity.mjs';
 import { openWorkspaceServiceGrant } from '../../packages/postgres/src/service-grant.mjs';
+import { customerReadinessStatus } from '../../deploy/compose/health.mjs';
 
-/** Scope fixtures only. Current production tools do not enroll the existing
- * workspace in-place or start both profiles against an owned archive path. */
+/** Open the same disposable stores one runtime at a time. */
 export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntasksOrigin, actor, t }) {
   const database = 'noticeos_handoff_dev';
   postgres.cluster.onDatabase('postgres').run(`CREATE DATABASE ${database};`);
@@ -25,6 +30,9 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
   copy.run(`INSERT INTO noticeos.assets(workspace_id,asset_id,domain,display_name,status,list_position)
     VALUES (:'workspace'::uuid, :'asset', :'asset', 'Canopy', 'live', 1);
     INSERT INTO noticeos.config_documents(workspace_id,document_key,version,body,updated_at,updated_by)
+    SELECT :'workspace'::uuid, key, 1, body::jsonb, now(), 'fixture'
+      FROM jsonb_to_recordset(:'defaults'::jsonb) AS doc(key text, body text) WHERE key NOT IN ('beads','constants','tower');
+    INSERT INTO noticeos.config_documents(workspace_id,document_key,version,body,updated_at,updated_by)
     VALUES (:'workspace'::uuid,'beads',1,:'spokes'::json,now(),'fixture');
     INSERT INTO noticeos_identity.auth_organization(id,name,slug,created_at)
     VALUES (:'workspace'::uuid, 'Handoff fixture', :'slug', now()) ON CONFLICT (id) DO NOTHING;
@@ -34,7 +42,7 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     VALUES (:'workspace'::uuid, :'user'::uuid, 'owner', now());
     INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
     VALUES (:'service'::uuid, :'workspace'::uuid, ARRAY['workflows.run'], now()+interval '1 hour');`, {
-    vars: { workspace: workspaceId, asset, slug, user: userId, email, service: serviceId,
+    vars: { workspace: workspaceId, asset, slug, user: userId, email, service: serviceId, defaults: JSON.stringify(releasedDefaultDocuments()),
       spokes: JSON.stringify({ spokes: [{ asset, prefix: actor.prefix, database: actor.prefix }] }) },
   });
   const toCopy = connection => {
@@ -43,7 +51,8 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     return url.href;
   };
   const appAddress = toCopy(postgres.address), identityAddress = toCopy(postgres.identityDatabase);
-  const serviceGrant = openWorkspaceServiceGrant({ connectionString: toCopy(postgres.grantConnectionString),
+  const grantAddress = toCopy(postgres.grantConnectionString);
+  const serviceGrant = openWorkspaceServiceGrant({ connectionString: grantAddress,
     workspaceId, principalId: serviceId });
   try { assert.deepEqual((await serviceGrant.facts()).actions, ['workflows.run']); }
   finally { await serviceGrant.close(); }
@@ -87,21 +96,16 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     return fetch(url, { method: request.method, headers: Object.fromEntries(request.headers), redirect: 'error',
       ...(request.body ? { body: await request.arrayBuffer() } : {}) });
   };
-  const start = profile => {
-    const bindings = { NOTICEOS_WORKSPACE_PROFILE: profile, CREDENTIALS_KEY: credentialsKey };
-    const hosted = profile === 'hosted';
-    if (hosted) Object.assign(bindings, { NOTICEOS_WORKSPACE_ORIGIN: ownerOrigin,
-      NOTICEOS_WORKSPACE_DATABASE_URL: appAddress, NOTICEOS_IDENTITY_DATABASE_URL: identityAddress,
-      NOTICEOS_IDENTITY_SESSION_SECRET: sessionSecret, NOTICEOS_LOCAL_SITE_REPORTS: '1',
-      NOTICEOS_NTASKS_ORIGIN: ntasksOrigin });
+  const startStandalone = () => {
+    const bindings = { NOTICEOS_WORKSPACE_PROFILE: 'standalone', CREDENTIALS_KEY: credentialsKey };
     // Wrangler expands --persist-to to this same v3 root and opens RAW_SIGNALS
     // under the bucket name in its standalone worker configuration.
     return new Miniflare({ host: '127.0.0.1', port: 0, cf: false, telemetry: { enabled: false }, resourcePersistencePath: archiveRoot,
       workers: [
-        { ...tower, name: 'handoff-tower', bindings, hyperdrives: hosted ? undefined : { POSTGRES: appAddress },
+        { ...tower, name: 'handoff-tower', bindings, hyperdrives: { POSTGRES: appAddress },
           serviceBindings: { INGEST: 'handoff-ingest' } },
         { ...ingest, name: 'handoff-ingest', bindings: { ...bindings, OPERATOR_TOKEN: operator,
-          ASSET_TOKENS: JSON.stringify({ [asset]: sender }) }, hyperdrives: hosted ? undefined : { POSTGRES: appAddress },
+          ASSET_TOKENS: JSON.stringify({ [asset]: sender }) }, hyperdrives: { POSTGRES: appAddress },
           r2Buckets: { RAW_SIGNALS: output }, outboundService: allowLocalNtasks },
       ],
     });
@@ -128,9 +132,9 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
   };
   const archives = (runtime, profile) => runtime.getR2Bucket('RAW_SIGNALS', 'handoff-ingest')
     .then(bucket => evidence.readSourceArchives({ bucket, databaseUrl: appAddress, profile }));
-  let runtime;
+  let runtime, hostedApp;
   try {
-    runtime = start('standalone');
+    runtime = startStandalone();
     const before = await runtime.getWorker('handoff-ingest');
     await evidence.initializeSourceBucket(await runtime.getR2Bucket('RAW_SIGNALS','handoff-ingest'));
     assert.equal((await sendReport(before, sender, at, 7)).status, 201);
@@ -140,23 +144,52 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     assert.deepEqual((await readStandaloneProject(runtime, '/api/tasks/projects')).projects.map(row => row.projectId), [actor.projectId]);
     await runtime.dispose(); runtime = undefined;
 
-    runtime = start('hosted');
-    assert.equal((await readReport(runtime, owner)).metrics.find(metric => metric.name === 'signups')?.last24h, 7);
-    assert.deepEqual(await archives(runtime, 'hosted'), [evidence.ownKey]);
-    const hosted = await runtime.getWorker('handoff-tower');
-    const issue = await hosted.fetch(ownerOrigin + '/api/assets/' + asset + '/report-token', { method: 'POST', headers: owner });
+    const artifactRoot = path.join(root, 'handoff', 'hosted-artifacts');
+    await buildHostedApp({ out: artifactRoot, profile: 'hosted' });
+    const customerState = path.join(root, 'handoff', 'customer');
+    mkdirSync(customerState, { mode: 0o700 });
+    const plan = { root: REPO_ROOT, url: ownerOrigin, port: Number(new URL(ownerOrigin).port) };
+    const operating = { address: appAddress, identityAddress, grantAddress, credentialsKey, identitySecret: sessionSecret,
+      siteReports: true, googleDaily: false, ntasksOrigin, mailRecipients: [email], workspaces: [{ workspaceId, serviceId }],
+      target: new URL(appAddress).host + '/' + database };
+    const receipt = path.join(customerState, 'target.json');
+    const open = () => openCustomerTarget(plan, operating, path.join(customerState, 'app'), receipt);
+    hostedApp = await startPreparedCustomer(plan, await open(), { deployment: { artifactRoot, archiveBucket: output, workerState: archiveRoot,
+      listenPort: plan.port, bridgePeer: '172.17.0.1' } });
+    await assert.rejects(open(), /already owns/u);
+    const readiness = host => customerReadinessStatus(ownerOrigin + '/_noticeos/ready', { host, signal: AbortSignal.timeout(3_000) });
+    assert.equal(await readiness(new URL(ownerOrigin).host), 204);
+    assert.equal(await readiness('foreign.example'), 400);
+    const report = await fetch(ownerOrigin + '/api/assets/' + asset, { headers: owner });
+    assert.equal(report.status, 200);
+    assert.equal((await report.json()).metrics.find(metric => metric.name === 'signups')?.last24h, 7);
+    assert.equal((await fetch(ownerOrigin + '/api/assets/' + asset)).status, 403);
+    const mcp = await fetch(ownerOrigin + '/api/mcp', { method: 'POST', headers: { ...owner, 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+    assert.equal(mcp.status, 200);
+    assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
+    const issue = await fetch(ownerOrigin + '/api/assets/' + asset + '/report-token', { method: 'POST', headers: owner });
     assert.equal(issue.status, 201);
     const pilotAt = '2026-10-03T18:00:00Z';
     const { token: pilotToken } = await issue.json();
-    assert.equal((await sendReport(hosted, sender, pilotAt, 99)).status, 401);
-    assert.equal((await sendReport(hosted, pilotToken, pilotAt, 9)).status, 201);
-    const task = await hosted.fetch(ownerOrigin + '/api/tasks', { method: 'POST', headers: { ...board, 'content-type': 'application/json',
+    assert.equal((await sendReport({ fetch }, sender, pilotAt, 99)).status, 401);
+    assert.equal((await sendReport({ fetch }, pilotToken, pilotAt, 9)).status, 201);
+    const task = await fetch(ownerOrigin + '/api/tasks', { method: 'POST', headers: { ...board, 'content-type': 'application/json',
       'idempotency-key': 'same-store-handoff-write' }, body: JSON.stringify({ projectId: actor.projectId, title: 'Retain the pilot decision' }) });
     assert.equal(task.status, 200);
     const { id } = await task.json();
-    await runtime.dispose(); runtime = undefined;
+    await hostedApp.close(); hostedApp = undefined;
 
-    runtime = start('standalone');
+    const approved = activation => openCustomerTarget(plan, { ...operating, googleDaily: true }, path.join(customerState, 'app'), receipt, { activation });
+    const withActivation = async (activation, check) => {
+      const target = await approved(activation);
+      try { check(target); } finally { await target.close(); }
+    };
+    await withActivation('first', target => { assert.equal(target.resumeSince, undefined); target.ready(); });
+    await withActivation('first', target => assert.ok(Number.isFinite(target.resumeSince)));
+    await withActivation('after-standalone', target => assert.equal(target.resumeSince, undefined));
+
+    runtime = startStandalone();
     assert.equal((await readReport(runtime)).metrics.find(metric => metric.name === 'signups')?.last24h, 9);
     const originalIntake = await runtime.getWorker('handoff-ingest');
     assert.equal((await sendReport(originalIntake, pilotToken, pilotAt, 99)).status, 401);
@@ -167,6 +200,6 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     const dates = copy.sql(`SELECT pulse_date::text AS day, envelope->'metrics'->'signups'->>'last24h' AS signups
       FROM noticeos.current_pulses ORDER BY pulse_date`);
     assert.deepEqual(dates, [{ day: date, signups: '7' }, { day: '2026-10-03', signups: '9' }]);
-    t.diagnostic('The same database, raw bucket and pinned Ntasks project served standalone, then hosted, then standalone. Hosted exposed the namespaced raw archive only.');
-  } finally { await runtime?.dispose(); }
+    t.diagnostic('The same database, raw bucket and pinned Ntasks project served standalone, then the packaged runtime, then standalone.');
+  } finally { try { await hostedApp?.close(); } finally { await runtime?.dispose(); } }
 }

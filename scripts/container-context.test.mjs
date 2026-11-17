@@ -12,7 +12,7 @@ const NOTICES = ['docker-cli-28.5.2-LICENSE.txt', 'docker-cli-28.5.2-NOTICE.txt'
 
 const required = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
   'deploy/compose/licenses/sources.json',
-  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs',
+  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs', 'deploy/compose/customer-entry.mjs',
   ...NOTICES, ...STACK_SOURCES, 'deploy/compose/noticeos'];
 function fixture(t) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-context-'));

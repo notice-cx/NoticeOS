@@ -42,6 +42,7 @@ COPY . .
 # built before /state exists so the build reads the image's defaults only.
 RUN pnpm install --frozen-lockfile \
     && pnpm --filter @noticeos/tower run build \
+    && DO_NOT_TRACK=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_CF_FETCH_ENABLED=false node scripts/hosted-demo-build.mjs --out /opt/noticeos/customer-artifacts --profile hosted \
     && chmod 644 node_modules/.pnpm-workspace-state-v1.json \
     && mkdir -p /opt/noticeos/apps/tower/node_modules/.vite-temp \
     && ln -s /state/.local .local && ln -s /state/.wrangler .wrangler \

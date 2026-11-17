@@ -36,7 +36,7 @@ import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 import { manualScheduledJob } from './scheduled-jobs.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp', 'customer-check'];
 const SERVICES = ['postgres', 'backup', 'noticeos'];
 /** Services an earlier stack ran and this one does not: an installation set up
  * while its tasks were in Dolt keeps that stopped container and its volume,
@@ -45,10 +45,11 @@ export const RETIRED = ['dolt'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000,
-  'refresh-comparison': 180_000, mcp: Infinity };
+  'refresh-comparison': 180_000, mcp: Infinity, 'customer-check': 30_000 };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs restart postgres|backup|noticeos
        stack-control.mjs refresh-comparison
+       stack-control.mjs customer-check
        stack-control.mjs logs [--follow] [--lines N] [postgres|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>]
        stack-control.mjs run-job --id <job-id>
@@ -151,7 +152,7 @@ export function actionArgs(action, args) {
   }
   if (action === 'restart' && args.length === 1 && SERVICES.includes(args[0])) return { service: args[0] };
   if (args.length) refuse(HELP);
-  if (action === 'refresh-comparison') return { job: ['refresh-comparison'] };
+  if (['refresh-comparison', 'customer-check'].includes(action)) return { job: [action] };
   return action === 'backup' ? { job: ['backup'] } : {};
 }
 

@@ -8,8 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
+import { composeArchiveState, composeBridgePeer, composeCustomerPlan, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
+import { readComposeCustomerOperating } from './local-customer-operating.mjs';
+import { actionArgs } from './stack-control.mjs';
 import { towerAllowedHosts } from '../apps/tower/vite/allowed-hosts.ts';
 
 function io(defect) {
@@ -83,6 +86,80 @@ test('container health requires a fresh supervised runner and both answering int
   assert.equal(await check({}, async () => { throw new Error('Own fixture refused'); }), false);
   assert.equal(await containerHealthy({ read: async () => JSON.stringify(state), now: () => now,
     backupStatus: async () => ({ configured: true, available: false }) }), false);
+});
+
+test('the same container explicitly selects one customer clock, exact loopback ingress and its existing raw storage', t => {
+  const missing = () => { throw Object.assign(new Error(), { code: 'ENOENT' }); };
+  const select = (value, mode = 0o600) => selectedCustomerProfile({ lstatSync: () => ({
+    isFile: () => true, uid: process.getuid(), size: value.length, mode,
+  }), readFileSync: () => value });
+  assert.equal(selectedCustomerProfile({ lstatSync: missing }), 'standalone');
+  assert.equal(select('noticeos-compose-customer/1\n'), 'customer');
+  assert.throws(() => select('noticeos-compose-customer/1\n', 0o644), ContainerRefusal);
+  assert.throws(() => select('unknown\n'), ContainerRefusal);
+  assert.deepEqual(containerCommand([], 'customer'), ['deploy/compose/customer-entry.mjs']);
+  assert.deepEqual(containerCommand(['capacity'], 'customer'), ['scripts/os-capacity.mjs']);
+  assert.deepEqual(actionArgs('customer-check', []), { job: ['customer-check'] });
+  assert.deepEqual(containerCommand(['customer-check']), ['deploy/compose/customer-entry.mjs', '--check']);
+  assert.throws(() => actionArgs('customer-check', ['--apply']));
+  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com']]) {
+    assert.equal(containerCommand(command, 'customer'), null);
+  }
+
+  const plan = composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' });
+  assert.equal(plan.url, 'http://127.0.0.1:25173');
+  assert.throws(() => composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173' }), ContainerRefusal);
+  const header = 'Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n';
+  const route = 'eth0 00000000 010011AC 0003 0 0 0 00000000 0 0 0\n';
+  const subnet = 'eth0 000011AC 00000000 0001 0 0 0 0000FFFF 0 0 0\n';
+  assert.equal(composeBridgePeer(header + route + subnet), '172.17.0.1');
+  assert.throws(() => composeBridgePeer(header + subnet), ContainerRefusal);
+  assert.throws(() => composeBridgePeer(header + route + route), ContainerRefusal);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-compose-archive-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const archive = composeArchiveState(root, fs, dir => fs.mkdirSync(dir, { recursive: true, mode: 0o700 }));
+  fs.writeFileSync(path.join(archive, 'existing'), 'keep');
+  assert.equal(composeArchiveState(root, fs, () => {}), path.join(root, '.wrangler/state/v3'));
+  assert.equal(fs.readFileSync(path.join(archive, 'existing'), 'utf8'), 'keep');
+  const alternate = path.join(root, 'alternate');
+  fs.mkdirSync(alternate);
+  fs.symlinkSync(path.join(root, '.wrangler'), path.join(alternate, '.wrangler'));
+  assert.throws(() => composeArchiveState(alternate, fs, () => {}), ContainerRefusal);
+
+  const file = path.join(root, 'prepared.json');
+  const database = { identity: 'postgresql://noticeos_identity:fixture@postgres/product',
+    grant: 'postgresql://noticeos_service_grant:fixture@postgres:5432/product' };
+  const bootstrap = { DATABASE_URL: 'postgresql://noticeos_app:fixture@postgres:5432/product', CREDENTIALS_KEY: 'A'.repeat(43) + '=' };
+  const options = { format: 'noticeos-compose-customer/1', database, identitySecret: 'fixture'.repeat(8),
+    mailRecipients: ['owner@example.test'], workspaces: [{ workspaceId: '00000000-0000-4000-8000-000000000001', serviceId: '00000000-0000-4000-8000-000000000002' }] };
+  const read = (value = {}) => {
+    fs.writeFileSync(file, JSON.stringify({ ...options, ...value }), { mode: 0o600 });
+    return readComposeCustomerOperating(file, plan, bootstrap);
+  };
+  const prepared = read();
+  assert.equal(prepared.target, 'postgres:5432/product');
+  assert.equal(prepared.googleDaily, false);
+  assert.equal(prepared.ntasksOrigin, null);
+  assert.throws(() => read({ database: { ...database, grant: database.grant.replace('/product', '/different') } }), /existing database/u);
+  assert.throws(() => read({ database: { ...database, identity: database.identity.replace('@postgres', '@foreign.example') } }), /existing database/u);
+  assert.throws(() => read({ database: { ...database, app: bootstrap.DATABASE_URL } }), /existing database/u);
+});
+
+test('customer readiness does not fall back to stale standalone state or ignore a declared backup', async () => {
+  const env = { NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' };
+  const checks = [];
+  const health = { profile: () => 'customer', env, read: async () => assert.fail('stale runner state'),
+    backupStatus: async () => ({ configured: false }), customerProbe: async (url, options) => {
+      checks.push([url, options.host]); return 204;
+    } };
+  assert.equal(await containerHealthy(health), true);
+  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:25173']]);
+  assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
+  for (const available of [true, false]) {
+    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);
+  }
+  assert.equal(await containerHealthy({ ...health, profile: () => null }), false);
 });
 
 test('live source is explicit, checks dependencies and keeps the same installation boundaries', () => {
