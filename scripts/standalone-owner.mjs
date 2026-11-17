@@ -95,7 +95,7 @@ async function run(args, input) {
   if (action === 'send-code' || action === 'verify-code') {
     if (!plan.mail) throw new Error('Configure delivery to the intended email before requesting an enrollment code.');
     const login = openEmailCodeLogin({ connectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin,
-      sessionSecret: plan.identitySecret, peerAddress: '127.0.0.1',
+      sessionSecret: plan.identitySecret, peerAddress: '127.0.0.1', standaloneOwnerWorkspaceId: plan.workspaceId,
       deliver: message => sendMail(plan.mail, plan.intendedEmail, message) });
     try {
       const verify = action === 'verify-code';

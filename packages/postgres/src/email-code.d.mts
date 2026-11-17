@@ -5,6 +5,8 @@ export { EMAIL_CODE_PATHS, type EmailEnrollment } from '../../../scripts/identit
 export interface EmailCodeOptions extends IdentityOptions {
     /** Supplied by a trusted outer server adapter, never a browser/RPC IP claim. */
     readonly peerAddress: string;
+    /** The private operator command binds its email operations to one workspace. */
+    readonly standaloneOwnerWorkspaceId?: string;
     /** Called only after database commit. No real sender is selected here. */
     readonly deliver: (message: EmailCodeMessage) => Promise<void>;
 }

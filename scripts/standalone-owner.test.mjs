@@ -159,12 +159,18 @@ test('operator enrollment preserves a populated standalone workspace through own
     const unavailableMail = await cmd('send-code', renewed.enrollmentId);
     assert.equal(unavailableMail.status, 1);
     assert.equal(existsSync(inbox), false);
+    writePlan({ workspaceId: randomUUID() });
+    await must('send-code', renewed.enrollmentId);
+    assert.equal(existsSync(inbox), false);
     writePlan();
     await must('send-code', renewed.enrollmentId);
     const letter = readFileSync(inbox, 'utf8');
     assert.match(letter, /^To: owner@example\.test$/mu);
     const code = /\b(\d{6})\./u.exec(letter)?.[1];
     assert.match(code ?? '', /^\d{6}$/u);
+    writePlan({ workspaceId: randomUUID() });
+    assert.equal((await cmd('verify-code', renewed.enrollmentId, code)).status, 1);
+    writePlan();
     const proof = await must('verify-code', renewed.enrollmentId, code);
     assert.equal(proof.emailVerified, true);
     assert.deepEqual(counts(), { members: '0', grants: '0' });
