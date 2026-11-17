@@ -26,7 +26,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **Cloudflare** | R2 (raw archives), Analytics Engine (the default report counter for assets without a database), D1 asset-database backups ([below](#cloudflare-d1-backups)); GraphQL analytics (edge traffic, crawler hits); **AI Gateway** (budget enforcement, fallbacks); health checks | everything; Act (deploys); doc 06 (caps) | API tokens, scoped per account | Infra ≈ free tier today; AI Gateway free (and its budget enforcement prevents overspend) | AE free tier covers the report counters' volume; GraphQL analytics rate-limited but generous | infra failure = incident, not degradation |
 | **GitHub App** | PR create/read, checks, deploy webhooks, file contents | Act, Sense (deploy annotations) | App private key (the most sensitive credential — doc 06 rotation) | Free | 5k req/hr/installation — ample | Act pauses; Sense keeps running |
 | **Model providers (via AI Gateway)** | builder/verifier/judge inference | Act, Decide sweeps | keys behind the gateway only | Metered per token; **the dominant OS cost** | per-run/day/month caps, velocity breaker (doc 06) | fallback chain → pause Act |
-| **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine daily collector; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
+| **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine and AdSense daily collectors; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
 | **Mercury** ([below](#mercury)) | deposit-account balances and recent bank activity → Money, separate from revenue and costs | Sense (cash collection) | a Read Only API token connected on `/integrations` | Free | hourly; at most 10 pages of 1,000 rows per endpoint, over the last 35 days | retain the previous complete observation when a page fails or a limit is reached |
 | **Stripe** ([below](#stripe)) | Daily net receipts by mapped product and asset | Sense (revenue collection) | one restricted key on **Integrations**, with read access to the account, products and payment records | Free | reads completed UTC days, starting with up to 35 days | retains saved receipts and records transactions without a single asset in the job’s unassigned count |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
@@ -167,6 +167,29 @@ Tower signs in with the app Ntasks registers for that address.
 [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
 mapping sites to projects, registering the Tower for sign-in, connecting agents
 and what the Tower shows while Ntasks does not answer.
+
+## AdSense
+
+Google AdSense collects daily **Estimated earnings** for the sites you map to
+assets. The first run reads the previous calendar month and this month through
+yesterday on Google’s Pacific reporting calendar. Later runs refresh the same
+window so Google’s revisions reach **Money**. Dates with no figure stay blank.
+The **Daily revenue** panel shows the last reported date.
+
+1. In [Google Cloud](https://console.cloud.google.com/apis/library/adsense.googleapis.com), enable the **AdSense Management API** in a project dedicated to this connection. Create a **Web application** OAuth client and add `https://developers.google.com/oauthplayground` to its authorized redirect URIs.
+2. Open [Google’s OAuth Playground](https://developers.google.com/oauthplayground/). In settings, select **Use your own OAuth credentials** and enter the client ID and secret.
+3. Authorize `https://www.googleapis.com/auth/adsense.readonly` with the Google account that can read your AdSense sites. Select **Exchange authorization code for tokens** and copy the **Refresh token**.
+4. In the Tower, open **Integrations → Google AdSense → Connect**. Enter the client ID, client secret, and refresh token. Select **Connect**.
+5. Review the site matches, select **Start collecting**, then open the asset’s **Money** tab. Use **Manage → Asset mappings** to change a match and **Collection schedule** to change when it runs.
+
+Use a published consent screen for a recurring sync. Google’s external apps in
+Testing receive refresh tokens that expire after seven days. To revoke the
+grant, remove the dedicated app from [Google Account connections](https://myaccount.google.com/connections).
+
+For a manual import of an older month, set the revenue source to
+`adsense-report`. When the collected daily figures cover at least the same
+dates, the monthly ledger uses the daily figures. Reconciled entries keep
+their precedence.
 
 ## Mediavine revenue
 

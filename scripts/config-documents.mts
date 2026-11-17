@@ -4,7 +4,7 @@ import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
   DISCORD_REVENUE_KEY, NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
-  readStripeProductMapping, STRIPE_PRODUCTS_POINTER, stripeRevenueAssignments, TOWER_CONFIG_FILES,
+  adSenseAssignments, readStripeProductMapping, STRIPE_PRODUCTS_POINTER, stripeRevenueAssignments, TOWER_CONFIG_FILES,
   readTempoMppSettings, TEMPO_MPP_POINTER,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
@@ -1184,7 +1184,12 @@ export function applyDocumentOps(resolved: Resolved[], documents: Map<string, un
     }
   }
   if (touched.has(TOWER_CONFIG_FILES.integrations)) {
-    const stripeAfter = stripeRevenueAssignments(documents.get(TOWER_CONFIG_FILES.integrations));
+    const integrations = documents.get(TOWER_CONFIG_FILES.integrations);
+    const assignments = adSenseAssignments(integrations).filter(assignment => !assignment.paused);
+    if (new Set(assignments.map(({ site }) => site)).size !== assignments.length) {
+      throw new ChangesetError('Assign each AdSense site to one asset.');
+    }
+    const stripeAfter = stripeRevenueAssignments(integrations);
     if (stripeBefore.length < stripeAfter.length && stripeAfter.length > 1) {
       throw new ChangesetError('Stripe revenue can be assigned to one asset. Remove the existing assignment first.');
     }

@@ -22,7 +22,7 @@
 import type { CollectNowRefusal, DiscoveredSite, SiteDiscovery, SiteSpendPreview } from "@noticeos/contract/site-discovery";
 import { siteHost } from "@noticeos/contract/site-discovery";
 import { DATAFORSEO_BASELINE } from "./site-markets";
-import type { FileJsonSetOp, JsonValue } from "./changeset";
+import { escapePointerToken, type FileJsonInsertOp, type FileJsonSetOp, type JsonValue } from "./changeset";
 import { declineOps } from "./lane-decline";
 import { laneFieldOp } from "./lane-mapping-ops";
 
@@ -185,7 +185,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
         if (cell?.status === "skipped" || cell?.status === "not-applicable") return { lane, saved, site: null, state: "unlisted" as const };
         // A manual mapping still collects when the current account list omits it.
         const fallback = collection.googleFallbacks?.has(`${asset.id}/${lane}`) === true;
-        const ref = saved?.propertyId || saved?.siteUrl || (saved?.host && saved?.projectId)
+        const ref = saved?.propertyId || saved?.siteUrl || saved?.adsenseSite || (saved?.host && saved?.projectId)
           || (fallback ? `${lane}-account` : null);
         const site: DiscoveredSite | null = mapped ?? (ref ? {
           lane, ref: String(ref), label: fallback ? "Saved account mapping" : String(ref),
@@ -315,7 +315,7 @@ export function unclaimedSites(plan: SitePlan, selection: SiteSelection): Discov
 export interface StartPlan {
   /** The `asset-lane` writes, one per field that changes. Empty when every
    * confirmed site is already mapped (or the lane needs no mapping). */
-  ops: FileJsonSetOp[];
+  ops: (FileJsonInsertOp | FileJsonSetOp)[];
   /** The assets whose first collection runs now. */
   assets: string[];
   /** The assets saved as Not using in the same press. */
@@ -333,7 +333,7 @@ export interface StartPlan {
  * collected on schedule, and says so.
  */
 export function startPlan(plan: SitePlan, selection: SiteSelection): StartPlan {
-  const ops: FileJsonSetOp[] = [];
+  const ops: StartPlan["ops"] = [];
   const assets: string[] = [];
   const declined: string[] = [];
   for (const row of plan.rows) {
@@ -352,10 +352,18 @@ export function startPlan(plan: SitePlan, selection: SiteSelection): StartPlan {
     assets.push(row.asset.id);
     for (const lane of row.lanes) {
       const site = chosenSite(row, lane, selection);
-      // No cell: the register has no entry for this lane, so there is nothing
-      // the Data sources tab could write either — the lane's own fallback
-      // (Bing's domain match) is what collects it.
-      if (site === null || lane.saved === null) continue;
+      if (site === null) continue;
+      if (lane.saved === null) {
+        if (!plan.savedOnly && lane.lane === "adsense") {
+          const entry = { status: "needs-setup", since: new Date().toISOString().slice(0, 10), ...site.mapping };
+          const holder = `/assets/${escapePointerToken(row.asset.id)}`;
+          ops.push({ kind: "file-json-insert", file: "config/integrations.json",
+            pointer: row.asset.hasIntegrationEntry ? `${holder}/adsense` : holder,
+            value: row.asset.hasIntegrationEntry ? entry : { adsense: entry },
+          });
+        }
+        continue;
+      }
       for (const [field, value] of Object.entries(plan.savedOnly ? {} : site.mapping)) {
         const held = lane.saved[field] ?? null;
         if (held === value) continue;

@@ -306,7 +306,7 @@ function LaneRow({
   ) : null;
   const spec = provider ? integrationProvider(provider) : null;
   const stripe = catalog.id === STRIPE_REVENUE_LANE;
-  const central = spec?.id === "google" || spec?.id === "posthog" || spec?.id === "mediavine" || stripe;
+  const central = spec?.id === "google" || spec?.id === "posthog" || spec?.id === "mediavine" || spec?.id === "adsense" || stripe;
   const manage = central && spec && !connectable(reading) ? (
     <Button asChild size="sm" variant="ghost">
       <Link to={demoReadonly ? `/integrations?provider=${spec.id}` : connectHref(spec.id, asset)}

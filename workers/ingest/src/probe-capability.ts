@@ -17,6 +17,7 @@ export const PROBE_CAPABILITY: Record<IntegrationProviderId, string> = {
   calendar: 'calendar-test',
   discord: 'discord-test',
   mediavine: 'mediavine-test',
+  adsense: 'adsense-test',
   clarity: 'clarity-setup',
   posthog: 'posthog-test',
   'google-oauth-app': 'google-app-setup',

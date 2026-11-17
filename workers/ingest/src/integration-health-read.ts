@@ -1,4 +1,4 @@
-import { readStripeProductMapping, stripeProductTargets } from '@noticeos/contract/configuration';
+import { adSenseAssignments, readStripeProductMapping, stripeProductTargets } from '@noticeos/contract/configuration';
 import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import {
   INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER, REALTIME_ATTEMPT_EVIDENCE,
@@ -6,7 +6,7 @@ import {
   type IntegrationMonitorDefinition, type IntegrationProviderId, type IntegrationObservation,
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
-import { cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, cronIntervalMinutes, scheduleFor, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
 import { ga4CoreCooldown } from './ga4-core.js';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
@@ -25,6 +25,7 @@ import { DATAFORSEO_OVERDUE_GRACE_HOURS, POSTHOG_FAMILIES, mediavineSyncOn, site
 import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister } from './lane-mapping.js';
 import { eligibleAssets } from './hygiene.js';
 import { CRUX_DAILY_CAPABILITY } from './crux.js';
+import { ADSENSE_REVENUE_CAPABILITY } from './adsense.js';
 import { STRIPE_LANE, STRIPE_REVENUE_CAPABILITY } from './stripe.js';
 import { BING_CREDENTIAL_REF } from './bing-client.js';
 
@@ -161,6 +162,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   let panel: SerpPanelConfig;
   let realtimeSchedule: { enabled: boolean; cron: string } = { enabled: true, cron: "* * * * *" };
   let mercurySchedule = { enabled: true, cron: '40 * * * *' };
+  const adSenseJob = SCHEDULED_JOBS.find(job => job.id === 'adsense')!;
+  let adSenseSchedule = scheduleFor(adSenseJob, {});
   try {
     const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json', 'config/constants.json'].map(file => getConfigDocument(env, file)));
     if (reads.slice(0, 3).some(read => read.source !== 'store' || read.version === null || !read.body || typeof read.body !== 'object')) throw new Error('Inventory unavailable');
@@ -170,6 +173,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const schedules = (reads[3]?.body as { schedules?: ScheduleOverrides } | undefined)?.schedules;
     realtimeSchedule = schedules?.['ga4-realtime'] ?? realtimeSchedule;
     mercurySchedule = schedules?.mercury ?? mercurySchedule;
+    adSenseSchedule = scheduleFor(adSenseJob, schedules ?? {});
     if (!register.assets || typeof register.assets !== 'object') throw new Error('Inventory unavailable');
   } catch { return { ...payload, available: false }; }
 
@@ -432,6 +436,14 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       } else if (provider === 'mercury') {
         await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
           requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });
+      } else if (provider === 'adsense') {
+        const eligible = new Set((await eligibleAssets(env)).map(({ asset }) => asset));
+        for (const { asset, site, paused } of adSenseAssignments(register)) {
+          if (!eligible.has(asset)) continue;
+          await add({ connection, capability: ADSENSE_REVENUE_CAPABILITY, asset, target: site,
+            paused: paused || !adSenseSchedule.enabled,
+            requiredSince: since(nowMs, (cronIntervalMinutes(adSenseSchedule.cron) ?? 1440) / 60) });
+        }
       } else if (provider === 'stripe') {
         const mapping = readStripeProductMapping(register.stripeProducts);
         const targets = mapping

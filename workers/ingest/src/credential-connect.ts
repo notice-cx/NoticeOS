@@ -29,6 +29,7 @@ import { SignalError } from './signal-store.js';
 import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
 import { CRUX_KEY_CHECK_ORIGIN, CRUX_KEY_FIELD, checkCruxKey } from './crux.js';
+import { checkAdSense } from './adsense.js';
 import { STRIPE_KEY_FIELD, checkStripeKey } from './stripe.js';
 import { MERCURY_KEY_FIELD, checkMercuryKey } from './mercury.js';
 
@@ -152,6 +153,10 @@ export async function askProvider(
   if (provider.id === 'posthog') return askPosthog(fields, fetchImpl);
   if (provider.id === 'crux') return askCrux(fields, fetchImpl);
   if (provider.id === 'stripe') return askStripe(fields, fetchImpl);
+  if (provider.id === 'adsense') {
+    const verdict = await checkAdSense(fields, fetchImpl);
+    return verdict === 'accepted' ? { verdict, facts: {} } : { verdict };
+  }
   if (provider.id === 'mercury') {
     const verdict = await checkMercuryKey(fields[MERCURY_KEY_FIELD] ?? '', fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
     return verdict === 'accepted' ? { verdict: 'accepted', facts: {} }

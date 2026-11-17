@@ -1427,13 +1427,13 @@ async function sameCredentialFields(a: Record<string, string>, b: Record<string,
 /** Hold the current connection and export lease while publishing the SQL
  * receipt. Selection, disconnect, resealing and token replacement lock
  * this same connection row; no generation can change between check and publish. */
-export async function publishCloudflareBackup(env: IngestEnv, captured: ResolvedCredential, lease: string, owner: string, publish: (tx: Transaction) => Promise<void>): Promise<boolean> {
-  await assertCredentialOwner(env, captured, 'cloudflare');
-  const row = await readRow(env.STORE, 'cloudflare');
+export async function publishCurrentIntegration(env: IngestEnv, provider: IntegrationProviderId, captured: ResolvedCredential, lease: string, owner: string, publish: (tx: Transaction) => Promise<void>): Promise<boolean> {
+  await assertCredentialOwner(env, captured, provider);
+  const row = await readRow(env.STORE, provider);
   if (!row || row.connection_id !== captured.connectionId || captured.source !== 'store'
     || !await sameCredentialFields(await open(env, row), captured.fields)) return false;
   return env.STORE.write(async tx => {
-    const [connection] = await tx.query<{ connection_id: string }>('SELECT connection_id FROM noticeos.integration_connections WHERE provider = $1 FOR UPDATE', ['cloudflare']);
+    const [connection] = await tx.query<{ connection_id: string }>('SELECT connection_id FROM noticeos.integration_connections WHERE provider = $1 FOR UPDATE', [provider]);
     if (connection?.connection_id !== row.connection_id) return false;
     const [secret] = await tx.query<{ version: number }>('SELECT max(secret_version) AS version FROM noticeos.connection_secrets WHERE connection_id = $1', [row.connection_id]);
     if (secret?.version !== row.secret_version) return false;

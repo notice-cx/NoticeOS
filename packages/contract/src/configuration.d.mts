@@ -75,6 +75,13 @@ export type TempoMppSettings = {
     }[];
 };
 export declare function readTempoMppSettings(value: unknown): TempoMppSettings | null;
+export declare const ADSENSE_SITE_PATTERN = "^accounts/pub-[0-9]+/sites/[A-Za-z0-9_-]+$";
+export declare function isAdSenseSite(value: unknown): value is string;
+export declare function adSenseAssignments(register: unknown): {
+    asset: string;
+    site: string;
+    paused: boolean;
+}[];
 export declare const STRIPE_REVENUE_LANE = "subscriptions";
 export declare const STRIPE_PRODUCTS_POINTER = "/stripeProducts";
 export declare const STRIPE_ACCOUNT_ID: RegExp;

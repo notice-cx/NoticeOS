@@ -65,6 +65,24 @@ const PAYLOAD: SitesPayload = {
   domainMatch: ["bing-webmaster"],
 };
 
+it("saves an AdSense site from the first collection when the asset has no AdSense entry", () => {
+  const ref = "accounts/pub-123/sites/site-1";
+  const payload: SitesPayload = {
+    discovery: { ok: true, provider: "adsense", kind: "account", checkedAt: AT, sites: [
+      { lane: "adsense", ref, label: "journey.example", host: "journey.example", mapping: { adsenseSite: ref }, ready: true },
+      { lane: "adsense", ref: "accounts/pub-123/sites/site-2", label: "shop.example", host: "shop.example",
+        mapping: { adsenseSite: "accounts/pub-123/sites/site-2" }, ready: true },
+    ] },
+    assets: [asset("journey.example", { cells: { adsense: null }, hasIntegrationEntry: true }), asset("second.example", { cells: { adsense: null } })],
+    spend: null,
+  };
+  const plan = planSites(payload);
+  expect(startPlan(plan, initialSelection(plan))).toMatchObject({
+    assets: ["journey.example"],
+    ops: [{ kind: "file-json-insert", pointer: "/assets/journey.example/adsense", value: { adsenseSite: ref } }],
+  });
+});
+
 /** Mediavine: the account's sites, each mapped by its id. */
 const mediavineSite = (id: string, domain: string): DiscoveredSite => ({
   lane: "ad-network", ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,

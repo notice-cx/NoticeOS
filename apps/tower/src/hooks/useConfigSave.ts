@@ -8,6 +8,7 @@ import type {
   DocumentFile,
   FileJsonDeleteOp,
   FileJsonInsertOp,
+  FileJsonSetOp,
   FileOp,
   RegisterFile,
   SettingOp,
@@ -76,7 +77,9 @@ function splitOps(ops: SettingOp[]): {
  * delete back into a first write: the delete expects exactly the value the
  * save wrote, and the set back expects the key to be absent.
  */
-function invert(op: SettingOp): SettingOp {
+export function invertSettingOp(op: FileJsonSetOp | FileJsonDeleteOp): FileJsonSetOp | FileJsonDeleteOp;
+export function invertSettingOp(op: SettingOp): SettingOp;
+export function invertSettingOp(op: SettingOp): SettingOp {
   if (op.kind === "file-json-delete") {
     return { kind: "file-json-set", file: op.file, pointer: op.pointer, expectAbsent: true, value: op.expect };
   }
@@ -137,7 +140,7 @@ export function useConfigSave() {
       }
       // The way back: every op this hook takes has one, including the save
       // that filled in a field nothing had written yet.
-      const back = undo ?? ops.map(invert);
+      const back = undo ?? ops.map(invertSettingOp);
       toast.success(`Saved — ${label}`, {
         action: {
           label: "Undo",
@@ -182,7 +185,7 @@ export type FieldUndoOutcome = { undone: true } | { undone: false; refusal: stri
 
 /**
  * The same save, its whole outcome beside the field: the one write every
- * setting shares (`useConfigWrite`) and the one inverse (`invert`), with a
+ * setting shares (`useConfigWrite`) and the one inverse (`invertSettingOp`), with a
  * refusal coming back to the field as a short state instead of a corner toast.
  */
 export function useFieldConfigSave() {
@@ -194,7 +197,7 @@ export function useFieldConfigSave() {
       } catch (err) {
         return { saved: false, refusal: refusalMessage(err) };
       }
-      const back = undo ?? ops.map(invert);
+      const back = undo ?? ops.map(invertSettingOp);
       return {
         saved: true,
         undo: async () => {

@@ -62,6 +62,7 @@ import { readCollectorConfigs } from './config-store.js';
 import { disconnectMediavine } from './mediavine.js';
 import { PROBE_CAPABILITY } from './probe-capability.js';
 import { CRUX_KEY_CHECK_ORIGIN, CRUX_KEY_FIELD, checkCruxKey, cruxOrigin } from './crux.js';
+import { checkAdSense } from './adsense.js';
 import { STRIPE_KEY_FIELD, checkStripeKey } from './stripe.js';
 import { MERCURY_KEY_FIELD, checkMercuryKey } from './mercury.js';
 import { eligibleAssets } from './hygiene.js';
@@ -215,6 +216,13 @@ async function runProbe(
   if (provider === 'posthog') return probePosthog(env, fields, fetchImpl);
   if (provider === 'crux') return probeCrux(env, fields, fetchImpl);
   if (provider === 'stripe') return probeStripe(fields, fetchImpl);
+  if (provider === 'adsense') {
+    const verdict = await checkAdSense(fields, fetchImpl);
+    if (verdict === 'accepted') return { ok: true, result: { outcome: 'answered' } };
+    return { ok: false, result: verdict === 'refused'
+      ? { outcome: 'refused', fix: { kind: 'replace' } }
+      : { outcome: 'unreachable' } };
+  }
   if (provider === 'mercury') {
     const verdict = await checkMercuryKey(fields[MERCURY_KEY_FIELD] ?? '', fetchImpl, PROBE_TIMEOUT_MS);
     if (verdict === 'accepted') return { ok: true, result: { outcome: 'answered' } };

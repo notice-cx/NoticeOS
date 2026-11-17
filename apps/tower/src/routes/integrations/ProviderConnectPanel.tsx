@@ -14,7 +14,7 @@ import type { IntegrationHealthItem } from "@noticeos/contract/integration-healt
 import { providerName } from "@shared/connect-panel";
 import { connectionCollections } from "@shared/scheduled-jobs";
 import { connectionStatus } from "@shared/connection-status";
-import { changesetSlug } from "@shared/changeset";
+import { changesetSlug, type FileOp } from "@shared/changeset";
 import type { StartPlan } from "@shared/site-discovery";
 import { GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
 import { NOTIFICATION_LANE, connectionState, credentialAssetRows, googleOAuthCardState, type ConnectBlocker, type IntegrationProviderStatus } from "@shared/integrations-page";
@@ -29,7 +29,7 @@ import { SiteTokens } from "@/components/SiteTokens";
 import { useConnections } from "@/hooks/useConnections";
 import { StripeProductAssignments } from "./StripeProductAssignments";
 import { ConnectionSchedule } from "./ConnectionSchedule";
-import { useInlineConfigSave } from "@/hooks/useConfigSave";
+import { invertSettingOp, useFieldStructuralSave } from "@/hooks/useConfigSave";
 import { useConfigSaveDelay } from "@/hooks/config-backed-queries";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
 import { ProviderMappings } from "./ProviderMappings";
@@ -134,7 +134,7 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
         <WhatLands connected={state !== "not-connected"} />
       ) : undefined}
       // When the collections this connection feeds run.
-      schedule={(stripe || provider.id === "google" || provider.id === "posthog" || provider.id === "mediavine") && schedule ? (
+      schedule={(stripe || provider.id === "google" || provider.id === "posthog" || provider.id === "mediavine" || provider.id === "adsense") && schedule ? (
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground">Collection schedule</summary>
           <div className="mt-2">{schedule}</div>
@@ -253,7 +253,7 @@ function ProviderSites({
   // The Data sources tab's own write (`PUT /api/config`, audited in
   // `config_changes`), confirmed by the rows' statuses rather than a toast
   // that would cover the panel's footer; a refusal still says so.
-  const save = useInlineConfigSave();
+  const save = useFieldStructuralSave();
   const saveDelayMs = useConfigSaveDelay();
   // Keep the first-collection list stable while it is staged. Saved mapping
   // edits refresh the list through the same invalidation as other settings.
@@ -273,8 +273,15 @@ function ProviderSites({
 
   async function start(plan: StartPlan): Promise<CollectNowResult | "saved" | null> {
     if (plan.ops.length > 0) {
-      const saved = await save({ ops: plan.ops, label: `${providerName(provider)} assets`, slug: changesetSlug("connect", provider.id, "sites") });
-      if (saved === null) return null;
+      const undo = plan.ops.map((op): FileOp => {
+        if (op.kind === "file-json-insert") return { kind: "file-json-delete", file: op.file, pointer: op.pointer, expect: op.value };
+        return invertSettingOp(op);
+      });
+      const saved = await save({ ops: plan.ops, undo, label: `${providerName(provider)} assets`, slug: changesetSlug("connect", provider.id, "sites") });
+      if (!saved.saved) {
+        toast.error(saved.refusal);
+        return null;
+      }
       // A deployment still on its config FILE restarts the local Worker to
       // read the save; the collection waits for it, as every save's refresh does.
       if (saveDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, saveDelayMs));
@@ -296,10 +303,11 @@ function ProviderSites({
     return result;
   }
 
-  const supportsMapping = provider.id === "google" || provider.id === "posthog";
+  const providerId = provider.id;
+  const supportsMapping = providerId === "google" || providerId === "posthog" || providerId === "adsense";
   if (editing && supportsMapping) {
     return <ProviderMappings
-      provider={provider.id === "google" ? "google" : "posthog"}
+      provider={providerId}
       googleFallbacks={legacyMappings}
       payload={sites.data} preselect={preselect} loading={sites.isFetching}
       onClose={onClose} onCollect={() => setMode("collect")}

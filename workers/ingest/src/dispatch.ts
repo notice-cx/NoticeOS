@@ -43,6 +43,7 @@ import { runGa4Realtime } from './ga4-realtime.js';
 import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
 import { runCruxVitals } from './crux.js';
+import { runAdSenseRevenue } from './adsense.js';
 import { runStripeRevenue } from './stripe.js';
 import { runTempoMpp } from './tempo-mpp.js';
 import { runMercuryBanking } from './mercury.js';
@@ -158,6 +159,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   'portfolio-brief': { steps: {} },
   mercury: { steps: { banking: (env) => runMercuryBanking(env) }, answeredBy: 'banking' },
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
+  adsense: { steps: { 'adsense-revenue': (env, cfg) => runAdSenseRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'adsense-revenue' },
   stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister, timeZone: cfg.osTimeZone }) }, answeredBy: 'subscriptions' },
   'tempo-mpp': { steps: { 'tempo-sales': (env) => runTempoMpp(env) }, answeredBy: 'tempo-sales' },
   // The hourly tick also asks whether each site is up. A site that hangs its
@@ -512,6 +514,9 @@ export async function runCollectNow(
         code: failed?.errorCode ?? deferred?.reason ?? null,
       });
     }
+  } else if (plan.step.step === 'adsense-revenue') {
+    const run = await runAdSenseRevenue(env, { laneRegister: cfg.laneRegister, assets, ...narrow });
+    sites = run.sites;
   } else if (plan.step.step === 'revenue') {
     // Mediavine: run now for each named site through the one Mediavine lease.
     // A site whose row says Not using is not synced; the sync refuses it too.

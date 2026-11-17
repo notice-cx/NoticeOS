@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { D1_MAX_BYTES, cloudflareAccountId, d1DatabaseId, d1Record, d1Receipt, d1Selection, storedD1Selection, type D1Failure, type D1Receipt, type D1Request, type D1Selection, type D1Status } from '@noticeos/contract/cloudflare-d1';
-import { resolveCredential, assertCredentialOwner, publishCloudflareBackup, saveCloudflareSelection, type ResolvedCredential } from './credentials.js';
+import { resolveCredential, assertCredentialOwner, publishCurrentIntegration, saveCloudflareSelection, type ResolvedCredential } from './credentials.js';
 import { CloudflareD1Error, d1Api, d1Bounded, listD1Databases } from './cloudflare-d1-client.js';
 import { tryHealthConnection, observeIntegration } from './integration-health-context.js';
 import { knownAssetIds } from './asset-registry.js';
@@ -184,7 +184,7 @@ export async function exportD1Database(env: IngestEnv, accountId: string, databa
     const artifact = await storeExport(env, `${key}/${runId}.sql`, url, signal, options); stored = true;
     if (signal.aborted) fail('timeout');
     const complete: D1Receipt = { ...running, ...artifact, finishedAt: new Date().toISOString(), state: 'complete' };
-    const published = await publishCloudflareBackup(env, held, lease, runId, async tx => {
+    const published = await publishCurrentIntegration(env, 'cloudflare', held, lease, runId, async tx => {
       if (signal.aborted) fail('timeout');
       await writePointer(tx, lease, { latest: complete, complete, previous: saved?.complete ?? null }, runId);
     });

@@ -16,7 +16,7 @@
 // config/changesets/README.md.
 /** Configuration references have their own spelling rule; the portable
  * contract owns the stricter creation vocabulary. */
-import { ASSET_ID_MAX, ASSET_ID_RE, ASSET_STATUSES, ASSET_TYPES, CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE, DISPLAY_NAME_MAX, DOMAIN_RE, POSTHOG_HOSTS, POSTHOG_PROJECT_ID_SOURCE, posthogFunnelsRefusal, } from '../packages/contract/src/configuration.mjs';
+import { ADSENSE_SITE_PATTERN, ASSET_ID_MAX, ASSET_ID_RE, ASSET_STATUSES, ASSET_TYPES, CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE, DISPLAY_NAME_MAX, DOMAIN_RE, POSTHOG_HOSTS, POSTHOG_PROJECT_ID_SOURCE, posthogFunnelsRefusal, } from '../packages/contract/src/configuration.mjs';
 export { ASSET_ID_SOURCE };
 import { PRODUCT_USE_GROUPS, PRODUCT_USE_EVENT_MAX_LENGTH, PRODUCT_USE_LABEL_MAX_LENGTH, PRODUCT_USE_EVENT_PATTERN, } from '../packages/contract/src/product-use.mjs';
 /** The token that marks the per-asset hole in a container pointer. A register
@@ -114,6 +114,11 @@ export const CONFIG_REGISTERS = {
                 describe: 'when this posture was recorded, YYYY-MM-DD',
             },
             // The mapping fields; `LANE_MAPPING` says which lane shows which.
+            {
+                name: 'adsenseSite', label: 'AdSense domain', type: 'string', required: false,
+                maxLength: 160, pattern: ADSENSE_SITE_PATTERN,
+                describe: 'choose a domain listed by the AdSense account',
+            },
             {
                 name: 'mediavineSiteId', label: 'Mediavine site', type: 'string', required: false,
                 maxLength: 160, pattern: '^[A-Za-z0-9+/=_-]+$',
@@ -859,6 +864,7 @@ export const LANE_MAPPING = {
     // One Stripe key reads one account, so a site earns from Stripe only once
     // it names that account here.
     subscriptions: { fields: ['stripeAccountId'], fallback: 'none' },
+    adsense: { fields: ['adsenseSite'], fallback: 'none' },
 };
 export const OPERATOR_LANE_STATES = ['needs-setup', 'skipped'];
 /**

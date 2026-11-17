@@ -17,6 +17,7 @@
 /** Configuration references have their own spelling rule; the portable
  * contract owns the stricter creation vocabulary. */
 import {
+  ADSENSE_SITE_PATTERN,
   ASSET_ID_MAX,
   ASSET_ID_RE,
   ASSET_STATUSES,
@@ -389,6 +390,11 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         describe: 'when this posture was recorded, YYYY-MM-DD',
       },
       // The mapping fields; `LANE_MAPPING` says which lane shows which.
+      {
+        name: 'adsenseSite', label: 'AdSense domain', type: 'string', required: false,
+        maxLength: 160, pattern: ADSENSE_SITE_PATTERN,
+        describe: 'choose a domain listed by the AdSense account',
+      },
       {
         name: 'mediavineSiteId', label: 'Mediavine site', type: 'string', required: false,
         maxLength: 160, pattern: '^[A-Za-z0-9+/=_-]+$',
@@ -1150,6 +1156,7 @@ export const LANE_MAPPING: Record<string, LaneMapping | undefined> = {
   // One Stripe key reads one account, so a site earns from Stripe only once
   // it names that account here.
   subscriptions: { fields: ['stripeAccountId'], fallback: 'none' },
+  adsense: { fields: ['adsenseSite'], fallback: 'none' },
 };
 
 export const OPERATOR_LANE_STATES: readonly string[] = ['needs-setup', 'skipped'];

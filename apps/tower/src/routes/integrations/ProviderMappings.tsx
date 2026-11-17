@@ -20,6 +20,7 @@ const FIELDS = {
   ga4: { label: "GA4 property", keys: ["propertyId"] },
   gsc: { label: "Search Console site", keys: ["siteUrl"] },
   posthog: { label: "PostHog project", keys: ["host", "projectId"] },
+  adsense: { label: "AdSense domain", keys: ["adsenseSite"] },
 } as const;
 
 type MappingLane = keyof typeof FIELDS;
@@ -29,7 +30,7 @@ const FUNNEL_FIELD = fieldOf(LANE_REGISTER, "funnels")!;
 const REMOVED = "Mapping removed";
 
 export function ProviderMappings({ provider, googleFallbacks, payload, preselect, onClose, onRetry, onCollect, loading }: {
-  provider: "google" | "posthog";
+  provider: "google" | "posthog" | "adsense";
   googleFallbacks?: ReadonlySet<string>;
   payload: SitesPayload | undefined;
   preselect: string | null;
@@ -46,7 +47,7 @@ export function ProviderMappings({ provider, googleFallbacks, payload, preselect
       ? <p role="status" data-status-for={`integration:${provider}`} className="text-sm text-muted-foreground">Loading mappings…</p>
       : <Button type="button" variant="outline" onClick={onRetry}>Retry loading mappings</Button>;
   }
-  const lanes: readonly MappingLane[] = provider === "google" ? ["ga4", "gsc"] : ["posthog"];
+  const lanes: readonly MappingLane[] = provider === "google" ? ["ga4", "gsc"] : [provider];
   const { discovery } = payload;
   const sites = discovery.ok ? discovery.sites : [];
   const rows = planSites(payload, preselect).rows;
@@ -61,7 +62,7 @@ export function ProviderMappings({ provider, googleFallbacks, payload, preselect
         <h3 className="text-sm font-semibold">Asset mappings</h3>
         <Button type="button" variant="outline" size="sm" onClick={onRetry} aria-busy={loading}>Reload list</Button>
       </div>
-      {!discovery.ok ? <p className="text-sm text-muted-foreground">Couldn’t list the connected account. You can enter a mapping manually.</p> : null}
+      {!discovery.ok ? <p className="text-sm text-muted-foreground">Couldn’t list the connected account.{provider === "adsense" ? " Reload the list to choose a domain." : " You can enter a mapping manually."}</p> : null}
       {grants.length > 0 ? <details className="text-xs text-muted-foreground">
         <summary className="cursor-pointer">Missing a listing in Google?</summary>
         {grants.map((grant) => <p key={grant} className="mt-1 wrap-anywhere">{grant}</p>)}
@@ -253,7 +254,7 @@ function MappingField({ asset, lane, sites, suggested, accountListed, googleFall
         <Button type="button" variant="ghost" size="sm" className="w-fit" onClick={() => void commit(null)}>Stop collecting</Button>
       ) : null}
       {cell?.status === "not-applicable" ? <span className="text-xs text-muted-foreground">Doesn’t apply</span> : null}
-      {writable && cell?.status !== "not-applicable" && (!accountListed || !current) ? (
+      {lane !== "adsense" && writable && cell?.status !== "not-applicable" && (!accountListed || !current) ? (
         <details>
           <summary className="min-h-7 cursor-pointer text-xs text-muted-foreground">Enter manually</summary>
           <div className="mt-1 flex flex-wrap items-end gap-2">

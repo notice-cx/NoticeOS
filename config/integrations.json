@@ -77,8 +77,16 @@
     },
     {
       "id": "ad-network",
-      "label": "Ad network reporting (AdSense now; Raptive/Mediavine on approval)",
+      "label": "Ad network reporting",
       "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "adsense",
+      "label": "AdSense revenue",
+      "docRef": "docs/11-integrations.md#adsense",
       "scope": "property",
       "layer": "provider",
       "credential": "shared"

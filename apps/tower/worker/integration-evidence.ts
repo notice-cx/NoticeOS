@@ -32,6 +32,7 @@ const LANE_FACTS: Record<string, { usage: LaneUsage; onFailure: LaneFailureMode 
   crux: { usage: { cost: "free", limit: "150 queries/min" }, onFailure: "keeps-last-data" },
   subscriptions: { usage: { cost: "free" }, onFailure: "keeps-last-data" },
   uptime: { usage: { cost: "free" }, onFailure: "raises-alert" },
+  adsense: { usage: { cost: "free" }, onFailure: "keeps-last-data" },
   "ad-network": { usage: { cost: "free" }, onFailure: "keeps-last-data" },
   "affiliate-cj": { usage: { cost: "free" }, onFailure: "books-on-payment" },
   "affiliate-amazon": { usage: { cost: "free" }, onFailure: "books-on-payment" },
@@ -215,7 +216,7 @@ export function mergeLane(
       ],
     };
   }
-  if (declared === "needs-setup") {
+  if (declared === "needs-setup" && laneId !== "adsense") {
     const supporting = supportingRevenueEvidence(laneId, ev.revenueRows);
     if (supporting) return { effective: "needs-setup", evidence: [supporting] };
   }
@@ -600,7 +601,7 @@ export function laneForRevenueRow(
   source: string | null,
   note: string | null,
 ): string | null {
-  if (family === "ads") return "ad-network";
+  if (family === "ads") return source === "adsense" || source === "adsense-report" ? "adsense" : "ad-network";
   if (family === "subs") return "subscriptions";
   if (family === "affiliate") {
     const hay = `${source ?? ""} ${note ?? ""}`.toLowerCase();
