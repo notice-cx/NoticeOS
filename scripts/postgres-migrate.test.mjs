@@ -327,7 +327,7 @@ function operatorOnlyReach(root) {
     if (/postgres-apply/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/postgres-import/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/hosted-demo-setup/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
-    if (/customer-shadow-target/u.test(command) && (name !== 'db:shadow-target' || command !== `node ${SHADOW_TARGET}`)) {
+    if (/customer-shadow-target|db:shadow-target/u.test(command) && (name !== 'db:shadow-target' || command !== `node ${SHADOW_TARGET}`)) {
       found.packageScripts.push(`${name}: ${command}`);
     }
     if (/os:migrate/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
@@ -372,12 +372,16 @@ test('the approved demo caller can reach only fresh preparation, never the opera
 test('only the explicit shadow preparation command can reach fresh target creation', () => {
   const root = tempDir('nos-shadow-reach-');
   mkdirSync(path.join(root, 'scripts'));
-  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: {
+  const scripts = {
     'os:migrate': 'node scripts/os-migrate.mjs',
     'db:shadow-target': 'node scripts/customer-shadow-target.mjs',
-  } }));
+  };
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts }));
   writeFileSync(path.join(root, SHADOW_TARGET), "import { applyMigrations } from './postgres-migrate.mjs';\n");
   assert.deepEqual(operatorOnlyReach(root).offenders, []);
+  const alias = 'pnpm db:shadow-target prepare /tmp/fixture';
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { ...scripts, 'os:restart': alias } }));
+  assert.deepEqual(operatorOnlyReach(root).packageScripts, [`os:restart: ${alias}`]);
   writeFileSync(path.join(root, 'scripts/local-customer-shadow.mjs'), "import './customer-shadow-target.mjs';\n");
   assert.deepEqual(operatorOnlyReach(root).freshLoaders, ['scripts/local-customer-shadow.mjs']);
 });

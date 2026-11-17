@@ -37,6 +37,7 @@ const CONSUMER_LOCK = '.shadow-running';
 const STATE = 'target-state.json';
 const PLATFORM = 'platform.json';
 const RECEIPT = 'shadow-target.json';
+const INTERRUPTS = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 
 class Refusal extends Error {}
 function refuse(message) { throw new Refusal(message); }
@@ -152,9 +153,10 @@ function platformOptions(runtime, platform) {
   return { platformConnectionString: platform, identityConnectionString: runtime.identityDatabase,
     trustedOrigin: runtime.publicOrigin, sessionSecret: runtime.identitySecret };
 }
-function platform(runtime, address, binding) {
+function platform(runtime, address, binding, signal) {
+  const verify = ntasksActivationVerifier(binding, ntasksRead(binding.origin));
   return openPlatformProvisioning({ ...platformOptions(runtime, address),
-    verifyProject: ntasksActivationVerifier(binding, ntasksRead(binding.origin)) });
+    verifyProject: (mapping, budget) => verify(mapping, { ...budget, signal: AbortSignal.any([budget.signal, signal]) }) });
 }
 function addLogins(cluster, pending) {
   const roles = pending ? ['noticeos_identity', 'noticeos_platform'] : ['noticeos_identity'];
@@ -256,7 +258,17 @@ async function userProof(root, state, runtime, otp) {
   } finally { await login.close(); }
 }
 
-async function prepare(root, plan, ntasks) {
+function stopTarget(cluster, releaseConsumer, releaseRoot) {
+  try {
+    if (cluster) {
+      cluster.close();
+      assertStopped(path.join(cluster.root, 'data'));
+    }
+  } finally { releaseConsumer?.(); }
+  releaseRoot();
+}
+
+async function prepare(root, plan, ntasks, signal) {
   const postgres = tools();
   frozenSchema();
   const { bavail, bsize } = statfsSync(path.dirname(root), { bigint: true });
@@ -288,7 +300,7 @@ async function prepare(root, plan, ntasks) {
     const runtime = readLocalCustomerShadowRuntime(runtimeFile);
     const { serviceToken, ...directory } = ntasks;
     const task = { ...directory, executorRef: randomUUID(), credentialRef: randomUUID(), databaseKey: 'n_' + randomBytes(16).toString('hex') };
-    const initializer = platform(runtime, platformUrl, { workspaceId: plan.workspaceId, ...task, serviceToken });
+    const initializer = platform(runtime, platformUrl, { workspaceId: plan.workspaceId, ...task, serviceToken }, signal);
     let enrollment;
     try {
       enrollment = await initializer.prepare({ workspaceId: plan.workspaceId, slug: plan.slug, displayName: plan.displayName,
@@ -301,18 +313,12 @@ async function prepare(root, plan, ntasks) {
     const state = { format: STATE_FORMAT, postgresSystemId: id, databasePort: plan.databasePort,
       workspaceId: plan.workspaceId, ownerEmail: plan.ownerEmail, enrollmentId: enrollment.enrollmentId, ntasks: task };
     ownedJson(path.join(root, STATE), state);
+    signal.throwIfAborted();
     await userProof(root, state, runtime);
-  } finally {
-    if (cluster) {
-      cluster.close();
-      assertStopped(path.join(cluster.root, 'data'));
-    }
-    releaseConsumer?.();
-    releaseRoot();
-  }
+  } finally { stopTarget(cluster, releaseConsumer, releaseRoot); }
 }
 
-async function openTarget(root, action, ntasksFile, otp) {
+async function openTarget(root, action, ntasksFile, otp, signal) {
   privateDirectory(root);
   const releaseRoot = takeLock(root, ROOT_LOCK);
   let releaseConsumer, cluster;
@@ -346,19 +352,13 @@ async function openTarget(root, action, ntasksFile, otp) {
       releaseConsumer();
       releaseConsumer = undefined;
       foreground = true;
-      return () => {
-        const release = takeLock(root, CONSUMER_LOCK);
-        cluster.close();
-        assertStopped(dataDir);
-        release();
-        releaseRoot();
-      };
+      return () => stopTarget(cluster, takeLock(root, CONSUMER_LOCK), releaseRoot);
     }
     addLogins(cluster, lifecycle === 'provisioning');
     if (action === 'activate') {
       if (lifecycle === 'provisioning') {
         const initializer = platform(runtime, readPlatform(root, state),
-          { workspaceId: runtime.workspaceId, ...state.ntasks, serviceToken: bind.serviceToken });
+          { workspaceId: runtime.workspaceId, ...state.ntasks, serviceToken: bind.serviceToken }, signal);
         try { await initializer.activate({ workspaceId: runtime.workspaceId, enrollmentId: state.enrollmentId, projectId: bind.projectId }); }
         finally { await initializer.close(); }
       }
@@ -367,24 +367,20 @@ async function openTarget(root, action, ntasksFile, otp) {
       return;
     }
     if (lifecycle !== 'provisioning') refuse('The workspace owner has already been activated.');
+    signal.throwIfAborted();
     await userProof(root, state, runtime, otp);
   } finally {
-    if (!foreground) {
-      if (cluster) {
-        cluster.close();
-        assertStopped(path.join(cluster.root, 'data'));
-      }
-      releaseConsumer?.();
-      releaseRoot();
-    }
+    if (!foreground) stopTarget(cluster, releaseConsumer, releaseRoot);
   }
 }
 
-function readCode(input) {
+function readCode(input, signal) {
+  signal.throwIfAborted();
   return new Promise((resolve, reject) => {
     let value = '';
     const timer = setTimeout(() => done(''), 120_000);
     const end = () => done(value);
+    const abort = () => done('');
     function data(chunk) {
       value += chunk;
       if (value.length > 16) done('');
@@ -395,29 +391,32 @@ function readCode(input) {
       input.off('data', data);
       input.off('end', end);
       input.pause();
+      signal.removeEventListener('abort', abort);
+      if (signal.aborted) { reject(signal.reason); return; }
       const code = text.trim();
       if (/^\d{6}$/u.test(code)) resolve(code);
       else reject(new Refusal('Enter one six-digit enrollment code on standard input.'));
     }
     input.on('data', data);
     input.on('end', end);
+    signal.addEventListener('abort', abort, { once: true });
   });
 }
-function hold(tryStop) {
+function hold(tryStop, alreadyInterrupted) {
   return new Promise(resolve => {
-    const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
     const stop = () => {
       try { tryStop(); }
       catch (error) {
         process.stderr.write((error instanceof Refusal ? error.message : 'The private target could not stop.') + '\n');
         return;
       }
-      for (const signal of signals) process.off(signal, stop);
+      for (const signal of INTERRUPTS) process.off(signal, stop);
       clearInterval(keepAlive);
       resolve();
     };
     const keepAlive = setInterval(() => {}, 2 ** 31 - 1);
-    for (const signal of signals) process.on(signal, stop);
+    for (const signal of INTERRUPTS) process.on(signal, stop);
+    if (alreadyInterrupted) stop();
   });
 }
 
@@ -428,21 +427,33 @@ async function main([action, directory, ...args]) {
   }
   const root = localPath(directory);
   if (realpathSync(path.dirname(root)) !== path.dirname(root)) refuse('Use the actual private target folder path.');
-  if (action === 'prepare') {
-    const plan = planFrom(args[0]);
-    await prepare(root, plan, ntasksFrom(args[1], plan));
-  } else {
-    const otp = action === 'enroll' ? await readCode(process.stdin) : undefined;
-    const stop = await openTarget(root, action, args[0], otp);
-    if (action === 'serve') {
-      const stopping = hold(stop);
-      process.stdout.write('Private shadow database ready for the importer and Tower.\n');
-      return stopping;
+  const controller = new AbortController();
+  const interrupt = () => controller.abort(new Refusal('The private target operation was interrupted.'));
+  for (const signal of INTERRUPTS) process.on(signal, interrupt);
+  try {
+    if (action === 'prepare') {
+      const plan = planFrom(args[0]);
+      await prepare(root, plan, ntasksFrom(args[1], plan), controller.signal);
+    } else {
+      const otp = action === 'enroll' ? await readCode(process.stdin, controller.signal) : undefined;
+      const stop = await openTarget(root, action, args[0], otp, controller.signal);
+      if (action === 'serve') {
+        const stopping = hold(stop, controller.signal.aborted);
+        if (!controller.signal.aborted) process.stdout.write('Private shadow database ready for the importer and Tower.\n');
+        await stopping;
+        return;
+      }
     }
+    controller.signal.throwIfAborted();
+    process.stdout.write({ prepare: 'Enrollment code saved in the private mail folder.', 'send-code': 'Enrollment code saved in the private mail folder.',
+      enroll: 'Owner enrolled. Activate the workspace with its approved local Ntasks binding.',
+      activate: 'Workspace activated. Start the private target database before importing.' }[action] + '\n');
+  } catch (error) {
+    if (!(error instanceof Refusal)) controller.signal.throwIfAborted();
+    throw error;
+  } finally {
+    for (const signal of INTERRUPTS) process.off(signal, interrupt);
   }
-  process.stdout.write({ prepare: 'Enrollment code saved in the private mail folder.', 'send-code': 'Enrollment code saved in the private mail folder.',
-    enroll: 'Owner enrolled. Activate the workspace with its approved local Ntasks binding.',
-    activate: 'Workspace activated. Start the private target database before importing.' }[action] + '\n');
 }
 
 if (invokedDirectly(process.argv[1], import.meta.url)) {

@@ -130,8 +130,8 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     await app.close(); app = undefined;
     await t.test('first-owner activation, dated shadow evidence, and rollback use the normal access boundary', t =>
       assertNtasksShadowActivation({ root, cluster: postgres.cluster, ntasksOrigin, ntasks: actors[2], t }));
-    await t.test('the operator commands prepare and import a separate private target for signed-in Tower', () =>
-      assertCustomerShadowTarget({ root, cluster: postgres.cluster, ntasksOrigin, ntasks: actors[2], availablePort }));
+    await t.test('the operator commands prepare and import a separate private target for signed-in Tower', targetTest =>
+      assertCustomerShadowTarget({ root, cluster: postgres.cluster, ntasksOrigin, ntasks: actors[2], availablePort, targetTest }));
   } finally {
     try { await app?.close(); } finally { postgres?.close(); }
     await ntasks?.dispose();

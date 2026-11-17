@@ -3,6 +3,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { chmodSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import path from 'node:path';
 import { setTimeout as deadline } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +44,7 @@ async function foreground(script, args, ready) {
 }
 
 /** Real worker, platform OTP, native local Ntasks, and a private offline dump. */
-export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, ntasks, availablePort }) {
+export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, ntasks, availablePort, targetTest }) {
   const database = 'noticeos_shadow_chain_source';
   cluster.onDatabase('postgres').run('CREATE DATABASE noticeos_shadow_chain_source;');
   const source = cluster.onDatabase(database);
@@ -93,7 +94,30 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
   const databasePort = await availablePort();
   const expectedPlan = { format: 'noticeos-shadow-plan-v1', bundle, workspaceId, ownerEmail, slug: 'chain',
     displayName: 'Chain workspace', towerPort, databasePort };
-  const binding = { format: 'noticeos-shadow-ntasks-v1', origin: ntasksOrigin, ntasksWorkspaceId: ntasks.workspaceId,
+  let holdProjectRequest;
+  const taskProxy = createServer(async (request, reply) => {
+    if (request.method !== 'GET' || !['/api/access/me', '/api/tasks/projects'].includes(request.url)) {
+      reply.writeHead(403).end();
+      return;
+    }
+    if (holdProjectRequest) { holdProjectRequest(null); return; }
+    try {
+      const response = await fetch(ntasksOrigin + request.url, { redirect: 'manual', signal: AbortSignal.timeout(5000), headers: {
+        authorization: request.headers.authorization, 'x-ntasks-workspace': request.headers['x-ntasks-workspace'],
+      } });
+      const body = await response.arrayBuffer();
+      reply.writeHead(response.status, { 'content-type': 'application/json' }).end(Buffer.from(body));
+    } catch { reply.writeHead(502).end(); }
+  });
+  taskProxy.listen(0, '127.0.0.1');
+  targetTest.after(async () => {
+    const closed = new Promise(resolve => taskProxy.close(resolve));
+    taskProxy.closeAllConnections();
+    await closed;
+  });
+  await once(taskProxy, 'listening');
+  const binding = { format: 'noticeos-shadow-ntasks-v1', origin: `http://127.0.0.1:${taskProxy.address().port}`,
+    ntasksWorkspaceId: ntasks.workspaceId,
     projectId: ntasks.projectId, serviceToken: ntasks.token };
   writeFileSync(planFile, JSON.stringify(expectedPlan), { mode: 0o600 });
   writeFileSync(ntasksFile, JSON.stringify(binding), { mode: 0o600 });
@@ -111,6 +135,24 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
   await pass(['enroll', prepared], enrollmentOtp);
   await refuse(['activate', prepared, readOnlyFile]);
   assert.equal(existsSync(receiptFile), false);
+
+  const verifying = new Promise(resolve => { holdProjectRequest = resolve; });
+  const interrupted = command('customer-shadow-target.mjs', ['activate', prepared, ntasksFile]);
+  try {
+    const failure = await Promise.race([verifying, interrupted.finished, deadline(30000, 'Missing verification request.', { ref: false })]);
+    assert.equal(failure, null, typeof failure === 'string' ? failure : failure?.stderr);
+  } finally {
+    interrupted.child.kill('SIGTERM');
+    await interrupted.finished;
+    holdProjectRequest = undefined;
+  }
+  const outcome = await interrupted.finished;
+  assert.equal(outcome.code, 1);
+  assert.equal(outcome.signal, null);
+  assert.equal(existsSync(receiptFile), false);
+  for (const file of ['.shadow-target-running', '.shadow-running', 'postgres/data/postmaster.pid']) {
+    assert.equal(existsSync(path.join(prepared, file)), false, file);
+  }
   await pass(['activate', prepared, ntasksFile]);
   const initial = receipt();
   assert.equal(initial.workspaceId, workspaceId);
@@ -158,5 +200,7 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
     } finally { await stopTower(); }
   } finally { await stopDatabase(); }
   assert.equal(existsSync(path.join(prepared, 'postgres', 'data', 'postmaster.pid')), false);
+  assert.equal(existsSync(path.join(prepared, '.shadow-running')), false);
+  assert.equal(existsSync(path.join(prepared, '.shadow-target-running')), false);
   assert.deepEqual(evidence(), before);
 }
