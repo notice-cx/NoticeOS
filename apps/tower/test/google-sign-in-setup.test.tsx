@@ -153,11 +153,13 @@ it('keeps missing-redirect guidance visible after the parent refreshes an AdSens
     }));
     expect(screen.getByText('Saving')).toBeVisible();
     expect(screen.getByLabelText('client_secret.json')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
   } finally {
     await act(async () => rejectSave(new Error('store unavailable')));
   }
   expect(document.querySelector('[data-google-client-refused]')).toBeVisible();
   expect(screen.getByLabelText('client_secret.json')).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
   await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
     target: { files: [drop(web([adsenseRedirect]))] },
   }));

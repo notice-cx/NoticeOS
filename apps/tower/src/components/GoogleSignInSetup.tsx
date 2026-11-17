@@ -89,7 +89,7 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
         <ArrowRight aria-hidden />
       </a>
     </Button>
-  ) : clientReady && canConnect ? (
+  ) : clientReady && canConnect && upload.phase !== "saving" && upload.phase !== "refused" ? (
     <Button asChild className="mt-auto w-full" data-google-continue>
       <GoogleStartPress href={startHref} onStart={onStart} starting={starting}>Continue with Google</GoogleStartPress>
     </Button>
