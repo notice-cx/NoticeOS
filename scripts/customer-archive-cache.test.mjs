@@ -240,3 +240,45 @@ test('cache pressure preserves unqualified files and copies whose durable source
   await assert.rejects(read(rebound(), siteArchive(randomUUID(), 2, 'query')), /does not belong/u);
   assert.equal(gets, earlier);
 });
+
+test('an interrupted archive write recovers on reopen and leaves unrelated files intact', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-archive-interrupted-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const workspaceId = randomUUID();
+  const first = siteArchive(workspaceId, 1, 'query'), second = siteArchive(workspaceId, 2, 'query');
+  const values = new Map([[first.row.objectKey, first], [second.row.objectKey, second]]);
+  let gets = 0, available = false;
+  const reopen = () => customerArchiveCache({ root, workspaceId, asset,
+    async get(key) { gets++; return values.get(key); },
+    async head(key) { return available ? values.get(key) : null; },
+  });
+  const read = (cache, fixture) => cache(fixture.row.objectKey, fixture.row.reportDate);
+  await read(reopen(), first);
+  const key = hash(first.row.objectKey);
+  const file = path.join(root, `${key}.cache`);
+  const marker = path.join(root, `.pending-${key}`);
+  const temporary = `${marker}.data`;
+  const complete = await fs.readFile(file);
+  const header = complete.indexOf(10);
+  const interrupted = complete.subarray(0, header + 5);
+  await fs.rename(file, temporary);
+  await fs.symlink(complete.subarray(0, header).toString(), marker);
+  await fs.truncate(temporary, interrupted.length);
+  const unknown = path.join(root, '.pending-write');
+  await fs.writeFile(unknown, 'unclassified bytes');
+
+  assert.deepEqual(await read(reopen(), second), second.bytes);
+  assert.deepEqual(await fs.readFile(temporary), interrupted);
+  const beforeWarm = gets;
+  await read(reopen(), second);
+  assert.equal(gets, beforeWarm);
+
+  available = true;
+  assert.deepEqual(await read(reopen(), first), first.bytes);
+  await assert.rejects(fs.lstat(marker), { code: 'ENOENT' });
+  await assert.rejects(fs.lstat(temporary), { code: 'ENOENT' });
+  assert.equal(await fs.readFile(unknown, 'utf8'), 'unclassified bytes');
+  const beforeReuse = gets;
+  assert.deepEqual(await read(reopen(), first), first.bytes);
+  assert.equal(gets, beforeReuse);
+});
