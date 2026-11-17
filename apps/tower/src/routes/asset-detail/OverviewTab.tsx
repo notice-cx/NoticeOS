@@ -56,6 +56,7 @@ import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
 import { useConnections } from "@/hooks/useConnections";
 import { useDecisionWriters } from "@/hooks/useDecisionWriters";
+import { useView } from "@/hooks/useView";
 import {
   formatCalendarDate,
   formatCalendarRange,
@@ -73,7 +74,7 @@ import {
   rankedFlags,
   sourceHistory,
 } from "@/routes/asset-detail/overview-measures";
-import { OverviewNumbers, useOverviewMeasures } from "./OverviewNumbers";
+import { OverviewNumbers, overviewMeasuresForView } from "./OverviewNumbers";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import { SourceHistory } from "@/components/viz/SourceHistory";
 import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history-presentation";
@@ -101,6 +102,7 @@ export function OverviewTab({
   const assetTabPath = useAssetTabPath();
   const [allFindings, setAllFindings] = useState(false);
   const { credentials, items } = useConnections();
+  const { view } = useView();
   // Tasks is core; missing readings stay unknown rather than hiding the inbox.
 
   const setup = assetSetupChecklist({
@@ -124,7 +126,7 @@ export function OverviewTab({
   const sourceRow = siteHealthRow(card, { credentials, items }, nowMs);
   const history = sourceHistory(data, sourceRow, sourceColumns([card]), revenueCalendarDate(new Date(nowMs), data.osTimeZone));
 
-  const measures = useOverviewMeasures(data, days, nowMs);
+  const measures = overviewMeasuresForView(data, days, nowMs, { credentials, items }, view.id);
   // A site with no daily traffic, revenue or product analytics but a rolling
   // session report or a weekly ranking keeps that report beside its numbers.
   const report = siteLead(data, days, nowMs);

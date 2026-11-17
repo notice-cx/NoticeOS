@@ -1,4 +1,6 @@
 import { useChangesPushed, useTowerApi } from '@/lib/browser-context';
+import { workspaceReadDenied } from '@/lib/api';
+import { AppReleaseError } from '@/lib/app-release';
 import { useQuery } from "@tanstack/react-query";
 import type { WorkPayload } from "@shared/work";
 
@@ -10,18 +12,24 @@ import type { WorkPayload } from "@shared/work";
  * truth without ever being the reason it is stale. The last-good payload is
  * kept on a failed poll, so the board ages its age chip rather than blanking.
  * While the change stream delivers it, it is read only when it changed.
+ * Passive surfaces read on entry, return or task actions.
  *
  * `enabled: false` where the surface asking draws nothing without a task source
  * connected, so an installation with none never polls for a board.
  */
-export function useWork({ enabled = true }: { enabled?: boolean } = {}) {
+export function useWork({ enabled = true, watch = true }: { enabled?: boolean; watch?: boolean } = {}) {
   const { fetchWork } = useTowerApi();
   const pushed = useChangesPushed();
-  return useQuery<WorkPayload>({
+  const query = useQuery<WorkPayload>({
     queryKey: ["work"],
     queryFn: ({ signal }) => fetchWork(signal),
-    refetchInterval: pushed ? false : 30_000,
+    refetchInterval: watch && !pushed ? 30_000 : false,
     staleTime: 15_000,
     enabled,
+    ...(watch ? {} : {
+      refetchOnWindowFocus: 'always' as const,
+      retry: (count: number, error: Error) => !(error instanceof AppReleaseError) && !workspaceReadDenied(error) && count < 1,
+    }),
   });
+  return !watch && workspaceReadDenied(query.error) ? { ...query, data: undefined } : query;
 }

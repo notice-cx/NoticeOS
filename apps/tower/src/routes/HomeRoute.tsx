@@ -8,7 +8,7 @@ import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { actorKey, actorName } from "@shared/tasks";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { HomeModuleId } from "@shared/views";
+import type { HomeModuleId, ViewId } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -31,6 +31,7 @@ import { IncidentList } from "@/components/viz/IncidentList";
 import { PortfolioRows, type PortfolioRow } from "@/components/viz/PortfolioRows";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { StatTile } from "@/components/viz/StatTile";
+import { WallHealthStamp } from "@/components/wall/WallHealthStamp";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { useConnections } from "@/hooks/useConnections";
 import { useFirstDraw } from "@/hooks/useFirstDraw";
@@ -44,6 +45,7 @@ import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { formatInt, formatSeriesDate, formatUsd } from "@/lib/format";
 import { AGENTS_ROUTE } from "@/components/nav-items";
+import { useBrowserRuntime } from "@/lib/browser-context";
 import { peopleInLast28Days } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
@@ -55,7 +57,7 @@ import { completeDays } from "@/lib/wall-sites";
 import { type WallIssue } from "@/lib/wall-issues";
 import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
-import { OverviewNumbers, useOverviewMeasures } from "@/routes/asset-detail/OverviewNumbers";
+import { OverviewNumbers, overviewMeasuresForView } from "@/routes/asset-detail/OverviewNumbers";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { ClockProposal } from "@/routes/home/ClockProposal";
@@ -70,15 +72,16 @@ import { MoneyHero } from "@/routes/home/MoneyHero";
 /** Home draws the selected purpose's observed summary and ordered modules.
  * A fresh installation shows the steps to its first collected reading. */
 export function HomeRoute() {
+  const watch = useBrowserRuntime().owner.mode !== "hosted";
   const wall = useWall();
   const { data, isError, error, isFetching, refetch } = wall;
   const feed = useWallFeed();
   const now = useNow();
-  const connections = useConnections();
+  const connections = useConnections(watch);
   // Every read the first screen draws from starts now and the screen is drawn
   // once they have answered, so its counts do not change as reads land. The
   // task capability read starts with them; it only enables Decide's verbs.
-  const work = useWork();
+  const work = useWork({ watch });
   useTasksLive();
   const drawn = useFirstDraw([wall, feed, connections.providers, connections.monitoring, work]);
   // Setup is done at the first collected number; until then Home is the
@@ -90,7 +93,10 @@ export function HomeRoute() {
       <PageHeader
         title="Home"
         documentTitle={null}
-        actions={data && drawn && !guide ? <Census generatedAt={data.generatedAt} nowMs={now} /> : null}
+        actions={data && drawn && !guide ? <>
+          <Census generatedAt={data.generatedAt} nowMs={now} />
+          {connections.snapshot ? <WallHealthStamp snapshot={connections.snapshot} timeZone={data.osTimeZone} className="text-xs" /> : null}
+        </> : null}
       />
 
       {!data || !drawn ? (
@@ -108,7 +114,7 @@ export function HomeRoute() {
           footer={<ClockProposal />}
         />
       ) : (
-        <Board data={data} feed={feed.data ?? null} connections={connections} nowMs={now} />
+        <Board data={data} feed={feed.data ?? null} connections={connections} work={work} nowMs={now} watch={watch} />
       )}
     </div>
   );
@@ -119,7 +125,10 @@ export function HomeRoute() {
 const cents = (value: number) => formatUsd(value, { cents: true });
 const DAY_MS = 86_400_000;
 
-function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
+function Board({ data, feed, connections, work, nowMs, watch }: {
+  data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads;
+  work: Pick<ReturnType<typeof useWork>, "data" | "isError">; nowMs: number; watch: boolean;
+}) {
   const { modules, view } = useView();
   const brief = usePortfolioBrief();
   // A task draft belongs to Home, so changing its purpose keeps the form open.
@@ -188,15 +197,16 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         empty="Nothing is broken."
       />
     ),
-    decide: () => <LiveDecidePanel nowMs={nowMs} />,
-    agents: () => <LiveAgentsLine nowMs={nowMs} />,
+    decide: () => <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />,
+    agents: () => <AgentsLine work={work.data} failed={work.isError} nowMs={nowMs} />,
     sites: () => (
       <div className="@3xl:col-span-2 @6xl:col-span-12" data-home-sites="">
-        {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
+        {oneSite ? <OneSiteLead site={oneSite} connections={connections} view={view.id} nowMs={nowMs} watch={watch} />
+          : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
       </div>
     ),
     health: () => <HealthModule cards={listed} issues={issues} nowMs={nowMs} />,
-    factory: () => <LiveFactory cards={listed} nowMs={nowMs} />,
+    factory: () => <FactoryModule cards={listed} work={work.data ?? null} nowMs={nowMs} />,
     channels: () => <ChannelsModule cards={listed} />,
     gaps: () => <GapsModule cards={listed} onFileTask={setTaskDraft} />,
     timeline: () => (
@@ -336,21 +346,6 @@ export function byWaitingUrgency(a: WaitingRow, b: WaitingRow): number {
   return updatedMs(a.item) - updatedMs(b.item);
 }
 
-function LiveDecidePanel({ nowMs }: { nowMs: number }) {
-  const work = useWork();
-  return <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />;
-}
-
-function LiveFactory({ cards, nowMs }: { cards: readonly AssetCard[]; nowMs: number }) {
-  const work = useWork();
-  return <FactoryModule cards={cards} work={work.data ?? null} nowMs={nowMs} />;
-}
-
-function LiveAgentsLine({ nowMs }: { nowMs: number }) {
-  const work = useWork();
-  return <AgentsLine work={work.data} failed={work.isError} nowMs={nowMs} />;
-}
-
 /** The agents' completed and active work, from the same snapshot as Decisions. */
 export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work: WorkPayload | undefined; failed?: boolean; nowMs?: number }) {
   const totals = new Map<string, { key: string; name: string; closed: number; active: number; models: Set<string> }>();
@@ -462,9 +457,10 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
  * through the same view the Overview reads (so opening the site is instant),
  * over the default 28 days.
  */
-function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: number; className?: string }) {
-  const { data } = useAssetDetail(site.id, "overview");
-  const connections = useConnections();
+function OneSiteLead({ site, connections, view, nowMs, watch }: {
+  site: AssetCard; connections: ConnectionReads; view: ViewId; nowMs: number; watch: boolean;
+}) {
+  const { data } = useAssetDetail(site.id, "overview", { watch });
   const to = `/assets/${encodeURIComponent(site.id)}`;
   const aside = (
     <>
@@ -479,11 +475,11 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
     </>
   );
   return (
-    <div data-one-site-lead={site.id} className={className}>
+    <div data-one-site-lead={site.id}>
       {data && viewCovers(data, "overview") ? (
         <>
           <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{aside}</div>
-          <OneSiteNumbers data={data} nowMs={nowMs} />
+          <OneSiteNumbers data={data} connections={connections} view={view} nowMs={nowMs} />
         </>
       ) : (
         // Until the site's read arrives: the site itself, in the place its
@@ -496,8 +492,10 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
   );
 }
 
-function OneSiteNumbers({ data, nowMs }: { data: AssetDetailFor<"overview">; nowMs: number }) {
-  const measures = useOverviewMeasures(data, DEFAULT_RANGE_DAYS, nowMs);
+function OneSiteNumbers({ data, connections, view, nowMs }: {
+  data: AssetDetailFor<"overview">; connections: ConnectionReads; view: ViewId; nowMs: number;
+}) {
+  const measures = overviewMeasuresForView(data, DEFAULT_RANGE_DAYS, nowMs, connections, view);
   const report = siteLead(data, DEFAULT_RANGE_DAYS, nowMs);
   const usesStandaloneChart = report.kind === "clarity" || report.kind === "rankings";
   return <>

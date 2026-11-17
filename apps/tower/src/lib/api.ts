@@ -360,6 +360,10 @@ export class ApiError extends Error {
   }
 }
 
+export function workspaceReadDenied(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
+
 /**
  * A `?period=` on /financials the ledger cannot answer: a month it holds no
  * rows for, or a value that is not a month at all. It carries `periods[]` off
