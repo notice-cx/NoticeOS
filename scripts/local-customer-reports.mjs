@@ -1,9 +1,12 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { configDocumentFile, configDocumentKey } from './config-documents.mjs';
 import { analyzeSignalHistory, storedSearchMarket, storedValueEvents } from './signal-history-analyze.mjs';
+import { customerArchiveCache } from './customer-archive-cache.mjs';
+import { parseArchive } from './signal-archive.mjs';
+import { DOWNLOADS_MANIFEST } from './signal-downloads.mjs';
 import { publishSignalHistory } from './signal-history.mjs';
 import { parseRoster, refreshAsset } from './signal-panels-refresh.mjs';
 import { SCHEDULED_JOBS, scheduleFor, schedulesRefusal } from './scheduled-jobs.mjs';
@@ -66,34 +69,63 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
       const valueEvents = storedValueEvents(documents);
       const market = storedSearchMarket(documents, asset);
       const start = performance.now();
-      let reads = 0, objectBytes = 0, cost;
+      let reads = 0, heads = 0, objectBytes = 0, cost, fetchedTag;
       const env = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', STORE: store, RAW_SIGNALS: { async get(key) {
         signal.throwIfAborted();
         reads++;
         const content = await bucket.get(key);
         objectBytes += content?.size ?? 0;
+        fetchedTag = content?.etag;
         return content;
       } } };
       const { readPanelSource, readPanelObject, writeInsightSnapshot } = await (helpers ??= loadReportHelpers(sourceRoot, root)
         .catch(error => { helpers = undefined; throw error; }));
       const windowDays = Math.min(400, roster.windowDays);
       const input = await readPanelSource(env, asset, windowDays, Date.parse(at));
-      if (!input.manifest.length) return null;
-      const archiveKeys = new Set(input.manifest.map(row => row.objectKey));
       const work = path.join(root, workspaceId);
+      if (!input.manifest.length) {
+        const known = await access(path.join(work, 'downloads', asset, DOWNLOADS_MANIFEST)).then(() => true, error => {
+          if (error.code === 'ENOENT') return false;
+          throw error;
+        });
+        if (!known) return null;
+      }
+      const archives = customerArchiveCache({ root: path.join(work, 'archive-cache', asset), workspaceId, asset,
+        async get(key) {
+          signal.throwIfAborted();
+          fetchedTag = undefined;
+          const body = await readPanelObject(env, key);
+          if (body === null) throw new Error('Could not recover the archived report (HTTP 404).');
+          parseArchive(body, { asset, source: 'durable report archive' });
+          return { etag: fetchedTag, bytes: Buffer.from(body.endsWith('\n') ? body : `${body}\n`) };
+        },
+        head(key) { signal.throwIfAborted(); heads++; return bucket.head(key); },
+      });
       const report = await refreshAsset(asset, { door: ORIGIN, publish: true,
         downloadsRoot: path.join(work, 'downloads'), historyRoot: path.join(work, 'history'), analysisRoot: path.join(work, 'reports'),
       }, {
         token: '', now: () => at, market, windowDays, freshnessMaxAgeDays: roster.freshnessMaxAgeDays,
+        validateArchives(rows) {
+          for (const row of rows) {
+            if (typeof row.objectKey === 'string' && !row.objectKey.startsWith(`workspaces/${workspaceId}/raw/`)) {
+              throw new Error('The archived report manifest has a different workspace.');
+            }
+          }
+        },
+        async readArchive(row) {
+          const bytes = await archives(row.objectKey, row.reportDate);
+          const source = parseArchive(bytes.toString('utf8'), { asset, source: 'durable report archive' });
+          if (source.integration !== row.integration || source.report !== row.report || source.reportDate !== row.reportDate) {
+            throw new Error('The archived report identity does not match its manifest.');
+          }
+          return bytes;
+        },
         async get(request) {
           signal.throwIfAborted();
           const { origin, pathname, searchParams } = new URL(request);
           if (origin !== ORIGIN) throw new Error('Report adapter selects no external URL.');
           if (pathname === '/api/panel-source' && searchParams.get('asset') === asset) return Response.json(input);
-          const key = searchParams.get('key');
-          if (pathname !== '/api/panel-object' || !archiveKeys.has(key)) return new Response(null, { status: 404 });
-          const body = await readPanelObject(env, key);
-          return new Response(body, { status: body === null ? 404 : 200 });
+          return new Response(null, { status: 404 });
         },
         async writeHistory(options) {
           signal.throwIfAborted();
@@ -112,8 +144,8 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
           return result;
         },
       });
-      return { publication: report.publication, archivesFetched: report.archivesFetched, trendRows: report.trendRows,
-        objectReads: reads, objectBytes, elapsedMs: Math.round(performance.now() - start), cost };
+      return { publication: report.publication, archivesFetched: reads, trendRows: report.trendRows,
+        objectReads: reads, objectHeads: heads, objectBytes, elapsedMs: Math.round(performance.now() - start), cost };
     },
   });
 }
