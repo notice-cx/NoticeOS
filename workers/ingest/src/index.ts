@@ -9,7 +9,7 @@ import { readCredentialSummaries } from './credential-summaries-read.js';
 import { configReadFiles, assetMutationArguments, storedResearchArguments, watchQueryHistoryArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, siteIconsReadArguments, googleOAuthArguments, withGoogleWorkspaceEntry, withIntegrationSummaryEntry, withLiveProviderReadEntry, workspaceEntryOrigin, withWorkspaceEntry, workspaceProfile, WorkspaceEntryRefused } from '../../../scripts/workspace-entry.mjs';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { integrationProvider } from '@noticeos/contract';
-import { ingestOperation } from '../../../scripts/workspace-operations.mjs';
+import { ingestOperation, localSiteReportsEnabled, siteReportGrantRequest } from '../../../scripts/workspace-operations.mjs';
 import { cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
 import { handleD1Request } from './cloudflare-d1.js';
 
@@ -124,6 +124,7 @@ import {
   handleSignalArchives,
 } from './routes/panel-source.js';
 import { handlePulse } from './routes/pulse.js';
+import { handleHostedSiteReport, handleSiteReportGrant } from './routes/site-report.js';
 import { handleTempoMppSale } from './routes/tempo-mpp.js';
 import { TEMPO_MPP_SALE_PATH } from '@noticeos/contract/tempo-mpp';
 import { handleCodebaseReport } from './routes/codebase-report.js';
@@ -272,6 +273,20 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
   // method here is callable over the binding, and none may hand out `env`.
   override async fetch(request: Request): Promise<Response> {
     return withCallStore(this.env, this.ctx, (env) => route(request, env));
+  }
+
+  async siteReport(original: Request): Promise<Response> {
+    return handleHostedSiteReport(original, this.env, this.ctx);
+  }
+
+  async siteReportGrant(original: Request): Promise<Response> {
+    if (workspaceProfile(this.env) !== 'hosted' || !localSiteReportsEnabled(this.env)) throw new WorkspaceEntryRefused();
+    const proof = original.clone();
+    await ingestOperation('siteReportGrant', proof);
+    const selected = siteReportGrantRequest(proof);
+    if (!selected) throw new WorkspaceEntryRefused();
+    return withWorkspaceEntry(this.env, proof, call => call.withStore(this.ctx,
+      store => handleSiteReportGrant({ ...this.env, STORE: store }, selected, call.context.allowedActions.includes('integrations.write'))));
   }
 
   // Instance field intentionally has no RPC visibility. Real scheduled events

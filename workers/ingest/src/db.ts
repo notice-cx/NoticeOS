@@ -22,7 +22,7 @@ import {
   type RuleConfig,
 } from '@noticeos/contract';
 import { noNightlyReportAssets } from '@noticeos/contract/configuration';
-import { javascriptInstant, type Transaction } from '@noticeos/postgres';
+import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import constants from '../../../config/constants.json';
 import { rollUpAlertDay } from './alert-daily.js';
 import { holdCondition, holdCountAlerts, raiseAlertUnlessOpen, resolveOpen } from './alert-store.js';
@@ -120,6 +120,20 @@ export async function ingestPulseEnvelope(
   return { ok: true, result };
 }
 
+/** The grant and report commit under the same lock and transaction. */
+export async function ingestAuthorizedPulse(
+  store: WorkspaceStore,
+  body: unknown,
+  authorize: (tx: Transaction) => Promise<boolean>,
+): Promise<IngestOutcome | null> {
+  return store.write(async tx => {
+    if (!await authorize(tx)) return null;
+    const parsed = PulseEnvelope.safeParse(body);
+    if (!parsed.success) return { ok: false, error: parsed.error };
+    return { ok: true, result: await pulseTransaction(parsed.data)(tx) };
+  });
+}
+
 /**
  * Write one pulse. A same-day re-push is a new revision of that day's report
  * (the day keeps its first revision's number); the alerts the earlier revision
@@ -134,10 +148,14 @@ export async function writePulse(
   envelope: PulseEnvelope,
   ruleConfig?: RuleConfig,
 ): Promise<WritePulseResult> {
+  return env.STORE.write(pulseTransaction(envelope, ruleConfig));
+}
+
+function pulseTransaction(envelope: PulseEnvelope, ruleConfig?: RuleConfig): (tx: Transaction) => Promise<WritePulseResult> {
   const receivedAt = iso(Date.now());
   const date = pulseDay(envelope.generatedAt);
 
-  return env.STORE.write(async (tx) => {
+  return async tx => {
     await holdCountAlerts(tx, envelope.asset);
     await holdCondition(tx, envelope.asset, `report:${date}`);
     const retired = await isRetiredForAlert(tx, envelope.asset);
@@ -343,7 +361,7 @@ export async function writePulse(
       resolvedAnomalies,
       resolvedFreshness,
     };
-  });
+  };
 }
 
 /** Read only reports before the tested day. Provider reporting-timezone

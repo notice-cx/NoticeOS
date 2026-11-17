@@ -194,6 +194,40 @@ export function connectionReadinessRequest(request) {
         return Object.freeze({ provider: match[1], method: 'probeCredential' });
     return null;
 }
+export function siteReportGrantRequest(request) {
+    if (!(request instanceof Request) || request.url.length > 2048)
+        return null;
+    const { method } = request;
+    if (method !== 'GET' && method !== 'POST' && method !== 'DELETE')
+        return null;
+    const url = new URL(request.url);
+    if (request.url.includes('?') || url.hash || url.username || url.password)
+        return null;
+    const match = /^\/api\/assets\/([^/]+)\/report-token$/u.exec(url.pathname);
+    if (!match)
+        return null;
+    try {
+        const asset = decodeURIComponent(match[1]);
+        return asset.length > 0 && asset.length <= 253 && encodeURIComponent(asset) === match[1]
+            && !/[\s/\\\u0000-\u001f\u007f]/u.test(asset)
+            ? { asset, method } : null;
+    }
+    catch {
+        return null;
+    }
+}
+export function localSiteReportsEnabled(env) {
+    const fields = env;
+    if (fields.NOTICEOS_LOCAL_SITE_REPORTS !== '1' || !fields.NOTICEOS_WORKSPACE_ORIGIN)
+        return false;
+    try {
+        const url = new URL(fields.NOTICEOS_WORKSPACE_ORIGIN);
+        return url.origin === fields.NOTICEOS_WORKSPACE_ORIGIN && url.protocol === 'http:' && url.hostname === '127.0.0.1' && !!url.port;
+    }
+    catch {
+        return false;
+    }
+}
 /** These existing workflow effects have fixed paths and bounded asset inputs;
  * the original message, never a caller's lane/service claim, selects the edge. */
 export function providerCollectionRequest(request) {
@@ -735,6 +769,11 @@ export async function towerOperation(request) {
         if (mutation.kind === 'annotation')
             return operation('annotations.write', ['createAnnotation']);
         return operation(mutation.kind === 'flag' && body.action === 'tune' ? 'measurement.write' : 'findings.write');
+    }
+    const grant = siteReportGrantRequest(request);
+    if (grant) {
+        await emptyRequestBody(request);
+        return operation(grant.method === 'GET' ? 'settings.read' : 'integrations.write', ['siteReportGrant']);
     }
     if (/^\/api\/assets\/[^/]+$/u.test(pathname)) {
         if (method === 'GET')

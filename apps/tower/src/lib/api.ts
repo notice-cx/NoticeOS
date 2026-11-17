@@ -1646,6 +1646,21 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
       }
     };
   return Object.freeze({
+    fetchSiteReportGrant: bind(async (fetch: ApiTransport, asset: string, signal?: AbortSignal) => {
+      const response = await fetch('/api/assets/' + encodeURIComponent(asset) + '/report-token', { signal });
+      if (response.status === 404) return null;
+      if (!response.ok) throw new ApiError('Could not read report setup.', response.status);
+      return await response.json() as { issued: boolean; mayIssue: boolean; mayRevoke: boolean };
+    }),
+    issueSiteReportToken: bind(async (fetch: ApiTransport, asset: string) => {
+      const response = await fetch('/api/assets/' + encodeURIComponent(asset) + '/report-token', { method: 'POST' });
+      if (!response.ok) throw new ApiError('Could not issue a report token.', response.status);
+      return (await response.json() as { token: string }).token;
+    }),
+    revokeSiteReportToken: bind(async (fetch: ApiTransport, asset: string) => {
+      const response = await fetch('/api/assets/' + encodeURIComponent(asset) + '/report-token', { method: 'DELETE' });
+      if (!response.ok) throw new ApiError('Could not revoke the report token.', response.status);
+    }),
     fetchD1Status: bind(async (fetch: ApiTransport, inventory = true): Promise<D1Status> => {
       const response = await fetch(`${CLOUDFLARE_D1_PATH}${inventory ? '?view=databases' : ''}`, { headers: { accept: 'application/json' } });
       if (!response.ok) throw new ApiError('Cloudflare unavailable · try again', response.status);
@@ -1739,6 +1754,9 @@ export type TowerApi = ReturnType<typeof createApi>;
 
 // Compatibility only: hosted callers must use their owner's createApi instance.
 export const {
+  fetchSiteReportGrant,
+  issueSiteReportToken,
+  revokeSiteReportToken,
   fetchD1Status,
   saveD1Selection,
   exportD1Database,

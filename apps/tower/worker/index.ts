@@ -22,6 +22,7 @@ import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH } from '../../../scripts/identi
 import { demoViewer } from '../shared/demo-viewer';
 import { demoViewerReadResponse, demoViewerResponse } from './demo-viewer-route';
 import { requireStandaloneWorkspace, withWorkspaceEntry, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
+import { localSiteReportsEnabled, siteReportGrantRequest } from '../../../scripts/workspace-operations.mjs';
 import { isCloudflareD1Request, cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
 import { crossOrigin } from './http';
 import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK, isHostedStoredRead, isHostedGoogleDiscovery, connectionReadinessRequest, credentialWriteRequest, providerCollectionRequest, liveProviderReadRequest, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from '../../../scripts/workspace-operations.mjs';
@@ -133,6 +134,8 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
       integrationHealth?(originalProof?: Request): Promise<unknown>;
       cloudflareD1?(original: Request): Promise<Response>;
       backupCloudflareD1?(original: Request): Promise<Response>;
+      siteReport?(original: Request): Promise<Response>;
+      siteReportGrant?(original: Request): Promise<Response>;
     };
 }
 
@@ -451,6 +454,19 @@ const towerHandler = {
     let profile: ReturnType<typeof workspaceProfile>;
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+    const path = new URL(request.url).pathname;
+    if (profile === 'hosted' && path === '/api/pulse') {
+      if (!localSiteReportsEnabled(env) || !env.INGEST.siteReport) return jsonError('not_found', 404);
+      try { return await env.INGEST.siteReport(request.clone()); }
+      catch { return jsonError('site_report_unavailable', 503); }
+    }
+    if (profile === 'hosted' && siteReportGrantRequest(request)) {
+      if (!localSiteReportsEnabled(env) || !env.INGEST.siteReportGrant) return jsonError('not_found', 404);
+      try {
+        const proof = request.clone();
+        return await withWorkspaceEntry(env, proof, () => env.INGEST.siteReportGrant!(proof.clone()));
+      } catch { return jsonError('workspace_entry_unavailable', 403); }
+    }
     if (new URL(request.url).pathname === MODEL_BUDGET_PATH) {
       if (profile !== 'standalone') return jsonError('model_budget_not_supported', 403);
       return handleModelBudgetRequest(request, env.INGEST);
