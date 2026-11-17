@@ -75,18 +75,10 @@ export function composeArchiveState(home, io, makeDirectory) {
   return locations[2];
 }
 
-async function prepareCustomer() {
+export async function verifyComposeCustomerWorkspace(origin, operating) {
   const { openStore } = await import('../../packages/postgres/src/store.mjs');
   const { openWorkspaceServiceGrant } = await import('../../packages/postgres/src/service-grant.mjs');
-  const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
-  const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
-  const plan = composeCustomerPlan(process.env);
-  const backup = await containerBackupStatus('/state/backup-client.json');
-  if (backup.configured) throw new ContainerRefusal('Customer mode needs the existing backup request and export path before it can run with this backup declaration.');
-  const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
-  const io = { lstatSync, readFileSync };
-  const bootstrap = JSON.parse(privateText(io, '/state/workers/ingest/.dev.secrets.json', 16384));
-  const operating = readComposeCustomerOperating('/state/installation/customer-runtime.json', plan, bootstrap);
+  const { openIdentity } = await import('../../packages/postgres/src/identity.mjs');
   const { workspaceId, serviceId } = operating.workspaces[0];
   const store = openStore(operating.address, { maxConnections: 1 });
   try {
@@ -99,6 +91,25 @@ async function prepareCustomer() {
     if (facts?.workspaceStatus !== 'active' || !facts.actions.includes('workflows.run')) throw new Error('grant');
   } catch { throw new ContainerRefusal('The prepared workspace needs its active customer schedule grant.'); }
   finally { await grant.close(); }
+  let identity;
+  try {
+    identity = await openIdentity({ connectionString: operating.identityAddress, sessionSecret: operating.identitySecret, trustedOrigin: origin });
+    if ((await identity.workspaceSummary(workspaceId))?.status !== 'active') throw new Error('identity');
+  } catch { throw new ContainerRefusal('The prepared identity role cannot read the enrolled customer workspace.'); }
+  finally { await identity?.close(); }
+}
+
+async function prepareCustomer() {
+  const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
+  const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
+  const plan = composeCustomerPlan(process.env);
+  const backup = await containerBackupStatus('/state/backup-client.json');
+  if (backup.configured) throw new ContainerRefusal('Customer mode needs the existing backup request and export path before it can run with this backup declaration.');
+  const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
+  const io = { lstatSync, readFileSync };
+  const bootstrap = JSON.parse(privateText(io, '/state/workers/ingest/.dev.secrets.json', 16384));
+  const operating = readComposeCustomerOperating('/state/installation/customer-runtime.json', plan, bootstrap);
+  await verifyComposeCustomerWorkspace(plan.url, operating);
   return { plan, operating, bridgePeer };
 }
 

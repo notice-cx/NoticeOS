@@ -16,6 +16,7 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../../packages/postgres/sr
 import { openIdentity } from '../../packages/postgres/src/identity.mjs';
 import { openWorkspaceServiceGrant } from '../../packages/postgres/src/service-grant.mjs';
 import { customerReadinessStatus } from '../../deploy/compose/health.mjs';
+import { verifyComposeCustomerWorkspace } from '../../deploy/compose/customer-entry.mjs';
 
 /** Open the same disposable stores one runtime at a time. */
 export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntasksOrigin, actor, t }) {
@@ -152,6 +153,10 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     const operating = { address: appAddress, identityAddress, grantAddress, credentialsKey, identitySecret: sessionSecret,
       siteReports: true, googleDaily: false, ntasksOrigin, mailRecipients: [email], workspaces: [{ workspaceId, serviceId }],
       target: new URL(appAddress).host + '/' + database };
+    await verifyComposeCustomerWorkspace(ownerOrigin, operating);
+    const unusableIdentity = new URL(identityAddress);
+    unusableIdentity.password = 'incorrect-fixture-password';
+    await assert.rejects(verifyComposeCustomerWorkspace(ownerOrigin, { ...operating, identityAddress: unusableIdentity.href }), /identity role/u);
     const receipt = path.join(customerState, 'target.json');
     const open = () => openCustomerTarget(plan, operating, path.join(customerState, 'app'), receipt);
     hostedApp = await startPreparedCustomer(plan, await open(), { deployment: { artifactRoot, archiveBucket: output, workerState: archiveRoot,
