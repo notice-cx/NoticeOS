@@ -1,9 +1,9 @@
 import { useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOwnerMutation, useTowerApi } from '@/lib/browser-context';
+import { useBrowserRuntime, useOwnerMutation } from '@/lib/browser-context';
 
 /** Reads the saved briefing; polling never invokes the model. */
 export function usePortfolioBrief() {
-  const { fetchPortfolioBrief, runLocalJob } = useTowerApi();
+  const { owner, api: { fetchPortfolioBrief, runLocalJob } } = useBrowserRuntime();
   const client = useQueryClient();
   const refreshing = useIsMutating({ mutationKey: ['portfolio-brief-refresh'] });
   const refresh = useOwnerMutation({
@@ -17,6 +17,7 @@ export function usePortfolioBrief() {
   });
   const read = useQuery({
     queryKey: ['portfolio-brief'],
+    enabled: owner.mode !== 'hosted',
     queryFn: ({ signal }) => fetchPortfolioBrief(signal),
     staleTime: 60_000,
     refetchInterval: 60_000,

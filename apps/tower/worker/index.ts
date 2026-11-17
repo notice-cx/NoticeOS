@@ -14,7 +14,7 @@ import { snapshotRpcData } from "./rpc-data";
 // wrangler.jsonc); every other path is a static asset with SPA fallback.
 
 import { BROWSER_SESSION_PATH, handleBrowserSessionRequest } from './browser-session-route';
-import { handleAuthRequest, type AuthEntryBindings } from './auth-route';
+import { edgePeer, handleAuthRequest, type AuthEntryBindings } from './auth-route';
 import { handleAgentSignInRequest, isAgentSignInPath } from './agent-sign-in-route';
 import { bearerChallenge, bearerToken } from '../../../scripts/agent-access.mjs';
 import { handleMembershipRequest } from './membership-route';
@@ -116,6 +116,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
    * route that never does; every unit of work then refuses, naming it. */
   POSTGRES?: StoreBinding;
   NOTICEOS_PORTFOLIO?: PortfolioSummaryBucket;
+  NOTICEOS_CUSTOMER_SHADOW?: boolean;
   NOTICEOS_CUSTOMER_SCHEDULES?: { fetch(request: Request): Promise<Response> };
   INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader & ModelBudgetWriter &
     ConfigDocumentReader &
@@ -438,6 +439,15 @@ const towerHandler = {
   // Every way in — a request, a scheduled tick — runs with a store of its
   // own, opened for the call and closed when it ends (the ingest does the same).
   async fetch(request: Request, env: TowerEnv, ctx: CallContext): Promise<Response> {
+    const viewer = demoViewer();
+    if (viewer === null && env.NOTICEOS_CUSTOMER_SHADOW === true) {
+      // Only the native gateway knows the shadow's per-process peer proof.
+      try {
+        if (env.NOTICEOS_IDENTITY_EDGE !== 'local-loopback') throw new Error('Native gateway required');
+        edgePeer(request, env);
+      }
+      catch { return new Response(null, { status: 403, headers: { 'cache-control': 'no-store' } }); }
+    }
     if ([MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH].includes(new URL(request.url).pathname)) {
       return handleMembershipRequest(request, env);
     }
@@ -454,7 +464,6 @@ const towerHandler = {
     if (new URL(request.url).pathname === BROWSER_SESSION_PATH) {
       return handleBrowserSessionRequest(request, env);
     }
-    const viewer = demoViewer();
     const answer = demoViewerResponse(request, viewer);
     if (answer !== null) return answer;
     let profile: ReturnType<typeof workspaceProfile>;
@@ -763,7 +772,8 @@ const towerHandler = {
         // Snapshot the original message before asynchronous authority reads.
         const proof = request.clone();
         return await withWorkspaceEntry(env, proof, async (call) => {
-          const refreshTaskSnapshot = profile === 'hosted' && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary
+          const refreshTaskSnapshot = profile === 'hosted' && !env.NOTICEOS_CUSTOMER_SHADOW
+            && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary
             ? () => {
               const refresh = env.INGEST.refreshHostedTaskSummary!(proof.clone()).catch(() => false);
               ctx.waitUntil(refresh);
@@ -810,7 +820,8 @@ const towerHandler = {
                 ?? await handleHostedWorkflowRead(request, store, Date.now(), profile === 'hosted' ? env.NOTICEOS_CUSTOMER_SCHEDULES : undefined)
                 ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date() })
                 ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted', refreshTaskSnapshot,
-                  portfolioSummary: profile === 'hosted' ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId) : undefined }))
+                  portfolioSummary: profile === 'hosted'
+                    ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId, env.NOTICEOS_CUSTOMER_SHADOW) : undefined }))
             : await handleConfigRequest(request, { ingest, config });
           // Hosted receiver denial never becomes the resolver's standalone
           // compiled-default fallback or a successful tenant response.

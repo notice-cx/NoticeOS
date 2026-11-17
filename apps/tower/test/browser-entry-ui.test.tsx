@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { createBrowserRouter } from 'react-router-dom';
 import { BrowserEntry } from '@/BrowserEntry';
+import { WorkspaceDataStatus } from '@/components/DemoViewerStatus';
 import { captureBrowserLanding, createBrowserEntry } from '@/lib/browser-entry';
 import type { BrowserEntry as Entry } from '@/lib/browser-entry';
 import type { ApiTransport } from '@/lib/api';
@@ -13,7 +14,7 @@ const records = vi.hoisted(() => ({ routers: [] as { router: ReturnType<typeof c
 vi.mock('@/App', async () => {
   const { createBrowserRouter } = await import('react-router-dom');
   return { createTowerRouter() {
-    const router = createBrowserRouter([{ path: '*', element: <span>Owned screen</span> }]);
+    const router = createBrowserRouter([{ path: '*', element: <><WorkspaceDataStatus /><span>Owned screen</span></> }]);
     const disposed = vi.spyOn(router, 'dispose'); records.routers.push({ router, disposed }); return router;
   } };
 });
@@ -59,6 +60,21 @@ it('StrictMode preserves captured enrollment after fragment removal and first ef
   expect(controllers).toHaveLength(2);
   expect(controllers[1]?.enrollment).toEqual({ kind: 'invitation', id });
   expect(window.location.hash).toBe(''); rendered.unmount();
+});
+it.each([true, undefined] as const)('shows backup status only when the verified hosted session carries it (%s)', async backup => {
+  const workspace = { workspaceId: id, displayName: 'Fixture owner workspace', status: 'active', role: 'owner' };
+  const bootstrap = { mode: 'hosted', session: { principalId: id, sessionId: id, expiresAt: '2099-01-01T00:00:00.000Z' },
+    workspaces: [workspace], selectedWorkspace: workspace, nextCursor: null,
+    ...(backup ? { backupPreview: true } : {}) };
+  const create = () => createBrowserEntry({ origin: window.location.origin, page: window, landing: { kind: 'none' },
+    fetch: async () => Response.json(bootstrap) });
+  const rendered = render(<BrowserEntry createEntry={create} />);
+  try {
+    await screen.findByText('Owned screen');
+    const banner = screen.queryByText('Read-only backup');
+    if (backup) expect(banner).toBeVisible();
+    else expect(banner).toBeNull();
+  } finally { rendered.unmount(); }
 });
 it('identifies a session compatibility refusal as an app update rather than a missing workspace', async () => {
   const release = 'a'.repeat(64), updated = 'b'.repeat(64);

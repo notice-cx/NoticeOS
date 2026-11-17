@@ -240,16 +240,17 @@ const ENGINE = 'scripts/postgres-apply.mjs';
  * the operator command; runtime paths may not. */
 const FIRST_START = 'scripts/start-postgres.mjs';
 const DEVELOPMENT_START = 'scripts/start-development.mjs';
+const SHADOW_TARGET = 'scripts/customer-shadow-target.mjs';
 const HOSTED_DEMO_SETUP = new Set(['scripts/hosted-demo-setup.mts', 'scripts/hosted-demo-setup.mjs']);
 /** The config guard's allow-list key for the demo setup test: it names the test and loads nothing. Any other mention, there or elsewhere, still counts. */
 const CONFIG_GUARD = new Set(['scripts/test-config-isolation.mts', 'scripts/test-config-isolation.mjs']);
 const CONFIG_GUARD_KEY = /^\s*["']scripts\/hosted-demo-setup\.test\.mjs["']:\s*Object\.freeze\(\{\s*$/u;
 /** `noticeos migrate`, an installation without a checkout's way of typing the operator command (scripts/noticeos-cli.mjs). */
 const LAUNCHER_DISPATCH = 'scripts/noticeos-cli.mjs';
-const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START, LAUNCHER_DISPATCH]);
+const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START, SHADOW_TARGET, LAUNCHER_DISPATCH]);
 /** pnpm os:setup and its one-off container step: a provably new, empty installation. */
 const SETUP = ['scripts/os-setup.mjs', 'scripts/os-setup-container.mjs'];
-const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START, ...SETUP]);
+const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START, SHADOW_TARGET, ...SETUP]);
 
 /**
  * Everything under `root` (a checkout's layout) that could let a runtime,
@@ -265,6 +266,7 @@ function operatorOnlyReach(root) {
     FIRST_START,
     // Explicit disposable developer entry; it never adopts an existing store.
     DEVELOPMENT_START,
+    SHADOW_TARGET,
     // Exact operator-only fresh synthetic demo setup; never a runtime loader.
     ...HOSTED_DEMO_SETUP,
   ]);
@@ -294,6 +296,7 @@ function operatorOnlyReach(root) {
         if (!FRESH_USERS.has(relative) && /start-postgres/u.test(codeOnly(text))) found.freshLoaders.push(relative);
         const demoSetupText = CONFIG_GUARD.has(relative) ? codeOnly(text).split('\n').filter((line) => !CONFIG_GUARD_KEY.test(line)).join('\n') : codeOnly(text);
         if (!HOSTED_DEMO_SETUP.has(relative) && /hosted-demo-setup/u.test(demoSetupText)) found.freshLoaders.push(relative);
+        if (relative !== SHADOW_TARGET && /customer-shadow-target\.mjs|db:shadow-target/u.test(codeOnly(text))) found.freshLoaders.push(relative);
         if (relative !== OPERATOR_COMMAND && !COMMAND_USERS.has(relative) && reachesCommand(relative, text)) found.commandLoaders.push(relative);
         if (/postgres-import/u.test(text)) found.importerLoaders.push(relative);
         if (allowed.has(relative)) continue;
@@ -311,7 +314,7 @@ function operatorOnlyReach(root) {
     for (const name of readdirSync(dir)) {
       const hook = readFileSync(path.join(dir, name), 'utf8');
       if (/postgres-apply|(?<![a-z-])os-migrate|os:migrate/u.test(hook)) found.commandLoaders.push(path.join(hooks, name));
-      if (/hosted-demo-setup/u.test(hook)) found.freshLoaders.push(path.join(hooks, name));
+      if (/hosted-demo-setup|customer-shadow-target\.mjs|db:shadow-target/u.test(hook)) found.freshLoaders.push(path.join(hooks, name));
     }
   }
   const scripts = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).scripts;
@@ -324,6 +327,9 @@ function operatorOnlyReach(root) {
     if (/postgres-apply/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/postgres-import/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/hosted-demo-setup/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
+    if (/customer-shadow-target|db:shadow-target/u.test(command) && (name !== 'db:shadow-target' || command !== `node ${SHADOW_TARGET}`)) {
+      found.packageScripts.push(`${name}: ${command}`);
+    }
     if (/os:migrate/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
   }
   if (scripts['os:migrate'] !== `node ${OPERATOR_COMMAND}`) found.packageScripts.push(`os:migrate: ${scripts['os:migrate']}`);
@@ -361,6 +367,23 @@ test('the approved demo caller can reach only fresh preparation, never the opera
   const found = operatorOnlyReach(root);
   assert.deepEqual(found.commandLoaders, ['scripts/demo-seed.mjs']);
   assert.deepEqual(found.offenders, ['scripts/demo-seed.mjs']);
+});
+
+test('only the explicit shadow preparation command can reach fresh target creation', () => {
+  const root = tempDir('nos-shadow-reach-');
+  mkdirSync(path.join(root, 'scripts'));
+  const scripts = {
+    'os:migrate': 'node scripts/os-migrate.mjs',
+    'db:shadow-target': 'node scripts/customer-shadow-target.mjs',
+  };
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts }));
+  writeFileSync(path.join(root, SHADOW_TARGET), "import { applyMigrations } from './postgres-migrate.mjs';\n");
+  assert.deepEqual(operatorOnlyReach(root).offenders, []);
+  const alias = 'pnpm db:shadow-target prepare /tmp/fixture';
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { ...scripts, 'os:restart': alias } }));
+  assert.deepEqual(operatorOnlyReach(root).packageScripts, [`os:restart: ${alias}`]);
+  writeFileSync(path.join(root, 'scripts/local-customer-shadow.mjs'), "import './customer-shadow-target.mjs';\n");
+  assert.deepEqual(operatorOnlyReach(root).freshLoaders, ['scripts/local-customer-shadow.mjs']);
 });
 
 test('the guard catches runtime migration reach and retired importer commands in a planted checkout', () => {

@@ -12,7 +12,8 @@ export type BrowserSession =
   | Readonly<{ mode: 'standalone' }>
   | Readonly<{ mode: 'demo'; workspace: Readonly<{ workspaceId: string; displayName: string }> }>
   | Readonly<{ mode: 'hosted'; session: Readonly<{ principalId: string; sessionId: string; expiresAt: string }> | null;
-      workspaces: readonly WorkspaceChoice[]; nextCursor: string | null; selectedWorkspace: WorkspaceChoice | null }>;
+      workspaces: readonly WorkspaceChoice[]; nextCursor: string | null; selectedWorkspace: WorkspaceChoice | null;
+      backupPreview?: true }>;
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const uuid = (value: unknown): value is string => typeof value === 'string' && UUID.test(value);
@@ -37,7 +38,9 @@ export function decodeBrowserSession(value: unknown): BrowserSession {
       || !uuid(workspace.workspaceId) || typeof workspace.displayName !== 'string' || !workspace.displayName.trim() || workspace.displayName.length > 200) invalid();
     return Object.freeze({ mode: 'demo', workspace: Object.freeze({ workspaceId: workspace.workspaceId, displayName: workspace.displayName }) });
   }
-  if (value.mode !== 'hosted' || !exact(value, ['mode', 'session', 'workspaces', 'nextCursor', 'selectedWorkspace'])
+  const backupPreview = value.backupPreview === true;
+  if (value.mode !== 'hosted' || !exact(value, ['mode', 'session', 'workspaces', 'nextCursor', 'selectedWorkspace',
+    ...(backupPreview ? ['backupPreview'] : [])])
     || !Array.isArray(value.workspaces) || value.workspaces.length > 100 || (value.nextCursor !== null && !uuid(value.nextCursor))) invalid();
   const workspaces = Object.freeze(value.workspaces.map(choice));
   if (new Set(workspaces.map(item => item.workspaceId)).size !== workspaces.length) invalid();
@@ -53,7 +56,8 @@ export function decodeBrowserSession(value: unknown): BrowserSession {
     || (selectedWorkspace !== null && selectedWorkspace.status !== 'active')) invalid();
   const listed = workspaces.find(item => item.workspaceId === selectedWorkspace?.workspaceId);
   if (listed && JSON.stringify(listed) !== JSON.stringify(selectedWorkspace)) invalid();
-  return Object.freeze({ mode: 'hosted', session, workspaces, nextCursor: value.nextCursor, selectedWorkspace });
+  return Object.freeze({ mode: 'hosted', session, workspaces, nextCursor: value.nextCursor, selectedWorkspace,
+    ...(backupPreview ? { backupPreview: true as const } : {}) });
 }
 
 /** Session reads precede the workspace runtime. No expected-session header,

@@ -29,7 +29,7 @@ import {
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { DemoViewerStatus } from '@/components/DemoViewerStatus';
+import { WorkspaceDataStatus } from '@/components/DemoViewerStatus';
 import { ViewBar } from "@/components/ViewBar";
 import { SeverityDot } from "@/components/SeverityDot";
 import { openAlertsLabel } from "@/lib/severity";
@@ -584,7 +584,7 @@ export function AppShell({
             <WorkspaceButton className="ml-auto max-w-44" />
           </div>
 
-          <DemoViewerStatus />
+          <WorkspaceDataStatus />
           {!pathname.startsWith("/wall") ? <ViewBar /> : null}
           {/* `page-arrive`: each page fades in as it replaces the last. */}
           <main className="page-arrive min-w-0 flex-1">

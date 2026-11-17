@@ -4,7 +4,7 @@ import { DEFAULT_WALL_LAYOUT, parseWallConfig, type WallLayout } from "@shared/w
 import { ReadFailed } from "@/components/ReadFailed";
 import { RouteLoading } from "@/components/RouteLoading";
 import { WallCanvas } from "@/components/WallCanvas";
-import { DemoViewerStatus } from '@/components/DemoViewerStatus';
+import { WorkspaceDataStatus } from '@/components/DemoViewerStatus';
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
 import { useNow } from "@/hooks/useNow";
 import { useConnections } from "@/hooks/useConnections";
@@ -54,9 +54,9 @@ export function WallRoute() {
 
   if (!data || layout === null) {
     if (isError) {
-      return <><DemoViewerStatus /><ReadFailed surface="wall" title="Couldn't load the Wall" subject="read:wall" error={error} retrying={isFetching} onRetry={() => void refetch()} /></>;
+      return <><WorkspaceDataStatus /><ReadFailed surface="wall" title="Couldn't load the Wall" subject="read:wall" error={error} retrying={isFetching} onRetry={() => void refetch()} /></>;
     }
-    return <><DemoViewerStatus /><RouteLoading surface="wall" /></>;
+    return <><WorkspaceDataStatus /><RouteLoading surface="wall" /></>;
   }
 
   // A laptop or a landscape tablet draws the TV's layout, scaled to fit it
@@ -78,7 +78,7 @@ export function WallRoute() {
       data-wall-small-insets={screen.viewportWidth < 768 || undefined}
       style={{ "--wall-scale": screen.scale, "--wall-render-zoom": screen.zoom, "--wall-viewport-height": `${screen.viewportHeight}px` } as CSSProperties}
     >
-      <DemoViewerStatus className="mb-2 px-0" />
+      <WorkspaceDataStatus className="mb-2 px-0" />
       <WallCanvas
         layout={layout}
         data={data}

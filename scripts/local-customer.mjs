@@ -8,6 +8,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { APP_RELEASE_HEADER, isAppApiPath, releaseMismatch } from '../apps/tower/shared/app-release.ts';
 import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtifact } from './hosted-demo-server.mjs';
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
@@ -80,10 +81,10 @@ function renewFirstInvitations(cluster, settings, deliver) {
   }
 }
 
-function localMailbox(outbox) {
+export function localMailbox(outbox, accepts = email => /^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@example\.test$/iu.test(email)) {
   return message => {
     if (message?.from !== MAIL_SENDER || typeof message.to !== 'string' || message.to.length > 320
-      || !/^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@example\.test$/iu.test(message.to)
+      || !accepts(message.to)
       || typeof message.subject !== 'string' || message.subject.length > 128
       || typeof message.text !== 'string' || message.text.length > 2048) throw new Error('Local mail delivery unavailable.');
     const id = randomUUID();
@@ -119,7 +120,7 @@ async function requestBody(request) {
   return Buffer.concat(chunks);
 }
 
-function customerServer(publicOrigin, runtime, peerProof) {
+function customerServer(publicOrigin, runtime, peerProof, admits, release) {
   const server = createServer(async (request, reply) => {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 30000);
@@ -128,9 +129,20 @@ function customerServer(publicOrigin, runtime, peerProof) {
     try {
       if (request.socket.remoteAddress !== HOST) throw new Error('Loopback required.');
       const url = requestTarget(publicOrigin, request);
+      if (isAppApiPath(url.pathname)) {
+        // The browser checks the release on gateway denials as well as Worker responses.
+        reply.setHeader(APP_RELEASE_HEADER, release);
+        if (releaseMismatch(request.headers[APP_RELEASE_HEADER] ?? null, release)) {
+          reply.writeHead(409, { 'cache-control': 'no-store', 'content-type': 'application/json' });
+          reply.end(JSON.stringify({ error: 'app_release_changed' }));
+          return;
+        }
+      }
       if (url.pathname.startsWith('/cdn-cgi/')) throw new Error('Internal runtime path.');
-      const response = await runtime.dispatchFetch(url.href, { method: request.method, redirect: 'manual',
-        headers: gatewayHeaders(request, peerProof), body: await requestBody(request), signal: abort.signal });
+      const input = { method: request.method, redirect: 'manual',
+        headers: gatewayHeaders(request, peerProof), body: await requestBody(request), signal: abort.signal };
+      const response = !admits || await admits(new Request(url.href, input)) ? await runtime.dispatchFetch(url.href, input)
+        : new Response(null, { status: 403, headers: { 'cache-control': 'no-store' } });
       for (const [name, value] of response.headers) {
         if (!['set-cookie', 'connection', 'transfer-encoding'].includes(name)) reply.setHeader(name, value);
       }
@@ -162,10 +174,10 @@ export function localNtasksOrigin(value) {
   return value;
 }
 
-function privateDirectory(name, create = false) {
+export function privateDirectory(name, create = false) {
   if (create) mkdirSync(name, { mode: 0o700 });
   const stat = lstatSync(name);
-  if (!stat.isDirectory() || (stat.mode & 0o077) !== 0 || realpathSync(name) !== name) throw new Error('Customer state must be private.');
+  if (!stat.isDirectory() || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0 || realpathSync(name) !== name) throw new Error('Customer state must be private.');
   return name;
 }
 
@@ -202,10 +214,36 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
   if (publicOrigin !== `http://${HOST}:${plan.port}` || !development.cluster) throw new Error('Local customer fixture requires its own loopback database.');
   const requestedNtasks = selectedNtasks === undefined ? null : localNtasksOrigin(selectedNtasks);
   const customer = privateDirectory(path.join(realpathSync(path.dirname(development.customer)), path.basename(development.customer)), development.fresh);
+  const { cluster } = development;
+  const file = path.join(customer, 'settings.json');
+  const outbox = privateDirectory(path.join(customer, 'mail'), development.fresh);
+  const deliver = localMailbox(outbox);
+  if (requestedNtasks === publicOrigin || requestedNtasks === `http://${HOST}:${cluster.loopbackPort}`) throw new Error('Ntasks needs a separate port.');
+  const settings = development.fresh ? {
+    format: 'noticeos-local-customer/1', publicOrigin, ntasksOrigin: requestedNtasks,
+    identitySecret: randomBytes(48).toString('base64url'), credentialsKey: randomBytes(32).toString('base64'),
+    workspaces: provision(cluster, publicOrigin, deliver),
+  } : readSettings(file, publicOrigin, requestedNtasks);
+  if (development.fresh) writeFileSync(file, JSON.stringify(settings) + '\n', { mode: 0o600, flag: 'wx' });
+  else renewFirstInvitations(cluster, settings, deliver);
+  const { address: connectionString, identityDatabase, grantConnectionString } = development;
+  const resumeSince = development.fresh ? undefined : lstatSync(file).mtimeMs;
+  return startCustomerRuntime(plan, { ...settings, customer, outbox, deliver, connectionString, identityDatabase, resumeSince,
+    workerState: privateDirectory(path.join(customer, 'worker-state'), development.fresh),
+    grantConnectionString, startSchedules, fixtureProvider });
+}
+
+/** Runtime composition shared by the disposable fixture and its read-only shadow. */
+export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
+  identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
+  startSchedules, fixtureProvider, shadowAdmission, resumeSince }) {
+  const publicOrigin = `http://${HOST}:${plan.port}`;
+  if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
+  if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider)) {
+    throw new Error('Customer shadow cannot start providers or schedules.');
+  }
   const state = mkdtempSync(path.join(customer, 'build-'));
   const artifactRoot = path.join(state, 'app');
-  const connectionString = development.address;
-  const { cluster } = development;
   let runtime, schedules, server;
   let closing;
   function close() {
@@ -222,23 +260,9 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
     return closing;
   }
   try {
-    const file = path.join(customer, 'settings.json');
-    const outbox = privateDirectory(path.join(customer, 'mail'), development.fresh);
-    const workerState = privateDirectory(path.join(customer, 'worker-state'), development.fresh);
-    const deliver = localMailbox(outbox);
-    if (requestedNtasks === publicOrigin || requestedNtasks === `http://${HOST}:${cluster.loopbackPort}`) throw new Error('Ntasks needs a separate port.');
-    const settings = development.fresh ? {
-      format: 'noticeos-local-customer/1', publicOrigin, ntasksOrigin: requestedNtasks,
-      identitySecret: randomBytes(48).toString('base64url'), credentialsKey: randomBytes(32).toString('base64'),
-      workspaces: provision(cluster, publicOrigin, deliver),
-    } : readSettings(file, publicOrigin, requestedNtasks);
-    if (development.fresh) writeFileSync(file, JSON.stringify(settings) + '\n', { mode: 0o600, flag: 'wx' });
-    else renewFirstInvitations(cluster, settings, deliver);
-    const { workspaces, ntasksOrigin, identitySecret, credentialsKey } = settings;
     await buildCustomer(state, artifactRoot);
     const artifact = readHostedArtifact(artifactRoot);
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
-    const { identityDatabase, grantConnectionString } = development;
     const peerProof = randomBytes(32).toString('base64url');
     const scheduleProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
@@ -259,12 +283,14 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
         .map(file => ({ type: 'ESModule', path: path.join(artifactRoot, file) })),
       outboundService: request => outboundService(request, name === 'ingest' ? fixtureProvider : undefined) });
     const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest);
-    const serviceWorkspaces = workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }));
+    const serviceWorkspaces = grantConnectionString
+      ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
     runtime = new Miniflare({ host: HOST, port: 0, cf: { colo: 'LOCAL' }, inspectorPort: undefined,
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
       telemetry: { enabled: false }, workers: [
         { ...tower, bindings: { ...bindings, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
+          ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
           NOTICEOS_IDENTITY_EMAIL_FROM: MAIL_SENDER },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
             routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: assets.not_found_handling } },
@@ -274,10 +300,11 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
               return status ? Response.json(status) : new Response(null, { status: 404 });
             } } : {}) },
           r2Buckets: { NOTICEOS_PORTFOLIO: 'customer-portfolio-summaries' } },
-        { ...ingest, bindings: { ...bindings, CREDENTIALS_KEY: credentialsKey,
-          NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces),
+        { ...ingest, bindings: { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}),
+          ...(grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces) } : {}),
           ...(ntasksOrigin === null ? {} : { NOTICEOS_NTASKS_ORIGIN: ntasksOrigin }) },
-          hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString }, r2Buckets: { RAW_SIGNALS: 'customer-raw-signals' } },
+          ...(grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {}),
+          r2Buckets: { RAW_SIGNALS: 'customer-raw-signals' } },
         ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
           script: `export default {fetch(r,e){return r.headers.get('${SCHEDULE_HEADER}') === e.PROOF
             ? e.SCHEDULE.fetch(r) : new Response(null,{status:403})}}`, bindings: { PROOF: scheduleProof },
@@ -294,7 +321,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
-        resumeSince: development.fresh ? undefined : lstatSync(file).mtimeMs,
+        resumeSince,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
           root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
           fetch(input, init) {
@@ -304,7 +331,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
           },
         }, bucket });
     }
-    server = customerServer(publicOrigin, runtime, peerProof);
+    server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission, artifact.release);
     await new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(plan.port, HOST, () => { server.off('error', reject); resolve(); });

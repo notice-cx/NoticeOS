@@ -112,7 +112,8 @@ function EntryView({ entry }: { entry: Entry }) {
   }, [state.phase, release]);
   if (state.phase === 'ready' && state.runtime) {
     return <OwnedDesk key={state.runtime.ownerKey} runtime={state.runtime} label={state.label} entry={entry}
-      role={state.session?.mode === 'hosted' ? state.session.selectedWorkspace?.role : undefined} />;
+      role={state.session?.mode === 'hosted' ? state.session.selectedWorkspace?.role : undefined}
+      backupPreview={state.session?.mode === 'hosted' ? state.session.backupPreview : undefined} />;
   }
   // The boot splash stays up through the session check and while the sign-in
   // or agent screen's code arrives (each dismisses it beside its own screen);
@@ -152,9 +153,10 @@ function EntryView({ entry }: { entry: Entry }) {
   </main>;
 }
 
-function OwnedDesk({ runtime, label, entry, role }: {
+function OwnedDesk({ runtime, label, entry, role, backupPreview }: {
   runtime: NonNullable<ReturnType<Entry['snapshot']>['runtime']>; label: string | null; entry: Entry;
   role?: 'owner' | 'operator' | 'viewer';
+  backupPreview?: true;
 }) {
   const [router, setRouter] = useState<ReturnType<typeof createTowerRouter> | null>(null);
   useEffect(() => {
@@ -164,7 +166,7 @@ function OwnedDesk({ runtime, label, entry, role }: {
   }, []);
   if (!router) return <main className="p-6"><EmptyState title="Opening workspace…" /></main>;
   return <BrowserRuntimeProvider value={{ runtime, workspaceLabel: label,
-    workspaceRole: role, refreshSession: entry.refresh, revalidateSession: entry.revalidate,
+    workspaceRole: role, backupPreview, refreshSession: entry.refresh, revalidateSession: entry.revalidate,
     switchWorkspace: runtime.owner.mode === 'hosted' ? entry.switchWorkspace : undefined,
     logout: runtime.owner.mode === 'hosted' ? entry.logout : undefined }}>
     <QueryClientProvider client={runtime.queries}><RouterProvider router={router} /><RouterNavigationProgress router={router} /><AppToaster /></QueryClientProvider>

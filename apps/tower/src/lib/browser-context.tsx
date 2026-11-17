@@ -14,6 +14,8 @@ import { demoViewer } from '@shared/demo-viewer';
 interface BrowserContextValue {
   readonly runtime: BrowserUiRuntime;
   readonly workspaceLabel: string | null;
+  /** Presentation fact from the trusted session bootstrap. */
+  readonly backupPreview?: true;
   /** Captured bootstrap presentation; every administration request reauthorizes. */
   readonly workspaceRole?: WorkspaceChoice['role'];
   readonly refreshSession?: BrowserEntry['refresh'];
@@ -35,6 +37,7 @@ export function useBrowserContext(): BrowserContextValue {
 export function useBrowserRuntime() { return useBrowserContext().runtime; }
 /** Presentation facts only; the gallery can render without an entry context. */
 export function useVerifiedDemoMode() { return useContext(BrowserContext)?.runtime.owner.mode === 'demo'; }
+export function useBackupPreview() { return useContext(BrowserContext)?.backupPreview === true; }
 /** The existing immutable viewer and hosted synthetic workspace share only
  * presentation restrictions. Server admission remains the write authority. */
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
