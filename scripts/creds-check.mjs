@@ -1229,7 +1229,7 @@ function withoutFeedUrls(rows, urls) {
 }
 
 export async function probeCalendar(vars) {
-  const label = 'Calendar feeds';
+  const label = 'Google Calendar';
   const { config, targets } = parseCalendarFeeds(vars.CALENDAR_FEEDS);
 
   if (config === 'absent') {
@@ -1515,7 +1515,7 @@ export const LANES = [
   },
   {
     id: 'calendar',
-    label: 'Calendar feeds',
+    label: 'Google Calendar',
     explicit: false,
     provider: 'calendar',
     slots: 'CALENDAR_FEEDS',

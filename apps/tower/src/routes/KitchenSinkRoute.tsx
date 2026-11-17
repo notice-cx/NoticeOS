@@ -3010,7 +3010,7 @@ export function KitchenSinkRoute() {
                 ["clarity", "Microsoft Clarity"],
                 ["mediavine", "Mediavine"],
                 ["discord", "Discord"],
-                ["calendar", "Calendar feeds"],
+                ["calendar", "Google Calendar"],
                 ["snapshots", "Ntasks"],
                 ["unknown", "Other integration"],
               ] as const).map(([provider, label]) => (

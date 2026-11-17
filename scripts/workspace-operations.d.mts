@@ -17,6 +17,9 @@ export declare class OperationRefused extends Error {
 export declare function isCloudflareD1Request(request: Request): boolean;
 /** The original request is the only selector supplied to either receiver. */
 export declare function cloudflareD1Request(request: Request): Promise<D1Request>;
+export declare const ADSENSE_INTEGRATION_START = "/api/integrations/adsense/oauth/start";
+export declare const ADSENSE_INTEGRATION_CALLBACK = "/api/integrations/adsense/oauth/callback";
+export declare function googleOAuthProvider(request: Request): 'google' | 'adsense';
 export declare const GOOGLE_INTEGRATION_START = "/api/integrations/google/oauth/start";
 export declare const GOOGLE_INTEGRATION_CALLBACK = "/api/integrations/google/oauth/callback";
 export declare const GOOGLE_INTEGRATION_PROPERTIES = "/api/integrations/google/properties";

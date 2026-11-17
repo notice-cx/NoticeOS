@@ -208,7 +208,8 @@ async function runProbe(
     }
   }
   if (provider === 'google') return probeGoogle(env, fields, fetchImpl, nowMs);
-  if (provider === 'google-oauth-app') return probeGoogleOAuthApp(fields);
+  if (provider === 'google-oauth-app') return probeGoogleOAuthApp(fields.GOOGLE_OAUTH_CLIENT_ID ?? '');
+  if (provider === 'adsense-oauth-app') return probeGoogleOAuthApp(fields.ADSENSE_OAUTH_CLIENT_ID ?? '');
   if (provider === 'bing-webmaster') return probeBing(fields, fetchImpl);
   if (provider === 'dataforseo') return probeDataForSeo(env, fields, fetchImpl, nowMs);
   if (provider === 'calendar') return probeCalendar(fields, fetchImpl);
@@ -415,8 +416,7 @@ async function probeGoogleAuth(
  * no free call that proves a client id and secret without a consent screen. An
  * honest "not checked, now sign in" rather than an unverified green tick.
  */
-function probeGoogleOAuthApp(fields: Record<string, string>): ProbeFound {
-  const clientId = fields.GOOGLE_OAUTH_CLIENT_ID ?? '';
+function probeGoogleOAuthApp(clientId: string): ProbeFound {
   if (!clientId.endsWith('.apps.googleusercontent.com')) {
     return { ok: false, result: { outcome: 'invalid', failing: ['Client ID'], fix: { kind: 'replace' } } };
   }
@@ -590,8 +590,8 @@ export async function disconnectCredential(
   options: { fetchImpl?: typeof fetch } = {},
 ): Promise<DeleteCredentialResult> {
   if (providerId === 'mediavine') return disconnectMediavine(env);
-  if (providerId === 'google') {
-    await revokeGoogleGrant(env, options.fetchImpl ?? fetch);
+  if (providerId === 'google' || providerId === 'adsense') {
+    await revokeGoogleGrant(env, options.fetchImpl ?? fetch, providerId);
   }
   return deleteCredential(env, providerId);
 }

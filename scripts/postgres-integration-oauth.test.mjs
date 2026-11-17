@@ -119,6 +119,20 @@ test('transaction custody uses maintained cookies, fresh authority and committed
       assert.equal(context.sessionId, held.sessionId); assert.equal(context.workspaceId, a); assert.equal(await count(state), 0);
       await assert.rejects(claim(state));
     });
+    await t.test('AdSense custody returns only to its own provider and preserves workspace and session binding', async () => {
+      const original = start(a, cookie, { [WORKSPACE_SESSION_HEADER]: expectedSession });
+      const adsenseStart = new Request(original.url.replace('/google/', '/adsense/'), original);
+      const state = await gate.withGoogleStart('adsense-start', adsenseStart, async (_context, held) => held);
+      await assert.rejects(claim(state));
+      assert.equal(await count(state), 1);
+      const googleCallback = callback(state, cookie);
+      const adsenseCallback = new Request(googleCallback.url.replace('/google/', '/adsense/'), googleCallback);
+      const accepted = await gate.withGoogleCallback('adsense-callback', adsenseCallback, async context => context);
+      assert.equal(accepted.workspaceId, a);
+      assert.equal(accepted.sessionId, expectedSession);
+      assert.equal(await count(state), 0);
+      await assert.rejects(gate.withGoogleCallback('adsense-replay', adsenseCallback, async () => assert.fail()));
+    });
     await t.test('different person/session and conflicting workspace do not consume', async () => {
       const state = await issue(a);
       await assert.rejects(claim(state, otherCookie)); await assert.rejects(claim(state, secondSession));

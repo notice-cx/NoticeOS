@@ -21,6 +21,7 @@ export const PROBE_CAPABILITY: Record<IntegrationProviderId, string> = {
   clarity: 'clarity-setup',
   posthog: 'posthog-test',
   'google-oauth-app': 'google-app-setup',
+  'adsense-oauth-app': 'adsense-app-setup',
   crux: 'crux-test',
   stripe: 'stripe-test',
 };

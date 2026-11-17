@@ -53,6 +53,7 @@ export const INTEGRATION_MONITORS = {
     monitor('google-test', 'Google connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the account and property permissions shown by the test.'),
   ],
   // Local shape validation; never proof of remote access.
+  'adsense-oauth-app': [monitor('adsense-app-setup', 'AdSense sign-in setup', [], 'credential-probes', 'account', 'setup', 'setup-only', 'Complete AdSense sign-in in Integrations.')],
   'google-oauth-app': [monitor('google-app-setup', 'Google sign-in setup', [], 'credential-probes', 'account', 'setup', 'setup-only', 'Complete Google sign-in in Integrations.')],
   'bing-webmaster': [
     // Saved Bing collection schedule.

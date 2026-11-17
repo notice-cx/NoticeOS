@@ -366,15 +366,16 @@ export function googleOAuthCardState(
   const connected = google.credential.auth === "oauth";
   const loopback = verdict.usable ? null : googleLoopbackOrigin(origin);
   const base = {
-    redirectUri: googleOAuthRedirectUri(origin),
-    loopbackUrl: loopback === null ? null : `${loopback}${GOOGLE_PROVIDER_PAGE}`,
+    redirectUri: googleOAuthRedirectUri(origin, google.provider.id === 'adsense' ? 'adsense' : 'google'),
+    loopbackUrl: loopback === null ? null : `${loopback}/integrations?connect=${google.provider.id}`,
     account: metadata?.account ?? null,
     scopes: grantedScopes(metadata?.scopes ?? []),
     connectedAt: metadata?.connectedAt ?? null,
   };
-  // `connected` is checked first: a credential that already works must keep
-  // saying so even from a browser Google would refuse to return to.
-  if (connected) return { ...base, state: "connected" };
+  if (google.provider.id === 'adsense' && (app === null || app.credential.source === 'none')) {
+    return { ...base, state: 'app-missing' };
+  }
+  if (connected && (verdict.usable || google.provider.id !== "adsense")) return { ...base, state: "connected" };
   if (app === null || app.credential.source === "none") {
     return { ...base, state: "app-missing" };
   }
@@ -393,6 +394,7 @@ export interface GrantedScope {
  * account gave. */
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Confirm who you are",
+  'https://www.googleapis.com/auth/adsense.readonly': 'AdSense — read only',
   email: "Your email address",
   "https://www.googleapis.com/auth/analytics.readonly": "Analytics — read only",
   "https://www.googleapis.com/auth/webmasters.readonly": "Search Console — read only",
@@ -401,10 +403,6 @@ const SCOPE_LABELS: Record<string, string> = {
 export function grantedScopes(scopes: readonly string[]): GrantedScope[] {
   return scopes.map((scope) => ({ scope, label: SCOPE_LABELS[scope] ?? scope }));
 }
-
-/** Google's connect panel — where the sign-in returns, and where a loopback
- * link lands. */
-const GOOGLE_PROVIDER_PAGE = "/integrations?connect=google";
 
 /** What to say when the browser comes back from Google: what happened, and,
  * where the fix is one press somewhere else, that press as the toast's
@@ -447,12 +445,12 @@ const OAUTH_FAILURE_MESSAGES: Record<GoogleOAuthFailure | Extract<GoogleOAuthSta
 
 /** The one press that fixes a failure, where there is one. `origin` is the
  * address this browser has the Tower open at. */
-function oauthFailureAction(code: string, origin: string): GoogleOAuthNoticeAction | undefined {
+function oauthFailureAction(code: string, origin: string, provider: 'google' | 'adsense'): GoogleOAuthNoticeAction | undefined {
   if (code === "redirect_unusable") {
     const loopback = googleLoopbackOrigin(origin);
     return loopback === null
       ? undefined
-      : { label: "Open on 127.0.0.1", href: `${loopback}${GOOGLE_PROVIDER_PAGE}`, external: false };
+      : { label: "Open on 127.0.0.1", href: `${loopback}/integrations?connect=${provider}`, external: false };
   }
   // The client ID, secret and redirect URI all live on this one console screen.
   if (code === "exchange_failed") {
@@ -466,16 +464,18 @@ function oauthFailureAction(code: string, origin: string): GoogleOAuthNoticeActi
   return undefined;
 }
 
-export function googleOAuthNotice(value: string | null, origin = ""): GoogleOAuthNotice | null {
+export function googleOAuthNotice(value: string | null, origin = '', provider: 'google' | 'adsense' = 'google'): GoogleOAuthNotice | null {
   if (value === null || value === "") return null;
   if (value === GOOGLE_OAUTH_CONNECTED) {
     return { tone: "ok", message: "Signed in to Google." };
   }
-  const action = oauthFailureAction(value, origin);
+  const action = oauthFailureAction(value, origin, provider);
   return {
     tone: "bad",
     message:
-      (OAUTH_FAILURE_MESSAGES as Record<string, string>)[value] ??
+      (value === 'scope_incomplete' && provider === 'adsense'
+        ? 'Grant read-only AdSense access when you connect again.'
+        : (OAUTH_FAILURE_MESSAGES as Record<string, string>)[value]) ??
       "The Google sign-in did not finish. Try Sign in with Google again.",
     ...(action ? { action } : {}),
   };

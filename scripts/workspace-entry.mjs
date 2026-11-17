@@ -12,7 +12,7 @@ import { AGENT_RESOURCE_PATH, bearerToken } from './agent-access.mjs';
 import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest, credentialWriteRequest, credentialWriteInput, providerCollectionRequest, providerCollectionInput, storedResearchReadRequest, assetMutationRequest, assetMutationInput, personPreferenceRequest, watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
-import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 export { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
@@ -256,7 +256,7 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
     const selected = await towerOperation(proof);
     const pathname = new URL(proof.url).pathname;
     const settings = pathname === '/api/config' && ['GET', 'PUT'].includes(proof.method);
-    const googleStart = pathname === GOOGLE_INTEGRATION_START && proof.method === 'POST';
+    const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
     const storedResearch = ['/api/mcp', '/api/alerts/backtest'].includes(pathname) && proof.method === 'POST';
     if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
         && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
@@ -398,15 +398,16 @@ export async function withGoogleWorkspaceEntry(env, request, phase, work, adapte
 export function googleOAuthArguments(input, request, trustedOrigin, phase) {
     if (!input || typeof input !== 'object' || Array.isArray(input))
         refuse();
+    const provider = googleOAuthProvider(request) === 'adsense' ? { provider: 'adsense' } : {};
     if (phase === 'start') {
-        const expected = { origin: trustedOrigin };
+        const expected = { origin: trustedOrigin, ...provider };
         if (!deepEqual(input, expected))
             refuse();
         return googleOAuthRequest(request, trustedOrigin, 'start').then(() => expected);
     }
     const parsed = googleOAuthRequest(request, trustedOrigin, 'callback');
     const expected = { code: parsed.code ?? '', state: parsed.state,
-        redirectUri: `${trustedOrigin}/api/integrations/google/oauth/callback`, error: parsed.error };
+        redirectUri: `${trustedOrigin}${new URL(request.url).pathname}`, error: parsed.error, ...provider };
     if (!deepEqual(input, expected))
         refuse();
     return expected;

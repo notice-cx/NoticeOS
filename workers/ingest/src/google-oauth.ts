@@ -8,6 +8,9 @@
 
 import {
   type CredentialMetadata,
+  type GoogleOAuthProvider,
+  ADSENSE_READ_SCOPE,
+  ADSENSE_OAUTH_SCOPES,
   type CredentialSource,
   type GoogleOAuthCompletion,
   type GoogleOAuthStart,
@@ -107,10 +110,11 @@ export async function resolveGoogleCredential(
 export async function resolveGoogleOAuthApp(
   env: IngestEnv,
   policy: 'legacy-fallback' | 'store-only' = 'legacy-fallback',
+  provider: GoogleOAuthProvider = 'google',
 ): Promise<{ clientId: string; clientSecret: string } | null> {
-  const app = await resolveCredential(env, 'google-oauth-app', policy);
-  const clientId = app.fields.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = app.fields.GOOGLE_OAUTH_CLIENT_SECRET;
+  const app = await resolveCredential(env, provider === 'adsense' ? 'adsense-oauth-app' : 'google-oauth-app', policy);
+  const clientId = provider === 'adsense' ? app.fields.ADSENSE_OAUTH_CLIENT_ID : app.fields.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = provider === 'adsense' ? app.fields.ADSENSE_OAUTH_CLIENT_SECRET : app.fields.GOOGLE_OAUTH_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
 }
@@ -219,6 +223,7 @@ export async function verifyOAuthState(
 export interface BeginGoogleOAuthInput {
   /** The origin the operator has the Tower open at; the redirect URI is derived from it. */
   origin: string;
+  provider?: GoogleOAuthProvider;
   nowMs?: number;
 }
 
@@ -235,9 +240,9 @@ export async function beginGoogleOAuth(
   // Every refusal below is a code the Tower words, with its one press beside it.
   const verdict = googleRedirectVerdict(input.origin);
   if (!verdict.usable) return { ok: false, error: 'redirect_unusable' };
-  const app = await resolveGoogleOAuthApp(env);
+  const app = await resolveGoogleOAuthApp(env, 'legacy-fallback', input.provider);
   if (app === null) return { ok: false, error: 'app_missing' };
-  const redirectUri = googleOAuthRedirectUri(input.origin);
+  const redirectUri = googleOAuthRedirectUri(input.origin, input.provider);
   let state: string;
   try {
     state = await signOAuthState(env, redirectUri, input.nowMs ?? Date.now());
@@ -245,23 +250,23 @@ export async function beginGoogleOAuth(
     if (error instanceof CredentialKeyError) return { ok: false, error: 'key_missing' };
     throw error;
   }
-  return googleAuthorizationUrl(app.clientId, redirectUri, state);
+  return googleAuthorizationUrl(app.clientId, redirectUri, state, input.provider);
 }
 
 /** Called only within the receiver's post-commit live integration context. */
-export async function beginStoredGoogleOAuth(env: IngestEnv, origin: string, state: string): Promise<GoogleOAuthStart> {
+export async function beginStoredGoogleOAuth(env: IngestEnv, origin: string, state: string, provider: GoogleOAuthProvider = 'google'): Promise<GoogleOAuthStart> {
   if (!googleRedirectVerdict(origin).usable) return { ok: false, error: 'redirect_unusable' };
-  const app = await resolveGoogleOAuthApp(env, 'store-only');
+  const app = await resolveGoogleOAuthApp(env, 'store-only', provider);
   if (app === null) return { ok: false, error: 'app_missing' };
-  return googleAuthorizationUrl(app.clientId, googleOAuthRedirectUri(origin), state);
+  return googleAuthorizationUrl(app.clientId, googleOAuthRedirectUri(origin, provider), state, provider);
 }
-function googleAuthorizationUrl(clientId: string, redirectUri: string, state: string): GoogleOAuthStart {
+function googleAuthorizationUrl(clientId: string, redirectUri: string, state: string, provider: GoogleOAuthProvider = 'google'): GoogleOAuthStart {
   const authorizeUrl = new URL(GOOGLE_OAUTH_AUTHORIZE_URL);
   authorizeUrl.search = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: GOOGLE_OAUTH_SCOPES.join(' '),
+    scope: (provider === 'adsense' ? ADSENSE_OAUTH_SCOPES : GOOGLE_OAUTH_SCOPES).join(' '),
     access_type: 'offline',
     prompt: 'consent',
     state,
@@ -280,6 +285,7 @@ export interface CompleteGoogleOAuthInput {
   /** The redirect URI the callback was served at, re-derived from the request
    * rather than trusted from the state. */
   redirectUri: string;
+  provider?: GoogleOAuthProvider;
   nowMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -295,6 +301,9 @@ export async function completeGoogleOAuth(
   input: CompleteGoogleOAuthInput,
 ): Promise<GoogleOAuthCompletion> {
   const nowMs = input.nowMs ?? Date.now();
+  if (input.redirectUri !== googleOAuthRedirectUri(new URL(input.redirectUri).origin, input.provider)) {
+    return { ok: false, error: 'state_invalid' };
+  }
   // Standalone compatibility only; hosted custody is committed by the entry.
   const state = await verifyOAuthState(env, input.state, input.redirectUri, nowMs);
   if (!state.ok) return { ok: false, error: state.error };
@@ -303,17 +312,18 @@ export async function completeGoogleOAuth(
 
 /** No state/authority input: the fixed receiver alone calls this after claim. */
 export async function exchangeStoredGoogleOAuth(env: IngestEnv,
-  input: Pick<CompleteGoogleOAuthInput, 'code' | 'redirectUri'>): Promise<GoogleOAuthCompletion> {
+  input: Pick<CompleteGoogleOAuthInput, 'code' | 'redirectUri' | 'provider'>): Promise<GoogleOAuthCompletion> {
   return exchangeGoogleOAuth(env, input, 'store-only');
 }
 async function exchangeGoogleOAuth(env: IngestEnv,
-  input: Pick<CompleteGoogleOAuthInput, 'code' | 'redirectUri'> & { nowMs?: number; fetchImpl?: typeof fetch },
+  input: Pick<CompleteGoogleOAuthInput, 'code' | 'redirectUri' | 'provider'> & { nowMs?: number; fetchImpl?: typeof fetch },
   policy: 'legacy-fallback' | 'store-only'): Promise<GoogleOAuthCompletion> {
   const nowMs = input.nowMs ?? Date.now();
   const fetchImpl = input.fetchImpl ?? fetch;
+  const provider = input.provider ?? 'google';
 
   // The client id and secret were removed while Google's screen was open.
-  const app = await resolveGoogleOAuthApp(env, policy);
+  const app = await resolveGoogleOAuthApp(env, policy, provider);
   if (app === null) return { ok: false, error: 'app_missing' };
 
   let payload: unknown;
@@ -346,12 +356,16 @@ async function exchangeGoogleOAuth(env: IngestEnv,
   if (refreshToken === null) return { ok: false, error: 'no_refresh_token' };
 
   const scopes = (stringField(record, 'scope') ?? '').split(' ').filter(Boolean);
-  const withheld = REQUIRED_SCOPES.filter((scope) => !scopes.includes(scope));
+  const required = provider === 'adsense' ? [ADSENSE_READ_SCOPE] : REQUIRED_SCOPES;
+  const withheld = required.filter((scope) => !scopes.includes(scope));
+  if (provider === 'adsense' && scopes.some(scope => !ADSENSE_OAUTH_SCOPES.includes(scope) && scope !== 'https://www.googleapis.com/auth/userinfo.email')) {
+    return { ok: false, error: 'scope_incomplete', withheld: ['Google AdSense'] };
+  }
   if (withheld.length > 0) {
     return {
       ok: false,
       error: 'scope_incomplete',
-      withheld: withheld.map((scope): GoogleReadProduct => (scope === GOOGLE_SCOPES.ga4 ? 'Google Analytics' : 'Search Console')),
+      withheld: withheld.map((scope): GoogleReadProduct => (scope === ADSENSE_READ_SCOPE ? 'Google AdSense' : scope === GOOGLE_SCOPES.ga4 ? 'Google Analytics' : 'Search Console')),
     };
   }
 
@@ -365,7 +379,7 @@ async function exchangeGoogleOAuth(env: IngestEnv,
   // the Testing setup; the card states the assumption with a one-press
   // correction, and `carriedExpiry` keeps the operator's answer through every
   // later sign-in.
-  const previous = (await credentialSummary(env, 'google', policy))?.metadata ?? null;
+  const previous = (await credentialSummary(env, provider, policy))?.metadata ?? null;
   const metadata: CredentialMetadata = {
     account,
     scopes,
@@ -378,21 +392,27 @@ async function exchangeGoogleOAuth(env: IngestEnv,
 
   // Carry forward whatever else the credential held: `putCredential` replaces
   // rather than merges.
-  const existing = await resolveCredential(env, 'google', policy);
+  const existing = await resolveCredential(env, provider, policy);
   const fields: Record<string, string> = {};
   if (existing.source === 'store' && existing.fields.GOOGLE_SIGNAL_ACCOUNTS) {
     fields.GOOGLE_SIGNAL_ACCOUNTS = existing.fields.GOOGLE_SIGNAL_ACCOUNTS;
   }
-  fields.GOOGLE_OAUTH_REFRESH_TOKEN = refreshToken;
+  if (provider === 'adsense') {
+    fields.ADSENSE_CLIENT_ID = app.clientId;
+    fields.ADSENSE_CLIENT_SECRET = app.clientSecret;
+    fields.ADSENSE_REFRESH_TOKEN = refreshToken;
+  } else {
+    fields.GOOGLE_OAUTH_REFRESH_TOKEN = refreshToken;
+  }
 
-  const stored = await putCredential(env, { provider: 'google', fields, metadata });
+  const stored = await putCredential(env, { provider, fields, metadata });
   if (stored.ok) {
-    // Google just issued this grant for both read scopes: that is the proof,
+    // Google just issued this grant for the required read scopes: that is the proof,
     // so the panel reads Signed in rather than Not checked.
     const at = new Date(nowMs).toISOString();
-    await recordCredentialOutcome(env, 'google', { ok: true, error: null, at });
-    await observeIntegration(env, await tryHealthConnection(env, 'google'), {
-      capability: PROBE_CAPABILITY.google, observedAt: at, ok: true, code: 'provider', evidenceSource: 'probe',
+    await recordCredentialOutcome(env, provider, { ok: true, error: null, at });
+    await observeIntegration(env, await tryHealthConnection(env, provider), {
+      capability: PROBE_CAPABILITY[provider], observedAt: at, ok: true, code: 'provider', evidenceSource: 'probe',
     });
   }
   if (!stored.ok) return { ok: false, error: 'store_failed' };
@@ -452,10 +472,12 @@ async function userInfoEmail(
 export async function revokeGoogleGrant(
   env: IngestEnv,
   fetchImpl: typeof fetch = fetch,
+  provider: GoogleOAuthProvider = 'google',
 ): Promise<boolean> {
   let token: string | undefined;
   try {
-    token = (await resolveCredential(env, 'google')).fields.GOOGLE_OAUTH_REFRESH_TOKEN;
+    const credential = await resolveCredential(env, provider);
+    token = provider === 'adsense' ? credential.fields.ADSENSE_REFRESH_TOKEN : credential.fields.GOOGLE_OAUTH_REFRESH_TOKEN;
   } catch {
     return false;
   }

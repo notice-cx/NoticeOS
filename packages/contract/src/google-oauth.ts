@@ -27,6 +27,11 @@ export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const GOOGLE_OAUTH_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 
 /** Where "Sign in with Google" goes — same origin, so it is an ordinary link. */
+export type GoogleOAuthProvider = 'google' | 'adsense';
+export const ADSENSE_READ_SCOPE = 'https://www.googleapis.com/auth/adsense.readonly';
+export const ADSENSE_OAUTH_SCOPES: readonly string[] = ['openid', 'email', ADSENSE_READ_SCOPE];
+export const ADSENSE_OAUTH_START_PATH = '/api/integrations/adsense/oauth/start';
+export const ADSENSE_OAUTH_CALLBACK_PATH = '/api/integrations/adsense/oauth/callback';
 export const GOOGLE_OAUTH_START_PATH = '/api/integrations/google/oauth/start';
 
 /** Where Google sends the operator back. The path half of the redirect URI the
@@ -47,8 +52,9 @@ export const GOOGLE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
  * request's own origin, never configured: a configured copy would be a second
  * answer, and the one that lost would produce `redirect_uri_mismatch`.
  */
-export function googleOAuthRedirectUri(origin: string): string {
-  return `${origin.replace(/\/+$/, '')}${GOOGLE_OAUTH_CALLBACK_PATH}`;
+export function googleOAuthRedirectUri(origin: string, provider: GoogleOAuthProvider = 'google'): string {
+  const path = provider === 'adsense' ? ADSENSE_OAUTH_CALLBACK_PATH : GOOGLE_OAUTH_CALLBACK_PATH;
+  return `${origin.replace(/\/+$/, '')}${path}`;
 }
 
 /** Whether Google will accept a redirect URI at this origin at all, and why
@@ -129,7 +135,7 @@ export type GoogleOAuthCompletion =
 
 /** The two products a sign-in has to grant, by the names Google's consent
  * screen shows them under. */
-export type GoogleReadProduct = 'Google Analytics' | 'Search Console';
+export type GoogleReadProduct = 'Google Analytics' | 'Search Console' | 'Google AdSense';
 
 /**
  * Why a sign-in did not complete. These ride back to the browser as a query

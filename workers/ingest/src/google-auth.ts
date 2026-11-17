@@ -195,7 +195,10 @@ async function tokenRequest(
   }
   const token = stringField(asRecord(payload), 'access_token');
   if (!token) throw new SignalError('token_invalid_response', 'Google returned no access token.');
-  if (onlyScope !== undefined && stringField(asRecord(payload), 'scope')?.trim() !== onlyScope) {
+  const returnedScopes = stringField(asRecord(payload), 'scope')?.trim().split(/\s+/u) ?? [];
+  const identityScopes = ['openid', 'email', 'https://www.googleapis.com/auth/userinfo.email'];
+  if (onlyScope !== undefined && (!returnedScopes.includes(onlyScope)
+    || returnedScopes.some(scope => scope !== onlyScope && !identityScopes.includes(scope)))) {
     throw new SignalError('google_oauth_scope', 'Authorize the requested read-only permission with a dedicated OAuth client.');
   }
   return token;

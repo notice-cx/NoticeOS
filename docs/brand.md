@@ -132,5 +132,6 @@ The bundled font's metadata names it Inter 4.001, `git-9221beed3`.
 Integration logos use the providers' original artwork, served locally, in
 their own colors on a white background in both themes. See
 [provider asset provenance](../apps/tower/public/integrations/README.md).
-Use `IntegrationLogo` beside a visible provider name; calendar feeds use a
-calendar icon. A provider's logo never replaces the connection-state badge.
+The identity tile uses a light color scheme so theme-aware SVGs retain their
+dark artwork on white. Use `IntegrationLogo` beside a visible provider name.
+A provider's logo never replaces the connection-state badge.

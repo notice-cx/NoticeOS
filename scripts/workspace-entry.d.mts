@@ -105,10 +105,12 @@ export declare function withGoogleWorkspaceEntry<T>(env: object, request: Reques
  * Classification/argument equality is not authority; the receiver still claims. */
 export declare function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'start'): Promise<{
     origin: string;
+    provider?: 'adsense';
 }>;
 export declare function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'callback'): {
     code: string;
     state: string;
     redirectUri: string;
     error: string | null;
+    provider?: 'adsense';
 };

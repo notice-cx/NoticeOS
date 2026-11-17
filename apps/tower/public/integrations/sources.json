@@ -64,5 +64,23 @@
     "reference": "https://github.com/notice-cx/Ntasks",
     "retrieved": "2026-11-14",
     "sha256": "f719f99db7b5d65b7d822d4ee27af1b21b6f27b11ffce266fa60196c01d02505"
+  },
+  "adsense.svg": {
+    "source": "https://developers.google.com/static/ads/images/logo_adsense_192px.svg",
+    "reference": "https://developers.google.com/adsense/management/",
+    "retrieved": "2026-11-17",
+    "sha256": "2a2955b1ffcb3d82072cc60f89823706f9d39d4b05cf0bcaf66421ddf06dbf2f"
+  },
+  "google-calendar.svg": {
+    "source": "https://www.gstatic.com/images/branding/productlogos/calendar_2026/v2/web/192px.svg",
+    "reference": "https://workspace.google.com/products/calendar/",
+    "retrieved": "2026-11-17",
+    "sha256": "7f55cd877b2261948168db3d2e9468c0cf3f07766789489e853a0f9931dff8ea"
+  },
+  "cloudflare.svg": {
+    "source": "https://raw.githubusercontent.com/cloudflare/cloudflare-docs/d1f5355bcc5288a50e4e2bbe53bad34ce948bd61/public/logo.svg",
+    "reference": "https://developers.cloudflare.com/",
+    "retrieved": "2026-11-17",
+    "sha256": "3012fc6fa597299f3f799a4ed4b5516b128b0eea31e0782aad08be3c6fd62bf2"
   }
 }

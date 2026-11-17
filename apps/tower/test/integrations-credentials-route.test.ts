@@ -795,7 +795,7 @@ describe("PUT /api/integrations/:provider/expiry", () => {
       expiry: {
         ok: false,
         error: "not_expirable",
-        message: "Calendar feeds: a secret calendar address does not expire.",
+        message: "Google Calendar: a secret calendar address does not expire.",
       },
     });
     const response = await handleIntegrationExpiryRequest(

@@ -15,20 +15,25 @@ or provider websites to render an integration.
 | Discord | [Discord brand assets](https://discord.com/branding), the original blurple Clyde symbol |
 | Stripe | [Stripe Newsroom](https://stripe.com/newsroom/information), its published SVG icon |
 | Mercury | [Mercury](https://mercury.com/contact), its published SVG icon |
+| Google AdSense | [AdSense Management API](https://developers.google.com/adsense/management/), its published product logo |
+| Google Calendar | [Google Calendar](https://workspace.google.com/products/calendar/), its published 2026 product logo |
+| Cloudflare | [Cloudflare documentation](https://developers.cloudflare.com/), its published cloud symbol |
 | Chrome UX Report | [Chrome for Developers](https://developer.chrome.com/docs/crux), its published Chrome touch icon |
 | Ntasks | [Ntasks](https://github.com/notice-cx/Ntasks), its application icon |
 | PostHog | [PostHog brand assets](https://posthog.com/handbook/company/brand-assets), the published `posthog-logomark.svg` |
 
 Exact download URLs and SHA-256 hashes are in [sources.json](sources.json).
-Files are unmodified: preserve aspect ratio and original colors. Bing and
-Mediavine have different built-in clear space, accounted for by CSS sizing.
-Do not crop or recolor the artwork to fit the NoticeOS palette.
+Files are unmodified. Preserve aspect ratio and original colors. The identity
+tile sets a light color scheme so theme-aware SVGs keep their dark artwork on
+the white surface. Bing and Mediavine have different built-in clear space,
+accounted for by CSS sizing. Do not crop or recolor the artwork to fit the
+NoticeOS palette.
 
 These marks remain the property of their respective owners. They are included
 for service identification, without claiming endorsement or an open-source
 license for the marks. Vendor brand/trademark terms continue to apply; they
 are not relicensed under any NoticeOS source-code license.
 
-Calendar feeds, model connections and Cloudflare D1 backups use Lucide
-glyphs. The generic task-source status uses the Tasks glyph. Unknown providers
-and failed image loads use a plug glyph beside the provider name.
+Model connections use a Lucide glyph. The generic task-source status uses
+the Tasks glyph. Unknown providers and failed image loads use a plug glyph
+beside the provider name.

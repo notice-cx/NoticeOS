@@ -91,3 +91,16 @@ it('an active hosted completion navigates once to the decoded URL', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Connect Google' }));
   await vi.waitFor(() => expect(assign).toHaveBeenCalledExactlyOnceWith(success().authorizeUrl));
 });
+
+
+it('AdSense starts through its provider path and accepts only its own callback', async () => {
+  const callback = `${origin}/api/integrations/adsense/oauth/callback`;
+  const consent = new URL(GOOGLE_OAUTH_AUTHORIZE_URL);
+  consent.search = new URLSearchParams({ response_type: 'code', redirect_uri: callback, state: 'generated-state' }).toString();
+  const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ ok: true, authorizeUrl: consent.toString(), redirectUri: callback }));
+  const value = runtime(fetch);
+  await expect(value.api.beginGoogleOAuth(undefined, 'adsense')).resolves.toBe(consent.toString());
+  expect(String(fetch.mock.calls[0]?.[0])).toBe(`${origin}/api/integrations/adsense/oauth/start`);
+  fetch.mockResolvedValueOnce(Response.json(success()));
+  await expect(value.api.beginGoogleOAuth(undefined, 'adsense')).rejects.toThrow();
+});

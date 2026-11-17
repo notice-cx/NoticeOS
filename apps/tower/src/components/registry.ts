@@ -73,7 +73,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "IntegrationLogo",
     file: "components/IntegrationLogo.tsx",
     purpose: "Locally served, original provider artwork beside a visible name, shared by catalog and setup views. Protocol and generic task connections use Lucide glyphs; unknown or unavailable artwork uses Plug. Vendor colors are identity, never connection status.",
-    variants: ["provider logos", "calendar", "fallback", "small", "default", "large"],
+    variants: ["provider logos", "fallback", "small", "default", "large"],
   },
   {
     name: "AgentMark",
@@ -595,7 +595,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "GoogleSignInSetup",
     file: "components/GoogleSignInSetup.tsx",
     purpose:
-      "Google, connected by signing in: ConnectPanel's body for the `sign-in` connect kind. Hosted, it is the two read-only grants and Continue with Google; self-hosted, the one-time client setup as three presses and a dropped client_secret.json whose redirect list is checked against this Tower's address. After consent the panel reopens on SitePicker.",
+      "Google, connected by signing in: ConnectPanel's body for the `sign-in` connect kind. AdSense requests its own read-only grant and uses a separate client. Hosted, it shows Continue with Google; self-hosted, the one-time client setup as three presses and a dropped client_secret.json whose redirect list is checked against this Tower's address. After consent the panel reopens on SitePicker.",
     variants: ["self-hosted: no client (steps, file, Testing chip)", "self-hosted: client stored", "self-hosted: redirect address not in the client", "self-hosted: file refused", "hosted: grants and one button", "address Google refuses: loopback press", "cannot store yet"],
   },
   {

@@ -536,6 +536,7 @@ export type IntegrationProviderId =
   | 'ntasks'
   | 'google'
   | 'google-oauth-app'
+  | 'adsense-oauth-app'
   | 'bing-webmaster'
   | 'dataforseo'
   | 'calendar'
@@ -620,17 +621,27 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
   {
     id: 'adsense', label: 'Google AdSense', scope: 'shared', lanes: ['adsense'],
     docRef: 'docs/11-integrations.md#adsense',
-    expiry: { known: 'operator' }, test: { cost: 'free' },
-    connect: { kind: 'key', credential: 'connection' },
+    expiry: { known: 'flow', fix: { url: 'https://console.cloud.google.com/auth/audience', label: 'Publish app' } },
+    test: { cost: 'free' },
+    connect: { kind: 'sign-in', credential: 'oauth' },
+    authPaths: [{ kind: 'oauth', label: 'Continue with Google', fields: ['ADSENSE_CLIENT_ID', 'ADSENSE_CLIENT_SECRET', 'ADSENSE_REFRESH_TOKEN'] }],
     fields: [
-      { name: 'ADSENSE_CLIENT_ID', label: 'OAuth client ID', secret: false, kind: 'text', required: true,
+      { name: 'ADSENSE_CLIENT_ID', label: 'OAuth client ID', secret: false, kind: 'text', required: false, managed: true,
         link: { url: 'https://console.cloud.google.com/apis/credentials', label: 'Create a client' },
         description: 'Use a dedicated Google Cloud client with the AdSense Management API enabled.' },
-      { name: 'ADSENSE_CLIENT_SECRET', label: 'OAuth client secret', secret: true, kind: 'password', required: true },
-      { name: 'ADSENSE_REFRESH_TOKEN', label: 'Refresh token', secret: true, kind: 'password', required: true,
-        link: { url: 'https://developers.google.com/oauthplayground/', label: 'Authorize in Google' },
-        description: 'In Google’s OAuth Playground, use your own client and authorize the adsense.readonly scope.',
+      { name: 'ADSENSE_CLIENT_SECRET', label: 'OAuth client secret', secret: true, kind: 'password', required: false, managed: true },
+      { name: 'ADSENSE_REFRESH_TOKEN', label: 'Google sign-in', secret: true, kind: 'password', required: false, managed: true,
         grants: ['AdSense: read only'] },
+    ],
+  },
+  {
+    id: 'adsense-oauth-app', label: 'AdSense OAuth app', scope: 'shared', lanes: [],
+    docRef: 'docs/11-integrations.md#adsense', companionOf: 'adsense',
+    expiry: { known: 'never' }, test: { cost: 'none' },
+    fields: [
+      { name: 'ADSENSE_OAUTH_CLIENT_ID', label: 'Client ID', secret: false, kind: 'text', required: true,
+        placeholder: '….apps.googleusercontent.com' },
+      { name: 'ADSENSE_OAUTH_CLIENT_SECRET', label: 'Client secret', secret: true, kind: 'password', required: true },
     ],
   },
   {
@@ -790,7 +801,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
   },
   {
     id: 'calendar',
-    label: 'Calendar feeds',
+    label: 'Google Calendar',
     docRef: 'workers/ingest/README.md#calendar-rpc-the-walls-next-meetings',
     scope: 'shared',
     lanes: [],

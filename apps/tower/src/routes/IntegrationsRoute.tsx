@@ -118,7 +118,7 @@ export function IntegrationsRoute() {
   const oauthResult = params.get(GOOGLE_OAUTH_RESULT_PARAM);
   useEffect(() => {
     if (readOnly) return;
-    const notice = googleOAuthNotice(oauthResult, window.location.origin);
+    const notice = googleOAuthNotice(oauthResult, window.location.origin, params.get('connect') === 'adsense' ? 'adsense' : 'google');
     if (notice === null) return;
     if (notice.tone === "ok") {
       // Signed in: the connect panel opens on the account's sites with Signed
@@ -182,7 +182,7 @@ export function IntegrationsRoute() {
     if (!linked) return;
     const opened = linked.provider.connect?.kind !== "site-tokens" && connectionState(linked.credential) === "failing"
       ? "form" : providerPanelOpening(linked);
-    setConnecting({ id: linked.provider.id, opened, asset: params.get("asset"), googleSetup: linked.provider.id === "google" && returnedFromGoogle });
+    setConnecting({ id: linked.provider.id, opened, asset: params.get("asset"), googleSetup: ['google', 'adsense'].includes(linked.provider.id) && returnedFromGoogle });
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
