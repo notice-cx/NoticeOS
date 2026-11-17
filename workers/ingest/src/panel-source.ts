@@ -13,7 +13,7 @@ export const PANEL_SOURCE_DEFAULT_WINDOW_DAYS = 35;
 export const PANEL_SOURCE_MAX_WINDOW_DAYS = 400;
 
 import { ASSET_ID_RE } from '@noticeos/contract/configuration';
-import { javascriptInstant } from '@noticeos/postgres';
+import { javascriptInstant, type Transaction } from '@noticeos/postgres';
 import { signalObjectScope } from './signal-objects.js';
 export { ASSET_ID_RE } from '@noticeos/contract/configuration';
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -154,13 +154,14 @@ export async function readPanelManifest(
  * the same resource and time zone whose window covers the day, or the writer
  * itself; age alone never finalizes a day.
  */
-export async function readPanelTrend(
-  env: IngestEnv,
+export async function readDailySignalTrend(
+  tx: Transaction,
   asset: string,
   from: string,
+  integrations: readonly string[],
+  through: string | null = null,
 ): Promise<PanelSourceTrendRow[]> {
-  return env.STORE.read((tx) =>
-    tx.query<{ date: string; integration: string; metric: string; value: number; provisional: number }>(
+  return tx.query<PanelSourceTrendRow & Record<string, unknown>>(
       `WITH current_property AS MATERIALIZED (
          SELECT lanes.integration,
                 (SELECT latest.property_ref
@@ -170,7 +171,7 @@ export async function readPanelTrend(
                     AND latest.status = 'success'
                   ORDER BY latest.finished_at DESC, latest.run_seq DESC
                   LIMIT 1) AS property_ref
-           FROM (VALUES ('ga4'), ('gsc'), ('bing-webmaster')) AS lanes(integration)
+           FROM unnest($3::text[]) AS lanes(integration)
        ),
        newest AS (
          SELECT DISTINCT ON (o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C")
@@ -187,6 +188,7 @@ export async function readPanelTrend(
              ON s.asset_id = $1 AND s.integration = current.integration AND s.property_ref = current.property_ref
            JOIN noticeos.signal_observations AS o
              ON o.workspace_id = s.workspace_id AND o.series_id = s.series_id AND o.observed_date >= $2::date
+            AND o.observed_date <= coalesce($4::date, 'infinity'::date)
            JOIN noticeos.signal_runs AS r
              ON r.workspace_id = o.workspace_id AND r.run_seq = o.run_seq AND r.status = 'success'
           ORDER BY o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C",
@@ -217,9 +219,12 @@ export async function readPanelTrend(
                LIMIT 1
               ) AS confirmation
         ORDER BY newest.observed_date, newest.integration COLLATE "C", newest.metric COLLATE "C"`,
-      [asset, from],
-    ),
+      [asset, from, [...integrations], through],
   );
+}
+
+export async function readPanelTrend(env: IngestEnv, asset: string, from: string): Promise<PanelSourceTrendRow[]> {
+  return env.STORE.read((tx) => readDailySignalTrend(tx, asset, from, ['ga4', 'gsc', 'bing-webmaster']));
 }
 
 export async function readPanelSource(

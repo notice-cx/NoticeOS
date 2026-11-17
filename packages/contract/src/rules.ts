@@ -255,6 +255,28 @@ export interface MetricBaseline {
   windowHours: number;
 }
 
+function recordBaseline(verdict: RuleVerdict, baseline: MetricBaseline): RuleVerdict {
+  Object.assign(verdict.inputs, {
+    baselineSource: baseline.source,
+    baselineSampleSize: baseline.sampleSize,
+    baselineComparisonDates: baseline.comparisonDates,
+    baselineWindowHours: baseline.windowHours,
+  });
+  return verdict;
+}
+
+export function evaluatePredictiveCounts(
+  metric: string,
+  candidates: readonly MetricBaseline[],
+  config: RuleConfig,
+): RuleVerdict | undefined {
+  const verdicts = candidates.map((baseline) =>
+    recordBaseline(flowPredictiveAnomaly(metric, baseline.observed, baseline, config), baseline));
+  return verdicts.find((verdict) => verdict.outcome === 'fired')
+    ?? verdicts.find((verdict) => verdict.outcome === 'ok')
+    ?? verdicts.at(-1);
+}
+
 /**
  * Evaluate a whole pulse envelope: for each metric pick its window — the one
  * its central baseline was measured over, or else the shortest one its avg7d
@@ -269,7 +291,7 @@ export function evaluatePulse(
   const config = options.config ?? DEFAULT_RULE_CONFIG;
   const verdicts: RuleVerdict[] = [];
   for (const [metric, series] of Object.entries(envelope.metrics)) {
-    let historical = options.baselineByMetric?.[metric];
+    const historical = options.baselineByMetric?.[metric];
     if (options.requireHistoricalBaseline && !historical) {
       verdicts.push({
         ruleId: 'flow-seasonal-baseline',
@@ -283,23 +305,16 @@ export function evaluatePulse(
       });
       continue;
     }
+    const predictive = historical?.candidates && evaluatePredictiveCounts(metric, historical.candidates, config);
+    if (predictive) {
+      verdicts.push(predictive);
+      continue;
+    }
     const baselinePerDay = historical?.perDay ?? series.avg7d;
     const windowDays = historical
       ? historical.windowHours / 24
       : (windowDaysFor(baselinePerDay, config) ?? config.maxWindowDays);
-    let verdict: RuleVerdict;
-    if (historical?.candidates?.length) {
-      const candidates = historical.candidates.map((baseline) => ({
-        baseline,
-        verdict: flowPredictiveAnomaly(metric, baseline.observed, baseline, config),
-      }));
-      const selected = candidates.find((candidate) => candidate.verdict.outcome === 'fired')
-        ?? candidates.find((candidate) => candidate.verdict.outcome === 'ok')
-        ?? candidates[candidates.length - 1]!;
-      historical = selected.baseline;
-      verdict = selected.verdict;
-    } else {
-      verdict = historical?.forecast
+    const verdict = historical?.forecast
       ? flowPredictiveAnomaly(metric, windowDays <= 1 ? series.last24h : options.windowObservedByMetric?.[metric], historical, config)
       : windowDays <= 1
         ? flowPoissonAnomaly(metric, series.last24h, baselinePerDay, config)
@@ -310,14 +325,8 @@ export function evaluatePulse(
             windowDays,
             config,
           );
-    }
     if (historical) {
-      Object.assign(verdict.inputs, {
-        baselineSource: historical.source,
-        baselineSampleSize: historical.sampleSize,
-        baselineComparisonDates: historical.comparisonDates,
-        baselineWindowHours: historical.windowHours,
-      });
+      recordBaseline(verdict, historical);
       if (verdict.flag && verdict.ruleId === 'flow-poisson-low') {
         verdict.flag.message = verdict.flag.message.replace(
           'avg7d',
