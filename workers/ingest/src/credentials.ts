@@ -385,6 +385,42 @@ async function readRow(store: WorkspaceStore | undefined, provider: string): Pro
   return (await store.read((tx) => selectCredentials(tx, provider)))[0] ?? null;
 }
 
+const reportVerifierField = 'SITE_REPORT_VERIFIER';
+const reportVerifierConnection = (asset: string) => `site-report/${asset}`;
+
+/** Report credentials use the workspace vault without joining the integration catalog. */
+export async function siteReportVerifier(tx: Transaction, env: IngestEnv, asset: string): Promise<string | null> {
+  const [row] = await selectCredentials(tx, reportVerifierConnection(asset));
+  if (!row || row.scope !== 'per-asset' || row.asset_ids.length !== 1 || row.asset_ids[0] !== asset) return null;
+  const value = (await open(env, row))[reportVerifierField];
+  return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value) ? value : null;
+}
+
+export async function hasSiteReportVerifier(tx: Transaction, asset: string): Promise<boolean> {
+  const [row] = await tx.query(`SELECT 1 FROM noticeos.integration_connections
+    JOIN noticeos.connection_secrets USING (workspace_id, connection_id)
+    WHERE provider = $1 AND asset_ids = jsonb_build_array($2::text) LIMIT 1`, [reportVerifierConnection(asset), asset]);
+  return row !== undefined;
+}
+
+export async function saveSiteReportVerifier(tx: Transaction, env: IngestEnv, asset: string, digest: string | null): Promise<void> {
+  const provider = reportVerifierConnection(asset);
+  if (digest === null) {
+    await tx.execute('DELETE FROM noticeos.integration_connections WHERE provider = $1', [provider]);
+    return;
+  }
+  const at = new Date().toISOString();
+  const secret = await seal(env, { [reportVerifierField]: digest });
+  const [row] = await tx.query<{ connection_id: string }>(`INSERT INTO noticeos.integration_connections
+    (workspace_id, provider, scope, created_at, updated_at)
+    VALUES ($1, $2, 'per-asset', $3::timestamptz, $3::timestamptz)
+    ON CONFLICT (workspace_id, provider) DO UPDATE SET updated_at = EXCLUDED.updated_at
+    RETURNING connection_id`, [tx.workspaceId, provider, at]);
+  if (!row) throw new Error('Site report credential unavailable');
+  await replaceSecret(tx, row.connection_id, null, { ...secret, keyVersion: await currentKeyVersion(tx),
+    fieldNames: [reportVerifierField], assetIds: [asset] }, at);
+}
+
 /**
  * The generation a new write should be stamped with: the store's own high-water
  * mark. After a rotation has re-sealed every secret at 2, stamping the constant

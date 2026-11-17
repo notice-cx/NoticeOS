@@ -103,6 +103,8 @@ export interface TaskServiceCall {
   /** An Ntasks path with its query, such as `/api/tasks?project=…`. */
   readonly path: string;
   readonly body?: string;
+  /** Statuses whose response body this caller does not consume. */
+  readonly statusOnly?: readonly number[];
   readonly idempotencyKey?: string;
   /** The agent the call is for: Ntasks records it as `service:<credential>/<name>`. */
   readonly onBehalfOf?: string;
@@ -163,6 +165,10 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       throw new TaskServiceError({ kind: 'redirect', status: response.status });
+    }
+    if (call.statusOnly?.includes(response.status)) {
+      void response.body?.cancel().catch(() => {});
+      return { status: response.status, body: null };
     }
     let text: string;
     try { text = await boundedText(response); } catch (error) {

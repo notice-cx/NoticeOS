@@ -7,12 +7,13 @@ description: "Have a product report its own daily counts to NoticeOS, in the exa
 
 This page shows how to make a product you run send its own daily counts to NoticeOS, so they are shown beside its traffic and revenue.
 
-Most of the data NoticeOS has about an asset comes from data sources you connect on Integrations, such as Google Analytics. A **report** adds counts that only your product's own servers have: sign-ups, saved items, rows in its database. Once a day your product either sends it to the installation or returns it when the installation requests it, and NoticeOS shows those counts on the asset's page and raises an alert when one moves unusually. Most assets do not need one; add it when the numbers that matter to you are not collected by any outside service.
+Most of the data NoticeOS has about an asset comes from data sources you connect on Integrations, such as Google Analytics. A **report** adds counts from your product's own servers, such as sign-ups, saved items, or rows in its database. Send a report once a day. NoticeOS shows the counts on the asset's page and can raise an alert when one moves unusually. Standalone installations can also fetch the report.
 
 ## Before you begin
 
 - The asset added in NoticeOS. Its id is its domain as added in the product.
-- The asset's token. Each asset has one secret shared with the installation. It authenticates a push, and NoticeOS sends it when it fetches the report. The installation holds the map of asset id to token in its secrets file, `workers/ingest/.dev.secrets.json`, under `ASSET_TOKENS`. Whoever runs the installation sets it; it is one of the four [bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment) that are never entered in the product. Your product stores its own copy and requires it on its metrics endpoint.
+- In a local customer workspace, report intake requires `NOTICEOS_LOCAL_SITE_REPORTS=1` and `NOTICEOS_WORKSPACE_ORIGIN` set to the Tower's exact `http://127.0.0.1:<port>` origin in both the Tower and ingest Worker bindings. Once enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
+- In a standalone installation, the operator keeps the token map under `ASSET_TOKENS` in `workers/ingest/.dev.secrets.json`. The token authenticates a push and, when configured, NoticeOS presents it to the asset's metrics endpoint for a fetch. See [the bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment).
 
 ### What belongs in a report
 
@@ -48,9 +49,11 @@ Each metric is one name with three numbers: how many in the last 24 hours, the a
 ## Push the report each night
 
 1. In your product, build the report in the shape each night.
-2. Send it to the installation's ingest at `POST /api/pulse`, with the header `Authorization: Bearer <token>`.
+2. Send it to `POST /api/pulse` with the header `Authorization: Bearer <token>`. Use the Tower's exact loopback origin for a local customer workspace or the ingest origin for a standalone installation.
 
-## Have NoticeOS fetch it instead
+Local customer report intake uses the opted-in Tower's exact loopback address. The sender runs on the same machine.
+
+## Fetch reports on a standalone installation
 
 1. On the asset's **Settings** tab, open **Data collection**.
 2. Set **Metrics endpoint** to the address where your product serves its metrics.
@@ -61,10 +64,10 @@ The same panel shows **Report endpoint** and **Auth source** for push, **Schedul
 
 ## Push by hand once
 
-1. In a terminal, with the report saved as `report.json`, run:
+1. In a terminal with the report saved as `report.json`, replace `<origin>` with the configured address, such as `http://127.0.0.1:5173` for a local customer workspace or the ingest origin for a standalone installation.
 
    ```sh
-   curl -sS -X POST https://<your-installation>/api/pulse \
+   curl -sS -X POST '<origin>/api/pulse' \
      -H 'authorization: Bearer <token>' \
      -H 'content-type: application/json' \
      -d @report.json
@@ -73,13 +76,14 @@ The same panel shows **Report endpoint** and **Auth source** for push, **Schedul
 ## Verify
 
 - The ingest returns `201` with `{ "ok": true }` when the report is stored.
+- Use the original date to correct a report. Repeated submissions keep the same daily report number and add a revision. The current metrics use the latest revision, and the daily counter counts the date once.
 - The asset's **Data sources** tab has a **Daily metrics** table: **Metric**, **Latest report · 24h** with its date, **Prior reports · avg / day**, and **History · daily counts** as a small chart. Before the first report it shows **Nothing yet — metrics appear with this asset's first nightly report.** Missing days are counted and shown, never drawn as zero.
 - The asset's **Overview** can show a totals row from `total`, once you add the cards on the asset's **Settings** tab under **Card totals**.
 - **Alerts** fire on a metric only after four matching prior weekdays exist, so NoticeOS raises no alerts on a new metric for at least 28 days. A metric averaging 4.6 or more a day is tested one day at a time and a quieter one over several days, up to 14; a count is flagged when it is improbable against that baseline. Thresholds are in **Settings** > **Alert rules**.
 
 ## If it didn't work
 
-- The ingest returns `401`: the token or the asset id does not match. `asset` must equal the asset's domain as added, and the token must be the one in `ASSET_TOKENS` for that asset.
+- The ingest returns `401` when the report's asset and current token fail to match. Use the exact asset id from NoticeOS and the current token issued for it.
 - The ingest returns `422` with a list of issues: the shape is wrong. A rejected report stores nothing. Fix the listed fields and send it again.
 - The report stops arriving: the product raises an alert when a nightly fetch fails, and marks the asset's report stale on the **Data sources** tab. See [Troubleshooting](/operate/troubleshooting).
 

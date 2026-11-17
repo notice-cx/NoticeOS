@@ -25,9 +25,10 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
   // A retired site is in none of the counts, even on a TV that shows it.
   const watched = data.assets.filter((asset) => !isRetired(asset.status));
   const retired = new Set(data.assets.filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
-  const readings = watched.flatMap((asset) => sourceReadings(asset.id, asset.dataSources, connections, nowMs));
-  const owed = readings.filter((reading) => reading.kind !== "not-using" && reading.kind !== "not-applicable");
   const snapshot = connections.snapshot;
+  const sourceClock = snapshot ? Date.parse(snapshot.checkedAt ?? "") : nowMs;
+  const readings = watched.flatMap((asset) => sourceReadings(asset.id, asset.dataSources, connections, sourceClock));
+  const owed = readings.filter((reading) => reading.kind !== "not-using" && reading.kind !== "not-applicable");
   const live = owed.filter((reading) => reading.kind === "working" || (!snapshot && reading.kind === "collecting")).length;
   const failing = owed.filter((reading) => reading.kind === "failing").length;
   const counted = watched.filter((asset) => asset.work);
@@ -41,7 +42,7 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
     : {
         id: "sense", label: "Sense", column: 0, icon: Radar, value: `${live} of ${owed.length}`,
         caption: snapshot
-          ? failing > 0 ? `${failing} failing at check` : live > 0 ? "working at check" : "sources unconfirmed"
+          ? failing > 0 ? `${failing} failing${snapshot.checkedAt ? " at check" : ""}` : live > 0 ? "working at check" : "sources unconfirmed"
           : failing > 0 ? `live · ${failing} failing` : "sources live",
         state: failing > 0 ? "warn" : snapshot && live === 0 ? "idle" : "ok",
       };

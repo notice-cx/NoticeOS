@@ -63,7 +63,8 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
       connection.projects.map(project => [project.asset, project.prefix, project.project?.projectId ?? null])]);
     const previous = prior?.mapping === mapping ? prior : null;
     const service = { async call({ method, path }: { method: 'GET'; path: string }) {
-      const reply = await callNtasks(credential.fields, { method, path, workspaceId }, boundedFetch).catch(error => {
+      const statusOnly = path.startsWith('/api/changes?') ? [400, 410] : undefined;
+      const reply = await callNtasks(credential.fields, { method, path, workspaceId, statusOnly }, boundedFetch).catch(error => {
         if (error instanceof TaskServiceError) assertHostedTaskReadAccess(error.failure.status);
         throw error;
       });

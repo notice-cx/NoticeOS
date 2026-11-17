@@ -188,6 +188,33 @@ export function connectionReadinessRequest(request: Request): {
 }
 export type CredentialWriteMethod = 'putCredential' | 'deleteCredential' |
   'setCredentialExpiry' | 'connectCredential' | 'putSiteToken';
+
+export const SITE_REPORT_INTAKE_PATH = '/api/pulse';
+
+export function siteReportGrantRequest(request: Request): { readonly asset: string; readonly method: 'GET' | 'POST' | 'DELETE' } | null {
+  if (!(request instanceof Request) || request.url.length > 2048) return null;
+  const { method } = request;
+  if (method !== 'GET' && method !== 'POST' && method !== 'DELETE') return null;
+  const url = new URL(request.url);
+  if (request.url.includes('?') || url.hash || url.username || url.password) return null;
+  const match = /^\/api\/assets\/([^/]+)\/report-token$/u.exec(url.pathname);
+  if (!match) return null;
+  try {
+    const asset = decodeURIComponent(match[1]!);
+    return asset.length > 0 && asset.length <= 253 && encodeURIComponent(asset) === match[1]
+      && !/[\s/\\\u0000-\u001f\u007f]/u.test(asset)
+      ? { asset, method } : null;
+  } catch { return null; }
+}
+
+export function localSiteReportsEnabled(env: object): boolean {
+  const fields = env as { NOTICEOS_LOCAL_SITE_REPORTS?: string; NOTICEOS_WORKSPACE_ORIGIN?: string };
+  if (fields.NOTICEOS_LOCAL_SITE_REPORTS !== '1' || !fields.NOTICEOS_WORKSPACE_ORIGIN) return false;
+  try {
+    const url = new URL(fields.NOTICEOS_WORKSPACE_ORIGIN);
+    return url.origin === fields.NOTICEOS_WORKSPACE_ORIGIN && url.protocol === 'http:' && url.hostname === '127.0.0.1' && !!url.port;
+  } catch { return false; }
+}
 export type ProviderCollectionMethod = 'collectNow' | 'syncMediavine';
 /** These existing workflow effects have fixed paths and bounded asset inputs;
  * the original message, never a caller's lane/service claim, selects the edge. */
@@ -636,6 +663,11 @@ export async function towerOperation(request: Request): Promise<WorkspaceOperati
     if (mutation.kind === 'order') return operation('assets.write', ['moveAsset']);
     if (mutation.kind === 'annotation') return operation('annotations.write', ['createAnnotation']);
     return operation(mutation.kind === 'flag' && body.action === 'tune' ? 'measurement.write' : 'findings.write');
+  }
+  const grant = siteReportGrantRequest(request);
+  if (grant) {
+    await emptyRequestBody(request);
+    return operation(grant.method === 'GET' ? 'settings.read' : 'integrations.write', ['siteReportGrant']);
   }
   if (/^\/api\/assets\/[^/]+$/u.test(pathname)) {
     if (method === 'GET') return evidence;

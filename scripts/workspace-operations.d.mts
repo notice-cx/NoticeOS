@@ -82,6 +82,12 @@ export declare function connectionReadinessRequest(request: Request): {
     readonly method: 'discoverSites' | 'probeCredential';
 } | null;
 export type CredentialWriteMethod = 'putCredential' | 'deleteCredential' | 'setCredentialExpiry' | 'connectCredential' | 'putSiteToken';
+export declare const SITE_REPORT_INTAKE_PATH = "/api/pulse";
+export declare function siteReportGrantRequest(request: Request): {
+    readonly asset: string;
+    readonly method: 'GET' | 'POST' | 'DELETE';
+} | null;
+export declare function localSiteReportsEnabled(env: object): boolean;
 export type ProviderCollectionMethod = 'collectNow' | 'syncMediavine';
 /** These existing workflow effects have fixed paths and bounded asset inputs;
  * the original message, never a caller's lane/service claim, selects the edge. */

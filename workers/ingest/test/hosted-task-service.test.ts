@@ -33,6 +33,8 @@ it('uses separate project grants for the same Tower and saves only complete obse
   const workspaces = stores.map(STORE => ({ ...env, STORE, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_NTASKS_ORIGIN: NTASKS }));
   let seq = 1, interruptedBoard = false, removeGrant = false;
   let captureFailure: 'board-unavailable' | 'board-refused' | 'feed-refused' | null = null;
+  let expiredCursor: { after: number; status: 400 | 410 } | null = null;
+  const cursors: number[] = [];
   const sends: { ntasks: string; token: string; path: string; method: string; key: string | null }[] = [];
   const start = Date.now();
   let clock = start;
@@ -54,6 +56,10 @@ it('uses separate project grants for the same Tower and saves only complete obse
     if (url.pathname === '/api/changes') {
       if (captureFailure === 'feed-refused' && actor === north) return new Response('Refused', { status: 401 });
       const after = Number(url.searchParams.get('after'));
+      if (actor === north) {
+        cursors.push(after);
+        if (expiredCursor?.after === after) return new Response('Expired cursor', { status: expiredCursor.status });
+      }
       return Response.json({ events: after < seq ? [{ projectId: actor.projectId, seq }] : [], lastSeq: seq });
     }
     if (method === 'GET' && url.pathname === '/api/tasks') {
@@ -146,11 +152,22 @@ it('uses separate project grants for the same Tower and saves only complete obse
     const recovered = await read(0);
     expect(recovered).toHaveLength(1);
     expect(recovered[0]!.payload.ntasks.cursor).toBe(seq);
+    for (const status of [400, 410] as const) {
+      expiredCursor = { after: seq, status };
+      const cursorStart = cursors.length;
+      seq++;
+      clock += 61_000;
+      await refresh(0);
+      expect(cursors.slice(cursorStart)).toEqual([expiredCursor.after, 0, seq]);
+      expect((await read(0))[0]!.payload.ntasks.cursor).toBe(seq);
+    }
+    expiredCursor = null;
+    const beforeOutage = (await read(0))[0]!.payload;
     clock += 61_000;
     seq++;
     captureFailure = 'board-unavailable';
     await refresh(0);
-    expect((await read(0))[0]!.payload).toEqual(recovered[0]!.payload);
+    expect((await read(0))[0]!.payload).toEqual(beforeOutage);
     for (const refusal of ['board-refused', 'feed-refused'] as const) {
       captureFailure = refusal;
       clock += 61_000;
