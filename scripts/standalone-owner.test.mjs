@@ -151,17 +151,22 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.deepEqual(calls, []);
     assert.deepEqual(counts(), { members: '0', grants: '0' });
 
+    await must('send-code', pending.enrollmentId);
+    const retiredLetter = readFileSync(inbox, 'utf8');
+    const retiredCode = /\b(\d{6})\./u.exec(retiredLetter)?.[1];
+    assert.match(retiredCode ?? '', /^\d{6}$/u);
     owner.run("UPDATE noticeos_identity.platform_enrollment SET expires_at=now()-interval '1s'");
     const renewed = await must('prepare');
     assert.notEqual(renewed.enrollmentId, pending.enrollmentId);
     assert.equal((await cmd('activate', pending.enrollmentId)).status, 1);
+    assert.equal((await cmd('verify-code', renewed.enrollmentId, retiredCode)).status, 1);
     writePlan({ mail: undefined });
     const unavailableMail = await cmd('send-code', renewed.enrollmentId);
     assert.equal(unavailableMail.status, 1);
-    assert.equal(existsSync(inbox), false);
+    assert.equal(readFileSync(inbox, 'utf8'), retiredLetter);
     writePlan({ workspaceId: randomUUID() });
     await must('send-code', renewed.enrollmentId);
-    assert.equal(existsSync(inbox), false);
+    assert.equal(readFileSync(inbox, 'utf8'), retiredLetter);
     writePlan();
     await must('send-code', renewed.enrollmentId);
     const letter = readFileSync(inbox, 'utf8');
@@ -214,6 +219,14 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.deepEqual(owner.sql('SELECT service_id,workspace_id,actions::text FROM noticeos_platform.workspace_service_grants'),
       [{ service_id: a.data.serviceId, workspace_id: workspaceId, actions: '{workflows.run}' }]);
     assert.equal((await cmd('prepare')).status, 1);
+    owner.run(`INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
+      VALUES (:'viewer'::uuid,'Viewer','viewer@example.test',true);
+      INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at)
+      VALUES (gen_random_uuid(),:'workspace'::uuid,:'viewer'::uuid,'viewer',now());`,
+    { vars: { workspace: workspaceId, viewer: randomUUID() } });
+    assert.deepEqual(await must('activate', renewed.enrollmentId), a.data);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(counts(), { members: '2', grants: '1' });
     assert.deepEqual(await evidence(), before);
 
     let signInCode;

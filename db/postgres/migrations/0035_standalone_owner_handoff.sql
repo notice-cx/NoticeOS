@@ -34,6 +34,8 @@ BEGIN
   END IF;
   -- Serializes preparation before the organization exists.
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('noticeos.standalone-owner:'||requested_workspace::text,0));
+  -- Use the email protocol's mailbox lock before locking the organization.
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(intended_email,7349));
   PERFORM 1 FROM noticeos_identity.auth_organization o WHERE o.id=requested_workspace FOR UPDATE;
   organization_exists := FOUND;
   PERFORM pg_catalog.set_config('noticeos.workspace_id',requested_workspace::text,true);
@@ -73,6 +75,9 @@ BEGIN
       VALUES(requested_workspace,requested_project,pg_catalog.gen_random_uuid(),pg_catalog.gen_random_uuid(),
         'n_'||pg_catalog.replace(pg_catalog.gen_random_uuid()::text,'-',''));
   END IF;
+  -- Sign-in codes are mailbox-bound. A new enrollment requires a new code.
+  UPDATE noticeos_identity.auth_verification v SET expires_at=pg_catalog.clock_timestamp()
+    WHERE v.identifier='sign-in-otp-'||intended_email AND v.expires_at>pg_catalog.clock_timestamp();
   INSERT INTO noticeos_identity.platform_enrollment(workspace_id,email,expires_at)
     VALUES(requested_workspace,intended_email,enrollment_expires) RETURNING id INTO next_enrollment;
   INSERT INTO noticeos_platform.standalone_owner_handoffs(enrollment_id,workspace_id,ntasks_origin,ntasks_workspace_id,project_id)
@@ -111,7 +116,6 @@ DECLARE enrollment noticeos_identity.platform_enrollment%ROWTYPE;
   prior_workspace text := pg_catalog.current_setting('noticeos.workspace_id',true);
   handoff noticeos_platform.standalone_owner_handoffs%ROWTYPE;
   mapping noticeos_platform.task_project_directory%ROWTYPE;
-  expected_members integer;
 BEGIN
   PERFORM 1 FROM noticeos_identity.auth_organization o WHERE o.id=requested_workspace FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Standalone owner activation refused'; END IF;
@@ -136,10 +140,9 @@ BEGIN
   SELECT d.* INTO mapping FROM noticeos_platform.task_project_directory d
     WHERE d.workspace_id=requested_workspace AND d.project_id=requested_project AND d.revoked_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='Standalone owner activation refused'; END IF;
-  expected_members := CASE WHEN enrollment.activated_at IS NULL THEN 0 ELSE 1 END;
-  IF (SELECT pg_catalog.count(*) FROM noticeos_identity.auth_member m WHERE m.organization_id=requested_workspace)<>expected_members
-    OR (expected_members=0 AND EXISTS(SELECT 1 FROM noticeos_platform.workspace_service_grants g WHERE g.workspace_id=requested_workspace))
-    OR (expected_members=1 AND (NOT EXISTS(SELECT 1 FROM noticeos_identity.auth_member m
+  IF (enrollment.activated_at IS NULL AND (EXISTS(SELECT 1 FROM noticeos_identity.auth_member m WHERE m.organization_id=requested_workspace)
+    OR EXISTS(SELECT 1 FROM noticeos_platform.workspace_service_grants g WHERE g.workspace_id=requested_workspace)))
+    OR (enrollment.activated_at IS NOT NULL AND (NOT EXISTS(SELECT 1 FROM noticeos_identity.auth_member m
       WHERE m.organization_id=requested_workspace AND m.user_id=enrollment.verified_person_id AND m.role='owner')
       OR NOT EXISTS(SELECT 1 FROM noticeos_platform.workspace_service_grants g WHERE g.service_id=handoff.service_id
         AND g.workspace_id=requested_workspace AND g.actions=ARRAY['workflows.run']::text[]
