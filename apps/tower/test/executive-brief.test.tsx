@@ -1,11 +1,36 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { ExecutiveBrief } from '@/routes/home/ExecutiveBrief';
+import { usePortfolioBrief } from '@/hooks/usePortfolioBrief';
+import { BrowserRuntimeProvider } from '@/lib/browser-context';
+import { createBrowserRuntime } from '@/lib/browser-runtime';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const empty: PortfolioBriefRead = { state: 'disconnected', briefing: null, stale: false, error: null, lastAttemptAt: null, nextAttemptAt: null };
+it.each(['standalone', 'hosted'] as const)('reads saved briefings only where available in %s', async mode => {
+  vi.useFakeTimers();
+  const id = '11111111-1111-4111-8111-111111111111';
+  const owner = mode === 'hosted' ? { mode, principalId: id, sessionId: id, workspaceId: id } : { mode };
+  const fetch = vi.fn(async () => Response.json(empty));
+  const runtime = createBrowserRuntime({ ...owner, clientGeneration: 1 }, {
+    origin: window.location.origin, fetch, sendAnswer: async () => {},
+  });
+  const hook = renderHook(usePortfolioBrief, { wrapper: ({ children }) =>
+    <BrowserRuntimeProvider value={{ runtime, workspaceLabel: null }}>
+      <QueryClientProvider client={runtime.queries}>{children}</QueryClientProvider>
+    </BrowserRuntimeProvider> });
+  try {
+    await act(async () => vi.advanceTimersByTimeAsync(60_001));
+    expect(fetch).toHaveBeenCalledTimes(mode === 'hosted' ? 0 : 2);
+    expect(hook.result.current.data?.state).toBe(mode === 'hosted' ? undefined : 'disconnected');
+  } finally {
+    hook.unmount();
+    runtime.retire();
+  }
+});
 const findings = [
   { title: 'Investigate checkout completion', observation: 'Over the latest 28 days versus the previous 28, checkout completion declined. Visits stayed level.', why: 'Additional acquisition spend may underperform.', action: 'Compare completion by device and acquisition source.', evidenceIds: ['checkout'] },
   { title: 'Inspect the growing search pages', observation: 'Over the latest 28 days versus the previous 28, search visits rose for one asset.', why: 'The growing pages provide a focused comparison.', action: 'Inspect which queries contributed to the change.', evidenceIds: ['search'] },
