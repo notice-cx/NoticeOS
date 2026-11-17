@@ -30,8 +30,8 @@ const cases = [
     "'asset-1.example', 'ga4', 'property-1', 'UTC', '2026-09-03', '2026-09-30'"],
   ['watch aggregate', 'workers/ingest/src/watch-windows.ts', 'aggregateMetric', 'SELECT o.observed_date',
     "'asset-1.example', 'ga4', 'active_users', '2026-09-03', '2026-09-30'"],
-  ['panel trend', 'workers/ingest/src/panel-source.ts', 'readPanelTrend', 'WITH current_property',
-    "'asset-1.example', '2026-09-03'"],
+  ['daily signal trend', 'workers/ingest/src/panel-source.ts', 'readDailySignalTrend', 'WITH current_property',
+    "'asset-1.example', '2026-09-03', ARRAY['ga4', 'gsc', 'bing-webmaster'], '2026-09-30'"],
   ['watch calibration history', 'apps/tower/worker/asset-detail-payload.ts', 'readWatchSeriesHistory', 'WITH current_property',
     "'asset-1.example', '2026-09-03', '2026-09-30'"],
 ];
@@ -99,7 +99,7 @@ test('the four stored-signal readers have indexed series/date paths on analyzed 
           assert.ok(access, JSON.stringify(indexed));
           assert.match(access['Index Cond'], /series_id =/u);
           assert.match(access['Index Cond'], /observed_date >=/u);
-          if (name !== 'panel trend') assert.match(access['Index Cond'], /observed_date <=/u);
+          assert.match(access['Index Cond'], /observed_date <=/u);
           for (const node of nodes(indexed.Plan)) {
             if (['signal_runs','measurement_series','signal_observations'].includes(node['Relation Name'])) {
               assert.notEqual(node['Node Type'], 'Seq Scan', JSON.stringify(indexed));
