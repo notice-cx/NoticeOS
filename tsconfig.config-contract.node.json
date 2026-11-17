@@ -81,6 +81,7 @@
     "packages/postgres/src/task-catalog.mts",
     "packages/postgres/src/service-grant.mts",
     "packages/postgres/src/platform-provisioning.mts",
+    "scripts/ntasks-activation.mts",
     "packages/postgres/src/integration-oauth-custody.mts",
     "packages/postgres/src/mutation-audit.mts",
     "packages/postgres/src/notification-events.mts"

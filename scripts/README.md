@@ -35,6 +35,7 @@
 | `pnpm …` | What it does | Runs |
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
+| `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
 | `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
@@ -750,6 +751,51 @@ update can load it (`scripts/postgres-migrate.test.mjs`).
 `pnpm os:migrate -- --bootstrap --slug main --name "My portfolio"` creates the
 installation's one workspace, once. The rest is in
 [db/postgres/README.md](../db/postgres/README.md#applying-it-to-an-installations-own-database).
+
+## Enroll the owner of an existing standalone workspace
+
+`db:adopt-owner` prepares a selected existing workspace for customer sign-in.
+Apply the standalone owner handoff migration through the approved operator
+migration procedure first. The command uses the specified local database
+and workspace UUID. It keeps the workspace active and preserves its reports
+and configuration. Preparation works only for one active standalone
+workspace without an owner or other customer authority.
+
+Supply an absolute path to an operator-owned, mode `0600` JSON plan. Set
+`format` to `noticeos-standalone-owner/1` and provide `workspaceId`,
+`intendedEmail`, `trustedOrigin`, `platformDatabaseUrl`, `identityDatabaseUrl`,
+`identitySecret` and `ntasks`. The two connection URLs name the same database
+on `postgres` or loopback, using `noticeos_platform` and `noticeos_identity`
+respectively. Keep the platform login in the operator plan. Keep the identity
+secret consistent with the intended customer deployment. Existing Compose
+stores require operator-approved login, connection and host access for those
+roles and for the customer runtime's `noticeos_service_grant` role. Use local
+database access and dedicated credentials for each role. In `ntasks`, give
+`origin`, `workspaceId` and `projectId`. Provide the Ntasks service token on
+standard input to `activate`. It needs write access to exactly that project.
+
+Set `mail` to an object with `sendmail`, the absolute path to the configured
+mail transport, and `from`, the sender's address. Delivery must reach the
+intended owner's mailbox. The file mailbox used by local fixtures is for
+synthetic tests. Provide the code received by the intended owner on standard
+input to `verify-code`.
+
+```sh
+pnpm db:adopt-owner -- prepare /absolute/private-owner-plan.json
+pnpm db:adopt-owner -- send-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:adopt-owner -- verify-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:adopt-owner -- activate /absolute/private-owner-plan.json <enrollment-id>
+```
+
+Use the enrollment ID from `prepare`. Repeating preparation with the same
+pending plan returns the same ID. After expiry it creates a new enrollment,
+which requires a new email code. `activate` verifies the project and publishes
+the first owner and `workflows.run` grant in one transaction. If the command
+stops before returning its result, repeat it with the same plan and ID. It
+returns the existing grant ID while the original owner and grant are current.
+Use its `workspaceId` and `serviceId` in deployment settings. Starting or
+switching the customer runtime is a separate operator step. Switching back
+to standalone serves the same saved portfolio.
 
 ---
 

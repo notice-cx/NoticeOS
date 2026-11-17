@@ -87,7 +87,19 @@ async function eligibility(trx, email, enrollment) {
         const result = await sql `SELECT email=${email} AND workspace_id=${workspaceId}::uuid
       AND revoked_at IS NULL AND verified_at IS NULL AND expires_at>clock_timestamp() AS allowed
       FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid FOR UPDATE`.execute(trx);
-        const allowed = workspace.rows[0]?.status === 'provisioning' && result.rows[0]?.allowed === true;
+        const status = workspace.rows[0]?.status;
+        let allowed = result.rows[0]?.allowed === true && status === 'provisioning';
+        if (status === 'active' && result.rows[0]?.allowed === true) {
+            // Before the operator applies the adoption migration, active workspace
+            // enrollment keeps its original refusal.
+            const installed = await sql `SELECT
+        to_regprocedure('noticeos_identity.is_standalone_owner_enrollment(uuid,uuid)') IS NOT NULL AS exists`.execute(trx);
+            if (installed.rows[0]?.exists === true) {
+                const existing = await sql `SELECT noticeos_identity.is_standalone_owner_enrollment(
+          ${workspaceId}::uuid,${enrollment.id}::uuid) AS allowed`.execute(trx);
+                allowed = existing.rows[0]?.allowed === true;
+            }
+        }
         return { allowed, ...(allowed ? { platformId: enrollment.id } : {}) };
     }
     const result = await sql `SELECT lower(email)=${email} AND organization_id=${workspaceId}::uuid

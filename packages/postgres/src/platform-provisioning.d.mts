@@ -21,9 +21,17 @@ export interface PreparedWorkspace {
 export interface PlatformProvisioning {
     prepare(input: unknown): Promise<PreparedWorkspace>;
     activate(input: unknown): Promise<PreparedWorkspace>;
+    prepareStandaloneOwner(input: unknown): Promise<PreparedWorkspace>;
+    activateStandaloneOwner(input: unknown): Promise<PreparedWorkspace & {
+        readonly serviceId: string;
+    }>;
     close(): Promise<void>;
 }
 export declare class PlatformProvisioningRefused extends Error {
+    name: string;
+    constructor();
+}
+export declare class StandaloneOwnerMigrationRequired extends Error {
     name: string;
     constructor();
 }
