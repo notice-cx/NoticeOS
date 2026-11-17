@@ -27,6 +27,8 @@ import {
 } from '@noticeos/contract';
 import {
   CredentialKeyError,
+  assertCredentialOwner,
+  type ResolvedCredential,
   carriedExpiry,
   credentialConnected,
   credentialSigningKey,
@@ -473,10 +475,12 @@ export async function revokeGoogleGrant(
   env: IngestEnv,
   fetchImpl: typeof fetch = fetch,
   provider: GoogleOAuthProvider = 'google',
+  captured?: ResolvedCredential,
 ): Promise<boolean> {
   let token: string | undefined;
   try {
-    const credential = await resolveCredential(env, provider);
+    const credential = captured ?? await resolveCredential(env, provider);
+    await assertCredentialOwner(env, credential, provider);
     token = provider === 'adsense' ? credential.fields.ADSENSE_REFRESH_TOKEN : credential.fields.GOOGLE_OAUTH_REFRESH_TOKEN;
   } catch {
     return false;

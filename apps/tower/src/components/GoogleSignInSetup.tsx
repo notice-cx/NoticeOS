@@ -99,7 +99,8 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
     </Button>
   );
 
-  if ((!selfHosted || adsense) && clientReady && !editingClient) {
+  const redirectMissing = upload.phase === "saved" && !upload.redirectListed;
+  if ((!selfHosted || adsense) && clientReady && !editingClient && !redirectMissing) {
     return (
       <div className="flex flex-1 flex-col gap-4" data-google-setup="hosted">
         <ul className="flex flex-wrap gap-1.5" aria-label="Google access">

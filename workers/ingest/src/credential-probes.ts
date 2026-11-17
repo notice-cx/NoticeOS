@@ -591,7 +591,9 @@ export async function disconnectCredential(
 ): Promise<DeleteCredentialResult> {
   if (providerId === 'mediavine') return disconnectMediavine(env);
   if (providerId === 'google' || providerId === 'adsense') {
-    await revokeGoogleGrant(env, options.fetchImpl ?? fetch, providerId);
+    const credential = await resolveCredential(env, providerId);
+    await revokeGoogleGrant(env, options.fetchImpl ?? fetch, providerId, credential);
+    return deleteCredential(env, providerId, credential);
   }
   return deleteCredential(env, providerId);
 }
