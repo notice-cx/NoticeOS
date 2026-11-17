@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
@@ -2717,8 +2718,28 @@ test('AdSense connects with Google and returns to its own domain matches', { tag
   await expect(panel.locator('[data-google-redirect-uri]')).toHaveText(redirect);
   await expect(page.locator('#boot-splash')).toHaveCount(0);
   await testInfo.attach('adsense-client-setup', { body: await page.screenshot(), contentType: 'image/png' });
-  await panel.getByLabel('client_secret.json', { exact: true }).setInputFiles(googleClientFile([redirect]));
+  const clientFile = testInfo.outputPath('adsense-web-client.json');
+  await writeFile(clientFile, googleClientFile([redirect]).buffer);
+  let saves = 0;
+  await page.route('**/api/integrations/adsense-oauth-app/credential', async route => {
+    if (route.request().method() === 'PUT' && ++saves === 1) {
+      return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'fixture_save_unavailable' }) });
+    }
+    return route.continue();
+  });
+  async function chooseClientFile() {
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      panel.getByText('Drop client_secret.json', { exact: true }).click(),
+    ]);
+    await chooser.setFiles(clientFile);
+  }
+  await chooseClientFile();
+  await expect(panel.locator('[data-google-client-refused]')).toBeVisible();
+  await expect(panel.getByLabel('client_secret.json', { exact: true })).toHaveValue('');
+  await chooseClientFile();
   await expect(panel.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+  expect(saves).toBe(2);
   await testInfo.attach('adsense-google-sign-in', { body: await page.screenshot(), contentType: 'image/png' });
   await panel.getByRole('link', { name: 'Continue with Google' }).click();
   const back = page.getByRole('dialog', { name: 'Google AdSense' });

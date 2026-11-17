@@ -157,7 +157,11 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
               accept=".json,application/json"
               className="sr-only"
               disabled={!canConnect || upload.phase === "saving"}
-              onChange={(event) => void take(event.target.files?.[0])}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void take(file);
+              }}
               aria-label="client_secret.json"
             />
           </label>
