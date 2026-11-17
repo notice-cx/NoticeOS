@@ -8,6 +8,7 @@
 
 import type {
   GoogleOAuthCompletion,
+  GoogleOAuthProvider,
   GoogleOAuthStart,
   GooglePropertyDiscovery,
 } from "@noticeos/contract";
@@ -17,15 +18,16 @@ import {
   googleOAuthRedirectUri,
 } from "@noticeos/contract";
 import { JSON_HEADERS, jsonError } from "./http";
-import { googleOAuthRequest } from '../../../scripts/workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider } from '../../../scripts/workspace-operations.mjs';
 
 /** Declared structurally so the test project can bind a double. */
 export interface GoogleOAuthIngest {
-  beginGoogleOAuth(input: { origin: string }, proof?: Request): Promise<GoogleOAuthStart>;
+  beginGoogleOAuth(input: { origin: string; provider?: GoogleOAuthProvider }, proof?: Request): Promise<GoogleOAuthStart>;
   completeGoogleOAuth(input: {
     code: string;
     state: string;
     redirectUri: string;
+    provider?: GoogleOAuthProvider;
     error?: string | null;
   }, proof?: Request): Promise<GoogleOAuthCompletion>;
   discoverGoogleProperties(proof?: Request): Promise<GooglePropertyDiscovery>;
@@ -52,11 +54,11 @@ function crossSiteNavigation(request: Request): boolean {
   return site !== null && site !== "same-origin" && site !== "none";
 }
 
-function backToPage(url: URL, result: string): Response {
+function backToPage(url: URL, result: string, provider: GoogleOAuthProvider): Response {
   const target = new URL(INTEGRATIONS_PAGE, url.origin);
   // Back to the connect panel: on the account's sites
   // once signed in, on the sign-in again when it did not finish.
-  target.searchParams.set("connect", "google");
+  target.searchParams.set("connect", provider);
   target.searchParams.set(GOOGLE_OAUTH_RESULT_PARAM, result);
   return new Response(null, {
     status: 302,
@@ -77,10 +79,12 @@ export async function handleGoogleOAuthStartRequest(
   ingest: GoogleOAuthIngest,
   hostedOrigin?: string,
 ): Promise<Response> {
+  const provider = googleOAuthProvider(request);
+  const selection = provider === 'adsense' ? { provider } : {};
   if (hostedOrigin !== undefined) {
     try {
       await googleOAuthRequest(request, hostedOrigin, 'start');
-      const result = await ingest.beginGoogleOAuth({ origin: hostedOrigin }, request.clone());
+      const result = await ingest.beginGoogleOAuth({ origin: hostedOrigin, ...selection }, request.clone());
       return Response.json(result, { status: result.ok ? 200 : 409, headers: { ...JSON_HEADERS, 'cache-control': 'no-store' } });
     } catch { return jsonError('workspace_entry_unavailable', 403); }
   }
@@ -89,11 +93,11 @@ export async function handleGoogleOAuthStartRequest(
 
   let start: GoogleOAuthStart;
   try {
-    start = await ingest.beginGoogleOAuth({ origin: url.origin });
+    start = await ingest.beginGoogleOAuth({ origin: url.origin, ...selection });
   } catch {
-    return backToPage(url, "store_failed");
+    return backToPage(url, "store_failed", provider);
   }
-  if (!start.ok) return backToPage(url, start.error);
+  if (!start.ok) return backToPage(url, start.error, provider);
   return new Response(null, {
     status: 302,
     headers: {
@@ -121,22 +125,24 @@ export async function handleGoogleOAuthCallbackRequest(
   ingest: GoogleOAuthIngest,
   hostedOrigin?: string,
 ): Promise<Response> {
+  const provider = googleOAuthProvider(request);
+  const selection = provider === 'adsense' ? { provider } : {};
   if (hostedOrigin !== undefined) {
     const returnUrl = new URL(hostedOrigin);
     try {
       const parsed = googleOAuthRequest(request, hostedOrigin, 'callback');
       const completion = await ingest.completeGoogleOAuth({ code: parsed.code ?? '', state: parsed.state,
-        redirectUri: googleOAuthRedirectUri(hostedOrigin), error: parsed.error }, request.clone());
-      return backToPage(returnUrl, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error);
-    } catch { return backToPage(returnUrl, 'state_invalid'); }
+        redirectUri: googleOAuthRedirectUri(hostedOrigin, provider), error: parsed.error, ...selection }, request.clone());
+      return backToPage(returnUrl, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error, provider);
+    } catch { return backToPage(returnUrl, 'state_invalid', provider); }
   }
   if (request.method !== "GET") return jsonError("method_not_allowed", 405);
   // Explicit standalone compatibility: signed state guards this navigation.
 
-  if (url.searchParams.get("error") !== null) return backToPage(url, "denied");
+  if (url.searchParams.get("error") !== null) return backToPage(url, "denied", provider);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  if (code === null || state === null) return backToPage(url, "state_invalid");
+  if (code === null || state === null) return backToPage(url, "state_invalid", provider);
 
   let completion: GoogleOAuthCompletion;
   try {
@@ -146,12 +152,13 @@ export async function handleGoogleOAuthCallbackRequest(
       // Re-derived from THIS request rather than taken from the state, so the
       // two have to agree — that agreement is what binds a state to the origin
       // it was minted for.
-      redirectUri: googleOAuthRedirectUri(url.origin),
+      redirectUri: googleOAuthRedirectUri(url.origin, provider),
+      ...selection,
     });
   } catch {
-    return backToPage(url, "store_failed");
+    return backToPage(url, "store_failed", provider);
   }
-  return backToPage(url, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error);
+  return backToPage(url, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error, provider);
 }
 
 /**

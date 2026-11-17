@@ -176,15 +176,16 @@ yesterday on Google’s Pacific reporting calendar. Later runs refresh the same
 window so Google’s revisions reach **Money**. Dates with no figure stay blank.
 The **Daily revenue** panel shows the last reported date.
 
-1. In [Google Cloud](https://console.cloud.google.com/apis/library/adsense.googleapis.com), enable the **AdSense Management API** in a project dedicated to this connection. Create a **Web application** OAuth client and add `https://developers.google.com/oauthplayground` to its authorized redirect URIs.
-2. Open [Google’s OAuth Playground](https://developers.google.com/oauthplayground/). In settings, select **Use your own OAuth credentials** and enter the client ID and secret.
-3. Authorize `https://www.googleapis.com/auth/adsense.readonly` with the Google account that can read your AdSense sites. Select **Exchange authorization code for tokens** and copy the **Refresh token**.
-4. In the Tower, open **Integrations → Google AdSense → Connect**. Enter the client ID, client secret, and refresh token. Select **Connect**.
-5. Review the site matches, select **Start collecting**, then open the asset’s **Money** tab. Use **Manage → Asset mappings** to change a match and **Collection schedule** to change when it runs.
+1. Open **Integrations → Google AdSense → Connect**.
+2. Create a Google Cloud project dedicated to NoticeOS AdSense and enable **AdSense Management API** using the setup link. In **Google Auth Platform → Data Access**, add `https://www.googleapis.com/auth/adsense.readonly`.
+3. Create an OAuth client with **Application type** set to **Web application**. Paste the callback address shown in NoticeOS into **Authorized redirect URIs**. Leave **Authorized JavaScript origins** empty and **Use this client for an AI-powered agent** unchecked.
+4. Download the client's JSON file from Google Cloud and select or drop it into NoticeOS. This is the installation's one-time client setup. AdSense uses its own client, stored separately from the Analytics and Search Console client.
+5. Select **Continue with Google**, choose the account that can read your AdSense domains, and grant read-only access. NoticeOS exchanges the authorization code and stores the refresh token encrypted.
+6. Review the domain matches and select **Start collecting**. The asset's **Money** tab shows collected figures. **Manage → Asset mappings** changes a match, and **Collection schedule** changes when collection runs.
 
-Use a published consent screen for a recurring sync. Google’s external apps in
-Testing receive refresh tokens that expire after seven days. To revoke the
-grant, remove the dedicated app from [Google Account connections](https://myaccount.google.com/connections).
+Publish the external app under **Google Auth Platform → Audience** for recurring collection. While the app is in Testing, add your Google account under **Test users**. Google's Testing grants expire after seven days. If Google displays an unverified-app screen, continue only for the client you created for this installation. Publishing removes Testing's seven-day refresh-token expiry. Google's verification requirements depend on the app's audience and requested scopes.
+
+AdSense requires OAuth authorization from a person. Its API does not support service accounts or API-key access to earnings. NoticeOS requests the read-only AdSense scope together with account identity. Existing connections made with a client ID, secret and refresh token continue collecting. **Manage → Reconnect with Google** replaces that connection through sign-in. Disconnect removes the stored grant and attempts revocation at Google. Google applies revocation across all OAuth clients in that project for the same Google account, so the AdSense project must be separate from projects containing Analytics, Search Console or other Google sign-in clients. [Google’s token revocation documentation](https://developers.google.com/identity/protocols/oauth2/web-server#tokenrevoke) describes this scope.
 
 For a manual import of an older month, set the revenue source to
 `adsense-report`. When the collected daily figures cover at least the same
@@ -331,10 +332,11 @@ no call.
 |---|---|---|
 | Mediavine (`mediavine`) | publisher email and password | permitted-asset discovery; session reuse and a 15-minute cache/cooldown are shared with collection |
 | Google (`google`) | **either** a sign-in (`GOOGLE_OAUTH_REFRESH_TOKEN`, written by the flow — see [Connecting Google](#connecting-google)) **or** `GOOGLE_SIGNAL_ACCOUNTS`, the account-label → `{service_account_b64, properties}` map | gets a read-only token, then Search Console `sites.list` and one GA4 `properties/{id}/metadata` read. Identical for both ways to connect; only the error message differs, because "add the robot as a Full user" and "check which account you signed in with" are different instructions. No day of data is requested and no reporting token is spent |
+| AdSense OAuth app (`adsense-oauth-app`) | `ADSENSE_OAUTH_CLIENT_ID`, `ADSENSE_OAUTH_CLIENT_SECRET` | a client-ID format check. The AdSense setup stores these from the downloaded web-client JSON file. Google sign-in verifies the client through authorization |
 | Google OAuth app (`google-oauth-app`) | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | a format check only, on purpose: no free Google call can verify a client id and secret without sending a person through a consent screen, so the accurate result is *looks right, now sign in*. **Not a card of its own** — the Google card has fields for it |
 | Bing Webmaster (`bing-webmaster`) | `BING_WEBMASTER_API_KEY` | `GetUserSites` — the same call the collector makes first |
 | DataForSEO (`dataforseo`) | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` | `appendix/user_data`; free, and it returns the credit left before the metered collection stops — recorded with the time it was read so the card shows it with its date without any button press; the budget line beside it shows the monthly cap |
-| Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a test result |
+| Google Calendar (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a test result |
 | Chrome UX Report (`crux`) | `CRUX_API_KEY` | one `records:queryRecord` call on the first asset the daily job reads (a reserved origin before any asset exists, and in the connect panel). Both a record and "no data for this origin" accept the key |
 | Mercury (`mercury`) | `MERCURY_API_TOKEN`, a Read Only API token | one `GET /api/v1/accounts?limit=1&order=asc`; account details are discarded and nothing is changed at Mercury |
 | Stripe (`stripe`) | `STRIPE_API_KEY`, a restricted key | one `GET /v1/balance`: no money moves and nothing is written. A key without the Balance read grant is refused like a wrong key |

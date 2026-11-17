@@ -1,3 +1,4 @@
+import { ADSENSE_READ_SCOPE, type GoogleOAuthProvider } from '@noticeos/contract/google-oauth';
 import { ArrowRight, Check, ExternalLink, FileKey2, KeyRound, Loader2, TriangleAlert } from "lucide-react";
 import { type DragEvent, type ReactNode, useId, useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,6 +14,7 @@ export interface GoogleSignInSetupProps {
   /** Where the sign-in stands, from `googleOAuthCardState`: the OAuth client
    * missing, ready, or refused by Google at this address. */
   card: GoogleOAuthCardState;
+  provider?: GoogleOAuthProvider;
   /** The OAuth client is this installation's own (self-hosted) rather than
    * the host's: its one-time setup stays in view, and its Testing sign-in
    * lasts seven days. */
@@ -50,10 +52,12 @@ type Upload =
  * sits beside that chip; on an address Google will not return to, the press
  * uses the loopback address.
  */
-export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starting, publish, canConnect = true, onSaveClient }: GoogleSignInSetupProps) {
+export function GoogleSignInSetup({ card, provider = 'google', selfHosted, startHref, onStart, starting, publish, canConnect = true, onSaveClient }: GoogleSignInSetupProps) {
   const inputId = useId();
   const [upload, setUpload] = useState<Upload>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
+  const [editingClient, setEditingClient] = useState(false);
+  const adsense = provider === 'adsense';
   const clientReady = card.state !== "app-missing";
 
   async function take(file: File | undefined) {
@@ -85,7 +89,7 @@ export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starti
         <ArrowRight aria-hidden />
       </a>
     </Button>
-  ) : clientReady && canConnect ? (
+  ) : clientReady && canConnect && upload.phase !== "saving" && upload.phase !== "refused" ? (
     <Button asChild className="mt-auto w-full" data-google-continue>
       <GoogleStartPress href={startHref} onStart={onStart} starting={starting}>Continue with Google</GoogleStartPress>
     </Button>
@@ -95,14 +99,19 @@ export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starti
     </Button>
   );
 
-  if (!selfHosted && clientReady) {
+  const redirectMissing = upload.phase === "saved" && !upload.redirectListed;
+  const showClientSetup = editingClient || redirectMissing || upload.phase === "saving" || upload.phase === "refused";
+  if ((!selfHosted || adsense) && clientReady && !showClientSetup) {
     return (
       <div className="flex flex-1 flex-col gap-4" data-google-setup="hosted">
         <ul className="flex flex-wrap gap-1.5" aria-label="Google access">
-          <li><StateChip tone="neutral" label="Analytics · read only" glyph={<KeyRound className="size-3" />} subject="access:google" /></li>
-          <li><StateChip tone="neutral" label="Search Console · read only" glyph={<KeyRound className="size-3" />} subject="access:google" /></li>
+          {adsense ? <li><StateChip tone="neutral" label="AdSense · read only" glyph={<KeyRound className="size-3" />} subject="access:adsense" /></li> : <>
+            <li><StateChip tone="neutral" label="Analytics · read only" glyph={<KeyRound className="size-3" />} subject="access:google" /></li>
+            <li><StateChip tone="neutral" label="Search Console · read only" glyph={<KeyRound className="size-3" />} subject="access:google" /></li>
+          </>}
         </ul>
         {start}
+        {adsense && selfHosted ? <Button type="button" variant="ghost" onClick={() => setEditingClient(true)}>Change Google client</Button> : null}
       </div>
     );
   }
@@ -111,8 +120,11 @@ export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starti
   return (
     <div className="flex flex-1 flex-col gap-4" data-google-setup="self-hosted">
       <ol className="flex flex-col gap-3">
-        <Step n={1} label="Turn on the 3 APIs" href={GOOGLE_CONSOLE.apis} />
+        <Step n={1} label={adsense ? "Enable AdSense Management API" : "Turn on the 3 APIs"} href={adsense ? "https://console.cloud.google.com/apis/library/adsense.googleapis.com" : GOOGLE_CONSOLE.apis}>
+          {adsense ? <p className="text-sm text-muted-foreground">Use a project dedicated to NoticeOS AdSense. Disconnecting revokes access for this Google account across that project’s apps.</p> : null}
+        </Step>
         <Step n={2} label="Create a web client" href={GOOGLE_CONSOLE.client}>
+          {adsense ? <p className="mb-2 text-sm text-muted-foreground">Choose Web application. Add this address under Authorized redirect URIs. Leave JavaScript origins empty and the AI-powered agent box unchecked.</p> : null}
           <CopyCommand command={card.redirectUri} mark={{ "data-google-redirect-uri": "" }} />
         </Step>
         <li className="flex flex-col gap-2" data-google-step="3">
@@ -145,7 +157,11 @@ export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starti
               accept=".json,application/json"
               className="sr-only"
               disabled={!canConnect || upload.phase === "saving"}
-              onChange={(event) => void take(event.target.files?.[0])}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void take(file);
+              }}
               aria-label="client_secret.json"
             />
           </label>
@@ -172,10 +188,13 @@ export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starti
           <ExternalLink className="size-3" aria-hidden />
         </a>
       ) : null}
-      {/* The other way in keeps the provider's own page. */}
-      <Link to="/integrations?provider=google&setup=page" className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
+      {adsense ? <details className="text-sm text-muted-foreground">
+        <summary className="cursor-pointer">Where to set read-only access</summary>
+        <p className="mt-2">In Google Auth Platform → Data Access, add this scope. NoticeOS requests it when you continue with Google.</p>
+        <CopyCommand command={ADSENSE_READ_SCOPE} mark={{ "data-adsense-read-scope": "" }} />
+      </details> : <Link to="/integrations?provider=google&setup=page" className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
         Service account instead
-      </Link>
+      </Link>}
       {start}
     </div>
   );

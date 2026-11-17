@@ -708,7 +708,7 @@ test("every feed down adds the line that names the Wall's blank meetings panel",
   );
   assert.match(result.rows[0].detail, /^http_404 — /);
   assert.match(result.rows[1].detail, /^http_500 — /);
-  assert.equal(result.rows[2].label, 'Calendar feeds');
+  assert.equal(result.rows[2].label, 'Google Calendar');
   assert.match(result.rows[2].detail, /0 of 2 feeds answered/);
   assert.match(result.rows[2].detail, /meetings panel/);
   assertNoUrlPrinted(result.rows);

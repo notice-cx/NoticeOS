@@ -1,4 +1,4 @@
-import { amountToMinorUnits, siteHost, type CollectNowSite, type DiscoveredSite, type ScheduledRunResult } from '@noticeos/contract';
+import { ADSENSE_READ_SCOPE as READ_SCOPE, amountToMinorUnits, siteHost, type CollectNowSite, type DiscoveredSite, type ScheduledRunResult } from '@noticeos/contract';
 import { adSenseAssignments, isAdSenseSite } from '@noticeos/contract/configuration';
 import { isSupportedCurrency } from '@noticeos/contract/money';
 import { calendarOffset } from '@noticeos/contract/reporting-calendar';
@@ -13,7 +13,6 @@ import { LANE_REGISTER, type LaneRegister } from './lane-mapping.js';
 import { asRecord, stringField } from './shared.js';
 import { boundedResponseJson, SignalError } from './signal-store.js';
 
-const READ_SCOPE = 'https://www.googleapis.com/auth/adsense.readonly';
 const API = 'https://adsense.googleapis.com/v2/';
 const ACCOUNT = /^accounts\/pub-[0-9]+$/u;
 const REPORT_ID = /^[a-zA-Z0-9:_-]+$/u;

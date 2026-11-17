@@ -1,8 +1,9 @@
+import type { GoogleOAuthProvider } from '@noticeos/contract/google-oauth';
 import { useRef, useState } from 'react';
 import { useBrowserRuntime, useOwnerToast } from '@/lib/browser-context';
 
 /** Navigation is the last owner-bound effect, after the API decoded its body. */
-export function useGoogleOAuthStart() {
+export function useGoogleOAuthStart(provider: GoogleOAuthProvider = 'google') {
   const runtime = useBrowserRuntime();
   const toast = useOwnerToast();
   const [starting, setStarting] = useState(false);
@@ -16,7 +17,7 @@ export function useGoogleOAuthStart() {
       setStarting(true);
       void (async () => {
         try {
-          const target = await runtime.api.beginGoogleOAuth();
+          const target = await runtime.api.beginGoogleOAuth(undefined, provider);
           runtime.guard(() => window.location.assign(target))();
         } catch {
           toast.error('Google sign-in could not start.');

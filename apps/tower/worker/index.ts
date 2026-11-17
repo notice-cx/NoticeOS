@@ -89,6 +89,8 @@ import {
 import { RUNNER_PATH_PREFIX } from "../shared/runner-lane";
 import {
   GOOGLE_OAUTH_CALLBACK_PATH,
+  ADSENSE_OAUTH_CALLBACK_PATH,
+  ADSENSE_OAUTH_START_PATH,
   GOOGLE_OAUTH_START_PATH,
   GOOGLE_PROPERTIES_PATH,
   integrationProvider,
@@ -308,10 +310,10 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   // paths under the same noun; the exact match above is the lane matrix.
   // Signing in to Google is matched before the `:provider` patterns below,
   // because `google` is a provider id.
-  if (url.pathname === GOOGLE_OAUTH_START_PATH) {
+  if ([GOOGLE_OAUTH_START_PATH, ADSENSE_OAUTH_START_PATH].includes(url.pathname)) {
     return handleGoogleOAuthStartRequest(request, url, env.INGEST);
   }
-  if (url.pathname === GOOGLE_OAUTH_CALLBACK_PATH) {
+  if ([GOOGLE_OAUTH_CALLBACK_PATH, ADSENSE_OAUTH_CALLBACK_PATH].includes(url.pathname)) {
     return handleGoogleOAuthCallbackRequest(request, url, env.INGEST);
   }
   if (url.pathname === GOOGLE_PROPERTIES_PATH) {
@@ -478,11 +480,11 @@ const towerHandler = {
         if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
         return Response.json({ state: 'unsupported', briefing: null, lastAttemptAt: null, nextAttemptAt: null, error: null, stale: false }, { headers: { 'cache-control': 'no-store' } });
       }
-      if (profile === 'hosted' && pathname === GOOGLE_INTEGRATION_CALLBACK) {
+      if (profile === 'hosted' && [GOOGLE_INTEGRATION_CALLBACK, ADSENSE_OAUTH_CALLBACK_PATH].includes(pathname)) {
         try { return await handleGoogleOAuthCallbackRequest(request, new URL(request.url), env.INGEST, workspaceEntryOrigin(env)); }
         catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
       }
-      if (profile === 'hosted' && pathname === GOOGLE_INTEGRATION_START && request.method === 'POST') {
+      if (profile === 'hosted' && [GOOGLE_INTEGRATION_START, ADSENSE_OAUTH_START_PATH].includes(pathname) && request.method === 'POST') {
         try {
           return await withWorkspaceEntry(env, request.clone(), async () =>
             handleGoogleOAuthStartRequest(request, new URL(request.url), env.INGEST, workspaceEntryOrigin(env)));

@@ -16,7 +16,7 @@ import { connectionCollections } from "@shared/scheduled-jobs";
 import { connectionStatus } from "@shared/connection-status";
 import { changesetSlug, type FileOp } from "@shared/changeset";
 import type { StartPlan } from "@shared/site-discovery";
-import { GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
+import { ADSENSE_OAUTH_START_PATH, GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
 import { NOTIFICATION_LANE, connectionState, credentialAssetRows, googleOAuthCardState, type ConnectBlocker, type IntegrationProviderStatus } from "@shared/integrations-page";
 import { ConnectBlockers } from "@/components/ConnectBlockers";
 import { ConnectPanel } from "@/components/ConnectPanel";
@@ -80,9 +80,10 @@ export interface ProviderConnectPanelProps {
 export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
   const queryClient = useQueryClient();
-  const googleStart = useGoogleOAuthStart();
+  const googleStart = useGoogleOAuthStart(status.provider.id === 'adsense' ? 'adsense' : 'google');
   const { deleteProviderCredential, connectProviderCredential, saveProviderCredential } = useTowerApi();
   const [started, setStarted] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const { provider, credential } = status;
   const stripe = provider.id === "stripe";
   const legacyStripe = stripe && status.stripeProducts === null && status.assets.length > 0;
@@ -103,11 +104,11 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
     ? <ConnectionSchedule provider={provider.id} /> : undefined;
   return (
     <ConnectPanel
-      key={provider.id}
+      key={`${provider.id}:${reconnecting}`}
       provider={connectProvider}
       canConnect={canConnect}
       blocked={blockers && blockers.length > 0 ? <ConnectBlockers blockers={blockers} /> : undefined}
-      opened={opened}
+      opened={reconnecting ? "form" : opened}
       // Opened on a connected provider, the header wears its status until
       // Start; after Start each site's row carries its own, and the header
       // none — a one-site connection's status would be the same word twice.
@@ -151,16 +152,21 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
       }}
       setup={signIn ? (
         <GoogleSignInSetup
+          provider={provider.id === 'adsense' ? 'adsense' : 'google'}
           card={googleOAuthCardState(status, app, window.location.origin)}
           // The host's own verified client arrives from the environment; one
           // this installation stores is its own, set up once, in Testing.
           selfHosted={app === null || app.credential.source !== "env"}
-          startHref={GOOGLE_OAUTH_START_PATH}
+          startHref={provider.id === 'adsense' ? ADSENSE_OAUTH_START_PATH : GOOGLE_OAUTH_START_PATH}
           {...googleStart}
           publish={provider.expiry.known === "flow" ? provider.expiry.fix ?? null : null}
           canConnect={canConnect}
           onSaveClient={async (fields) => {
-            await saveProviderCredential(app?.provider.id ?? "google-oauth-app", fields);
+            const appFields = provider.id === 'adsense' ? {
+              ADSENSE_OAUTH_CLIENT_ID: fields.GOOGLE_OAUTH_CLIENT_ID,
+              ADSENSE_OAUTH_CLIENT_SECRET: fields.GOOGLE_OAUTH_CLIENT_SECRET,
+            } : fields;
+            await saveProviderCredential(app?.provider.id ?? (provider.id === 'adsense' ? 'adsense-oauth-app' : 'google-oauth-app'), appFields);
             await onChanged();
           }}
         />
@@ -178,9 +184,12 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
       ) : provider.connect?.sites === false ? undefined : (answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
       ) : (
-        <ProviderSites provider={provider} preselect={asset} onClose={close} onStarted={() => setStarted(true)} onCollected={onChanged}
-          managing={answer === null && opened === "sites" && (provider.id !== "google" || !googleSetup)}
-          googleFallbacks={credential.propertyMap?.answersFor} />
+        <>
+          {provider.id === "adsense" && opened === "sites" ? <Button type="button" variant="outline" onClick={() => setReconnecting(true)}>Reconnect with Google</Button> : null}
+          <ProviderSites provider={provider} preselect={asset} onClose={close} onStarted={() => setStarted(true)} onCollected={onChanged}
+            managing={answer === null && opened === "sites" && (!signIn || !googleSetup)}
+            googleFallbacks={credential.propertyMap?.answersFor} />
+        </>
       )}
     />
   );

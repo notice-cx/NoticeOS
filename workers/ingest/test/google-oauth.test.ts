@@ -13,6 +13,8 @@ import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   GOOGLE_OAUTH_SCOPES,
+  ADSENSE_OAUTH_SCOPES,
+  ADSENSE_READ_SCOPE,
   GOOGLE_TESTING_GRANT_DAYS,
   googleOAuthRedirectUri,
   googleLoopbackOrigin,
@@ -1011,4 +1013,105 @@ describe('Google in the connect panel', () => {
     expect(calls.some((url) => url.includes('412330001:runReport'))).toBe(true);
     expect(calls.some((url) => url.includes('412330009'))).toBe(false);
   });
+});
+
+
+describe('AdSense Google sign-in', () => {
+  async function app() {
+    const saved = await putCredential(bare(), { provider: 'adsense-oauth-app', fields: {
+      ADSENSE_OAUTH_CLIENT_ID: CLIENT_ID, ADSENSE_OAUTH_CLIENT_SECRET: CLIENT_SECRET,
+    } });
+    expect(saved.ok).toBe(true);
+  }
+
+  it('requests only AdSense and identity through its own callback and stores a usable encrypted grant', async () => {
+    await app();
+    await storeOAuthApp();
+    const googleBefore = await resolveCredential(bare(), 'google-oauth-app');
+    const started = await beginGoogleOAuth(bare(), { origin: ORIGIN, provider: 'adsense', nowMs: NOW });
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    const consent = new URL(started.authorizeUrl);
+    expect(consent.searchParams.get('scope')?.split(' ')).toEqual(ADSENSE_OAUTH_SCOPES);
+    expect(started.redirectUri).toBe(`${ORIGIN}/api/integrations/adsense/oauth/callback`);
+    const calls: TokenCall[] = [];
+    const outcome = await completeGoogleOAuth(bare(), { code: CODE, state: consent.searchParams.get('state')!,
+      redirectUri: started.redirectUri, provider: 'adsense', nowMs: NOW,
+      fetchImpl: tokenEndpoint(calls, { scope: ADSENSE_OAUTH_SCOPES.join(' ') }) });
+    expect(outcome).toMatchObject({ ok: true, account: 'ops@example.test', scopes: ADSENSE_OAUTH_SCOPES });
+    const credential = await resolveCredential(bare(), 'adsense');
+    expect(credential.fields).toEqual({ ADSENSE_CLIENT_ID: CLIENT_ID, ADSENSE_CLIENT_SECRET: CLIENT_SECRET, ADSENSE_REFRESH_TOKEN: REFRESH_TOKEN });
+    expect(await resolveCredential(bare(), 'google-oauth-app')).toEqual(googleBefore);
+    expect(await credentialSummary(bare(), 'google')).toMatchObject({ source: 'none' });
+    const summary = await credentialSummary(bare(), 'adsense');
+    expect(summary).toMatchObject({ auth: 'oauth', metadata: { account: 'ops@example.test', scopes: ADSENSE_OAUTH_SCOPES } });
+    for (const secret of [REFRESH_TOKEN, CLIENT_SECRET, CODE]) expect(JSON.stringify([outcome, summary])).not.toContain(secret);
+    const revoke: TokenCall[] = [];
+    await disconnectCredential(bare(), 'adsense', { fetchImpl: tokenEndpoint(revoke) });
+    expect(revoke[0]?.url).toBe(REVOKE_URL);
+    expect(new URLSearchParams(revoke[0]?.body).get('token')).toBe(REFRESH_TOKEN);
+    expect(await credentialSummary(bare(), 'adsense')).toMatchObject({ source: 'none' });
+    expect(await resolveCredential(bare(), 'google-oauth-app')).toEqual(googleBefore);
+  });
+
+  it('rejects cross-provider state before exchange and leaves the previous connection intact on incomplete or broad grants', async () => {
+    await app();
+    const fields = { ADSENSE_CLIENT_ID: CLIENT_ID, ADSENSE_CLIENT_SECRET: CLIENT_SECRET, ADSENSE_REFRESH_TOKEN: REFRESH_TOKEN };
+    expect((await putCredential(bare(), { provider: 'adsense', fields })).ok).toBe(true);
+    const calls: TokenCall[] = [];
+    const wrongState = await signOAuthState(bare(), REDIRECT_URI, NOW);
+    const redirectUri = googleOAuthRedirectUri(ORIGIN, 'adsense');
+    const invalid = await completeGoogleOAuth(bare(), { code: CODE, state: wrongState, redirectUri,
+      provider: 'adsense', nowMs: NOW, fetchImpl: tokenEndpoint(calls) });
+    expect(invalid).toEqual({ ok: false, error: 'state_invalid' });
+    expect(calls).toEqual([]);
+    const state = await signOAuthState(bare(), redirectUri, NOW);
+    for (const scope of ['openid email', `${ADSENSE_READ_SCOPE} https://www.googleapis.com/auth/adsense`]) {
+      const outcome = await completeGoogleOAuth(bare(), { code: CODE, state, redirectUri, provider: 'adsense',
+        nowMs: NOW, fetchImpl: tokenEndpoint(calls, { scope }) });
+      expect(outcome).toMatchObject({ ok: false, error: 'scope_incomplete', withheld: ['Google AdSense'] });
+      expect((await resolveCredential(bare(), 'adsense')).fields).toEqual(fields);
+    }
+    const grant = { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, refreshToken: crypto.randomUUID(), account: null, scopes: ADSENSE_OAUTH_SCOPES };
+    expect(await refreshGoogleAccessToken(grant, tokenEndpoint([], { scope: `openid https://www.googleapis.com/auth/userinfo.email ${ADSENSE_READ_SCOPE}` }), ADSENSE_READ_SCOPE)).toBe('ya29.access-token');
+  });
+});
+
+
+it.each(['google', 'adsense'] as const)('preserves a new %s OAuth connection committed while the previous grant is being revoked', async provider => {
+  const target = bare();
+  const adsense = provider === 'adsense';
+  expect((await putCredential(target, { provider: adsense ? 'adsense-oauth-app' : 'google-oauth-app', fields: adsense
+    ? { ADSENSE_OAUTH_CLIENT_ID: CLIENT_ID, ADSENSE_OAUTH_CLIENT_SECRET: CLIENT_SECRET }
+    : { GOOGLE_OAUTH_CLIENT_ID: CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: CLIENT_SECRET } })).ok).toBe(true);
+  expect((await putCredential(target, { provider, fields: adsense
+    ? { ADSENSE_CLIENT_ID: CLIENT_ID, ADSENSE_CLIENT_SECRET: CLIENT_SECRET, ADSENSE_REFRESH_TOKEN: REFRESH_TOKEN }
+    : { GOOGLE_OAUTH_REFRESH_TOKEN: REFRESH_TOKEN } })).ok).toBe(true);
+  let enterRevocation!: () => void;
+  let releaseRevocation!: () => void;
+  const entered = new Promise<void>(resolve => { enterRevocation = resolve; });
+  const release = new Promise<void>(resolve => { releaseRevocation = resolve; });
+  const revoke: typeof fetch = async (_url, init) => {
+    expect(new URLSearchParams(String(init?.body)).get('token')).toBe(REFRESH_TOKEN);
+    enterRevocation();
+    await release;
+    return new Response(null, { status: 200 });
+  };
+  const disconnect = disconnectCredential(target, provider, { fetchImpl: revoke }).then(
+    value => ({ value, error: null }), (error: unknown) => ({ value: null, error }));
+  let outcome: Awaited<typeof disconnect>;
+  try {
+    await Promise.race([entered, disconnect.then(() => { throw new Error('Disconnect ended before revocation'); })]);
+    const redirectUri = googleOAuthRedirectUri(ORIGIN, provider);
+    const state = await signOAuthState(target, redirectUri, NOW);
+    const completion = await completeGoogleOAuth(target, { code: CODE, state, redirectUri, provider, nowMs: NOW,
+      fetchImpl: tokenEndpoint([], { refresh_token: 'replacement-refresh-token', scope: (adsense ? ADSENSE_OAUTH_SCOPES : GOOGLE_OAUTH_SCOPES).join(' ') }) });
+    expect(completion.ok).toBe(true);
+  } finally {
+    releaseRevocation();
+    outcome = await disconnect;
+  }
+  expect(outcome.error).toMatchObject({ message: 'The connection changed during disconnect. Try again.' });
+  const current = await resolveCredential(target, provider);
+  expect(current.fields[adsense ? 'ADSENSE_REFRESH_TOKEN' : 'GOOGLE_OAUTH_REFRESH_TOKEN']).toBe('replacement-refresh-token');
 });

@@ -15,7 +15,7 @@ export const GOOGLE_CONSENT_CODE = "journey-google-consent-code";
 
 /** Install the consent answer on a browser context reaching `base`. */
 export async function installGoogleConsent(context, base) {
-  await context.route(`${base}/api/integrations/google/oauth/start`, async (route) => {
+  await context.route(new RegExp(`^${base}/api/integrations/(google|adsense)/oauth/start$`), async (route) => {
     const response = await route.fetch({ maxRedirects: 0 });
     const location = response.headers().location ?? "";
     if (!location.startsWith("https://accounts.google.com/")) return route.fulfill({ response });

@@ -49,7 +49,7 @@ export function useCalendarUpcoming() {
         const snapshot = await runtime.api.fetchCalendarUpcoming(signal);
         // An unreadable configured calendar cannot replace saved event information.
         if (snapshot.feedsConfigured > 0 && snapshot.feedsOk === 0) {
-          throw new CalendarUpcomingReadError("Calendar feeds are unavailable", Date.parse(snapshot.fetchedAt) + 300_000);
+          throw new CalendarUpcomingReadError("Google Calendar is unavailable", Date.parse(snapshot.fetchedAt) + 300_000);
         }
         const held = retainCalendarEvents(snapshot, client.getQueryData<CalendarUpcoming>(["calendar-upcoming"]));
         read.cache.write(held);

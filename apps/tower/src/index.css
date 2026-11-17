@@ -907,6 +907,8 @@
   color: var(--muted-foreground);
 }
 .integration-logo[data-has-logo="true"] {
+  /* Embedded SVGs inherit this scheme for their own media queries. */
+  color-scheme: light;
   background: var(--brand-provider-surface);
 }
 .integration-logo[data-size="small"] {

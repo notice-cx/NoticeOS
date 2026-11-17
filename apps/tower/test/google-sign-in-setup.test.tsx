@@ -6,6 +6,7 @@
 // with Google stays disabled until a client exists.
 
 import { act, fireEvent, render, screen, within } from "./render";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { GOOGLE_CONSOLE, readGoogleClientFile } from "@shared/google-client-file";
@@ -126,4 +127,43 @@ describe("the sign-in in the panel", () => {
     expect(screen.getByRole("link", { name: /Open on 127.0.0.1/ }).getAttribute("href")).toBe("http://127.0.0.1:4747/integrations?connect=google");
     expect(screen.queryByRole("link", { name: "Continue with Google" })).toBeNull();
   });
+});
+
+
+it('keeps missing-redirect guidance visible after the parent refreshes an AdSense client, keeps replacement failures retryable and compacts after correction', async () => {
+  const adsenseRedirect = REDIRECT.replace('/google/', '/adsense/');
+  const saveClient = vi.fn(async () => {});
+  function AdSenseSetup() {
+    const [state, setState] = useState<GoogleOAuthCardState['state']>('app-missing');
+    return <GoogleSignInSetup provider="adsense" card={card(state, { redirectUri: adsenseRedirect })} selfHosted startHref="/api/integrations/adsense/oauth/start"
+      publish={null} onSaveClient={async () => { await saveClient(); setState('ready'); }} />;
+  }
+  render(<MemoryRouter><AdSenseSetup /></MemoryRouter>);
+  await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
+    target: { files: [drop(web(['https://other.example/callback']))] },
+  }));
+  expect(screen.getByText('Redirect address not in the client')).toBeVisible();
+  expect(document.querySelector('[data-google-redirect-uri]')).toBeVisible();
+  let rejectSave!: (error: Error) => void;
+  const pendingSave = new Promise<void>((_resolve, reject) => { rejectSave = reject; });
+  saveClient.mockImplementationOnce(() => pendingSave);
+  try {
+    await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
+      target: { files: [drop(web([adsenseRedirect]))] },
+    }));
+    expect(screen.getByText('Saving')).toBeVisible();
+    expect(screen.getByLabelText('client_secret.json')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
+  } finally {
+    await act(async () => rejectSave(new Error('store unavailable')));
+  }
+  expect(document.querySelector('[data-google-client-refused]')).toBeVisible();
+  expect(screen.getByLabelText('client_secret.json')).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDisabled();
+  await act(async () => fireEvent.change(screen.getByLabelText('client_secret.json'), {
+    target: { files: [drop(web([adsenseRedirect]))] },
+  }));
+  expect(screen.queryByText('Redirect address not in the client')).toBeNull();
+  expect(screen.queryByLabelText('client_secret.json')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute('href', '/api/integrations/adsense/oauth/start');
 });

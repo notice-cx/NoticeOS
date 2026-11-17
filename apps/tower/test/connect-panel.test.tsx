@@ -268,7 +268,7 @@ describe("the connect panel", () => {
     const answer = deferred<ConnectVerdict>();
     const onConnect = vi.fn(() => answer.promise);
     renderPanel(CALENDAR, onConnect);
-    const dialog = screen.getByRole("dialog", { name: "Calendar feeds" });
+    const dialog = screen.getByRole("dialog", { name: "Google Calendar" });
     const connect = within(dialog).getByRole("button", { name: "Connect" });
     expect(connect).toBeDisabled();
     fireEvent.change(within(dialog).getByLabelText("URL, feed 1"), { target: { value: `https://calendar.example/${SECRET}/basic.ics` } });

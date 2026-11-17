@@ -65,6 +65,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       'cloudflare',
       'mediavine',
       'adsense',
+      'adsense-oauth-app',
       'google',
       'google-oauth-app',
       'bing-webmaster',
@@ -147,7 +148,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`. The Tower's client ID in Ntasks is public the same way:
     // every browser that signs in to Ntasks sends it.
-    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'LOCAL_MODEL_OUTPUT_TOKENS', 'NTASKS_URL', 'NTASKS_APP_CLIENT_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'ADSENSE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'LOCAL_MODEL_OUTPUT_TOKENS', 'NTASKS_URL', 'NTASKS_APP_CLIENT_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'ADSENSE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -236,7 +237,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['local-model', 'ntasks', 'mercury', 'cloudflare', 'mediavine', 'adsense', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
+    expect(panel.map((provider) => provider.id)).toEqual(['local-model', 'ntasks', 'mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
     // Installation-wide connections have no site list after discovery.
     expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['local-model', 'ntasks', 'mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
     // Clarity connects in the panel too, a token pasted per site: no one key,
@@ -266,7 +267,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
       'local-model': 'connection', ntasks: 'connection',
-      mediavine: 'sign-in', adsense: 'connection', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
+      mediavine: 'sign-in', adsense: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
       calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key', mercury: 'key',
     });
     // The stored credential's own way in decides where a provider has two:

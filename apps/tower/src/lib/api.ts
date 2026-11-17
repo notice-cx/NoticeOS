@@ -69,7 +69,7 @@ import type {
   GooglePropertyDiscovery,
   IntegrationCredentialsPayload,
 } from "@shared/integrations-page";
-import { GOOGLE_PROPERTIES_PATH, GOOGLE_OAUTH_START_PATH, GOOGLE_OAUTH_AUTHORIZE_URL, googleOAuthRedirectUri } from "@noticeos/contract/google-oauth";
+import { type GoogleOAuthProvider, ADSENSE_OAUTH_START_PATH, GOOGLE_PROPERTIES_PATH, GOOGLE_OAUTH_START_PATH, GOOGLE_OAUTH_AUTHORIZE_URL, googleOAuthRedirectUri } from "@noticeos/contract/google-oauth";
 import type { SettingsPayload } from "@shared/settings";
 import type { SitesPayload } from "@shared/site-discovery";
 import { SITE_NAME_PATH } from "@shared/site-name";
@@ -1556,15 +1556,15 @@ export type ApiTransport = typeof globalThis.fetch;
 
 /** Hosted start commits custody before answering. Only Google's fixed consent
  * endpoint and this entry's callback may become a browser navigation. */
-async function beginGoogleOAuthRequest(fetch: ApiTransport, origin: string | undefined, signal?: AbortSignal): Promise<string> {
+async function beginGoogleOAuthRequest(fetch: ApiTransport, origin: string | undefined, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google'): Promise<string> {
   if (!origin) throw new Error('Google sign-in requires a bound browser entry.');
-  const response = await fetch(GOOGLE_OAUTH_START_PATH, { method: 'POST', signal,
+  const response = await fetch(provider === 'adsense' ? ADSENSE_OAUTH_START_PATH : GOOGLE_OAUTH_START_PATH, { method: 'POST', signal,
     headers: { accept: 'application/json' } });
   if (!response.ok) throw new ApiError('Google sign-in could not start.', response.status);
   const value: unknown = await response.json();
   if (!value || typeof value !== 'object' || !('ok' in value) || value.ok !== true
     || !('authorizeUrl' in value) || typeof value.authorizeUrl !== 'string'
-    || !('redirectUri' in value) || value.redirectUri !== googleOAuthRedirectUri(origin)) {
+    || !('redirectUri' in value) || value.redirectUri !== googleOAuthRedirectUri(origin, provider)) {
     throw new Error('Google sign-in could not start.');
   }
   let target: URL;
@@ -1669,7 +1669,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchMembers: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'members', after, signal)),
     fetchInvitations: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'invitations', after, signal)),
     manageMembership: bind(manageMembershipRequest),
-    beginGoogleOAuth: bind((fetch: ApiTransport, signal?: AbortSignal) => beginGoogleOAuthRequest(fetch, entryOrigin, signal)),
+    beginGoogleOAuth: bind((fetch: ApiTransport, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google') => beginGoogleOAuthRequest(fetch, entryOrigin, signal, provider)),
     fetchMediavineStatus: bind(fetchMediavineStatusRequest),
     syncMediavine: bind(syncMediavineRequest),
     saveMediavineSettings: bind(saveMediavineSettingsRequest),

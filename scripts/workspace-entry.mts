@@ -15,7 +15,7 @@ import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProvid
   watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
-import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.js';
 import type { WatchQueryHistoryInput } from '../packages/contract/src/create-watch-window.js';
 import { deepEqual } from './config-documents.mjs';
@@ -250,7 +250,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const selected = await towerOperation(proof);
   const pathname = new URL(proof.url).pathname;
   const settings = pathname === '/api/config' && ['GET', 'PUT'].includes(proof.method);
-  const googleStart = pathname === GOOGLE_INTEGRATION_START && proof.method === 'POST';
+  const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
   const storedResearch = ['/api/mcp', '/api/alerts/backtest'].includes(pathname) && proof.method === 'POST';
   if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
@@ -356,19 +356,20 @@ export async function withGoogleWorkspaceEntry<T>(env: object, request: Request,
 
 /** Compare only the fixed RPC's duplicate inputs with the actual callback.
  * Classification/argument equality is not authority; the receiver still claims. */
-export function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'start'): Promise<{ origin: string }>;
-export function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'callback'): { code: string; state: string; redirectUri: string; error: string | null };
+export function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'start'): Promise<{ origin: string; provider?: 'adsense' }>;
+export function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string, phase: 'callback'): { code: string; state: string; redirectUri: string; error: string | null; provider?: 'adsense' };
 export function googleOAuthArguments(input: unknown, request: Request, trustedOrigin: string,
-  phase: 'start' | 'callback'): Promise<{ origin: string }> | { code: string; state: string; redirectUri: string; error: string | null } {
+  phase: 'start' | 'callback'): Promise<{ origin: string; provider?: 'adsense' }> | { code: string; state: string; redirectUri: string; error: string | null; provider?: 'adsense' } {
   if (!input || typeof input !== 'object' || Array.isArray(input)) refuse();
+  const provider = googleOAuthProvider(request) === 'adsense' ? { provider: 'adsense' as const } : {};
   if (phase === 'start') {
-    const expected = { origin: trustedOrigin };
+    const expected = { origin: trustedOrigin, ...provider };
     if (!deepEqual(input, expected)) refuse();
     return googleOAuthRequest(request, trustedOrigin, 'start').then(() => expected);
   }
   const parsed = googleOAuthRequest(request, trustedOrigin, 'callback');
   const expected = { code: parsed.code ?? '', state: parsed.state,
-    redirectUri: `${trustedOrigin}/api/integrations/google/oauth/callback`, error: parsed.error };
+    redirectUri: `${trustedOrigin}${new URL(request.url).pathname}`, error: parsed.error, ...provider };
   if (!deepEqual(input, expected)) refuse();
   return expected;
 }

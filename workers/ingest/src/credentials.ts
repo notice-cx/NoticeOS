@@ -1199,16 +1199,30 @@ export function carriedExpiry(
 export async function deleteCredential(
   env: IngestEnv,
   providerId: string,
+  expected?: ResolvedCredential,
 ): Promise<DeleteCredentialResult> {
   const provider = integrationProvider(providerId);
   if (provider === null) {
     return { ok: false, error: 'unknown_provider', provider: String(providerId) };
   }
-  // The connection and, with it, every secret it held (ON DELETE CASCADE).
-  // A disconnect is idempotent.
-  await env.STORE.write((tx) =>
-    tx.execute('DELETE FROM noticeos.integration_connections WHERE provider = $1', [provider.id]),
-  );
+  if (expected) await assertCredentialOwner(env, expected, provider.id);
+  await env.STORE.write(async (tx) => {
+    if (expected) {
+      // Replacement takes this same row lock before advancing the secret version.
+      const [connection] = await tx.query<{ connection_id: string }>(
+        'SELECT connection_id FROM noticeos.integration_connections WHERE provider = $1 FOR UPDATE', [provider.id]);
+      if (!connection) return;
+      if (connection.connection_id !== expected.connectionId) {
+        throw new Error('The connection changed during disconnect. Try again.');
+      }
+      const [secret] = await tx.query<{ version: number }>(
+        'SELECT max(secret_version) AS version FROM noticeos.connection_secrets WHERE connection_id = $1', [connection.connection_id]);
+      if (secret?.version !== expected.secretVersion) {
+        throw new Error('The connection changed during disconnect. Try again.');
+      }
+    }
+    await tx.execute('DELETE FROM noticeos.integration_connections WHERE provider = $1', [provider.id]);
+  });
   return { ok: true, summary: summarize(provider, null, env, await legacyRegister(env)) };
 }
 
@@ -1404,6 +1418,7 @@ export interface ResolvedCredential {
    * Null workspace is possible only for standalone, store-free legacy readers. */
   readonly workspaceId: string | null;
   readonly connectionId: string | null;
+  readonly secretVersion?: number;
   /** Monitoring metadata captured from the same row as the decrypted fields. */
   revision?: { createdAt: string; updatedAt: string };
   provider: string;
@@ -1556,7 +1571,7 @@ export async function resolveCredential(
   if (row !== null) {
     try {
       return {
-        workspaceId, connectionId: row.connection_id,
+        workspaceId, connectionId: row.connection_id, secretVersion: row.secret_version,
         provider: provider.id,
         source: 'store',
         revision: { createdAt: row.created_at, updatedAt: row.updated_at },
@@ -1578,11 +1593,11 @@ export async function resolveCredential(
   }
 
   if (policy === 'store-only' || !legacy) {
-    return { workspaceId, connectionId: row?.connection_id ?? null, provider: provider.id, source: 'none', fields: {}, legacySlots: {} };
+    return { workspaceId, connectionId: row?.connection_id ?? null, secretVersion: row?.secret_version, provider: provider.id, source: 'none', fields: {}, legacySlots: {} };
   }
   const { fields, legacySlots } = envCredential(env, provider, await legacyRegister(env));
   return {
-    workspaceId, connectionId: null,
+    workspaceId, connectionId: row?.connection_id ?? null, secretVersion: row?.secret_version,
     provider: provider.id,
     source: credentialAuthState(provider, Object.keys(fields)).complete ? 'env' : 'none',
     fields,

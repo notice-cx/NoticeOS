@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
@@ -35,6 +36,45 @@ test.beforeEach(async ({ request, baseURL }) => {
   // A refused reset says why.
   expect(reset.ok(), `POST /__journey/reset answered ${reset.status()}: ${reset.ok() ? "" : await reset.text()}`).toBeTruthy();
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
+});
+
+test("integration logos remain visible in either system theme and recover to a fallback", desktopOnly("Raster contrast is independent of viewport", PR_SMOKE), async ({ page }, testInfo) => {
+  await page.goto("/integrations");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  const providers = ["adsense", "calendar", "cloudflare", "ntasks", "mercury"];
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    for (const provider of providers) {
+      const logo = page.locator(`[data-provider-logo="${provider}"]`).first();
+      const image = logo.locator("img");
+      await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0), {
+        message: `${provider} loads under the ${colorScheme} system theme`,
+      }).toBe(true);
+      if (provider === "ntasks" || provider === "mercury") {
+        const darkPixels = await image.evaluate((node: HTMLImageElement) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 80;
+          const context = canvas.getContext("2d")!;
+          context.fillStyle = "white";
+          context.fillRect(0, 0, 80, 80);
+          context.drawImage(node, 0, 0, 80, 80);
+          const pixels = context.getImageData(0, 0, 80, 80).data;
+          let count = 0;
+          for (let offset = 0; offset < pixels.length; offset += 4) {
+            if (Math.max(pixels[offset]!, pixels[offset + 1]!, pixels[offset + 2]!) < 128) count += 1;
+          }
+          return count;
+        });
+        expect(darkPixels, `${provider} has visible dark artwork on its white tile under ${colorScheme}`).toBeGreaterThan(100);
+      }
+    }
+    await testInfo.attach(`integration-logos-${colorScheme}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+  }
+  await page.route("**/integrations/mercury.svg", route => route.abort());
+  await page.reload();
+  const failed = page.locator('[data-provider-logo="mercury"]').first();
+  await expect(failed).toHaveAttribute("data-has-logo", "false");
+  await expect(failed.locator("svg")).toBeVisible();
 });
 
 /** Focus must reach the target through actual Tab traversal, not locator.focus
@@ -2667,6 +2707,66 @@ function googleClientFile(redirectUris: string[], type: "web" | "installed" = "w
   const json = JSON.stringify({ [type]: { client_id: "journey-client.apps.googleusercontent.com", client_secret: JOURNEY_KEY, redirect_uris: redirectUris } });
   return { name: "client_secret_journey.json", mimeType: "application/json", buffer: Buffer.from(json) };
 }
+
+test('AdSense connects with Google and returns to its own domain matches', { tag: PR_SMOKE }, async ({ page, baseURL }, testInfo) => {
+  await installGoogleConsent(page.context(), baseURL!);
+  expect((await page.request.post('/__journey/every-source')).ok()).toBe(true);
+  await addAssetByApi(page);
+  await page.goto('/integrations?connect=adsense');
+  const panel = page.getByRole('dialog', { name: 'Google AdSense' });
+  const redirect = `${baseURL}/api/integrations/adsense/oauth/callback`;
+  await expect(panel.locator('[data-google-redirect-uri]')).toHaveText(redirect);
+  await expect(page.locator('#boot-splash')).toHaveCount(0);
+  await testInfo.attach('adsense-client-setup', { body: await page.screenshot(), contentType: 'image/png' });
+  const clientFile = testInfo.outputPath('adsense-web-client.json');
+  await writeFile(clientFile, googleClientFile([redirect]).buffer);
+  let saves = 0;
+  await page.route('**/api/integrations/adsense-oauth-app/credential', async route => {
+    if (route.request().method() === 'PUT' && ++saves === 1) {
+      return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'fixture_save_unavailable' }) });
+    }
+    return route.continue();
+  });
+  async function chooseClientFile() {
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      panel.getByText('Drop client_secret.json', { exact: true }).click(),
+    ]);
+    await chooser.setFiles(clientFile);
+  }
+  await chooseClientFile();
+  await expect(panel.locator('[data-google-client-refused]')).toBeVisible();
+  await expect(panel.getByLabel('client_secret.json', { exact: true })).toHaveValue('');
+  await chooseClientFile();
+  await expect(panel.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+  expect(saves).toBe(2);
+  await testInfo.attach('adsense-google-sign-in', { body: await page.screenshot(), contentType: 'image/png' });
+  await panel.getByRole('link', { name: 'Continue with Google' }).click();
+  const back = page.getByRole('dialog', { name: 'Google AdSense' });
+  await expect(back.locator(`[data-site-row="${JOURNEY_ASSET}"]`)).toHaveAttribute('data-site-state', 'matched', { timeout: 15_000 });
+  await expect(back.locator('[data-sites-start]')).toBeEnabled();
+  await back.getByRole('button', { name: 'Edit mappings' }).click();
+  const mapping = back.getByRole('combobox', { name: 'AdSense domain for Journey Example' });
+  await expect(mapping.getByRole('option', { name: 'other.example · pub-123' })).toHaveCount(1);
+  await mapping.selectOption('accounts/pub-123/sites/alternate');
+  await back.getByRole('button', { name: 'Save', exact: true }).click();
+  const savedMapping = async () => (await (await page.request.get('/__journey/status')).json()).documents['config/integrations.json'].assets[JOURNEY_ASSET].adsense;
+  await expect.poll(async () => (await savedMapping())?.adsenseSite).toBe('accounts/pub-123/sites/alternate');
+  await back.getByRole('button', { name: 'Reload list' }).click();
+  await expect(mapping).toHaveValue('accounts/pub-123/sites/alternate');
+  await mapping.selectOption('');
+  await back.getByRole('button', { name: 'Remove mapping' }).click();
+  await expect.poll(async () => (await savedMapping())?.status).toBe('skipped');
+  expect((await savedMapping())?.adsenseSite).toBeUndefined();
+  await testInfo.attach('adsense-editable-mapping', { body: await page.screenshot(), contentType: 'image/png' });
+
+  await expect(back.getByRole('button', { name: 'Reconnect with Google' })).toBeVisible();
+  await back.getByRole('button', { name: 'Reconnect with Google' }).click();
+  await expect(back.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+  await expect(back.locator('[data-google-step]')).toHaveCount(0);
+  await expect(back.locator('[data-google-continue]')).toHaveAttribute('href', '/api/integrations/adsense/oauth/start');
+  await assertNoPageOverflow(page);
+});
 
 test("Google connects in the panel: the client file dropped, signed in, GA4 and Search Console matched on one row and collected", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
   const pageErrors: string[] = [];

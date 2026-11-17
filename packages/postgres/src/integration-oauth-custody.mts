@@ -7,7 +7,7 @@ import { identityEngine, identityMembership, openIdentityDatabase, validateIdent
   UUID, IdentityRefused, type IdentityDatabase, type IdentityOptions,
   type IdentityMembershipFacts } from './identity-engine.mjs';
 
-import { googleOAuthRequest, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_CALLBACK, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
 export { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK };
 export const GOOGLE_INTEGRATION_TTL_MS = 10 * 60 * 1000;
 const NAMESPACE = 'noticeos:integration-google:v1:';
@@ -24,7 +24,7 @@ export interface IntegrationOAuthCustody {
 }
 interface Binding {
   readonly version: 1;
-  readonly provider: 'google';
+  readonly provider: 'google' | 'adsense';
   readonly workspaceId: string;
   readonly principalId: string;
   readonly sessionId: string;
@@ -42,13 +42,13 @@ async function limits(trx: Transaction<IdentityDatabase>): Promise<void> {
   await sql`SELECT set_config('statement_timeout', '5000', true),
     set_config('lock_timeout', '5000', true)`.execute(trx);
 }
-function readBinding(value: string, redirectUri: string): Binding {
+function readBinding(value: string, redirectUri: string, provider: Binding['provider']): Binding {
   if (value.length > 2048) refuse();
   let row: Record<string, unknown>;
   try { row = JSON.parse(value) as Record<string, unknown>; } catch { refuse(); }
   const fields = ['version', 'provider', 'workspaceId', 'principalId', 'sessionId', 'redirectUri', 'issuedAt', 'expiresAt'];
   if (!row || Array.isArray(row) || Object.keys(row).length !== fields.length || fields.some(key => !Object.hasOwn(row, key))
-    || row.version !== 1 || row.provider !== 'google' || row.redirectUri !== redirectUri
+    || row.version !== 1 || row.provider !== provider || row.redirectUri !== redirectUri
     || [row.workspaceId, row.principalId, row.sessionId].some(id => typeof id !== 'string' || !UUID.test(id))
     || typeof row.issuedAt !== 'number' || !Number.isSafeInteger(row.issuedAt) || row.issuedAt < 0
     || typeof row.expiresAt !== 'number' || !Number.isSafeInteger(row.expiresAt)
@@ -84,7 +84,6 @@ async function lockedFacts(trx: Transaction<IdentityDatabase>, options: Identity
 export function openIntegrationOAuthCustody(input: IdentityOptions): IntegrationOAuthCustody {
   const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, sessionSecret: input.sessionSecret });
   const origin = validateIdentityOptions(options);
-  const redirectUri = `${origin}${GOOGLE_INTEGRATION_CALLBACK}`;
   let resources: ReturnType<typeof openIdentityDatabase> | undefined;
   let validation: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
@@ -113,6 +112,8 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
       return run(async () => {
         if (typeof workspaceId !== 'string' || !UUID.test(workspaceId) || typeof authorize !== 'function') refuse();
         const original = await proof(request, origin, 'start');
+        const provider = googleOAuthProvider(original);
+        const redirectUri = `${origin}${provider === 'adsense' ? ADSENSE_INTEGRATION_CALLBACK : GOOGLE_INTEGRATION_CALLBACK}`;
         const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
         if (selected !== workspaceId) refuse();
         const db = await database();
@@ -121,7 +122,7 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
           const facts = await lockedFacts(trx, options, original, workspaceId);
           await authorize(facts);
           const state = token(); const issuedAt = now();
-          const binding: Binding = { version: 1, provider: 'google', workspaceId,
+          const binding: Binding = { version: 1, provider, workspaceId,
             principalId: facts.principalId, sessionId: facts.sessionId, redirectUri,
             issuedAt, expiresAt: issuedAt + GOOGLE_INTEGRATION_TTL_MS };
           const auth = identityEngine(trx, options, { transaction: false, validateSchema: false });
@@ -136,6 +137,8 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
       return run(async () => {
         if (typeof authorize !== 'function') refuse();
         const original = await proof(request, origin, 'callback');
+        const provider = googleOAuthProvider(original);
+        const redirectUri = `${origin}${new URL(original.url).pathname}`;
         const identifier = NAMESPACE + new URL(original.url).searchParams.get('state')!;
         const db = await database();
         const accepted = await db.transaction().execute(async trx => {
@@ -146,7 +149,7 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
             FROM noticeos_identity.auth_verification WHERE identifier=${identifier} LIMIT 2`.execute(trx);
           if (rows.rows.length !== 1) refuse();
           const held = rows.rows[0]!;
-          const binding = readBinding(held.value, redirectUri);
+          const binding = readBinding(held.value, redirectUri, provider);
           if (held.expires_at.getTime() !== binding.expiresAt) refuse();
           const facts = await lockedFacts(trx, options, original, binding.workspaceId);
           if (facts.principalId !== binding.principalId || facts.sessionId !== binding.sessionId) refuse();

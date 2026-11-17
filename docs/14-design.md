@@ -802,7 +802,7 @@ from its starting point to its result:
   matched and collecting.
 - **Connect Discord** — Integrations → Connect: the webhook saved once its
   test message is delivered, the message shown before the press.
-- **Connect calendar feeds** — Integrations: a secret feed address pasted on
+- **Connect Google Calendar** — Integrations: a secret feed address pasted on
   its row, read once before it is saved.
 - **Add an asset** — Add your first asset: the domain, type defaulting to Website, name inferred, ending on
   its Data sources.

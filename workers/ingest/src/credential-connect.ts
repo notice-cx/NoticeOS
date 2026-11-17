@@ -65,7 +65,8 @@ export async function connectCredential(
   if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') return { ok: false, error: 'not_supported', provider: provider.id };
   // A provider whose tokens are pasted per site (Clarity) has no one key to
   // prove; its rows save through `putSiteToken` instead.
-  if (provider.connect?.kind !== 'key') {
+  // Existing clients may still submit a manually authorized AdSense grant.
+  if (provider.connect?.kind !== 'key' && provider.id !== 'adsense') {
     return { ok: false, error: 'not_supported', provider: provider.id };
   }
   const raw = input.fields;

@@ -741,7 +741,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
       await googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'start');
       return withGoogleWorkspaceEntry(this.env, proof, 'start', (call, state) => call.withStore(this.ctx,
-        (store) => beginStoredGoogleOAuth({ ...this.env, STORE: store }, workspaceEntryOrigin(this.env), state!)));
+        (store) => beginStoredGoogleOAuth({ ...this.env, STORE: store }, workspaceEntryOrigin(this.env), state!, input.provider)));
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, (env) => beginGoogleOAuth(env, input));
@@ -762,7 +762,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       return withGoogleWorkspaceEntry(this.env, proof, 'callback', (call) => {
         if (selected.error !== null) return Promise.resolve({ ok: false, error: 'denied' } as const);
         return call.withStore(this.ctx, (store) => exchangeStoredGoogleOAuth({ ...this.env, STORE: store },
-          { code: selected.code, redirectUri: selected.redirectUri }));
+          { code: selected.code, redirectUri: selected.redirectUri, provider: selected.provider }));
       });
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();

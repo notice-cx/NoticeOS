@@ -56,6 +56,14 @@ export async function cloudflareD1Request(request: Request): Promise<D1Request> 
   if (!cloudflareAccountId(body.accountId) || !d1DatabaseId(body.databaseId)) refuse();
   return { kind: 'export', accountId: body.accountId, databaseId: body.databaseId };
 }
+export const ADSENSE_INTEGRATION_START = '/api/integrations/adsense/oauth/start';
+export const ADSENSE_INTEGRATION_CALLBACK = '/api/integrations/adsense/oauth/callback';
+export function googleOAuthProvider(request: Request): 'google' | 'adsense' {
+  const path = new URL(request.url).pathname;
+  if (path === ADSENSE_INTEGRATION_START || path === ADSENSE_INTEGRATION_CALLBACK) return 'adsense';
+  if (path === GOOGLE_INTEGRATION_START || path === GOOGLE_INTEGRATION_CALLBACK) return 'google';
+  return refuse();
+}
 export const GOOGLE_INTEGRATION_START = '/api/integrations/google/oauth/start';
 export const GOOGLE_INTEGRATION_CALLBACK = '/api/integrations/google/oauth/callback';
 export const GOOGLE_INTEGRATION_PROPERTIES = '/api/integrations/google/properties';
@@ -303,7 +311,8 @@ export function googleOAuthRequest(request: Request, trustedOrigin: string, phas
   const url = new URL(request.url);
   if (url.origin !== trustedOrigin || url.username || url.password || url.hash
     || request.method !== (phase === 'start' ? 'POST' : 'GET')
-    || url.pathname !== (phase === 'start' ? GOOGLE_INTEGRATION_START : GOOGLE_INTEGRATION_CALLBACK)) refuse();
+    || !(phase === 'start' ? [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START]
+      : [GOOGLE_INTEGRATION_CALLBACK, ADSENSE_INTEGRATION_CALLBACK]).includes(url.pathname)) refuse();
   if (phase === 'start') {
     const workspaceId = request.headers.get(WORKSPACE_SELECTION_HEADER);
     if (url.search || !workspaceId
@@ -654,8 +663,8 @@ export async function towerOperation(request: Request): Promise<WorkspaceOperati
     if (/^\/api\/gates\/[^/]+\/resolve$/u.test(pathname) && method === 'POST') return standalone;
     refuse();
   }
-  if (pathname === GOOGLE_INTEGRATION_START && ['GET', 'POST'].includes(method)) return operation('integrations.write', ['beginGoogleOAuth']);
-  if (pathname === GOOGLE_INTEGRATION_CALLBACK && method === 'GET') return operation(null, ['completeGoogleOAuth'], 'protocol');
+  if ([GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && ['GET', 'POST'].includes(method)) return operation('integrations.write', ['beginGoogleOAuth']);
+  if ([GOOGLE_INTEGRATION_CALLBACK, ADSENSE_INTEGRATION_CALLBACK].includes(pathname) && method === 'GET') return operation(null, ['completeGoogleOAuth'], 'protocol');
   if (pathname === GOOGLE_INTEGRATION_PROPERTIES) {
     if (!isHostedGoogleDiscovery(request)) refuse();
     return operation('provider.read', ['discoverGoogleProperties']);

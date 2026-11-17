@@ -355,3 +355,17 @@ describe("hosted Google callback return target", () => {
     expect(stub.completions).toHaveLength(1);
   });
 });
+
+
+it('AdSense start and callback select the AdSense grant and reopen its panel without exposing the code', async () => {
+  const stub = stubIngest();
+  const start = new URL(START_URL.toString().replace('/google/', '/adsense/'));
+  await handleGoogleOAuthStartRequest(navigation(start.toString()), start, stub.ingest);
+  expect(stub.starts).toEqual([{ origin: start.origin, provider: 'adsense' }]);
+  const callback = new URL(`${CALLBACK.replace('/google/', '/adsense/')}?state=generated-state&code=${CODE}`);
+  const landed = landedOn(await handleGoogleOAuthCallbackRequest(new Request(callback), callback, stub.ingest));
+  expect(stub.completions).toEqual([{ code: CODE, state: 'generated-state', redirectUri: CALLBACK.replace('/google/', '/adsense/'), provider: 'adsense' }]);
+  expect(landed.searchParams.get('connect')).toBe('adsense');
+  expect(landed.searchParams.get('google')).toBe('connected');
+  expect(landed.toString()).not.toContain(CODE);
+});

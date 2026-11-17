@@ -12,7 +12,7 @@ A **data source** is a service that already holds numbers about your asset: Goog
 ## Before you begin
 
 - At least one asset added. See [Add your first asset](/guides/add-your-first-site).
-- What the provider issued: **API key** (Bing), **API login** and **API password** (DataForSEO), **Personal API key** (PostHog), **Email** and **Password** (Mediavine), or a token per project (Microsoft Clarity). Google Analytics and Search Console use [Google sign-in](/guides/connect-google). AdSense uses [read-only OAuth credentials](../11-integrations.md#adsense).
+- What the provider issued: **API key** (Bing), **API login** and **API password** (DataForSEO), **Personal API key** (PostHog), **Email** and **Password** (Mediavine), or a token per project (Microsoft Clarity). Google Analytics and Search Console use [Google sign-in](/guides/connect-google). AdSense uses [Continue with Google](../11-integrations.md#adsense).
 
 ### Two places to connect, one panel
 
@@ -27,13 +27,13 @@ Google, Bing Webmaster Tools, DataForSEO, PostHog, AdSense and Mediavine use one
 
 Microsoft Clarity issues a token per project, so its panel lists your assets with a **Paste token** field on each row. Pasting a token saves it. **Run now** fetches at once, and its label shows that it uses one of the day's calls; Clarity allows ten calls per project per day.
 
-Discord and calendar feeds apply to the whole installation, not to one asset, so their panels have no asset list. Discord's panel shows **Posts a test message** before you press, because connecting sends a test message to check the webhook.
+Discord and Google Calendar apply to the whole installation, not to one asset, so their panels have no asset list. Discord's panel shows **Posts a test message** before you press, because connecting sends a test message to check the webhook.
 
 Uptime needs no connection: the product checks each asset's home page every hour, and the row shows **Up** or **Down**.
 
 ### What each source costs
 
-Google, Bing, Clarity, PostHog, AdSense, Mediavine, Discord and calendar feeds are free to read, within each provider's own limits.
+Google, Bing, Clarity, PostHog, AdSense, Mediavine, Discord and Google Calendar are free to read, within each provider's own limits.
 
 DataForSEO is metered. Its panel shows the spend before you start, its row shows the account credit, and collection stops at the **Monthly data cap** in **Settings** > **General**. The product ships with a cap of $25 a month.
 

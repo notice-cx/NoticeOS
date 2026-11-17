@@ -143,8 +143,8 @@ export interface JourneyIngest {
   /** workers/ingest/src/google-oauth.ts: signing in to Google, run unchanged;
    * Google's consent screen is the walk's own redirect and Google's token
    * endpoint the fixture's network. */
-  beginGoogleOAuth(env: JourneyIngestEnv, input: { origin: string; nowMs: number }): Promise<GoogleOAuthStart>;
-  completeGoogleOAuth(env: JourneyIngestEnv, input: { code: string; state: string; redirectUri: string; nowMs: number; fetchImpl: typeof fetch }): Promise<GoogleOAuthCompletion>;
+  beginGoogleOAuth(env: JourneyIngestEnv, input: { origin: string; nowMs: number; provider?: 'google' | 'adsense' }): Promise<GoogleOAuthStart>;
+  completeGoogleOAuth(env: JourneyIngestEnv, input: { code: string; state: string; redirectUri: string; provider?: 'google' | 'adsense'; nowMs: number; fetchImpl: typeof fetch }): Promise<GoogleOAuthCompletion>;
   /** workers/ingest/src/credential-probes.ts: what the Google account lists. */
   discoverGoogleProperties(env: JourneyIngestEnv, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<GooglePropertyDiscovery>;
   /** workers/ingest/src/mediavine.ts: a site's revenue status, its sync
@@ -340,15 +340,25 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
     if (form.get("grant_type") === "authorization_code" && form.get("code") === JOURNEY_GOOGLE_CODE) {
       const claims = btoa(JSON.stringify({ email: JOURNEY_GOOGLE_ACCOUNT })).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
       return Response.json({ access_token: JOURNEY_GOOGLE_ACCESS, refresh_token: JOURNEY_GOOGLE_REFRESH, expires_in: 3599,
-        scope: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly",
+        scope: form.get('redirect_uri')?.includes('/adsense/')
+          ? 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/adsense.readonly'
+          : "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly",
         id_token: `e30.${claims}.journey` });
     }
     if (form.get("grant_type") === "refresh_token" && form.get("refresh_token") === JOURNEY_GOOGLE_REFRESH) {
-      return Response.json({ access_token: JOURNEY_GOOGLE_ACCESS, expires_in: 3599 });
+      return Response.json({ access_token: JOURNEY_GOOGLE_ACCESS, expires_in: 3599, scope: 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/adsense.readonly' });
     }
     return Response.json({ error: "invalid_grant" }, { status: 400 });
   }
   const googleAuthorized = new Headers(init?.headers).get("authorization") === `Bearer ${JOURNEY_GOOGLE_ACCESS}`;
+  if (url.origin === 'https://adsense.googleapis.com') {
+    if (!googleAuthorized) return Response.json({}, { status: 401 });
+    if (url.pathname === '/v2/accounts') return Response.json({ accounts: [{ name: 'accounts/pub-123' }] });
+    if (url.pathname === '/v2/accounts/pub-123/sites') return Response.json({ sites: [{
+      name: 'accounts/pub-123/sites/example', domain: JOURNEY_ASSET, state: 'READY',
+    }, { name: 'accounts/pub-123/sites/alternate', domain: 'other.example', state: 'READY' }] });
+    throw new Error('The journey AdSense fixture only supports account and domain discovery');
+  }
   if (url.origin === "https://analyticsadmin.googleapis.com") {
     if (!googleAuthorized) return Response.json({ error: { message: "Unauthenticated" } }, { status: 401 });
     if (url.pathname === "/v1beta/accountSummaries") {
@@ -761,6 +771,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       if (input.provider === 'mediavine' && input.fields.MEDIAVINE_USER === JOURNEY_MEDIAVINE_EMAIL && input.fields.MEDIAVINE_PASSWORD === JOURNEY_KEY) {
         return seal(input);
       }
+      if (input.provider === 'adsense-oauth-app' && input.fields.ADSENSE_OAUTH_CLIENT_ID === JOURNEY_GOOGLE_CLIENT_ID && input.fields.ADSENSE_OAUTH_CLIENT_SECRET === JOURNEY_KEY) {
+        return seal(input);
+      }
       // The client file dropped on Google's panel.
       if (input.provider === 'google-oauth-app' && input.fields.GOOGLE_OAUTH_CLIENT_ID === JOURNEY_GOOGLE_CLIENT_ID && input.fields.GOOGLE_OAUTH_CLIENT_SECRET === JOURNEY_KEY) {
         return seal(input);
@@ -812,7 +825,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     createWatchWindow: refuse, backtestRule: refuse,
     // Signing in to Google: the production start and callback, the account's
     // lists, over the fixture's Google network.
-    beginGoogleOAuth: (input) => ingestCode.beginGoogleOAuth(ingestEnv(), { origin: input.origin, nowMs: Date.parse(JOURNEY_NOW) }),
+    beginGoogleOAuth: (input) => ingestCode.beginGoogleOAuth(ingestEnv(), { ...input, nowMs: Date.parse(JOURNEY_NOW) }),
     // With Google's reports refused, the sign-in is stamped a second before the
     // collection that meets the refusal, as on an installation (compare
     // posthogQueryDenied above), so the card reads the later answer.

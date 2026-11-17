@@ -36,6 +36,8 @@ test('hosted OAuth original HTTP/RPC proof commits custody before scoped provide
         const asked = await request.json();
         if(asked.identity){const identity=await openIdentity({connectionString:env.NOTICEOS_IDENTITY_DATABASE_URL,trustedOrigin:env.NOTICEOS_WORKSPACE_ORIGIN,sessionSecret:env.NOTICEOS_IDENTITY_SESSION_SECRET});
           try {return Response.json(asked.identity==='close'?{ok:true}:await identity.workspaceSummary(asked.workspace));}finally{await identity.close();}}
+        if (asked.seedAdsense) return withHostedWorkspaceStore({transport:{kind:'direct',connectionString:env.NOTICEOS_WORKSPACE_DATABASE_URL},workspace:{workspaceId:asked.seedAdsense}},ctx,
+          async STORE=>Response.json(await putCredential({...env,STORE},{provider:'adsense-oauth-app',fields:{ADSENSE_OAUTH_CLIENT_ID:asked.seedAdsense,ADSENSE_OAUTH_CLIENT_SECRET:crypto.randomUUID()}})));
         if (asked.seed) return withHostedWorkspaceStore({transport:{kind:'direct',connectionString:env.NOTICEOS_WORKSPACE_DATABASE_URL},workspace:{workspaceId:asked.seed}},ctx,
           async STORE=>Response.json(await putCredential({...env,STORE},{provider:'google-oauth-app',fields:{GOOGLE_OAUTH_CLIENT_ID:asked.seed,GOOGLE_OAUTH_CLIENT_SECRET:crypto.randomUUID()}})));
         if (asked.target) {const response=await env[asked.target].fetch(new Request(asked.url,asked.init));
@@ -79,7 +81,7 @@ test('hosted OAuth original HTTP/RPC proof commits custody before scoped provide
       if (request.url!=='https://oauth2.googleapis.com/token') {outside++;throw new Error('No outside request in owned OAuth fixture');}
       provider++;const body=new URLSearchParams(await request.text());clients.push(body.get('client_id'));
       if(providerFails)return Response.json({error:'invalid_grant'},{status:400});
-      return Response.json({refresh_token:randomUUID(),scope:'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly'});
+      return Response.json({refresh_token:randomUUID(),scope:body.get('redirect_uri')?.includes('/adsense/')?'https://www.googleapis.com/auth/adsense.readonly':'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly'});
     };
     const relay=`import {WorkerEntrypoint} from 'cloudflare:workers';export default class extends WorkerEntrypoint {
       async beginGoogleOAuth(input,proof){await this.env.CONTROL.fetch('https://fixture-control/');return this.env.INGEST.beginGoogleOAuth(input,proof);}
@@ -187,6 +189,30 @@ test('hosted OAuth original HTTP/RPC proof commits custody before scoped provide
       assert.equal((await http(GOOGLE_INTEGRATION_START,{method:'POST',headers:headers(b)},'DEMO')).status,403);
       assert.equal((await http(GOOGLE_INTEGRATION_START,{headers:headers(b)})).status,403);
       assert.equal(outside,0);assert.equal(provider,3);
+    });
+    await t.test('AdSense uses separate client custody through Tower and its receiver, with cross-provider input refused', async () => {
+      assert.equal((await (await dispatch({ seedAdsense: b })).json()).ok, true);
+      const startPath = GOOGLE_INTEGRATION_START.replace('/google/', '/adsense/');
+      const callbackPath = GOOGLE_INTEGRATION_CALLBACK.replace('/google/', '/adsense/');
+      const response = await http(startPath, { method: 'POST', headers: headers(b) });
+      assert.equal(response.status, 200, await response.clone().text());
+      const consent = new URL((await response.json()).authorizeUrl);
+      assert.equal(consent.searchParams.get('scope'), 'openid email https://www.googleapis.com/auth/adsense.readonly');
+      assert.equal(consent.searchParams.get('redirect_uri'), origin + callbackPath);
+      const state = consent.searchParams.get('state');
+      const before = provider;
+      const wrong = await callback(state);
+      assert.ok(wrong.headers.get('location').includes('state_invalid'));
+      assert.equal(provider, before);
+      const proof = { url: origin + startPath, init: { method: 'POST', headers: headers(b) } };
+      assert.equal((await dispatch({ method: 'beginGoogleOAuth', args: [{ origin }], proof })).status, 403);
+      const completed = await http(`${callbackPath}?state=${state}&code=generated-code`, { headers: { cookie }, redirect: 'manual' });
+      const location = new URL(completed.headers.get('location'));
+      assert.equal(location.searchParams.get('connect'), 'adsense');
+      assert.equal(location.searchParams.get('google'), 'connected');
+      assert.equal(provider, before + 1);
+      assert.equal(clients.at(-1), b);
+      assert.equal(outside, 0);
     });
   } finally {
     const cleanup=await Promise.allSettled([...(runtime?[runtime.dispose()]:[]),...(admin?[admin.end()]:[])]);
