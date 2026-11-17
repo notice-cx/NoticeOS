@@ -34,7 +34,7 @@ function identityOptions(env: WorkspaceEntryBindings, origin: string): IdentityO
 /** Read-only browser bootstrap. Profiles and readers belong to the server.
  * The returned identifiers select UI state; each subsequent action must still
  * pass its own current workspace admission. No active-org cookie is written. */
-export async function handleBrowserSessionRequest(request: Request, env: WorkspaceEntryBindings,
+export async function handleBrowserSessionRequest(request: Request, env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean },
   adapters: BrowserSessionReaders = readers): Promise<Response> {
   try {
     if (!(request instanceof Request) || request.method !== 'GET' || request.url.length > 8192) refuse();
@@ -67,7 +67,8 @@ export async function handleBrowserSessionRequest(request: Request, env: Workspa
         { headers: RESPONSE_HEADERS });
     }
     const snapshot = await adapters.session(options, new Headers(request.headers), selected, after);
-    return Response.json({ mode, ...(snapshot ?? { session: null, workspaces: [], nextCursor: null, selectedWorkspace: null }) },
+    return Response.json({ mode, ...(snapshot ?? { session: null, workspaces: [], nextCursor: null, selectedWorkspace: null }),
+      ...(env.NOTICEOS_CUSTOMER_SHADOW === true ? { backupPreview: true } : {}) },
       { headers: RESPONSE_HEADERS });
   } catch {
     return Response.json({ error: 'browser_session_unavailable' }, { status: 403, headers: RESPONSE_HEADERS });

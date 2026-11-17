@@ -62,6 +62,13 @@ describe('fixed browser session bootstrap', () => {
     vi.mocked(adapters.session).mockRejectedValueOnce(new Error('private connection secret'));
     await refused(await handleBrowserSessionRequest(request(), env(), adapters));
   });
+  it('attaches backup preview status from the deployment only', async () => {
+    const forged = request('', { 'x-noticeos-customer-shadow': 'true' });
+    const ordinary = await handleBrowserSessionRequest(forged, env(), readers());
+    expect(await ordinary.json()).toEqual({ mode: 'hosted', ...snapshot });
+    const backup = await handleBrowserSessionRequest(request(), { ...env(), NOTICEOS_CUSTOMER_SHADOW: true }, readers());
+    expect(await backup.json()).toEqual({ mode: 'hosted', ...snapshot, backupPreview: true });
+  });
   it('refuses wrong profile, target, origin, metadata, method and parameter grammar before readers', async () => {
     const adapters = readers();
     for (const input of [request('?other=1'), request(`?after=${workspaceId}&after=${workspaceId}`), request('?after=no'),

@@ -37,6 +37,10 @@
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
 | `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
+| `db:shadow-export` | Preview or export selected workspace evidence from a private offline PostgreSQL backup. | `scripts/customer-shadow-export.mjs` |
+| `db:shadow-import` | Import a verified evidence bundle into an already activated private shadow. | `scripts/customer-shadow-import.mjs` |
+| `db:shadow-target` | Prepare, enroll, activate or serve a separate local PostgreSQL target for the read-only customer shadow. | `scripts/customer-shadow-target.mjs` |
+| `db:shadow-serve` | Serve one already activated local target without starting a job runner. | `scripts/local-customer-shadow.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
 | `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
@@ -819,6 +823,61 @@ stay in the workspace's private runtime folder.
 This launcher cannot adopt a Compose installation. A move from an existing
 standalone installation requires a separately tested rollout and rollback
 with the installation owner's approval.
+
+### Preview a workspace from an offline backup
+
+Use PostgreSQL 18 and an explicitly selected, owner-only custom-format
+Postgres dump. A NoticeOS backup folder can be selected with `--backup-dir`
+instead of `--dump`. Run the command without `--out` to identify the sole
+workspace and review the selected evidence counts. For a backup containing
+several workspaces, replace `--only-workspace` with `--workspace <uuid>`.
+
+```sh
+pnpm db:shadow-export -- --dump /absolute/backup.dump --only-workspace
+pnpm db:shadow-export -- --dump /absolute/backup.dump --only-workspace --out /absolute/new-bundle
+```
+
+The bundle contains the selected workspace's sites, dated portfolio and
+site reports, stored calculations and daily facts where available, the
+reporting time zone and operator time rate, and approved settings audit
+entries. Its manifest records row counts, file hashes, and the archive's
+recorded local creation time. Saved reports retain their dates and
+timestamps. The private files can contain business data. Raw archive objects
+and ambiguous legacy archive keys are counted and omitted. The export also
+omits credentials, connections, sessions, task snapshots, job history, and
+other settings. Daily counts omit individual task IDs. Collection runs
+retain their status and observation window with private provider details
+removed.
+
+Prepare a separate private target with the same workspace UUID and enroll
+its first owner before importing. In the target plan, set
+`format` to `noticeos-shadow-plan-v1` and provide `bundle`, `workspaceId`,
+`ownerEmail`, `slug`, `displayName`, `towerPort` and `databasePort`.
+The second owner-only JSON file has `format` set to
+`noticeos-shadow-ntasks-v1` and provides `origin`, `ntasksWorkspaceId`,
+`projectId` and `serviceToken` for a separately prepared loopback Ntasks.
+Read the first owner's code from the private mail folder when prompted.
+
+```sh
+node scripts/customer-shadow-target.mjs prepare /absolute/new-target /absolute/plan.json /absolute/local-ntasks.json
+node scripts/customer-shadow-target.mjs enroll /absolute/new-target
+node scripts/customer-shadow-target.mjs activate /absolute/new-target /absolute/local-ntasks.json
+node scripts/customer-shadow-target.mjs serve /absolute/new-target
+```
+
+Keep the database running and use a second terminal for the import and Tower.
+
+```sh
+pnpm db:shadow-import -- --bundle /absolute/new-bundle --target /absolute/new-target
+node scripts/local-customer-shadow.mjs /absolute/new-target/runtime.json
+```
+
+The importer verifies the active owner, fresh target, scope and hashes before
+committing selected evidence. Importing the same bundle again verifies the
+saved data. The launcher checks the prepared database before starting the
+Tower, which shows **Read-only backup** after sign-in. Stop the Tower with
+Ctrl-C, then stop the private database. The original installation is outside
+these commands.
 
 ### What the synthetic shadow rehearsal copies
 

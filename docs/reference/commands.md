@@ -46,6 +46,10 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
 | `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
+| `db:shadow-export` | Preview or export selected workspace evidence from a private offline PostgreSQL backup. | `scripts/customer-shadow-export.mjs` |
+| `db:shadow-import` | Import a verified evidence bundle into an already activated private shadow. | `scripts/customer-shadow-import.mjs` |
+| `db:shadow-target` | Prepare, enroll, activate or serve a separate local PostgreSQL target for the read-only customer shadow. | `scripts/customer-shadow-target.mjs` |
+| `db:shadow-serve` | Serve one already activated local target without starting a job runner. | `scripts/local-customer-shadow.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
 | `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |

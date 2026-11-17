@@ -28,6 +28,7 @@ export interface PortfolioSummaryStore {
   readonly bucket: PortfolioSummaryBucket;
   /** The workspace from the current evidence-read admission. */
   readonly workspaceId: string;
+  readonly readOnly: boolean;
 }
 
 interface Snapshot {
@@ -43,8 +44,8 @@ interface Stored {
   snapshot: Snapshot | null;
 }
 
-export function portfolioSummaryStore(bucket: PortfolioSummaryBucket | undefined, workspaceId: string): PortfolioSummaryStore | undefined {
-  return bucket ? { bucket, workspaceId } : undefined;
+export function portfolioSummaryStore(bucket: PortfolioSummaryBucket | undefined, workspaceId: string, readOnly = false): PortfolioSummaryStore | undefined {
+  return bucket ? { bucket, workspaceId, readOnly } : undefined;
 }
 
 async function readStored(bucket: PortfolioSummaryStore['bucket'], key: string, workspaceId: string): Promise<Stored | null> {
@@ -108,6 +109,7 @@ export async function readPortfolioSummary(store: WorkspaceStore, saved: Portfol
     if (current?.snapshot) return result(current.snapshot, true);
     throw error;
   }
+  if (saved.readOnly) return result(candidate);
   if (current === undefined || new TextEncoder().encode(body).byteLength > MAX_BYTES) return result(candidate);
 
   for (let attempt = 0; attempt < 3; attempt++) {
