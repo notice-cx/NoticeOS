@@ -104,16 +104,16 @@ export declare const IDENTITY_NAMES: {
 export declare const AGENT_NAMES: {
     readonly jwks: {
         modelName: string;
-        fields: Record<"publicKey" | "privateKey" | "createdAt" | "expiresAt" | "alg" | "crv", string>;
+        fields: Record<"createdAt" | "expiresAt" | "publicKey" | "privateKey" | "alg" | "crv", string>;
     };
     readonly oauth: {
         readonly oauthClient: {
             modelName: string;
-            fields: Record<"name" | "metadata" | "createdAt" | "clientId" | "clientSecret" | "clientDiscoveryId" | "disabled" | "skipConsent" | "enableEndSession" | "subjectType" | "scopes" | "clientCredentialsScopes" | "userId" | "updatedAt" | "uri" | "icon" | "contacts" | "tos" | "policy" | "softwareId" | "softwareVersion" | "softwareStatement" | "redirectUris" | "postLogoutRedirectUris" | "backchannelLogoutUri" | "backchannelLogoutSessionRequired" | "tokenEndpointAuthMethod" | "applicationType" | "jwks" | "jwksUri" | "grantTypes" | "responseTypes" | "requirePKCE" | "dpopBoundAccessTokens" | "referenceId", string>;
+            fields: Record<"name" | "metadata" | "updatedAt" | "createdAt" | "policy" | "icon" | "clientId" | "clientSecret" | "clientDiscoveryId" | "disabled" | "skipConsent" | "enableEndSession" | "subjectType" | "scopes" | "clientCredentialsScopes" | "userId" | "uri" | "contacts" | "tos" | "softwareId" | "softwareVersion" | "softwareStatement" | "redirectUris" | "postLogoutRedirectUris" | "backchannelLogoutUri" | "backchannelLogoutSessionRequired" | "tokenEndpointAuthMethod" | "applicationType" | "jwks" | "jwksUri" | "grantTypes" | "responseTypes" | "requirePKCE" | "dpopBoundAccessTokens" | "referenceId", string>;
         };
         readonly oauthResource: {
             modelName: string;
-            fields: Record<"name" | "metadata" | "createdAt" | "disabled" | "updatedAt" | "identifier" | "accessTokenTtl" | "refreshTokenTtl" | "signingAlgorithm" | "signingKeyId" | "allowedScopes" | "customClaims" | "dpopBoundAccessTokensRequired" | "policyVersion", string>;
+            fields: Record<"name" | "metadata" | "updatedAt" | "createdAt" | "disabled" | "identifier" | "accessTokenTtl" | "refreshTokenTtl" | "signingAlgorithm" | "signingKeyId" | "allowedScopes" | "customClaims" | "dpopBoundAccessTokensRequired" | "policyVersion", string>;
         };
         readonly oauthClientResource: {
             modelName: string;
@@ -121,15 +121,15 @@ export declare const AGENT_NAMES: {
         };
         readonly oauthRefreshToken: {
             modelName: string;
-            fields: Record<"createdAt" | "expiresAt" | "clientId" | "scopes" | "userId" | "referenceId" | "token" | "sessionId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
+            fields: Record<"createdAt" | "token" | "expiresAt" | "clientId" | "scopes" | "userId" | "referenceId" | "sessionId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
         };
         readonly oauthAccessToken: {
             modelName: string;
-            fields: Record<"createdAt" | "expiresAt" | "clientId" | "scopes" | "userId" | "referenceId" | "token" | "sessionId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
+            fields: Record<"createdAt" | "token" | "expiresAt" | "clientId" | "scopes" | "userId" | "referenceId" | "sessionId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
         };
         readonly oauthConsent: {
             modelName: string;
-            fields: Record<"createdAt" | "clientId" | "scopes" | "userId" | "updatedAt" | "referenceId" | "resources" | "requestedUserInfoClaims", string>;
+            fields: Record<"updatedAt" | "createdAt" | "clientId" | "scopes" | "userId" | "referenceId" | "resources" | "requestedUserInfoClaims", string>;
         };
         readonly oauthClientAssertion: {
             modelName: string;

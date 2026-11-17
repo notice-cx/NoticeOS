@@ -1,8 +1,11 @@
 // Foreground-owned development databases for `pnpm db:try-tower`.
 // Never adopts a server or reads an installation/Compose database address.
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { CLUSTER_MARKER, LOOPBACK_HBA, openThrowaway } from './postgres-dev.mjs';
+import { scramVerifier } from './postgres-scram.mjs';
 import { applyMigrations, bootstrapWorkspace, frozenMigrationProblems, migrationStatus, readMigrations } from './postgres-migrate.mjs';
 import { readFrozenMarker } from './postgres-apply.mjs';
 import { MANAGED_START_PORTS } from './start-postgres.mjs';
@@ -104,7 +107,22 @@ export function openDevelopmentStart(plan, { profile = 'standalone' } = {}) {
       const status = migrationStatus(cluster, { dir });
       if (status.pending.length || status.problems.length) throw new Error('Customer database schema needs operator maintenance.');
     }
-    if (hosted) return { cluster, customer, fresh, address: cluster.applicationLogin().url(), close };
+    if (hosted) {
+      const address = cluster.applicationLogin().url();
+      const grantLogin = role => {
+        const password = randomBytes(32).toString('base64url');
+        cluster.run(`ALTER ROLE ${role} LOGIN PASSWORD '${scramVerifier(password)}'`);
+        appendFileSync(path.join(cluster.root, LOOPBACK_HBA), `host all ${role} 127.0.0.1/32 scram-sha-256\n`);
+        const url = new URL(address);
+        url.username = role;
+        url.password = password;
+        return url.href;
+      };
+      const identityDatabase = grantLogin('noticeos_identity');
+      const grantConnectionString = grantLogin('noticeos_service_grant');
+      execFileSync(cluster.tools.pgCtl, ['reload', '-D', path.join(cluster.root, 'data')], { stdio: 'pipe' });
+      return { cluster, customer, fresh, address, identityDatabase, grantConnectionString, close };
+    }
     const workspace = bootstrapWorkspace(cluster, { slug: 'development', displayName: 'Development assets', dir });
     return { address: cluster.applicationLogin().url(), workspaceId: workspace.workspaceId, close };
   } catch (error) {

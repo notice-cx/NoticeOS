@@ -263,7 +263,12 @@ export function WallStrip({ countdown, meetings, calendarState, calendarCheck, w
           )
         ) : calendarCheck ? <div data-strip-primary data-strip-baseline="meeting">{calendarAction}</div>
           : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary data-strip-baseline="meeting">{calendarState ? "Calendar" : "Reconnecting"}</span>}
-        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}{meeting === "none-today" ? calendarAction : null}{calendarCheck && meetings?.feedsConfigured === 0 ? <span className="text-wall-strip-label text-muted-foreground" role="status">No calendar connected</span> : null}</div> : null}
+        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>
+          {calendarCaption}{heldCaption}{meeting === "none-today" ? calendarAction : null}
+          {calendarCheck && meetings?.feedsConfigured === 0
+            ? <span className="text-wall-strip-label text-muted-foreground" role="status" data-status-for="read:calendar">No calendar connected</span>
+            : null}
+        </div> : null}
       </div> : null}
       {countdown && left !== null ? (
         <div

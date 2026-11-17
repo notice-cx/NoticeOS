@@ -11,6 +11,10 @@
   },
   "include": [
     "scripts/hosted-task-summary.mts",
+    "scripts/ntasks-board.mts",
+    "scripts/task-snapshot-summary.mts",
+    "scripts/task-snapshot-values.mts",
+    "scripts/panel-review-summary.mts",
     "scripts/ntasks-activation.mts",
     "scripts/hosted-scheduler.mts",
     "scripts/customer-collection.mts",

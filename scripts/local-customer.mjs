@@ -1,7 +1,7 @@
 // Loopback composition for an empty, foreground-owned customer fixture.
 import { randomBytes, randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -12,8 +12,6 @@ import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtif
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
-import { LOOPBACK_HBA } from './postgres-dev.mjs';
-import { scramVerifier } from './postgres-scram.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
 
 const HOST = '127.0.0.1';
@@ -32,16 +30,6 @@ export default class extends WorkerEntrypoint {
     return { messageId: await result.text() };
   }
 }`;
-
-function localLogin(cluster, address, role) {
-  const password = randomBytes(32).toString('base64url');
-  cluster.run(`ALTER ROLE ${role} LOGIN PASSWORD '${scramVerifier(password)}';`);
-  appendFileSync(path.join(cluster.root, LOOPBACK_HBA), `host all ${role} ${HOST}/32 scram-sha-256\n`);
-  const url = new URL(address);
-  url.username = role;
-  url.password = password;
-  return url.href;
-}
 
 function provision(cluster, publicOrigin, deliver) {
   const inviter = randomUUID();
@@ -226,9 +214,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
     await buildCustomer(state, artifactRoot);
     const artifact = readHostedArtifact(artifactRoot);
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
-    const identityDatabase = localLogin(cluster, connectionString, 'noticeos_identity');
-    const grantConnectionString = localLogin(cluster, connectionString, 'noticeos_service_grant');
-    execFileSync(cluster.tools.pgCtl, ['reload', '-D', path.join(cluster.root, 'data')], { stdio: 'pipe' });
+    const { identityDatabase, grantConnectionString } = development;
     const peerProof = randomBytes(32).toString('base64url');
     const scheduleProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
@@ -284,6 +270,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
+        resumeSince: development.fresh ? undefined : lstatSync(file).mtimeMs,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
           root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
           fetch(input, init) {

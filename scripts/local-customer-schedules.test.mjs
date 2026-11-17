@@ -62,3 +62,25 @@ test('a slow tenant leaves a worker available to another tenant on the next tick
   } finally { release(); await clock.whenIdle(); await clock.close(); }
   assert.equal(seen.at(-1), 'backlog/next');
 });
+
+test('restart resumes only the latest eligible free collection since activation', async () => {
+  const at = Date.parse('2026-11-17T10:07:00Z');
+  const selected = [
+    { job: 'counters', schedule: { cron: '0 * * * *' }, assets: ['site'] },
+    { job: 'signal-dumps', schedule: { cron: '45 9 * * *' }, assets: ['site'] },
+    { job: 'freshness', schedule: { cron: '0 * * * *' }, assets: [null] },
+  ];
+  async function resumed(since) {
+    const calls = [];
+    const clock = customerScheduleClock({ workspaces: ['one'], now: () => at, resumeSince: since,
+      read: async () => selected, run: async call => calls.push([call.job, call.scheduledAt]) });
+    try { await clock.tick(); await clock.whenIdle(); }
+    finally { await clock.close(); }
+    return calls;
+  }
+  assert.deepEqual(await resumed(at - 3 * 3_600_000), [
+    ['counters', '2026-11-17T10:00:00.000Z'], ['signal-dumps', '2026-11-17T09:45:00.000Z'],
+  ]);
+  assert.deepEqual(await resumed(at - 10 * 60_000), [['counters', '2026-11-17T10:00:00.000Z']]);
+  assert.deepEqual(await resumed(undefined), []);
+});

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import net from 'node:net';
+import { availableCustomerPort as availablePort } from './test/customer-ports.mjs';
 import path from 'node:path';
 import test from 'node:test';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
@@ -17,16 +17,9 @@ import { startPlan } from './start.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
-import { assertNtasksShadowActivation } from './test-fixtures/customer-shadow-activation.mjs';
+import { assertNtasksShadowActivation } from './test/customer-shadow-activation.mjs';
 
 const tools = process.env.NOTICEOS_NTASKS_ROOT;
-async function availablePort() {
-  const server = net.createServer();
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const port = server.address().port;
-  await new Promise(resolve => server.close(resolve));
-  return port;
-}
 
 test('the local customer Tower reads and writes to distinct workspaces in a separate Ntasks', {
   skip: !tools, timeout: 240_000,

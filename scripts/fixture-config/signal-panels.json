@@ -1,0 +1,4 @@
+{
+  "refresh": { "windowDays": 35, "freshnessMaxAgeDays": 7 },
+  "assets": {}
+}

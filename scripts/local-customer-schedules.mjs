@@ -18,7 +18,7 @@ function next(schedule, after) {
 
 /** One clock for the deployment. The hourly discovery reads active bindings in
  * pairs. Between discovery windows only due work touches the store. */
-export function customerScheduleClock({ workspaces, read, run, now = Date.now,
+export function customerScheduleClock({ workspaces, read, run, now = Date.now, resumeSince,
   warn = () => console.warn('Customer collection could not finish. See workflow history.') }) {
   const entries = workspaces.map(binding => ({ binding, jobs: [], planned: false, queued: new Map(), running: false }));
   const running = new Set();
@@ -54,6 +54,7 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now,
   }
   async function dispatch() {
     const at = Math.floor(now() / MINUTE) * MINUTE;
+    const starting = discovery === -Infinity;
     if (at >= discovery) {
       discovery = Math.floor(at / HOUR) * HOUR + HOUR;
       await inPairs(entries, async entry => {
@@ -71,10 +72,13 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now,
           const old = previous.find(j => j.job === item.job && j.schedule.cron === item.schedule.cron
             && scheduleTimezone(j.schedule) === scheduleTimezone(item.schedule));
           let due = old?.due ?? next(item.schedule, at - 1);
-          if (!old && item.job === 'panel-refresh') {
+          const resumeCollection = starting && Number.isFinite(resumeSince)
+            && ['counters', 'signal-dumps'].includes(item.job);
+          if (!old && (item.job === 'panel-refresh' || resumeCollection)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
-            if (previous >= at - 24 * HOUR) due = previous;
+            const earliest = resumeCollection ? Math.max(resumeSince, at - 24 * HOUR) : at - 24 * HOUR;
+            if (previous >= earliest) due = previous;
           }
           return { ...item, due };
         });
@@ -116,7 +120,7 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now,
   };
 }
 
-export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now }) {
+export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now, resumeSince }) {
   const ids = new Set();
   for (const binding of workspaces) {
     if (!binding.workspaceId || !binding.serviceId || ids.has(binding.workspaceId)) throw new Error('Invalid customer schedule binding.');
@@ -127,7 +131,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     grant: openWorkspaceServiceGrant({ connectionString: grantConnectionString, workspaceId, principalId: serviceId }),
   });
   const active = new Set();
-  const clock = customerScheduleClock({ workspaces, now,
+  const clock = customerScheduleClock({ workspaces, now, resumeSince,
     async read(binding) {
       const { store, grant } = resources(binding);
       try {

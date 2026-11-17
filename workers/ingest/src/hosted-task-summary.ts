@@ -1,4 +1,5 @@
 import { javascriptInstant } from '@noticeos/postgres';
+import { isolateState } from './isolate-state.js';
 import { hostedTaskChanges, readHostedTaskBoards } from '../../../scripts/hosted-task-summary.mjs';
 import { callNtasks, TaskServiceError } from './ntasks.js';
 import { readHostedTaskConnection } from './routes/hosted-task-service.js';
@@ -10,6 +11,7 @@ const BOARD_MAX_AGE_MS = 15 * 60_000;
 const REFRESH_DEADLINE_MS = 5_000;
 const RECENT_ATTEMPTS = 256;
 const attempts = new Map<string, number>();
+isolateState('Ntasks summary checks', { forget: () => attempts.clear(), held: () => attempts.size > 0 });
 
 function sourceOf(raw: string | null | undefined): HostedTaskSnapshotSource | null {
   let value: unknown;

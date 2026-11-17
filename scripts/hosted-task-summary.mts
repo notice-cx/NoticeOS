@@ -1,12 +1,8 @@
 import type { BeadsProjectInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { MappedTaskProject } from './task-projects.mjs';
-import { boardReads, LABEL_READS, readFeed, readLabels } from './ntasks-board.mjs';
+import { boardReads, LABEL_READS, readFeed, readLabels, type NtasksReads } from './ntasks-board.mjs';
 import { summarizeTaskProject, TASK_CLOSES_DAYS, taskProjectError, tasksClosedSince, tasksClosesSince } from './task-snapshot-summary.mjs';
 import { TaskServiceUnavailable } from './task-records.mjs';
-
-interface NtasksReads {
-  call(input: { method: 'GET'; path: string }): Promise<{ status: number; body: unknown }>;
-}
 
 /** An interrupted capture leaves both the baseline and cursor at their last
  * saved values. An expired cursor triggers a fresh read, with the same page cap. */

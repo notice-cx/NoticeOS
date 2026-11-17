@@ -21,6 +21,7 @@ const REGISTERED = {
   // run still going from before cannot free a later run's lane.
   'dataforseo-dumps.ts': ['lane', 'laneTokens'],
   'ga4-realtime.ts': ['sharedTokenCache'],
+  'hosted-task-summary.ts': ['attempts'],
 };
 
 /** Caches whose content any isolate would build the same way. */

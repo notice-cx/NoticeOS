@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
-import net from 'node:net';
+import { availableCustomerPort as availablePort } from './test/customer-ports.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -16,13 +16,6 @@ import { prepareCustomerReports, prepareReportObjects, verifyCustomerReports } f
 import { customerArchiveFixture } from './test-fixtures/customer-archive.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
-async function availablePort() {
-  const server = net.createServer();
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const port = server.address().port;
-  await new Promise(resolve => server.close(resolve));
-  return port;
-}
 
 function messages(directory) {
   return readdirSync(directory).map(file => JSON.parse(readFileSync(path.join(directory, file), 'utf8')));

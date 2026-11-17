@@ -11,7 +11,7 @@ import { REPO_ROOT } from '../test-config-isolation.mjs';
 import { bundleWorkerFixture, Miniflare } from '../worker-entry-test-fixture.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../../packages/postgres/src/email-code.mjs';
 import { openIdentity } from '../../packages/postgres/src/identity.mjs';
-import { shadowEvidence } from './customer-shadow-evidence.mjs';
+import { shadowEvidence } from '../test-fixtures/customer-shadow-evidence.mjs';
 
 /** Verify platform activation and restore a narrow evidence sample into that
  * workspace. Inputs belong only to the two disposable local test services. */
