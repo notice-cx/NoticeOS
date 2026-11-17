@@ -793,7 +793,9 @@ export async function analyzeSignalHistory({
   limits = {},
   now = null,
   reportFiles = {},
+  signal: abortSignal,
 }, deps = {}) {
+  abortSignal?.throwIfAborted();
   if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
     throw new Error('asset must be an asset id such as example.com.');
   }
@@ -838,6 +840,7 @@ export async function analyzeSignalHistory({
       if (reportScratch(entry)) await fs.rm(path.join(reports, entry.name), { recursive: true, force: true });
     }
     await linkedReport(to);
+    abortSignal?.throwIfAborted();
 
     const child = fork(MODULE, ['--job'], {
       execArgv: [`--max-old-space-size=${bounds.memoryMb}`],
@@ -857,6 +860,8 @@ export async function analyzeSignalHistory({
       timedOut = true;
       child.kill('SIGKILL');
     }, bounds.timeLimitSeconds * 1000);
+    const cancel = () => child.kill('SIGKILL');
+    abortSignal?.addEventListener('abort', cancel, { once: true });
     // `close` follows every message the job sent, and its exit.
     const exited = new Promise((resolve) => child.on('close', (code, signal) => resolve({ code, signal })));
     child.on('error', (error) => {
@@ -889,6 +894,8 @@ export async function analyzeSignalHistory({
     });
     const { code, signal } = await exited;
     clearTimeout(timer);
+    abortSignal?.removeEventListener('abort', cancel);
+    abortSignal?.throwIfAborted();
 
     if (outcome?.type === 'result') {
       return { ...outcome.result, cost: { ...outcome.result.cost, secondsTotal: Math.round(performance.now() - started) / 1000 } };

@@ -3,13 +3,14 @@
 // operator's decisions merged across projects without reordering any
 // project's own inbox, and the held work, urgent first, then longest held.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { loadLatestTaskSnapshot, type TaskSnapshot, type SnapshotProject } from "../worker/task-snapshot";
 import { wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
+import { deferred } from "./deferred";
 
 const NOW = new Date("2026-10-21T12:00:00.000Z");
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -241,6 +242,57 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
   }) as unknown as WorkspaceStore;
   const stored = (over: Record<string, unknown>) => ({ asset: "meadow.example", prefix: "md", ok: true, error: null, counts: {},
     ready: [], inProgress: [], recentlyClosed: [], ...over });
+
+  it("returns a saved board while its refresh is still pending", async () => {
+    let release!: (published: boolean) => void;
+    const refreshing = new Promise<boolean>(resolve => { release = resolve; });
+    let started = false, saved: TaskSnapshot | null | undefined;
+    const read = loadLatestTaskSnapshot(storing({ projects: [stored({})] }), () => {
+      started = true;
+      return refreshing;
+    }).then(value => { saved = value; });
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      expect(started).toBe(true);
+      expect(saved?.projects.map(project => project.asset)).toEqual(["meadow.example"]);
+    } finally {
+      release(false);
+      await read;
+    }
+  });
+
+  it("returns a cold read within its wait limit while the background capture can still finish", async () => {
+    vi.useFakeTimers();
+    const capture = deferred<boolean>();
+    let published = false;
+    let returned: TaskSnapshot | null | undefined;
+    const store = { read: async (run: (tx: { query: () => Promise<unknown[]> }) => Promise<unknown>) =>
+      run({ query: async () => published ? [{ captured_at: hoursAgo(0), payload: JSON.stringify({ projects: [stored({})] }) }] : [] }),
+    } as unknown as WorkspaceStore;
+    const reading = loadLatestTaskSnapshot(store, () => capture.promise).then(value => { returned = value; });
+    try {
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(returned).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(returned).toBeNull();
+      published = true;
+      capture.resolve(true);
+      expect((await loadLatestTaskSnapshot(store))?.projects.map(project => project.asset)).toEqual(["meadow.example"]);
+    } finally {
+      capture.resolve(false);
+      await reading;
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves nonblank handoff keys distinct through the stored snapshot read", async () => {
+    const handoff = (key: string, beadId: string) => ({ key, beadId, kind: "query", status: "open" });
+    const found = await loadLatestTaskSnapshot(storing({ projects: [stored({
+      handoffs: [handoff("query", "md-plain"), handoff(" query ", "md-spaced"), handoff(" ", "md-blank")],
+    })] }));
+    expect(found?.projects[0]?.handoffs?.map(({ key, taskId }) => [key, taskId]))
+      .toEqual([["query", "md-plain"], [" query ", "md-spaced"]]);
+  });
 
   it("reads complete attention lists independently and drops malformed coverage without inventing an empty list", async () => {
     const valid = { items: [{ ...item("md-full", { priority: 1 }), decision: false }], complete: true };

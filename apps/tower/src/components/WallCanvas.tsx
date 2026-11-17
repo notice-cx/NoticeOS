@@ -9,6 +9,7 @@ import { createContext, useContext, type CSSProperties, type ReactNode } from "r
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
 import { isRetired } from "@shared/asset-setup";
 import { NO_READS, type ConnectionReads } from "@shared/connection-status";
+import { WallHealthStamp } from "@/components/wall/WallHealthStamp";
 import type { WallPayload } from "@shared/wall";
 import {
   isWallColumn,
@@ -76,10 +77,12 @@ export interface WallCanvasProps {
   /** The surface's own upcoming-meetings poll. */
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  calendarCheck?: WallStripProps['calendarCheck'];
   weather?: WallWeatherState;
   /** The independent 30-second GA4 read; failure never blanks a card. */
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
+  reportGa4Today?: boolean;
   /** Showing a held payload after a failed poll: the strip says so, with its age. */
   lastGood?: boolean;
   /** The reads every source mark is read from, the surface's own polls. */
@@ -150,9 +153,11 @@ export function WallCanvas({
   nowMs,
   meetings,
   calendarState,
+  calendarCheck,
   weather,
   ga4Realtime,
   ga4RealtimeError = false,
+  reportGa4Today,
   lastGood = false,
   connections,
   editing,
@@ -172,13 +177,14 @@ export function WallCanvas({
             countdown={data.dashboard.countdown}
             meetings={meetings}
             calendarState={calendarState}
+            calendarCheck={calendarCheck}
             weather={weather}
             weatherUnit={wallWeatherSettings(layout).unit}
             heldSince={lastGood ? data.generatedAt : null}
           />
         );
       case "loop":
-        return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
+        return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} timeZone={payload.osTimeZone} />;
       case "revenue":
         return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} timeZone={payload.osTimeZone} widget={widget} />;
       case "timeline": {
@@ -220,7 +226,9 @@ export function WallCanvas({
           assets: payload.assets,
           nowMs,
         });
-        return <AttentionTicker items={ticker.items} status={ticker.taskStatus} evaluatedConditions={["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]} />;
+        return <AttentionTicker items={ticker.items} status={ticker.taskStatus}
+          evaluatedConditions={["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]}
+          healthStamp={connections?.snapshot ? <WallHealthStamp snapshot={connections.snapshot} timeZone={payload.osTimeZone} /> : undefined} />;
       }
       case "sites": {
         const assets = filterWallAssets(data.assets, widget.settings);
@@ -232,6 +240,7 @@ export function WallCanvas({
             workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
             ga4Realtime={ga4Realtime}
             ga4RealtimeError={ga4RealtimeError}
+            reportGa4Today={reportGa4Today}
             connections={connections}
             nowMs={nowMs}
           />
@@ -239,7 +248,7 @@ export function WallCanvas({
       }
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
-        return <WallFeedWidget nowMs={nowMs} assets={payload.assets} />;
+        return <WallFeedWidget nowMs={nowMs} assets={payload.assets} snapshot={reportGa4Today} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
       case "health": {
@@ -254,6 +263,8 @@ export function WallCanvas({
               nowMs,
             })}
             nowMs={nowMs}
+            snapshot={connections?.snapshot}
+            timeZone={payload.osTimeZone}
           />
         );
       }

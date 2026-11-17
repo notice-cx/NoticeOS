@@ -148,7 +148,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`. The Tower's client ID in Ntasks is public the same way:
     // every browser that signs in to Ntasks sends it.
-    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'LOCAL_MODEL_OUTPUT_TOKENS', 'NTASKS_URL', 'NTASKS_APP_CLIENT_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'ADSENSE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'LOCAL_MODEL_OUTPUT_TOKENS', 'NTASKS_URL', 'NTASKS_WORKSPACE_ID', 'NTASKS_APP_CLIENT_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'ADSENSE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -257,7 +257,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       // Operator-selected server addresses and account logins need no issuance link.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
       else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password', 'text']);
-      else if (provider.id === 'ntasks') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password', 'text']);
+      else if (provider.id === 'ntasks') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password', 'text', 'text']);
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
   });

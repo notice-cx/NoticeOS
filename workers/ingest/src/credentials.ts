@@ -43,7 +43,7 @@ import {
 import { getConfigDocument } from './config-store.js';
 import { localModelBaseUrl } from './local-model.js';
 import { LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
-import { NTASKS_APP_CLIENT_ID, NTASKS_URL, ntasksOrigin } from './ntasks.js';
+import { hostedNtasksAddress, NTASKS_APP_CLIENT_ID, NTASKS_URL, ntasksOrigin } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
@@ -959,9 +959,6 @@ export async function putCredential(
   if (provider.id === 'local-model' && workspaceProfile(env) !== 'standalone') {
     return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'Model connections require a standalone installation.')] };
   }
-  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') {
-    return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'An Ntasks connection requires a standalone installation.')] };
-  }
   const raw = input.fields;
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return {
@@ -972,6 +969,14 @@ export async function putCredential(
   }
   const issues = validateCredentialFields(provider, raw as Record<string, unknown>);
   if (issues.length > 0) return { ok: false, error: 'validation', issues };
+  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') {
+    try {
+      if (workspaceProfile(env) !== 'hosted') throw new Error('Ntasks connection unavailable.');
+      hostedNtasksAddress(env, raw);
+    } catch {
+      return { ok: false, error: 'validation', issues: [issue('provider', 'invalid', 'Use the host’s Ntasks address, the Ntasks workspace ID and a project service credential.')] };
+    }
+  }
 
   if (provider.id === 'cloudflare' && !/^[a-f0-9]{32}$/u.test(String(raw.CLOUDFLARE_ACCOUNT_ID))) {
     return { ok: false, error: 'validation', issues: [issue('CLOUDFLARE_ACCOUNT_ID', 'invalid', 'Account ID must contain 32 hexadecimal characters.')] };

@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { currentDayReadings, keepReadingsInProgress, useGa4Realtime } from "@/hooks/useGa4Realtime";
+import { BrowserRuntimeProvider } from "@/lib/browser-context";
+import { createBrowserRuntime } from "@/lib/browser-runtime";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 const fetchGa4Realtime = vi.hoisted(() => vi.fn());
@@ -175,6 +177,26 @@ describe("the realtime poll", () => {
     vi.spyOn(Date, "now").mockReturnValue(NOW);
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it("does not request minute readings for a hosted workspace", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const runtime = createBrowserRuntime({ mode: 'hosted', clientGeneration: 0,
+      principalId: '00000000-0000-0000-0000-000000000001', sessionId: '00000000-0000-0000-0000-000000000002',
+      workspaceId: '00000000-0000-0000-0000-000000000003',
+    }, { origin: window.location.origin, fetch, sendAnswer: async () => {} });
+    const wrapper = ({ children }: { children: ReactNode }) => <BrowserRuntimeProvider value={{ runtime, workspaceLabel: null }}>
+      <QueryClientProvider client={runtime.queries}>{children}</QueryClientProvider>
+    </BrowserRuntimeProvider>;
+    const hook = renderHook(() => useGa4Realtime(), { wrapper });
+    try {
+      await waitFor(() => expect(hook.result.current.fetchStatus).toBe('idle'));
+      expect(hook.result.current.isEnabled).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      hook.unmount();
+      runtime.retire();
+    }
+  });
 
   it("keeps the drawn hours through an in-progress answer", async () => {
     const before = drawn();

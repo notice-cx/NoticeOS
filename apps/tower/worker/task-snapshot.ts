@@ -269,11 +269,11 @@ function readPanelReview(value: unknown): SnapshotPanelReview | null | undefined
 function readHandoff(value: unknown): HandoffTask | null {
   if (!isRecord(value)) return null;
   const kind = text(value.kind);
-  const key = text(value.key);
+  const key = value.key;
   const taskId = text(value.beadId);
   const status = text(value.status);
   if (kind !== "query" && kind !== "finding" && kind !== "page" && kind !== "alert") return null;
-  if (!key || !taskId) return null;
+  if (typeof key !== "string" || key.trim() === "" || !taskId) return null;
   if (status !== "open" && status !== "closed") return null;
   return { kind, key, taskId, status, closedAt: nullableText(value.closedAt) };
 }
@@ -391,10 +391,12 @@ function readWork(value: Record<string, unknown>): Pick<SnapshotProject, "worker
   return { ...(workers.length ? { workers } : {}), ...(recentWork.length ? { recentWork } : {}) };
 }
 
+export type TaskSnapshotRefresh = () => Promise<boolean>;
+
 /** The newest snapshot, or null when none has ever been filed. Project order
  * is the snapshot's own, which is `config/beads.json`'s order. */
-export async function loadLatestTaskSnapshot(store: WorkspaceStore): Promise<TaskSnapshot | null> {
-  const [row] = await store.read((tx) =>
+export async function loadLatestTaskSnapshot(store: WorkspaceStore, refresh?: TaskSnapshotRefresh): Promise<TaskSnapshot | null> {
+  const latest = () => store.read((tx) =>
     tx.query<SnapshotRow>(
       `SELECT captured_at, payload::text AS payload
          FROM noticeos.task_snapshots
@@ -403,6 +405,17 @@ export async function loadLatestTaskSnapshot(store: WorkspaceStore): Promise<Tas
     ),
   );
 
+  let [row] = await latest();
+  const refreshing = refresh?.();
+  // A saved board returns immediately. Cold reads wait briefly while the
+  // refresh keeps running under the caller's background lifetime.
+  if (!row && refreshing) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const wait = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), 5_000); });
+      if (await Promise.race([refreshing, wait])) [row] = await latest();
+    } finally { clearTimeout(timer); }
+  }
   if (!row) return null;
 
   let parsed: unknown;

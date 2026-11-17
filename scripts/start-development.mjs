@@ -1,9 +1,12 @@
-// Foreground-owned development database for `pnpm db:try-tower`.
+// Foreground-owned development databases for `pnpm db:try-tower`.
 // Never adopts a server or reads an installation/Compose database address.
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { openThrowaway } from './postgres-dev.mjs';
-import { applyMigrations, bootstrapWorkspace, frozenMigrationProblems, readMigrations } from './postgres-migrate.mjs';
+import { CLUSTER_MARKER, LOOPBACK_HBA, openThrowaway } from './postgres-dev.mjs';
+import { scramVerifier } from './postgres-scram.mjs';
+import { applyMigrations, bootstrapWorkspace, frozenMigrationProblems, migrationStatus, readMigrations } from './postgres-migrate.mjs';
 import { readFrozenMarker } from './postgres-apply.mjs';
 import { MANAGED_START_PORTS } from './start-postgres.mjs';
 
@@ -38,8 +41,8 @@ export function developmentRefusal(plan) {
   return null;
 }
 
-/** A fresh cluster per foreground start. close() stops it before retiring data. */
-export function openDevelopmentStart(plan) {
+/** Hosted mode reopens its own cluster. Standalone removes its data on close. */
+export function openDevelopmentStart(plan, { profile = 'standalone', tools } = {}) {
   const refusal = developmentRefusal(plan);
   if (refusal) throw new Error(refusal);
   const port = plan.port + 2;
@@ -51,11 +54,20 @@ export function openDevelopmentStart(plan) {
   if (frozenMigrationProblems(frozen, { dir }).length || frozen.split('\n').filter(line => line.trim()).length !== readMigrations(dir).length) {
     throw new Error('development startup requires the complete committed frozen migration set.');
   }
+  const hosted = profile === 'hosted';
+  const state = path.join(plan.home, '.local');
+  const customer = path.join(state, 'customer');
+  const clusterRoot = path.join(state, hosted ? 'customer-postgres' : 'development-postgres');
+  if (!hosted && (existsSync(customer) || existsSync(path.join(state, 'customer-postgres')))) {
+    throw new Error('This folder uses the hosted profile. Start it with --profile hosted.');
+  }
+  if (hosted && !existsSync(customer) && existsSync(plan.secrets)) {
+    throw new Error('Use a new folder for customer workspaces.');
+  }
   mkdirSync(plan.home, { recursive: true, mode: 0o700 });
   if (lstatSync(plan.home).isSymbolicLink()) throw new Error('the development folder changed during setup.');
   const reservation = path.join(plan.home, RESERVATION);
   writeFileSync(reservation, String(process.pid), { flag: 'wx', mode: 0o600 });
-  const clusterRoot = path.join(plan.home, '.local', 'development-postgres');
   let cluster = null;
   let ownsClusterRoot = false;
   let closed = false;
@@ -68,7 +80,7 @@ export function openDevelopmentStart(plan) {
       try { process.kill(pid, 0); throw new Error('development Postgres is still running; its files were preserved.'); }
       catch (error) { if (error.code !== 'ESRCH') throw error; }
     }
-    if (ownsClusterRoot) rmSync(clusterRoot, { recursive: true, force: true });
+    if (ownsClusterRoot && !hosted) rmSync(clusterRoot, { recursive: true, force: true });
     rmSync(reservation);
     closed = true;
   };
@@ -77,10 +89,44 @@ export function openDevelopmentStart(plan) {
     writeFileSync(plan.mark, 'Local runtime files for a development-only NoticeOS instance.\n');
     mkdirSync(path.dirname(clusterRoot), { recursive: true, mode: 0o700 });
     if (lstatSync(path.dirname(clusterRoot)).isSymbolicLink()) throw new Error('development state changed during setup.');
-    mkdirSync(clusterRoot, { mode: 0o700 });
+    const held = lstatSync(clusterRoot, { throwIfNoEntry: false });
+    // Tool discovery can fail after the private directory was made and
+    // before initdb wrote anything. Only that empty state can start afresh.
+    const fresh = !held || (hosted && held.isDirectory() && !(held.mode & 0o077) && !existsSync(customer)
+      && readdirSync(clusterRoot).length === 0);
+    if (hosted && (!fresh || existsSync(customer))) {
+      for (const dir of [customer, clusterRoot, path.join(clusterRoot, 'data')]) {
+        const stat = lstatSync(dir);
+        if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Error('Customer state must use private directories.');
+      }
+      for (const file of [CLUSTER_MARKER, LOOPBACK_HBA]) {
+        if (!lstatSync(path.join(clusterRoot, file)).isFile()) throw new Error('Customer database must use its own files.');
+      }
+      if (!lstatSync(path.join(customer, 'settings.json')).isFile()) throw new Error('Customer setup did not finish.');
+    } else if (!held) mkdirSync(clusterRoot, { mode: 0o700 });
     ownsClusterRoot = true;
-    cluster = openThrowaway(clusterRoot, undefined, { loopbackPort: port });
-    applyMigrations(cluster, { dir });
+    cluster = openThrowaway(clusterRoot, tools, { loopbackPort: port, durable: hosted });
+    if (fresh) applyMigrations(cluster, { dir });
+    else {
+      const status = migrationStatus(cluster, { dir });
+      if (status.pending.length || status.problems.length) throw new Error('Customer database schema needs operator maintenance.');
+    }
+    if (hosted) {
+      const address = cluster.applicationLogin().url();
+      const grantLogin = role => {
+        const password = randomBytes(32).toString('base64url');
+        cluster.run(`ALTER ROLE ${role} LOGIN PASSWORD '${scramVerifier(password)}'`);
+        appendFileSync(path.join(cluster.root, LOOPBACK_HBA), `host all ${role} 127.0.0.1/32 scram-sha-256\n`);
+        const url = new URL(address);
+        url.username = role;
+        url.password = password;
+        return url.href;
+      };
+      const identityDatabase = grantLogin('noticeos_identity');
+      const grantConnectionString = grantLogin('noticeos_service_grant');
+      execFileSync(cluster.tools.pgCtl, ['reload', '-D', path.join(cluster.root, 'data')], { stdio: 'pipe' });
+      return { cluster, customer, fresh, address, identityDatabase, grantConnectionString, close };
+    }
     const workspace = bootstrapWorkspace(cluster, { slug: 'development', displayName: 'Development assets', dir });
     return { address: cluster.applicationLogin().url(), workspaceId: workspace.workspaceId, close };
   } catch (error) {

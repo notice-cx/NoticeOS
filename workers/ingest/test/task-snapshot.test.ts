@@ -906,7 +906,7 @@ describe('POST /api/task-snapshot — handoff tasks', () => {
   // typed — punctuation, commas, quotes. The label on the task is a lossy slug
   // and only this field can be matched against a rendered row.
   it('keeps a key byte-exact, punctuation and all', async () => {
-    const key = 'best "meal plan", weekly — 2026';
+    const key = '  best "meal plan", weekly — 2026  ';
     const stored = await storedProject({
       projects: [project({ handoffs: [{ ...HANDOFF, kind: 'query', key }] })],
     });

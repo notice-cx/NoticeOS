@@ -8,11 +8,12 @@ import { useIntegrationProviders } from './useIntegrationProviders';
  * that has not answered is `undefined` / `null`, which the model turns into
  * Unknown — never into Not connected.
  */
-export function useConnections() {
-  const providers = useIntegrationProviders();
-  const monitoring = useIntegrationHealth();
+export function useConnections(watch = true) {
+  const providers = useIntegrationProviders(watch);
+  const monitoring = useIntegrationHealth(watch);
   const credentials: ReadonlyMap<string, CredentialSummary> | undefined = providers.data
     ? new Map((providers.data.providers ?? []).map((status) => [status.provider.id, status.credential]))
     : undefined;
-  return { providers, monitoring, credentials, events: monitoring.data?.events, items: monitoring.data ? monitoring.status.items : null };
+  return { providers, monitoring, credentials, events: monitoring.data?.events, snapshot: monitoring.snapshot,
+    items: monitoring.data ? monitoring.status.items : null };
 }

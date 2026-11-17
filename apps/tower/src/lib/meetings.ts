@@ -15,9 +15,10 @@ export function calendarReadState(read: {
   isPending?: boolean;
   fetchStatus?: string;
   consecutiveFailures?: number;
+  manual?: boolean;
 }): CalendarReadState | undefined {
-  if (read.isError) return (read.consecutiveFailures ?? 3) >= 3 ? "failed" : "retrying";
-  if (read.data && read.data.feedsOk < read.data.feedsConfigured) return (read.consecutiveFailures ?? 3) >= 3 ? "partial" : "retrying";
+  if (read.isError) return read.manual || (read.consecutiveFailures ?? 3) >= 3 ? "failed" : "retrying";
+  if (read.data && read.data.feedsOk < read.data.feedsConfigured) return read.manual || (read.consecutiveFailures ?? 3) >= 3 ? "partial" : "retrying";
   if (read.isPending && read.fetchStatus !== "idle") return "loading";
   return undefined;
 }

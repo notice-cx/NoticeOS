@@ -1,4 +1,5 @@
 import { GA4_CORE_BACKOFF_CODE } from './ga4-core.js';
+import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { updateComparison, type SharedComparisons } from './ga4-comparison.js';
 import { timeZoneChangesFor } from './time-zone-change.js';
 import { getConfigDocuments } from './config-store.js';
@@ -87,6 +88,7 @@ export async function runGa4Realtime(
   const clock = options.clock ?? (options.nowMs === undefined ? Date.now : () => options.nowMs!);
   const nowMs = clock();
   const observedAt = new Date(nowMs).toISOString();
+  if (workspaceProfile(env) === 'hosted') return { generatedAt: observedAt, assets: [], unrecordedFailure: false };
   const fetchImpl = options.fetchImpl ?? fetch;
   const responseCache = options.responseCache === undefined ? options.fetchImpl ? null : caches.default : options.responseCache;
   const tokenCache =
@@ -235,6 +237,7 @@ export async function refreshGa4Comparisons(
   env: IngestEnv,
   options: Pick<Ga4RealtimeOptions, 'nowMs' | 'fetchImpl' | 'tokenCache' | 'clock'> = {},
 ): Promise<ComparisonRefresh[]> {
+  if (workspaceProfile(env) === 'hosted') return [];
   const clock = options.clock ?? (options.nowMs === undefined ? Date.now : () => options.nowMs!);
   const fetchImpl = options.fetchImpl ?? fetch;
   const tokenCache = options.tokenCache === undefined ? sharedTokenCache : options.tokenCache;

@@ -49,6 +49,11 @@ export async function readDownloadsManifest(directory) {
 
 /** The shared destination for manual downloads and scheduled refreshes. */
 export function archivePath(downloadsRoot, asset, row) {
+  const names = [asset, row.integration, row.report];
+  if (names.some(name => typeof name !== 'string' || !name || name === '.' || name === '..'
+    || /[\\/\u0000-\u001f]/u.test(name)) || !/^\d{4}-\d{2}-\d{2}$/u.test(row.reportDate)) {
+    throw new Error('Invalid archive file name.');
+  }
   return path.join(
     downloadsRoot,
     asset,

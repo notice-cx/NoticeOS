@@ -23,6 +23,8 @@ import type { DailyRevenueSummary } from './daily-revenue';
 import type { WorkItem, WorkWeeks } from './work';
 
 /** `milestone` is a kind, not a severity — never here. */
+export const HOSTED_WALL_REFRESH_MS = 60 * 60 * 1000;
+
 export type Severity = "error" | "warn" | "info";
 
 /** flags.kind — the meaning of a flag, kept separate from how urgently it
@@ -288,6 +290,17 @@ export interface SignalTrend {
     * the dated changes remain available for annotations.
    */
   timeZoneChanges: TimeZoneChangePoint[];
+}
+
+export interface ReportedGa4Day {
+  /** Date and timezone on the GA4 property calendar. */
+  date: string | null;
+  timeZone: string | null;
+  /** Null when the collector has no reported count for this date. */
+  activeUsers: number | null;
+  /** Completion time of the last successful daily check. */
+  checkedAt: string | null;
+  checkFailed: boolean;
 }
 
 export interface TimeZoneChangePoint {
@@ -655,6 +668,7 @@ export interface AssetCard {
   /** GA4 daily active users, reconstructed from the latest values in the
    * append-only observation log. */
   activeUsers: SignalTrend;
+  reportedGa4Day?: ReportedGa4Day;
   /** Future earnings estimate derived from stored daily revenue and traffic. */
   revenueProjection?: RevenueProjection;
   /** Sources behind the observed projection, or the ledger's daily revenue when no projection is ready. */
@@ -1091,6 +1105,12 @@ export interface WallAttentionTasks {
   projectCount: number;
 }
 
+export interface PortfolioSummaryVersion {
+  version: string;
+  reportingDate: string;
+  retained: boolean;
+}
+
 /** What one Wall refresh computes (`buildWallPayload`): the TV and the desk
  * pages read it, and the MCP `list_properties` tool hands part of it to
  * agents. Every key names the screen that draws it in
@@ -1099,6 +1119,7 @@ export interface WallAttentionTasks {
 export interface WallPayload {
   /** When the Worker assembled this payload (ISO). */
   generatedAt: string;
+  portfolioSummary?: PortfolioSummaryVersion;
   /** Selected calendar for displayed daily metrics; absent from older payloads. */
   osTimeZone?: string;
   portfolio: PortfolioBand;

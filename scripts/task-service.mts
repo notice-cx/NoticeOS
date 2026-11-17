@@ -8,7 +8,10 @@
  * and the `.d.mts` the Tower's Vite lanes read.
  */
 import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
-import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import { TaskServiceUnavailable } from './task-records.mjs';
+export { TaskServiceUnavailable, withNoticeosRecords } from './task-records.mjs';
+import type { NtasksProject } from './task-projects.mjs';
+export { mapTaskProjects, type NtasksProject, type MappedTaskProject } from './task-projects.mjs';
 
 export const TASK_SERVICE_ROUTE = 'api/task-service';
 /** The ingest's route that answers the Tower's app in Ntasks for one address, registering it the first time. */
@@ -37,16 +40,7 @@ export interface TaskServiceCall {
   readonly onBehalfOf?: string;
 }
 export interface TaskServiceReply { readonly status: number; readonly body: unknown }
-export interface NtasksProject { readonly projectId: string; readonly logicalKey: string; readonly displayName: string; readonly prefix: string }
 
-/** Ntasks gave no answer. `reason` is the ingest's: `not-connected`, `network`,
- * `timeout`, `redirect`, `too-large`, `invalid-response`, or `ingest` when the
- * ingest itself did not answer. Nothing it was asked to change is known to have changed. */
-export class TaskServiceUnavailable extends Error {
-  override name = 'TaskServiceUnavailable';
-  constructor(readonly reason: string, readonly status?: number) { super(`The task service did not answer (${reason}).`); }
-}
-/** Ntasks refused to register the Tower as a connected app: its RFC 7591 code and HTTP status. */
 export class TaskServiceAppRefused extends Error {
   override name = 'TaskServiceAppRefused';
   constructor(readonly code: string, readonly status: number) { super(`Ntasks refused to register the Tower (${code}).`); }
@@ -229,20 +223,6 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   return Object.freeze(service);
 }
 
-/** A saved task project (config/beads.json `spokes`) and the Ntasks project
- * that holds its tasks: the one whose prefix it carries, since a task's id
- * starts with its project's prefix in both. */
-export interface MappedTaskProject {
-  readonly asset: string;
-  readonly prefix: string;
-  readonly project: NtasksProject | null;
-}
-export function mapTaskProjects(spokes: readonly { readonly asset: string; readonly prefix: string }[],
-  projects: readonly NtasksProject[]): MappedTaskProject[] {
-  return spokes.map(spoke => ({ asset: spoke.asset, prefix: spoke.prefix,
-    project: projects.find(project => project.prefix.toLowerCase() === spoke.prefix.toLowerCase()) ?? null }));
-}
-
 /** The sentence an operator or agent reads when Ntasks gave no answer. */
 export function unavailableSentence(error: TaskServiceUnavailable, origin: string | null): string {
   const where = origin ?? 'the task service';
@@ -250,27 +230,4 @@ export function unavailableSentence(error: TaskServiceUnavailable, origin: strin
   if (error.reason === 'ingest') return 'The installation\'s ingest did not answer, so the task service could not be asked.';
   if (error.reason === 'refused') return `${where} refused this installation's service credential; replace it in Settings → Task projects.`;
   return `${where} did not answer (${error.reason}).`;
-}
-
-/** A task as Ntasks's task routes answer it, with its close and its claim also
- * written under the NoticeOS metadata keys the task snapshot, the readback lane
- * and the Tower's close attribution read (packages/contract/src/task-metadata.mts).
- * Ntasks keeps them on the task itself; a close it imported without a closer
- * gains none. */
-export function withNoticeosRecords<T extends Record<string, unknown>>(task: T): T {
-  const recorded: Record<string, string> = {};
-  const text = (value: unknown) => typeof value === 'string' && value.trim() !== '' ? value : null;
-  const closedBy = text(task.closedBy), closedAt = text(task.closedAt);
-  if (closedBy !== null && closedAt !== null) {
-    recorded[TASK_METADATA.closedBy.name] = closedBy;
-    recorded[TASK_METADATA.closedAt.name] = closedAt;
-    const model = text(task.closedModel), resolution = text(task.resolution), duplicateOf = text(task.duplicateOf);
-    if (model !== null) recorded[TASK_METADATA.closedModel.name] = model;
-    if (resolution !== null) recorded[TASK_METADATA.resolution.name] = resolution;
-    if (duplicateOf !== null) recorded[TASK_METADATA.duplicateOf.name] = duplicateOf;
-  }
-  const claimedModel = text(task.assigneeModel);
-  if (claimedModel !== null) recorded[TASK_METADATA.claimedModel.name] = claimedModel;
-  if (Object.keys(recorded).length === 0) return task;
-  return { ...task, metadata: { ...(row(task.metadata) ?? {}), ...recorded } };
 }

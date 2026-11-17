@@ -5,7 +5,7 @@
 
 import { render } from "./render";
 import { describe, expect, it } from "vitest";
-import { NO_READS } from "@shared/connection-status";
+import { NO_READS, type ConnectionReads } from "@shared/connection-status";
 import type { AssetCard } from "@shared/wall";
 import { loopNodes } from "@/components/wall/WallLoop";
 import { fitTimeline } from "@/components/wall/WallTimeline";
@@ -87,6 +87,21 @@ describe("the loop", () => {
     const unknown = byId(loopNodes({ assets: [], attention: [], operator: { ...operator, waiting: 0, urgent: 0 } }, NO_READS, NOW));
     expect(unknown.decide).toMatchObject({ caption: "for you to decide · unknown" });
     expect(unknown.decide?.value).toBeUndefined();
+  });
+
+  it("ages register proof only when the dated health check advances", () => {
+    const card = asset("a.example", null);
+    card.dataSources = [{ id: "uptime", label: "Uptime", state: "live", observedAt: at(0),
+      verification: { kind: "collection-success", laneId: "uptime" } }];
+    const data = { assets: [card], attention: [], operator: null };
+    const held: ConnectionReads = { ...NO_READS, snapshot: { state: "saved", checkedAt: at(0) } };
+    const later = NOW + 72 * 3_600_000;
+    const fresh: ConnectionReads = { ...NO_READS, snapshot: { state: "saved", checkedAt: new Date(later).toISOString() } };
+    const initial = byId(loopNodes(data, held, NOW)).sense;
+    expect(initial).toMatchObject({ value: "1 of 1", state: "ok" });
+    expect(byId(loopNodes(data, held, later)).sense).toEqual(initial);
+    expect(byId(loopNodes(data, fresh, later)).sense).toMatchObject({ value: "0 of 1", state: "idle" });
+    expect(byId(loopNodes(data, NO_READS, later)).sense?.value).toBe("0 of 1");
   });
 
   it("counts a retired asset in none of its stages, even on a TV that shows it", () => {

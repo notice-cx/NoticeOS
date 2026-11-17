@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { CircleCheck, CircleHelp, Pause, Play } from "lucide-react";
 import type { AttentionTickerItem } from "@/lib/attention-ticker";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ export interface AttentionTickerProps {
   items: readonly AttentionTickerItem[];
   status?: "ready" | "loading" | "stale" | "partial" | "unavailable";
   evaluatedConditions?: readonly string[];
+  healthStamp?: ReactNode;
 }
 
 const STATUS_TEXT = {
@@ -20,7 +21,7 @@ const STATUS_TEXT = {
 };
 
 /** One measured loop; the second copy is visual only and never a second inbox. */
-export function AttentionTicker({ items, status = "ready", evaluatedConditions = [] }: AttentionTickerProps) {
+export function AttentionTicker({ items, status = "ready", evaluatedConditions = [], healthStamp }: AttentionTickerProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const sequence = useRef<HTMLUListElement>(null);
   const [paused, setPaused] = useState(false);
@@ -51,6 +52,7 @@ export function AttentionTicker({ items, status = "ready", evaluatedConditions =
   const conditions = [...new Set([...evaluatedConditions, ...items.flatMap(item => item.conditions)])];
   return <section className="attention-ticker text-wall-body" aria-label="Needs attention" data-wall-attention-ticker data-wall-needs={hasItems ? "rows" : status === "ready" ? "calm" : "unknown"} data-material-condition={conditions.join(" ") || undefined} data-attention-status={status} data-attention-paused={paused ? "true" : "false"} data-attention-moving={distance > 0 && hasItems ? "true" : "false"}>
     {status !== "ready" && hasItems ? <span className="attention-ticker-status text-wall-strip-label text-muted-foreground" title={STATUS_TEXT[status]}><CircleHelp aria-hidden /><span>{STATUS_TEXT[status]}</span></span> : null}
+    {healthStamp}
     <div ref={viewport} data-wall-crawl-viewport className="attention-ticker-viewport" tabIndex={0} role="group" aria-label="Attention messages. Focus to pause; scroll horizontally to read all messages." onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.scrollLeft = 0; }} onKeyDown={event => { if (event.target === event.currentTarget && event.key === " ") { event.preventDefault(); setPaused(value => !value); } }}>
       {hasItems ? <div className="attention-ticker-track" style={{ "--attention-distance": `${distance}px`, "--attention-duration": `${distance / 36}s` } as CSSProperties}>{list(false)}{distance > 0 ? list(true) : null}</div> : <span className="attention-ticker-empty text-wall-strip-label text-muted-foreground">{status === "ready" ? <CircleCheck aria-hidden /> : <CircleHelp aria-hidden />}{STATUS_TEXT[status]}</span>}
     </div>

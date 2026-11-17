@@ -78,6 +78,32 @@ describe("the asset rows", () => {
     expect(tile.querySelector(".wall-metric-main")?.firstElementChild).toContainElement(total);
     expect(tile.querySelector(".wall-metric-secondary [data-site-today]")).not.toBeNull();
   });
+  it("shows hosted daily reports on the property calendar without minute readings or comparisons", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    const date = "2026-09-23";
+    const timeZone = "Pacific/Auckland";
+    const checkedAt = new Date(NOW - 3_600_000).toISOString();
+    asset.reportedGa4Day = { date, timeZone, checkedAt, activeUsers: null, checkFailed: false };
+    const view = () => <SiteRows assets={[asset]} ga4Realtime={wallFixtureRealtime()} nowMs={NOW} reportGa4Today />;
+    const { container, rerender } = render(view());
+    const today = container.querySelector('[aria-label="Today"]')!;
+    expect(today.querySelector("[data-site-today-total]")).toBeNull();
+    expect(today.querySelector(`time[datetime="${date}"]`)?.parentElement).toHaveTextContent(timeZone);
+
+    for (const activeUsers of [0, 127, 102]) {
+      asset.reportedGa4Day = { ...asset.reportedGa4Day, activeUsers };
+      rerender(view());
+      expect(today.querySelector("[data-site-today-total]")).toHaveTextContent(String(activeUsers));
+    }
+    expect(today.querySelector(`[datetime="${checkedAt}"]`)).not.toBeNull();
+    expect(today.querySelector("[data-site-today-reference], [data-site-today-chart], [data-tone]")).toBeNull();
+    expect(container.querySelector("[data-live]")).toBeNull();
+
+    asset.reportedGa4Day = { ...asset.reportedGa4Day, checkFailed: true };
+    rerender(view());
+    expect(today.querySelector("[data-site-today-total]")).toBeNull();
+    expect(today.querySelector(`[datetime="${checkedAt}"]`)).not.toBeNull();
+  });
   it("converts provider-day totals and keeps the pace on the display calendar", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.activeUsers.timeZone = "Pacific/Auckland";

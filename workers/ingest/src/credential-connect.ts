@@ -7,7 +7,7 @@
 // answer is a verdict plus facts, never the provider's own sentence.
 
 import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
-import { checkNtasks } from './ntasks.js';
+import { checkHostedNtasks, checkNtasks } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import type {
   ConnectCredentialResult,
@@ -62,7 +62,10 @@ export async function connectCredential(
     try { assertLocalModelAvailable(env); }
     catch { return { ok: false, error: 'not_supported', provider: provider.id }; }
   }
-  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') return { ok: false, error: 'not_supported', provider: provider.id };
+  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone'
+    && (workspaceProfile(env) !== 'hosted' || !env.NOTICEOS_NTASKS_ORIGIN)) {
+    return { ok: false, error: 'not_supported', provider: provider.id };
+  }
   // A provider whose tokens are pasted per site (Clarity) has no one key to
   // prove; its rows save through `putSiteToken` instead.
   // Existing clients may still submit a manually authorized AdSense grant.
@@ -92,6 +95,7 @@ export async function connectCredential(
   const answer: CandidateAnswer | Extract<ConnectCredentialResult, { ok: false }> = provider.id === 'mediavine'
     ? await connectMediavine(env, fields, options)
     : provider.id === 'local-model' ? await askLocalModel(env, fields, options.fetchImpl ?? fetch)
+    : provider.id === 'ntasks' && workspaceProfile(env) === 'hosted' ? await askHostedNtasks(env, fields, options.fetchImpl ?? fetch)
     : await askProvider(provider, fields, options.fetchImpl ?? fetch);
   if ('ok' in answer) return answer;
   const checkedAt = new Date(options.nowMs ?? Date.now()).toISOString();
@@ -119,6 +123,13 @@ export async function connectCredential(
     evidenceSource: 'probe',
   });
   return { ok: true, verdict: 'accepted', checkedAt, facts: answer.facts };
+}
+
+async function askHostedNtasks(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
+  const result = await checkHostedNtasks(env, fields, fetchImpl);
+  if (result.outcome === 'answered') return { verdict: 'accepted', facts: result.facts ?? {} };
+  const verdict = result.outcome === 'invalid' || result.outcome === 'refused' ? 'refused' : 'unreachable';
+  return { verdict, ...(result.failure ? { failure: result.failure } : {}) };
 }
 
 /**

@@ -117,7 +117,7 @@ async function fetchPortfolioBriefRequest(fetch: ApiTransport, signal?: AbortSig
  * slow union never delays the rest of the TV. */
 async function fetchWallFeedRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<WallFeedPayload> {
   const res = await fetch("/api/wall/feed", { signal, headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`GET /api/wall/feed failed: ${res.status}`);
+  if (!res.ok) throw new ApiError(`GET /api/wall/feed failed: ${res.status}`, res.status);
   return (await res.json()) as WallFeedPayload;
 }
 
@@ -136,7 +136,7 @@ function countsHistoryOf(value: unknown): ConnectionCountsHistory | undefined {
 }
 async function fetchIntegrationHealthRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<IntegrationHealthResponse> {
   const res = await fetch('/api/integrations/health', { signal, headers: { accept: 'application/json' } });
-  if (!res.ok) throw new Error('Integration health could not be refreshed');
+  if (!res.ok) throw new ApiError('Integration health could not be refreshed', res.status);
   const data: unknown = await res.json();
   if (!data || typeof data !== 'object' || !('generatedAt' in data) || !healthInstant(data.generatedAt) || !('available' in data) || typeof data.available !== 'boolean'
     || !('items' in data) || !Array.isArray(data.items) || !('events' in data) || !Array.isArray(data.events)

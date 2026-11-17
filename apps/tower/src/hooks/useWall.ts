@@ -1,28 +1,35 @@
-import { useChangesPushed, useTowerApi } from '@/lib/browser-context';
+import { useBrowserContext, useChangesPushed } from '@/lib/browser-context';
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { WallPayload } from "@shared/wall";
+import { HOSTED_WALL_REFRESH_MS, type WallPayload } from "@shared/wall";
+import { useEffect } from 'react';
+import { ApiError } from '@/lib/api';
+import { AppReleaseError } from '@/lib/app-release';
 
+function accessLost(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
+}
 
 /**
- * Polling read for both routes. On a failed poll TanStack Query keeps the last
- * successful `data` and surfaces `error`: the UI ages its badges off
- * `data.generatedAt` and never blanks or spins. A hidden tab does not poll:
- * TanStack's "background" is `document.visibilityState === "hidden"`, not
- * window focus, so the TV keeps its 60s refresh while a desk tab left behind
- * another stops asking. Coming back refetches at once when the held payload
- * is older than `staleTime`. While the change stream delivers it, it is read
- * only when it changed.
+ * A visible hosted Wall checks for completed reports hourly and on return. Hidden tabs do no periodic work.
+ * Transient read failures retain the last result. An access refusal discards
+ * it and rechecks the browser session.
  */
 export function useWall() {
-  const { fetchWall } = useTowerApi();
+  const { runtime, refreshSession } = useBrowserContext();
+  const hosted = runtime.owner.mode === 'hosted';
   const pushed = useChangesPushed();
-  return useQuery<WallPayload>({
+  const query = useQuery<WallPayload>({
     queryKey: ["wall"],
-    queryFn: ({ signal }) => fetchWall(signal),
-    refetchInterval: query => pushed && !query.state.error ? false : 60_000,
+    queryFn: ({ signal }) => runtime.api.fetchWall(signal),
+    refetchInterval: query => hosted ? HOSTED_WALL_REFRESH_MS : (pushed && !query.state.error) ? false : 60_000,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnMount: hosted ? 'always' : true,
+    refetchOnWindowFocus: hosted ? 'always' : true,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    ...(hosted ? { retry: (count: number, error: Error) => !(error instanceof AppReleaseError) && !accessLost(error) && count < 1 } : {}),
   });
+  const denied = hosted && accessLost(query.error);
+  useEffect(() => { if (denied) void refreshSession?.(); }, [denied, refreshSession]);
+  return denied ? { ...query, data: undefined } : query;
 }

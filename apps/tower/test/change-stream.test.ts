@@ -1,19 +1,23 @@
 import type { ServerResponse } from 'node:http';
 import { EventEmitter } from 'node:events';
 import { createElement, type ReactNode } from 'react';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
 import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { useWork } from '@/hooks/useWork';
 import { useWall } from '@/hooks/useWall';
 import { useWallFeed } from '@/hooks/useWallFeed';
 import { useIntegrationHealth } from '@/hooks/useIntegrationHealth';
+import { useConnections } from '@/hooks/useConnections';
+import { useGa4Realtime } from '@/hooks/useGa4Realtime';
+import { useCalendarUpcoming } from '@/hooks/useCalendarUpcoming';
 import { wallMoneyResponse } from './critical-response-fixtures';
 import { createChangeWatch, type TopicRead } from '../vite/change-lane';
 import { createChangeStream, type ChangeStream } from '@/lib/change-stream';
 import { CHANGE_STREAM_PATH } from '@shared/change-topics';
+import { HOSTED_WALL_REFRESH_MS } from '@shared/wall';
 
 /** A response the watch writes frames to, closed by `emit("close")`. */
 function client() {
@@ -26,6 +30,137 @@ function client() {
 }
 const events = (res: ReturnType<typeof client>) => res.frames.filter((frame) => frame.startsWith('event:'))
   .map((frame) => JSON.parse(frame.split('\ndata: ')[1]!) as unknown);
+
+describe('browser reads on an idle portfolio', () => {
+  const hosted = { mode: 'hosted', clientGeneration: 1,
+    principalId: '11111111-1111-4111-8111-111111111111', sessionId: '22222222-2222-4222-8222-222222222222',
+    workspaceId: '33333333-3333-4333-8333-333333333333' };
+  const now = '2026-10-01T12:00:00.000Z';
+  const paths = ['/api/wall', '/api/wall/feed', '/api/ga4/realtime', '/api/calendar/upcoming'];
+  const fixture: Record<string, unknown> = {
+    '/api/wall': wallMoneyResponse(),
+    '/api/wall/feed': { generatedAt: now, items: [] },
+    '/api/ga4/realtime': { generatedAt: now, assets: [] },
+    '/api/calendar/upcoming': { fetchedAt: now, feedsConfigured: 0, feedsOk: 0, calendars: [], meetings: [] },
+  };
+
+  afterEach(() => { focusManager.setFocused(undefined); vi.useRealTimers(); });
+
+  it.each([
+    { owner: { mode: 'standalone', clientGeneration: 1 }, onOpen: [1, 1, 1, 1], onIdle: [3, 5, 5, 3] },
+    { owner: hosted, onOpen: [1, 1, 0, 0], onIdle: [1, 1, 0, 0] },
+  ])('tracks entry, visible idle, hidden idle and closed tab in $owner.mode', async ({ owner, onOpen, onIdle }) => {
+    vi.useFakeTimers();
+    focusManager.setFocused(true);
+    const requests: string[] = [];
+    const runtime = createBrowserRuntime(owner, { origin: 'https://desk.example', fetch: async input => {
+      const path = new URL(String(input)).pathname;
+      requests.push(path);
+      if (!paths.includes(path)) throw new Error('Unexpected dashboard request');
+      return Response.json(fixture[path]);
+    }, sendAnswer: async () => {} });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider,
+      { value: { runtime, workspaceLabel: null }, children: createElement(QueryClientProvider, { client: runtime.queries }, children) });
+    const tab = renderHook(() => {
+      useWall(); useWallFeed(); useGa4Realtime(); useCalendarUpcoming();
+    }, { wrapper });
+    const counts = () => paths.map(path => requests.filter(asked => asked === path).length);
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(10));
+      expect(counts()).toEqual(onOpen);
+      await act(() => vi.advanceTimersByTimeAsync(121_000));
+      expect(counts()).toEqual(onIdle);
+      focusManager.setFocused(false);
+      await act(() => vi.advanceTimersByTimeAsync(121_000));
+      expect(counts()).toEqual(onIdle);
+      tab.unmount();
+      runtime.retire();
+      await act(() => vi.advanceTimersByTimeAsync(121_000));
+      expect(counts()).toEqual(onIdle);
+    } finally { tab.unmount(); runtime.retire(); }
+  });
+
+  it('drops a held hosted report when returning to the tab is refused', async () => {
+    focusManager.setFocused(true);
+    const request = vi.fn<typeof fetch>().mockImplementationOnce(async () => Response.json(wallMoneyResponse()))
+      .mockImplementationOnce(async () => Response.json({ error: 'unavailable' }, { status: 403 }));
+    const refreshSession = vi.fn(async () => {});
+    const runtime = createBrowserRuntime(hosted, { origin: 'https://desk.example', fetch: request, sendAnswer: async () => {} });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider,
+      { value: { runtime, workspaceLabel: null, refreshSession }, children: createElement(QueryClientProvider, { client: runtime.queries }, children) });
+    const tab = renderHook(useWall, { wrapper });
+    try {
+      await waitFor(() => expect(tab.result.current.data?.generatedAt).toBe(now));
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(tab.result.current.data).toBeUndefined();
+      expect(refreshSession).toHaveBeenCalledTimes(1);
+    } finally { tab.unmount(); runtime.retire(); }
+  });
+
+  it('checks the visible hosted report and health once an hour, then pauses both while hidden', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse(now));
+    focusManager.setFocused(true);
+    const reads: string[] = [];
+    const runtime = createBrowserRuntime(hosted, { origin: 'https://desk.example', sendAnswer: async () => {},
+      fetch: async input => {
+        const path = new URL(String(input)).pathname;
+        reads.push(path);
+        const generatedAt = new Date().toISOString();
+        if (path === '/api/wall') return Response.json({ ...wallMoneyResponse(), generatedAt });
+        if (path === '/api/integrations/health') return Response.json({ generatedAt, available: true, items: [], events: [] });
+        if (path === '/api/integrations/providers') {
+          return Response.json({ generatedAt, keyPresent: true, blockers: [], keyReason: null, providers: [] });
+        }
+        throw new Error('Unexpected dashboard request ' + path);
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider,
+      { value: { runtime, workspaceLabel: null }, children: createElement(QueryClientProvider, { client: runtime.queries }, children) });
+    const tab = renderHook(() => ({ wall: useWall(), connections: useConnections(false) }), { wrapper });
+    const count = (path: string) => reads.filter(read => read === path).length;
+    try {
+      await act(async () => { await vi.dynamicImportSettled(); });
+      await act(() => vi.advanceTimersByTimeAsync(121_000));
+      expect(reads.sort()).toEqual(['/api/integrations/health', '/api/integrations/providers', '/api/wall']);
+      expect(tab.result.current.wall.data?.generatedAt).toBe(now);
+      expect(tab.result.current.connections.credentials?.size).toBe(0);
+      await act(() => vi.advanceTimersByTimeAsync(HOSTED_WALL_REFRESH_MS - 121_000 + 10));
+      expect(count('/api/wall')).toBe(2);
+      expect(count('/api/integrations/health')).toBe(2);
+      expect(count('/api/integrations/providers')).toBe(1);
+      const hourly = new Date(Date.parse(now) + HOSTED_WALL_REFRESH_MS).toISOString();
+      expect(tab.result.current.wall.data?.generatedAt).toBe(hourly);
+      expect(tab.result.current.connections.snapshot?.checkedAt).toBe(hourly);
+      focusManager.setFocused(false);
+      await act(() => vi.advanceTimersByTimeAsync(2 * HOSTED_WALL_REFRESH_MS));
+      expect(reads).toHaveLength(5);
+      focusManager.setFocused(true);
+      await act(() => vi.advanceTimersByTimeAsync(10));
+      expect(count('/api/wall')).toBe(3);
+      expect(count('/api/integrations/health')).toBe(3);
+      expect(count('/api/integrations/providers')).toBe(2);
+    } finally { tab.unmount(); runtime.retire(); }
+  });
+
+  it('loads the hosted calendar only when explicitly requested', async () => {
+    const request = vi.fn<typeof fetch>(async () => Response.json(fixture['/api/calendar/upcoming']));
+    const runtime = createBrowserRuntime(hosted, { origin: 'https://desk.example', fetch: request, sendAnswer: async () => {} });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider,
+      { value: { runtime, workspaceLabel: null }, children: createElement(QueryClientProvider, { client: runtime.queries }, children) });
+    const tab = renderHook(useCalendarUpcoming, { wrapper });
+    try {
+      expect(request).not.toHaveBeenCalled();
+      await act(async () => { await tab.result.current.refetch(); });
+      await waitFor(() => expect(tab.result.current.data?.fetchedAt).toBe(now));
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(new URL(String(request.mock.calls[0]?.[0])).pathname).toBe('/api/calendar/upcoming');
+    } finally { tab.unmount(); runtime.retire(); }
+  });
+});
 
 describe("the server's one check for every open page", () => {
   afterEach(() => { vi.useRealTimers(); });

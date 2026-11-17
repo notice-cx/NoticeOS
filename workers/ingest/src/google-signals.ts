@@ -12,12 +12,14 @@ import { beginCollection, collectionMonitoring } from './collection-attempt.js';
 
 import {
   OS_TIME_ZONE,
+  GA4_REPORTED_DAY_SUFFIX,
   INTEGRATION_CADENCE_HOURS,
   type CredentialSource,
   type CredentialStoreState,
   integrationProvider,
   providerReportingTimeZone,
 } from '@noticeos/contract';
+import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import {
   recordCredentialOutcome,
   resolveCredential as resolveStoredCredential,
@@ -216,6 +218,7 @@ export async function runGoogleSignals(
   options: GoogleSignalsOptions = {},
 ): Promise<GoogleSignalsResult> {
   const nowMs = options.nowMs ?? Date.now();
+  const recordReportedDay = workspaceProfile(env) === 'hosted';
   const clock = options.nowMs === undefined ? Date.now : () => nowMs;
   const fetchImpl = options.fetchImpl ?? fetch;
   // One gate per run, asked only when a Google call came back with no status
@@ -326,7 +329,7 @@ export async function runGoogleSignals(
             googleFetch,
             (token) => integration === 'ga4'
               ? collectGa4(env.STORE, target.propertyRef, window, token, googleFetch, clock,
-                trial ? GA4_TRIAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS)
+                trial ? GA4_TRIAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS, recordReportedDay)
               : collectGsc(target.propertyRef, window, token, googleFetch),
             (token) => {
               // The whole account shares the token, so a refresh earned by one
@@ -343,7 +346,9 @@ export async function runGoogleSignals(
 
           const trialRunId = trial?.measuring && 'elapsedMs' in result && typeof result.elapsedMs === 'number' && result.elapsedMs > REQUEST_TIMEOUT_MS
             ? `${trial.savedRunPrefix}${crypto.randomUUID()}` : undefined;
-          await recordSignalSuccess(env, target, window, startedAt, result, monitoring, trialRunId);
+          const reportedDay = 'reportedDay' in result ? result.reportedDay : null;
+          const runId = reportedDay ? `${trialRunId ?? crypto.randomUUID()}${GA4_REPORTED_DAY_SUFFIX}${reportedDay}` : trialRunId;
+          await recordSignalSuccess(env, target, window, startedAt, result, monitoring, runId);
 
           // A reporting timezone change means the property's day changed shape
           // and the provider does not reprocess what it already bucketed.
@@ -953,7 +958,9 @@ async function collectGa4(
   fetchImpl: typeof fetch,
   clock: () => number,
   timeoutMs: number,
-): Promise<SignalProviderResult & { elapsedMs: number }> {
+  recordReportedDay: boolean,
+): Promise<SignalProviderResult & { elapsedMs: number; reportedDay: string | null }> {
+  const checkedAt = clock();
   const { response, body, elapsedMs } = await readGa4CoreReport(store, propertyId, (input, init) =>
     fetchImpl(input, { ...init, signal: AbortSignal.timeout(timeoutMs) }), {
     method: 'POST',
@@ -992,6 +999,7 @@ async function collectGa4(
 
   const observations: SignalObservation[] = [];
   const rows = arrayField(record, 'rows');
+  const dates = new Set<string>();
   for (const rowValue of rows) {
     const row = asRecord(rowValue);
     const dimensions = arrayField(row, 'dimensionValues');
@@ -1001,32 +1009,44 @@ async function collectGa4(
       throw new SignalError('ga4_invalid_response', 'GA4 returned a malformed daily row.');
     }
     const date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+    if (recordReportedDay && dates.has(date)) throw new SignalError('ga4_invalid_response', 'GA4 returned a duplicate daily row.');
+    dates.add(date);
     const names = ['sessions', 'active_users', 'page_views', 'event_count'];
     values.forEach((entry, index) => {
+      const raw = stringField(asRecord(entry), 'value');
+      if (recordReportedDay && (raw === null || !/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)))) {
+        throw new SignalError('ga4_invalid_response', 'GA4 returned a malformed daily count.');
+      }
       observations.push({
         date,
         metric: names[index]!,
-        value: finiteValue(stringField(asRecord(entry), 'value'), 'GA4'),
+        value: finiteValue(raw, 'GA4'),
       });
     });
   }
+  // The property can cross midnight before a collector using the saved clock.
+  // Use the provider's clock for the reporting date and require the query to cover it.
+  const timeZone = stringField(asRecord(record?.metadata), 'timeZone');
+  const propertyDay = recordReportedDay && timeZone ? dateInTimeZone(checkedAt, timeZone) : null;
+  const reportedDay = propertyDay && propertyDay >= window.start && propertyDay <= window.end && dates.has(propertyDay) ? propertyDay : null;
   return {
     elapsedMs,
+    reportedDay,
     providerRows: rows.length,
     quota: parseGa4PropertyQuota(record),
     // The property's own reporting timezone, on every call: a configured zone
     // is a copy that is right until somebody changes the property.
-    timeZone: stringField(asRecord(record?.metadata), 'timeZone'),
+    timeZone,
     observations: fillDailyObservations(window, observations, [
       'sessions',
       'active_users',
       'page_views',
       'event_count',
-    ]),
+    ], propertyDay),
     dataState: 'includes-provisional',
     // Today and yesterday are provisional (`GA4_SETTLE_DAYS`): today is a
     // partial day; yesterday is a day GA4 has not finished attributing.
-    provisionalFrom: ga4ProvisionalFrom(window.end),
+    provisionalFrom: ga4ProvisionalFrom(propertyDay && propertyDay < window.end ? propertyDay : window.end),
   };
 }
 
@@ -1234,12 +1254,12 @@ function validateTimeZone(timeZone: string, asset: string): void {
   }
 }
 
-/** Daily Search Analytics omits dates with no rows. A bounded date-only query
- * cannot be truncated, so those omissions are honest zeroes. */
+/** Fill missing daily rows with zero except for a GA4 date still in progress. */
 function fillDailyObservations(
   window: SignalDateWindow,
   observations: SignalObservation[],
   metrics: string[],
+  unknownFrom: string | null = null,
 ): SignalObservation[] {
   const values = new Map(
     observations.map((observation) => [
@@ -1255,7 +1275,9 @@ function fillDailyObservations(
   ) {
     const date = utcDay(new Date(time));
     for (const metric of metrics) {
-      filled.push({ date, metric, value: values.get(`${date}\0${metric}`) ?? 0 });
+      const value = values.get(`${date}\0${metric}`);
+      if (value === undefined && unknownFrom !== null && date >= unknownFrom) continue;
+      filled.push({ date, metric, value: value ?? 0 });
     }
   }
   return filled;

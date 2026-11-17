@@ -438,13 +438,13 @@ const ingestHttp = Object.freeze({
 });
 const hostedStoredRoutes = Object.freeze({
     '/api/demo/presentation': operation('evidence.read'),
-    '/api/wall': evidence,
+    '/api/wall': operation('evidence.read', [configRead, 'refreshHostedTaskSummary']),
     '/api/wall/feed': evidence,
     '/api/financials': evidence,
     '/api/alerts/history': operation('evidence.read'),
     '/api/alerts/rules': operation('evidence.read'),
     // The board reads the saved time zone, where its week starts.
-    '/api/work': operation('tasks.read', [configRead]),
+    '/api/work': operation('tasks.read', [configRead, 'refreshHostedTaskSummary']),
     '/api/task-source': operation('tasks.read', [configRead]),
     '/api/settings': operation('settings.read', [configRead]),
     '/api/integrations': operation('integrations.summary.read', [configRead]),
@@ -796,6 +796,12 @@ export async function towerOperation(request) {
         }
         refuse();
     }
+    const taskRequest = hostedTaskRequest(request);
+    if (taskRequest) {
+        if (method !== 'GET')
+            await jsonBody(request);
+        return operation(taskRequest.action, ['hostedTaskRequest']);
+    }
     if (pathname.startsWith('/api/tasks') || pathname.startsWith('/api/gates/')) {
         if ((pathname === '/api/tasks' || /^\/api\/tasks\/[^/]+$/u.test(pathname)) && method === 'GET')
             return operation('tasks.read');
@@ -863,3 +869,4 @@ export async function ingestOperation(method, originalRequest) {
     return selected;
 }
 import { productUseStagesRefusal } from '../packages/contract/src/product-use.mjs';
+import { hostedTaskRequest } from './hosted-task-request.mjs';
