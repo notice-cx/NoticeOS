@@ -21,10 +21,11 @@ function history(metric: string, weekdayCount: number): SignalObservation[] {
   return Array.from({ length: 63 }, (_, index) => typical(shiftUtcDay(DROP, index - 63), metric, weekdayCount));
 }
 
-async function save(integration: SignalIntegration, rows: SignalObservation[], provisionalFrom: string | null = null) {
+async function save(integration: SignalIntegration, rows: SignalObservation[], provisionalFrom: string | null = null,
+  collectedOn = shiftUtcDay(rows.at(-1)!.date, 1)) {
   await recordSignalSuccess(env, {
     asset: ASSET, integration, credentialRef: 'synthetic', propertyRef: 'synthetic-property',
-  }, { start: rows[0]!.date, end: rows.at(-1)!.date }, '2026-09-24T12:00:00Z', {
+  }, { start: rows[0]!.date, end: rows.at(-1)!.date }, `${collectedOn}T02:30:00Z`, {
     observations: rows, providerRows: rows.length, provisionalFrom,
     dataState: provisionalFrom ? 'includes-provisional' : 'final',
   });
@@ -73,6 +74,18 @@ describe('search traffic alerts from stored provider counts', () => {
     await save('bing-webmaster', recovered);
     expect(await sweep(Date.parse('2026-10-01T12:00:00Z'))).toMatchObject({ raised: 0, resolved: 1 });
     expect((await alerts(BING_RULE))[0]?.resolved).toBeTruthy();
+  });
+
+  it('requires a later Bing collection to confirm a value first reported before its day ended', async () => {
+    const zero = { date: DROP, metric: 'impressions', value: 0 };
+    await save('bing-webmaster', [...history('impressions', 5_000), zero], null, DROP);
+    expect(await sweep(Date.parse(`${DROP}T12:00:00Z`))).toMatchObject({ raised: 0 });
+    expect(await sweep()).toMatchObject({ raised: 0 });
+    expect(await alerts(BING_RULE)).toEqual([]);
+
+    await save('bing-webmaster', [zero]);
+    expect(await sweep()).toMatchObject({ raised: 1 });
+    expect(JSON.parse((await alerts(BING_RULE))[0]!.inputs)).toMatchObject({ observationEnd: DROP });
   });
 
   it('skips provisional Google counts until a later run confirms the same values', async () => {

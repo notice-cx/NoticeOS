@@ -152,7 +152,8 @@ export async function readPanelManifest(
  * change log, so a day first reported while still filling in would otherwise
  * stay provisional forever. The confirmation is the newest successful run of
  * the same resource and time zone whose window covers the day, or the writer
- * itself; age alone never finalizes a day.
+ * itself; age alone never finalizes a day. Bing does not publish a provisional
+ * boundary, so a pull started during the reported UTC day cannot confirm it.
  */
 export async function readDailySignalTrend(
   tx: Transaction,
@@ -201,11 +202,14 @@ export async function readDailySignalTrend(
               CASE
                 WHEN confirmation.provisional_from IS NOT NULL
                  AND newest.observed_date >= confirmation.provisional_from
+                THEN 1
+                WHEN newest.integration = 'bing-webmaster' AND newest.observed_date >= confirmation.started_day
                 THEN 1 ELSE 0
               END AS provisional
          FROM newest
         CROSS JOIN LATERAL (
-              SELECT c.provisional_from
+              SELECT c.provisional_from,
+                     (c.started_at AT TIME ZONE 'UTC')::date AS started_day
                 FROM noticeos.signal_runs AS c
                WHERE c.workspace_id = newest.workspace_id
                  AND c.asset_id = $1
