@@ -11,6 +11,5 @@ export declare function hostedTaskChanges(service: NtasksReads, cursor: number):
     complete: boolean;
     reset: boolean;
 }>;
-/** Read one project completely before starting the next. This limits response
- * memory and avoids an unchecked fan-out to the service on a large portfolio. */
+/** Limit concurrently retained boards and keep the published project order. */
 export declare function readHostedTaskBoards(service: NtasksReads, projects: readonly MappedTaskProject[], now: number): Promise<BeadsProjectInput[]>;

@@ -192,3 +192,62 @@ it('uses separate project grants for the same Tower and saves only complete obse
     await Promise.all(stores.map(store => store.close()));
   }
 });
+
+it('captures the full supported project set with bounded parallel reads and keeps it on a later timeout', async () => {
+  const workspaceId = '99999999-9999-4999-8999-999999999999';
+  await asOwner(`INSERT INTO noticeos.workspaces(workspace_id, slug, display_name, status)
+    VALUES ('${workspaceId}', 'large-task-fixture', 'Large task fixture', 'active')`);
+  const store = openWorkspaceStore(env.POSTGRES.connectionString, { workspaceId });
+  const projects = Array.from({ length: 64 }, (_, index) => {
+    const key = `site${index}`;
+    return { projectId: `project-${key}`, prefix: key, logicalKey: key, displayName: key };
+  });
+  const start = Date.now();
+  let clock = start, roundTrip = 200, pending = 0, peak = 0;
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    expect(url.origin).toBe(NTASKS);
+    const arrival = clock + roundTrip;
+    peak = Math.max(peak, ++pending);
+    // Let the parallel requests leave before any simulated reply arrives.
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    clock = Math.max(clock, arrival);
+    pending--;
+    if (url.pathname === '/api/access/me') return Response.json({ kind: 'service', projects: projects.map(project => ({
+      workspaceId: ACCOUNT_A, projectId: project.projectId, access: 'read',
+    })) });
+    if (url.pathname === '/api/tasks/projects') return Response.json({ projects });
+    if (url.pathname === '/api/changes') return Response.json({ events: [], lastSeq: 0 });
+    expect(url.pathname).toBe('/api/tasks');
+    expect(projects.some(project => project.projectId === url.searchParams.get('project'))).toBe(true);
+    return Response.json({ tasks: [], epics: [] });
+  };
+  try {
+    expect(await seedConfigDocuments({ ...env, STORE: store }, {
+      documents: { 'config/beads.json': { spokes: projects.map(project => ({ asset: `${project.prefix}.example`,
+        prefix: project.prefix, database: project.logicalKey })) } }, actor: 'fixture',
+    })).toMatchObject({ ok: true });
+    expect(await putCredential({ ...env, STORE: store }, { provider: 'ntasks', fields: {
+      NTASKS_URL: NTASKS, NTASKS_TOKEN: 'ntasks_service.synthetic-large', NTASKS_WORKSPACE_ID: ACCOUNT_A,
+    } })).toMatchObject({ ok: true });
+    const refresh = () => refreshHostedTaskSummary({ ...env, STORE: store,
+      NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_NTASKS_ORIGIN: NTASKS }, { fetchImpl, now: () => clock });
+    const latest = async () => (await store.read(tx => tx.query<{ payload: string; captured_at: string }>(
+      'SELECT payload::text, captured_at FROM noticeos.task_snapshots ORDER BY captured_at DESC LIMIT 1')))[0];
+
+    const captured = await refresh();
+    expect(captured, `elapsed ${clock - start}ms, peak ${peak}`).toBe(true);
+    const saved = await latest();
+    expect(JSON.parse(saved!.payload).projects.map((project: { asset: string }) => project.asset))
+      .toEqual(projects.map(project => `${project.prefix}.example`));
+    expect(peak).toBe(4);
+    expect(clock - start).toBeGreaterThan(5_000);
+    expect(clock - start).toBeLessThan(25_000);
+
+    clock += 16 * 60_000;
+    roundTrip = 1_000;
+    expect(await refresh()).toBe(false);
+    expect(await latest()).toEqual(saved);
+    expect(pending).toBe(0);
+  } finally { await store.close(); }
+});

@@ -3,13 +3,14 @@
 // operator's decisions merged across projects without reordering any
 // project's own inbox, and the held work, urgent first, then longest held.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { loadLatestTaskSnapshot, type TaskSnapshot, type SnapshotProject } from "../worker/task-snapshot";
 import { wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
+import { deferred } from "./deferred";
 
 const NOW = new Date("2026-10-21T12:00:00.000Z");
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 86_400_000).toISOString();
@@ -257,6 +258,30 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
     } finally {
       release(false);
       await read;
+    }
+  });
+
+  it("returns a cold read within its wait limit while the background capture can still finish", async () => {
+    vi.useFakeTimers();
+    const capture = deferred<boolean>();
+    let published = false;
+    let returned: TaskSnapshot | null | undefined;
+    const store = { read: async (run: (tx: { query: () => Promise<unknown[]> }) => Promise<unknown>) =>
+      run({ query: async () => published ? [{ captured_at: hoursAgo(0), payload: JSON.stringify({ projects: [stored({})] }) }] : [] }),
+    } as unknown as WorkspaceStore;
+    const reading = loadLatestTaskSnapshot(store, () => capture.promise).then(value => { returned = value; });
+    try {
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(returned).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(returned).toBeNull();
+      published = true;
+      capture.resolve(true);
+      expect((await loadLatestTaskSnapshot(store))?.projects.map(project => project.asset)).toEqual(["meadow.example"]);
+    } finally {
+      capture.resolve(false);
+      await reading;
+      vi.useRealTimers();
     }
   });
 

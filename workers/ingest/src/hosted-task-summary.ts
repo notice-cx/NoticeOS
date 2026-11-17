@@ -9,7 +9,7 @@ import { writeTaskSnapshot, type HostedTaskSnapshotSource } from './task-snapsho
 
 const CHECK_INTERVAL_MS = 60_000;
 const BOARD_MAX_AGE_MS = 15 * 60_000;
-const REFRESH_DEADLINE_MS = 5_000;
+const REFRESH_DEADLINE_MS = 25_000;
 const RECENT_ATTEMPTS = 256;
 const attempts = new Map<string, number>();
 isolateState('Ntasks summary checks', { forget: () => attempts.clear(), held: () => attempts.size > 0 });
@@ -25,7 +25,7 @@ function sourceOf(raw: string | null | undefined): HostedTaskSnapshotSource | nu
 }
 
 /** Only a Wall or Work read can request this refresh. A weak network keeps
- * the last published summary and its date. Timing covers an entire attempt. */
+ * the last published summary and its date. Task service reads share one deadline. */
 export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fetch, now = Date.now } = {}): Promise<boolean> {
   if (!env.NOTICEOS_NTASKS_ORIGIN) return false;
   const workspace = await env.STORE.workspaceId();
@@ -73,7 +73,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     } };
     const feed = await hostedTaskChanges(service, previous?.cursor ?? 0);
     const checkedAt = new Date(now()).toISOString();
-    if (!await connection.stillCurrent()) return false;
+    if (!await connection.stillCurrent() || now() >= deadline) return false;
     if (latest && previous && feed.complete && !feed.reset && started - Date.parse(previous.boardReadAt) < BOARD_MAX_AGE_MS
       && ![...feed.changed].some(project => connection.selectedIds.has(project))) {
       // An interrupted or concurrent capture cannot move a newer row's cursor.
@@ -91,7 +91,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     const boardReadAt = new Date(now()).toISOString();
     // If a connection was replaced while the reads were in flight, do not
     // publish the old credential's data as the new connection's summary.
-    if (!(await connection.stillCurrent())) return false;
+    if (!await connection.stillCurrent() || now() >= deadline) return false;
     return (await writeTaskSnapshot(env, { capturedAt: boardReadAt, projects }, now(), { mapping, cursor: feed.cursor, checkedAt, boardReadAt })).ok;
   } catch (error) {
     if (error instanceof TaskServiceUnavailable && error.reason === 'refused'

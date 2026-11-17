@@ -407,9 +407,15 @@ export async function loadLatestTaskSnapshot(store: WorkspaceStore, refresh?: Ta
 
   let [row] = await latest();
   const refreshing = refresh?.();
-  // A saved board returns immediately. The first page can wait for its
-  // first observation, and rereads only when Ingest published a snapshot.
-  if (!row && refreshing && await refreshing) [row] = await latest();
+  // A saved board returns immediately. Cold reads wait briefly while the
+  // refresh keeps running under the caller's background lifetime.
+  if (!row && refreshing) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const wait = new Promise<boolean>(resolve => { timer = setTimeout(() => resolve(false), 5_000); });
+      if (await Promise.race([refreshing, wait])) [row] = await latest();
+    } finally { clearTimeout(timer); }
+  }
   if (!row) return null;
 
   let parsed: unknown;

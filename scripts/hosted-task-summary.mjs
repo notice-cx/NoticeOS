@@ -2,6 +2,7 @@
 import { boardReads, LABEL_READS, readFeed, readLabels } from './ntasks-board.mjs';
 import { summarizeTaskProject, TASK_CLOSES_DAYS, taskProjectError, tasksClosedSince, tasksClosesSince } from './task-snapshot-summary.mjs';
 import { TaskServiceUnavailable } from './task-records.mjs';
+const BOARD_BATCH = 2;
 export function assertHostedTaskReadAccess(status) {
     if (status === 401 || status === 403)
         throw new TaskServiceUnavailable('refused', status);
@@ -32,16 +33,12 @@ export async function hostedTaskChanges(service, cursor) {
         return { ...await readFeed(service, 0, options), reset: true };
     }
 }
-/** Read one project completely before starting the next. This limits response
- * memory and avoids an unchecked fan-out to the service on a large portfolio. */
+/** Limit concurrently retained boards and keep the published project order. */
 export async function readHostedTaskBoards(service, projects, now) {
     const reach = { closedSince: tasksClosedSince(now), closesSince: tasksClosesSince(now) };
-    const results = [];
-    for (const project of projects) {
-        if (project.project === null) {
-            results.push(taskProjectError(project, 'Ntasks has not granted access to this project.'));
-            continue;
-        }
+    const read = async (project) => {
+        if (project.project === null)
+            return taskProjectError(project, 'Ntasks has not granted access to this project.');
         const id = encodeURIComponent(project.project.projectId);
         const [board, closes] = await readTogether([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
             .map(path => service.call({ method: 'GET', path })));
@@ -53,7 +50,11 @@ export async function readHostedTaskBoards(service, projects, now) {
         const entry = summarizeTaskProject(project, boardReads(board.body, closes.body, Object.fromEntries(labels)), reach);
         if (!entry.ok)
             throw new TaskServiceUnavailable('invalid-response');
-        results.push(entry);
+        return entry;
+    };
+    const results = [];
+    for (let i = 0; i < projects.length; i += BOARD_BATCH) {
+        results.push(...await readTogether(projects.slice(i, i + BOARD_BATCH).map(read)));
     }
     return results;
 }
