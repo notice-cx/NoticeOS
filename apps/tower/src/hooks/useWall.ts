@@ -1,6 +1,6 @@
 import { useBrowserContext, useChangesPushed } from '@/lib/browser-context';
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { WallPayload } from "@shared/wall";
+import { HOSTED_WALL_REFRESH_MS, type WallPayload } from "@shared/wall";
 import { useEffect } from 'react';
 import { ApiError } from '@/lib/api';
 import { AppReleaseError } from '@/lib/app-release';
@@ -10,7 +10,7 @@ function accessLost(error: unknown): boolean {
 }
 
 /**
- * A hosted Wall reads on entry, return to the tab, or query invalidation.
+ * A visible hosted Wall checks for completed reports hourly and on return. Hidden tabs do no periodic work.
  * Transient read failures retain the last result. An access refusal discards
  * it and rechecks the browser session.
  */
@@ -21,7 +21,7 @@ export function useWall() {
   const query = useQuery<WallPayload>({
     queryKey: ["wall"],
     queryFn: ({ signal }) => runtime.api.fetchWall(signal),
-    refetchInterval: query => hosted || (pushed && !query.state.error) ? false : 60_000,
+    refetchInterval: query => hosted ? HOSTED_WALL_REFRESH_MS : (pushed && !query.state.error) ? false : 60_000,
     refetchIntervalInBackground: false,
     refetchOnMount: hosted ? 'always' : true,
     refetchOnWindowFocus: hosted ? 'always' : true,

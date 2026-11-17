@@ -374,10 +374,16 @@ export function laneStatus(input: {
 /** The two reads every status is derived from: the stored credentials and the
  * monitoring items (`currentHealth`). A read that has not answered is
  * `undefined` / `null`, which the model reads as Unknown, never Not connected. */
+export interface ConnectionHealthSnapshot {
+  readonly checkedAt: string | null;
+  readonly state: 'saved' | 'stale' | 'error' | 'unknown';
+}
+
 export interface ConnectionReads {
   credentials: ReadonlyMap<string, CredentialSummary> | undefined;
   items: IntegrationHealthItem[] | null;
   events?: readonly IntegrationHealthEvent[];
+  snapshot?: ConnectionHealthSnapshot;
 }
 
 /** Neither read has answered: every provider's source is Unknown. */

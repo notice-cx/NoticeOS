@@ -1,6 +1,7 @@
 import { javascriptInstant } from '@noticeos/postgres';
 import { isolateState } from './isolate-state.js';
-import { hostedTaskChanges, readHostedTaskBoards } from '../../../scripts/hosted-task-summary.mjs';
+import { assertHostedTaskReadAccess, hostedTaskChanges, readHostedTaskBoards } from '../../../scripts/hosted-task-summary.mjs';
+import { TaskServiceUnavailable } from '../../../scripts/task-records.mjs';
 import { callNtasks, TaskServiceError } from './ntasks.js';
 import { readHostedTaskConnection } from './routes/hosted-task-service.js';
 import { isRecord } from './shared.js';
@@ -61,8 +62,14 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     const mapping = JSON.stringify([credential.connectionId, credential.secretVersion, workspaceId,
       connection.projects.map(project => [project.asset, project.prefix, project.project?.projectId ?? null])]);
     const previous = prior?.mapping === mapping ? prior : null;
-    const service = { call: ({ method, path }: { method: 'GET'; path: string }) =>
-      callNtasks(credential.fields, { method, path, workspaceId }, boundedFetch) };
+    const service = { async call({ method, path }: { method: 'GET'; path: string }) {
+      const reply = await callNtasks(credential.fields, { method, path, workspaceId }, boundedFetch).catch(error => {
+        if (error instanceof TaskServiceError) assertHostedTaskReadAccess(error.failure.status);
+        throw error;
+      });
+      assertHostedTaskReadAccess(reply.status);
+      return reply;
+    } };
     const feed = await hostedTaskChanges(service, previous?.cursor ?? 0);
     const checkedAt = new Date(now()).toISOString();
     if (!await connection.stillCurrent()) return;
@@ -86,6 +93,7 @@ export async function refreshHostedTaskSummary(env: IngestEnv, { fetchImpl = fet
     if (!(await connection.stillCurrent())) return;
     await writeTaskSnapshot(env, { capturedAt: boardReadAt, projects }, now(), { mapping, cursor: feed.cursor, checkedAt, boardReadAt });
   } catch (error) {
-    if (error instanceof TaskServiceError && ['access', 'configuration'].includes(error.failure.kind)) await retire();
+    if (error instanceof TaskServiceUnavailable && error.reason === 'refused'
+      || error instanceof TaskServiceError && ['access', 'configuration'].includes(error.failure.kind)) await retire();
   }
 }

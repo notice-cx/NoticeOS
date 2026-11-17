@@ -10,6 +10,7 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 import { localNtasksOrigin, startLocalCustomer } from './local-customer.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
 import { startPlan } from './start.mjs';
+import { PostgresUnavailable } from './postgres-dev.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
 import { assertCustomerSchedule, prepareCustomerSchedule } from './test-fixtures/customer-schedule.mjs';
 import { prepareCustomerReports, prepareReportObjects, verifyCustomerReports } from './test-fixtures/customer-report.mjs';
@@ -25,6 +26,55 @@ test('a customer fixture accepts only an explicit local Ntasks origin', () => {
   assert.equal(localNtasksOrigin('http://127.0.0.1:17399'), 'http://127.0.0.1:17399');
   for (const origin of ['https://example.test', 'http://localhost:17399', 'http://127.0.0.1:17399/path', 'http://127.0.0.1:17399?provider=other']) {
     assert.throws(() => localNtasksOrigin(origin));
+  }
+});
+
+test('local customer startup can retry before initialization and renews just the expired first invitation', { timeout: 120_000 }, async t => {
+  const home = mkdtempSync(path.join(realpathSync(os.tmpdir()), 'noticeos-customer-first-'));
+  const plan = startPlan({ dir: home, port: await availablePort() });
+  const postgres = path.join(home, '.local', 'customer-postgres');
+  let db, app;
+  try {
+    assert.throws(() => openDevelopmentStart(plan, { profile: 'hosted', tools: null }), PostgresUnavailable);
+    assert.deepEqual(readdirSync(postgres), []);
+    db = await skipWithoutPostgres(t, () => openDevelopmentStart(plan, { profile: 'hosted' }));
+    if (!db) return;
+    app = await startLocalCustomer(plan, db);
+    const [expired, active] = app.workspaces;
+    const expiredId = new URL(expired.url).hash.slice('#invitation='.length);
+    db.cluster.run(`UPDATE noticeos_identity.auth_invitation SET expires_at = now() - interval '1 hour'
+      WHERE id = :'id'::uuid;
+      INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,list_position)
+      VALUES (:'workspace'::uuid, 'saved-example', 'Saved example', 'live', 1);`,
+    { vars: { id: expiredId, workspace: expired.workspaceId } });
+    const invitations = () => db.cluster.sql(`SELECT id, expires_at::text, expires_at > now() AS usable
+      FROM noticeos_identity.auth_invitation ORDER BY id`);
+    const original = invitations();
+    assert.equal(original.find(row => row.id === expiredId).usable, 'f');
+    const settingsFile = path.join(db.customer, 'settings.json');
+    const settings = readFileSync(settingsFile, 'utf8');
+    await app.close(); app = undefined;
+    db.close(); db = undefined;
+
+    db = openDevelopmentStart(plan, { profile: 'hosted' });
+    app = await startLocalCustomer(plan, db);
+    const renewed = invitations();
+    assert.equal(renewed.find(row => row.id === expiredId).usable, 't');
+    assert.deepEqual(renewed.filter(row => row.id !== expiredId), original.filter(row => row.id !== expiredId));
+    assert.equal(readFileSync(settingsFile, 'utf8'), settings);
+    assert.deepEqual(db.cluster.sql(`SELECT asset_id FROM noticeos.assets WHERE asset_id = 'saved-example'`), [{ asset_id: 'saved-example' }]);
+    for (const [workspace, count] of [[expired, 2], [active, 1]]) {
+      assert.equal(messages(app.outbox).filter(message => message.to === workspace.email && message.text.endsWith(workspace.url)).length, count);
+    }
+    const response = await fetch(app.publicOrigin + EMAIL_CODE_PATHS.request, { method: 'POST',
+      headers: { origin: app.publicOrigin, 'content-type': 'application/json',
+        [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: expiredId },
+      body: JSON.stringify({ email: expired.email }), signal: AbortSignal.timeout(30000) });
+    assert.equal(response.status, 202);
+  } finally {
+    try { await app?.close(); } finally { db?.close(); }
+    assert.equal(existsSync(path.join(postgres, 'data', 'postmaster.pid')), false);
+    rmSync(home, { recursive: true, force: true });
   }
 });
 
@@ -108,12 +158,15 @@ test('local customer Tower uses real invitations, workspace selection and durabl
 
     prepareCustomerSchedule({ db, app });
     const reportObjects = prepareCustomerReports({ db, app });
+    db.cluster.run(`DELETE FROM noticeos.config_documents
+      WHERE workspace_id=:'workspace'::uuid AND document_key='value-events';`, { vars: { workspace: west.workspaceId } });
     const archive = customerArchiveFixture(app);
     await app.close(); app = undefined;
     db.close(); db = undefined;
     assert.equal(existsSync(path.join(home, '.local', 'customer-postgres', 'data', 'postmaster.pid')), false);
     db = openDevelopmentStart(plan, { profile: 'hosted' });
     let resources, cold;
+    const warning = t.mock.method(console, 'warn', () => {});
     app = await startLocalCustomer(plan, db, { fixtureProvider: archive.fetch, async startSchedules(options) {
       resources = options;
       await prepareReportObjects(options.bucket, reportObjects);
@@ -126,6 +179,7 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     } });
     await app.whenIdle();
     assertCustomerSchedule({ db, app });
+    assert.equal(warning.mock.calls.filter(call => /report settings/u.test(String(call.arguments[0]))).length, 1);
     assert.equal(cold?.objectReads, reportObjects.length);
     await verifyCustomerReports({ db, app, resources, cold, t });
     const collected = await archive.verify({ db, options: resources, t });

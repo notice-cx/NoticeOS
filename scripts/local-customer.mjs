@@ -57,6 +57,29 @@ function provision(cluster, publicOrigin, deliver) {
   });
 }
 
+function renewFirstInvitations(cluster, settings, deliver) {
+  for (const [index, workspace] of settings.workspaces.entries()) {
+    const email = FIRST_WORKSPACES[index].email;
+    const id = /^#invitation=([a-f0-9-]{36})$/u.exec(new URL(workspace.url).hash)?.[1];
+    if (!id || workspace.email !== email || workspace.url !== emailEnrollmentUrl(settings.publicOrigin, { kind: 'invitation', id })) {
+      throw new Error('The local first-owner invitation is invalid.');
+    }
+    const renewed = cluster.script(`UPDATE noticeos_identity.auth_invitation AS invitation
+      SET expires_at = now() + interval '1 day'
+      WHERE invitation.id = :'id'::uuid AND invitation.organization_id = :'workspace'::uuid
+        AND invitation.email = :'email' AND invitation.role = 'owner'
+        AND invitation.status = 'pending' AND invitation.expires_at <= now()
+        AND EXISTS (SELECT FROM noticeos.workspaces w WHERE w.workspace_id = invitation.organization_id AND w.status = 'active')
+        AND NOT EXISTS (SELECT FROM noticeos_identity.auth_member m WHERE m.organization_id = invitation.organization_id)
+        AND NOT EXISTS (SELECT FROM noticeos_identity.auth_invitation other
+          WHERE other.organization_id = invitation.organization_id AND other.id <> invitation.id
+            AND other.email = invitation.email AND other.status = 'pending' AND other.expires_at > now())
+      RETURNING invitation.id;`, { vars: { id, workspace: workspace.workspaceId, email } });
+    if (renewed.length) deliver({ from: MAIL_SENDER, to: email, subject: 'Join your NoticeOS workspace',
+      text: `Join your workspace: ${workspace.url}` });
+  }
+}
+
 function localMailbox(outbox) {
   return message => {
     if (message?.from !== MAIL_SENDER || typeof message.to !== 'string' || message.to.length > 320
@@ -210,6 +233,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
       workspaces: provision(cluster, publicOrigin, deliver),
     } : readSettings(file, publicOrigin, requestedNtasks);
     if (development.fresh) writeFileSync(file, JSON.stringify(settings) + '\n', { mode: 0o600, flag: 'wx' });
+    else renewFirstInvitations(cluster, settings, deliver);
     const { workspaces, ntasksOrigin, identitySecret, credentialsKey } = settings;
     await buildCustomer(state, artifactRoot);
     const artifact = readHostedArtifact(artifactRoot);

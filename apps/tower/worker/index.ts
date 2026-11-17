@@ -748,7 +748,7 @@ const towerHandler = {
         const proof = request.clone();
         return await withWorkspaceEntry(env, proof, async (call) => {
           if (profile === 'hosted' && ['/api/wall', '/api/work'].includes(pathname) && env.INGEST.refreshHostedTaskSummary) {
-            await env.INGEST.refreshHostedTaskSummary(proof.clone()).catch(() => undefined);
+            ctx.waitUntil(env.INGEST.refreshHostedTaskSummary(proof.clone()).catch(() => undefined));
           }
           let receiverFailed = false;
           const ingest: ConfigDocumentReader & {

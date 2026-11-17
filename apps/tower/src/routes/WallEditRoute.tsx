@@ -118,7 +118,7 @@ export function WallEditRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const upcoming = useCalendarUpcoming();
   const realtime = useGa4Realtime();
-  const { credentials, items, events } = useConnections(!reportGa4Today);
+  const { credentials, items, events, snapshot } = useConnections(!reportGa4Today);
   // The canvas ticks its own clock and countdown every second (WallSeconds);
   // everything else here reads in minutes, as on the TV.
   const now = useNow();
@@ -519,10 +519,11 @@ export function WallEditRoute() {
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}
+              calendarCheck={upcoming.manual ? { run: () => void upcoming.refetch(), checking: upcoming.isFetching } : undefined}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
               reportGa4Today={reportGa4Today}
-              connections={{ credentials, items, events }}
+              connections={{ credentials, items, events, snapshot }}
               nowMs={now}
               metricEditing={{ ...metricEditing, focusAssetId: activeMetric?.assetId, onReorder: reorderMetric }}
               onBack={backToWall}
@@ -533,11 +534,12 @@ export function WallEditRoute() {
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}
+              calendarCheck={upcoming.manual ? { run: () => void upcoming.refetch(), checking: upcoming.isFetching } : undefined}
               weather={weather}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
               reportGa4Today={reportGa4Today}
-              connections={{ credentials, items, events }}
+              connections={{ credentials, items, events, snapshot }}
               nowMs={now}
               selectedId={state.selectedId}
               onSelect={select}

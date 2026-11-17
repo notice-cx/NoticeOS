@@ -1,7 +1,9 @@
 import { HeartPulse } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { AssetCard } from "@shared/wall";
+import type { ConnectionHealthSnapshot } from "@shared/connection-status";
 import { cn } from "@/lib/utils";
+import { WallHealthStamp } from "./WallHealthStamp";
 import { rowFacts, techHealth, techHealthSummary, type TechFact, type TechFactKey } from "@/lib/tech-health";
 import type { WallIssue } from "@/lib/wall-issues";
 
@@ -59,7 +61,10 @@ function Dot({ fact }: { fact: TechFact }) {
   );
 }
 
-export function WallHealth({ assets, issues, nowMs = null }: { assets: readonly AssetCard[]; issues: readonly WallIssue[]; nowMs?: number | null }) {
+export function WallHealth({ assets, issues, nowMs = null, snapshot, timeZone }: {
+  assets: readonly AssetCard[]; issues: readonly WallIssue[]; nowMs?: number | null;
+  snapshot?: ConnectionHealthSnapshot; timeZone?: string;
+}) {
   const rows = assets.map((card) => ({ card, health: techHealth(card, issues, nowMs) }));
   const summary = techHealthSummary(assets, issues, nowMs);
   return (
@@ -71,6 +76,7 @@ export function WallHealth({ assets, issues, nowMs = null }: { assets: readonly 
     >
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className={eyebrow}>Asset health</h2>
+        {snapshot ? <WallHealthStamp snapshot={snapshot} timeZone={timeZone} /> : null}
         {summary.measured > 0 ? (
           <span className="text-wall-micro tabular-nums text-muted-foreground" data-wall-health-meta="">
             {summary.fine} of {summary.measured} fine

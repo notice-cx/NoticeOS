@@ -9,6 +9,7 @@ import { createContext, useContext, type CSSProperties, type ReactNode } from "r
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
 import { isRetired } from "@shared/asset-setup";
 import { NO_READS, type ConnectionReads } from "@shared/connection-status";
+import { WallHealthStamp } from "@/components/wall/WallHealthStamp";
 import type { WallPayload } from "@shared/wall";
 import {
   isWallColumn,
@@ -183,7 +184,7 @@ export function WallCanvas({
           />
         );
       case "loop":
-        return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
+        return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} timeZone={payload.osTimeZone} />;
       case "revenue":
         return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} timeZone={payload.osTimeZone} widget={widget} />;
       case "timeline": {
@@ -225,7 +226,9 @@ export function WallCanvas({
           assets: payload.assets,
           nowMs,
         });
-        return <AttentionTicker items={ticker.items} status={ticker.taskStatus} evaluatedConditions={["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]} />;
+        return <AttentionTicker items={ticker.items} status={ticker.taskStatus}
+          evaluatedConditions={["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]}
+          healthStamp={connections?.snapshot ? <WallHealthStamp snapshot={connections.snapshot} timeZone={payload.osTimeZone} /> : undefined} />;
       }
       case "sites": {
         const assets = filterWallAssets(data.assets, widget.settings);
@@ -245,7 +248,7 @@ export function WallCanvas({
       }
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
-        return <WallFeedWidget nowMs={nowMs} assets={payload.assets} />;
+        return <WallFeedWidget nowMs={nowMs} assets={payload.assets} snapshot={reportGa4Today} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
       case "health": {
@@ -260,6 +263,8 @@ export function WallCanvas({
               nowMs,
             })}
             nowMs={nowMs}
+            snapshot={connections?.snapshot}
+            timeZone={payload.osTimeZone}
           />
         );
       }

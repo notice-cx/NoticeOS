@@ -101,7 +101,11 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           return Response.json({ attempted: result.attempted, succeeded: result.succeeded, failed: result.failed });
         } finally { await store.close(); }
       });
-    } catch { return new Response(null, { status: 503 }); }
+    } catch (error) {
+      const aborted = request.signal.aborted || (error instanceof Error && error.name === 'AbortError');
+      console.warn(aborted ? 'customer_collection_aborted' : 'customer_collection_failed');
+      return new Response(null, { status: 503 });
+    }
     finally { await grant.close(); }
   }
 }

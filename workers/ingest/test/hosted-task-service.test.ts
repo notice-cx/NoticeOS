@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { openWorkspaceStore } from '@noticeos/postgres';
 import { expect, it } from 'vitest';
+import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { hostedTaskAuthorization, hostedTaskProof, hostedTaskRequest } from '../../../scripts/hosted-task-request.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { seedConfigDocuments } from '../src/config-store.js';
@@ -12,6 +13,7 @@ import type { HostedTaskSnapshotSource } from '../src/task-snapshots.js';
 
 const TOWER = 'https://tower.example.test';
 const NTASKS = 'https://ntasks.example.test';
+const APP = '/api/tasks/service/app';
 const SESSION = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PERSON = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const OTHER = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -30,6 +32,7 @@ it('uses separate project grants for the same Tower and saves only complete obse
   const actors = [north, south];
   const workspaces = stores.map(STORE => ({ ...env, STORE, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_NTASKS_ORIGIN: NTASKS }));
   let seq = 1, interruptedBoard = false, removeGrant = false;
+  let captureFailure: 'board-unavailable' | 'board-refused' | 'feed-refused' | null = null;
   const sends: { ntasks: string; token: string; path: string; method: string; key: string | null }[] = [];
   const start = Date.now();
   let clock = start;
@@ -49,10 +52,17 @@ it('uses separate project grants for the same Tower and saves only complete obse
     if (url.pathname === '/api/tasks/projects') return Response.json({ projects: [{ projectId: actor.projectId, prefix: actor.prefix,
       logicalKey: actor.prefix, displayName: actor.prefix }] });
     if (url.pathname === '/api/changes') {
+      if (captureFailure === 'feed-refused' && actor === north) return new Response('Refused', { status: 401 });
       const after = Number(url.searchParams.get('after'));
       return Response.json({ events: after < seq ? [{ projectId: actor.projectId, seq }] : [], lastSeq: seq });
     }
-    if (method === 'GET' && url.pathname === '/api/tasks' && interruptedBoard) throw new Error('Fixture board read interrupted');
+    if (method === 'GET' && url.pathname === '/api/tasks') {
+      if (interruptedBoard || captureFailure === 'board-refused' && url.searchParams.has('status')) {
+        throw new Error('Fixture board read interrupted');
+      }
+      if (captureFailure === 'board-refused') return Response.json({ error: 'refused' }, { status: 403 });
+      if (captureFailure === 'board-unavailable') return Response.json(null, { status: 503 });
+    }
     if (method === 'POST') return Response.json({ id: `${actor.prefix}-new` }, { status: 201 });
     return Response.json({ readAt: new Date(clock).toISOString(), tasks: url.searchParams.has('label') || url.searchParams.has('status')
       ? [] : [{ id: `${actor.prefix}-one`, status: 'open', title: `Work for ${actor.prefix}`, priority: 2, issueType: 'task', ready: true, labels: [] }], epics: [] });
@@ -60,11 +70,15 @@ it('uses separate project grants for the same Tower and saves only complete obse
   const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol('task test'), trustedOrigin: TOWER,
     membership: async (_headers, workspaceId) => ({ workspaceId, principalId: PERSON, sessionId: SESSION,
       role: 'owner', workspaceStatus: 'active', expiresAt: new Date(start + 3600_000).toISOString() }) });
-  const request = (index: number, path: string, { method = 'GET', token = null as string | null, body }: { method?: string; token?: string | null; body?: unknown } = {}) => {
+  const request = (index: number, path: string, { method = 'GET', token = null, body, rawBody, contentType = 'application/json' }:
+    { method?: string; token?: string | null; body?: unknown; rawBody?: string; contentType?: string } = {}) => {
     const workspace = actors[index]!;
-    const original = new Request(TOWER + path, { method, headers: { origin: TOWER, 'content-type': 'application/json',
-      authorization: `Bearer ${hostedTaskAuthorization(workspace.noticeos, SESSION, token)}`, ...(method === 'GET' ? {} : { 'idempotency-key': 'fixture-task-write' }) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const session: Record<string, string> = path === APP
+      ? { [WORKSPACE_SELECTION_HEADER]: workspace.noticeos, [WORKSPACE_SESSION_HEADER]: SESSION }
+      : { authorization: `Bearer ${hostedTaskAuthorization(workspace.noticeos, SESSION, token)}` };
+    const original = new Request(TOWER + path, { method, headers: { origin: TOWER, 'content-type': contentType,
+      ...session, ...(method === 'GET' ? {} : { 'idempotency-key': 'fixture-task-write' }) },
+    body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)) });
     const selected = hostedTaskRequest(original)!;
     return admission.withAdmission(selected.action, { requestedWorkspaceId: workspace.noticeos, correlationId: 'fixture' },
       hostedTaskProof(original, selected), context => handleHostedTaskService(original, workspaces[index]!, context, fixtureFetch));
@@ -83,6 +97,14 @@ it('uses separate project grants for the same Tower and saves only complete obse
       expect(await listed.json()).toMatchObject({ projects: [{ projectId: actor.projectId }] });
     }
     expect((await request(0, `/api/tasks?project=${south.projectId}`)).status).toBe(404);
+    const requestsBeforeInvalid = sends.length;
+    expect((await request(0, APP, { method: 'POST', body: null })).status).toBe(403);
+    expect((await request(0, APP, { method: 'POST', rawBody: ' '.repeat(4096) + '{}' })).status).toBe(400);
+    expect((await request(1, '/api/tasks', { method: 'POST', body: { projectId: south.projectId }, contentType: 'text/plain' })).status).toBe(400);
+    expect((await request(1, '/api/tasks', { method: 'POST', body: { projectId: south.projectId, title: 'x'.repeat(512 * 1024) } })).status).toBe(400);
+    expect(sends).toHaveLength(requestsBeforeInvalid);
+    const app = await request(0, APP, { method: 'POST', body: {} });
+    expect(await app.json()).toEqual({ clientId: 'north-client', held: false });
     const create = await request(1, '/api/tasks', { method: 'POST', body: { projectId: south.projectId, title: 'Work' } });
     expect(await create.json()).toEqual({ id: 'south-new' });
     expect(sends.at(-1)).toEqual({ ntasks: south.ntasks, token: south.service, method: 'POST', path: '/api/tasks', key: 'fixture-task-write' });
@@ -124,6 +146,22 @@ it('uses separate project grants for the same Tower and saves only complete obse
     const recovered = await read(0);
     expect(recovered).toHaveLength(1);
     expect(recovered[0]!.payload.ntasks.cursor).toBe(seq);
+    clock += 61_000;
+    seq++;
+    captureFailure = 'board-unavailable';
+    await refresh(0);
+    expect((await read(0))[0]!.payload).toEqual(recovered[0]!.payload);
+    for (const refusal of ['board-refused', 'feed-refused'] as const) {
+      captureFailure = refusal;
+      clock += 61_000;
+      await refresh(0);
+      expect((await read(0))[0]!.payload).toMatchObject({ projects: [], ntasks: { mapping: 'unavailable' } });
+      expect((await read(0))[1]!.payload.projects.map(project => project.asset)).toEqual(['north.example']);
+      captureFailure = null;
+      clock += 61_000;
+      await refresh(0);
+      expect((await read(0))[0]!.payload.projects.map(project => project.asset)).toEqual(['north.example']);
+    }
     removeGrant = true;
     expect((await request(0, '/api/tasks/projects')).status).toBe(503);
     expect((await request(1, '/api/tasks/projects')).status).toBe(200);

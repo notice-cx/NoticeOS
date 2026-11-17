@@ -10,12 +10,14 @@ import { useWork } from '@/hooks/useWork';
 import { useWall } from '@/hooks/useWall';
 import { useWallFeed } from '@/hooks/useWallFeed';
 import { useIntegrationHealth } from '@/hooks/useIntegrationHealth';
+import { useConnections } from '@/hooks/useConnections';
 import { useGa4Realtime } from '@/hooks/useGa4Realtime';
 import { useCalendarUpcoming } from '@/hooks/useCalendarUpcoming';
 import { wallMoneyResponse } from './critical-response-fixtures';
 import { createChangeWatch, type TopicRead } from '../vite/change-lane';
 import { createChangeStream, type ChangeStream } from '@/lib/change-stream';
 import { CHANGE_STREAM_PATH } from '@shared/change-topics';
+import { HOSTED_WALL_REFRESH_MS } from '@shared/wall';
 
 /** A response the watch writes frames to, closed by `emit("close")`. */
 function client() {
@@ -95,6 +97,47 @@ describe('browser reads on an idle portfolio', () => {
       expect(request).toHaveBeenCalledTimes(2);
       expect(tab.result.current.data).toBeUndefined();
       expect(refreshSession).toHaveBeenCalledTimes(1);
+    } finally { tab.unmount(); runtime.retire(); }
+  });
+
+  it('checks the visible hosted report and health once an hour, then pauses both while hidden', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse(now));
+    focusManager.setFocused(true);
+    const reads: string[] = [];
+    const runtime = createBrowserRuntime(hosted, { origin: 'https://desk.example', sendAnswer: async () => {},
+      fetch: async input => {
+        const path = new URL(String(input)).pathname;
+        reads.push(path);
+        const generatedAt = new Date().toISOString();
+        if (path === '/api/wall') return Response.json({ ...wallMoneyResponse(), generatedAt });
+        if (path === '/api/integrations/health') return Response.json({ generatedAt, available: true, items: [], events: [] });
+        if (path === '/api/integrations/providers') return Response.json({ providers: [] });
+        throw new Error('Unexpected dashboard request ' + path);
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider,
+      { value: { runtime, workspaceLabel: null }, children: createElement(QueryClientProvider, { client: runtime.queries }, children) });
+    const tab = renderHook(() => ({ wall: useWall(), connections: useConnections(false) }), { wrapper });
+    const count = (path: string) => reads.filter(read => read === path).length;
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(121_000));
+      expect(reads.sort()).toEqual(['/api/integrations/health', '/api/integrations/providers', '/api/wall']);
+      expect(tab.result.current.wall.data?.generatedAt).toBe(now);
+      await act(() => vi.advanceTimersByTimeAsync(HOSTED_WALL_REFRESH_MS - 121_000 + 10));
+      expect(count('/api/wall')).toBe(2);
+      expect(count('/api/integrations/health')).toBe(2);
+      expect(count('/api/integrations/providers')).toBe(1);
+      const hourly = new Date(Date.parse(now) + HOSTED_WALL_REFRESH_MS).toISOString();
+      expect(tab.result.current.wall.data?.generatedAt).toBe(hourly);
+      expect(tab.result.current.connections.snapshot?.checkedAt).toBe(hourly);
+      focusManager.setFocused(false);
+      await act(() => vi.advanceTimersByTimeAsync(2 * HOSTED_WALL_REFRESH_MS));
+      expect(reads).toHaveLength(5);
+      focusManager.setFocused(true);
+      await act(() => vi.advanceTimersByTimeAsync(10));
+      expect(count('/api/wall')).toBe(3);
+      expect(count('/api/integrations/health')).toBe(3);
     } finally { tab.unmount(); runtime.retire(); }
   });
 

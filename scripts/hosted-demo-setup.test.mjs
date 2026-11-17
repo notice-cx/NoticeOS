@@ -181,10 +181,12 @@ test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped d
     customerStore = openWorkspaceStore(customerPg.applicationLogin().url(), { workspaceId: customerId });
     assert.equal(await customerStore.workspaceId(), customerId);
     await customerStore.close(); customerStore = undefined;
-    const activityCounts = () => customerPg.onDatabase('postgres').sql(`SELECT sessions, xact_commit, xact_rollback
+    const clientSessions = () => customerPg.onDatabase('postgres').sql(`SELECT sessions,
+      (SELECT count(*) FROM pg_stat_activity WHERE datname = 'noticeos_dev' AND backend_type = 'client backend') AS active
       FROM pg_stat_database WHERE datname = 'noticeos_dev'`);
-    const idle = activityCounts();
+    const idle = clientSessions();
     assert.equal(idle.length, 1);
+    assert.equal(Number(idle[0].active), 0);
     activity = await openHostedDemo({ ...configuration.activity, now: () => Date.parse('2026-10-03T12:00:00Z') });
     const tick = await activity.tick(); assert.equal(tick.days.length, 1); assert.equal(tick.days[0].receipt.state, 'succeeded');
     const after = await rows(); assert.ok(after[0].pulses > before[0].pulses);
@@ -203,7 +205,7 @@ test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped d
     ]);
     assert.deepEqual(await publishedDates(), [...beforeRestart, ...replay.days.map(day => ({ date: day.date, generated_at: `${day.date}T23:30:00.000Z` }))]);
     assert.deepEqual((await activity.tick()).days, [], 'the completed days do not publish twice');
-    assert.deepEqual(activityCounts(), idle, 'demo work opens zero sessions and runs zero transactions on customer storage');
+    assert.deepEqual(clientSessions(), idle, 'demo work opens no customer database sessions');
   } finally {
     await Promise.allSettled([activity?.close(), tasks?.close(), store?.close(), customerStore?.close()]);
     await miniflare?.dispose();

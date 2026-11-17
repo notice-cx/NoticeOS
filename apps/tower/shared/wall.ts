@@ -23,6 +23,8 @@ import type { DailyRevenueSummary } from './daily-revenue';
 import type { WorkItem, WorkWeeks } from './work';
 
 /** `milestone` is a kind, not a severity — never here. */
+export const HOSTED_WALL_REFRESH_MS = 60 * 60 * 1000;
+
 export type Severity = "error" | "warn" | "info";
 
 /** flags.kind — the meaning of a flag, kept separate from how urgently it

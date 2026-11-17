@@ -42,7 +42,7 @@ export function WallRoute() {
   const upcoming = useCalendarUpcoming();
   // The same two reads Integrations derives every status from, so a site's
   // issue mark and the strip's state cannot disagree with it.
-  const { credentials, items, events } = useConnections(!reportGa4Today);
+  const { credentials, items, events, snapshot } = useConnections(!reportGa4Today);
   const now = useNow();
   const screen = useWallScreen();
   // The shell's name for this view, on the tab a TV shows.
@@ -91,7 +91,7 @@ export function WallRoute() {
         ga4RealtimeError={realtime.isError}
         reportGa4Today={reportGa4Today}
         lastGood={isError || data.portfolioSummary?.retained}
-        connections={{ credentials, items, events }}
+        connections={{ credentials, items, events, snapshot }}
       />
     </div>
   );

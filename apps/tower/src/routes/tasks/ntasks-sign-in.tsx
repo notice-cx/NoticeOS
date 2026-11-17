@@ -33,7 +33,9 @@ export function useBeginNtasksSignIn(): () => Promise<boolean> {
       const { clientId, held } = await api.registerNtasksApp();
       keepApp(storage, origin, { clientId, held });
       // The first registration is saved with the connection: every surface reads its client id.
-      if (signIn.kind === "unconfigured") void queryClient.invalidateQueries({ queryKey: TASK_SERVICE_KEY });
+      if (signIn.kind === "unconfigured" || signIn.app.clientId !== clientId) {
+        await queryClient.invalidateQueries({ queryKey: TASK_SERVICE_KEY });
+      }
       window.location.assign(await startSignIn({ origin, clientId }, { towerOrigin: window.location.origin, returnTo, held, workspaceSession }));
       return true;
     } catch (error) {
@@ -49,6 +51,7 @@ export function useBeginNtasksSignIn(): () => Promise<boolean> {
  */
 export function SignInToNtasks({ size = "sm", className }: { size?: "sm" | "default"; className?: string }) {
   const signIn = useNtasksSignIn();
+  const { owner } = useBrowserRuntime();
   const begin = useBeginNtasksSignIn();
   const storage = useOwnerPreferences();
   const [starting, setStarting] = useState(false);
@@ -64,7 +67,8 @@ export function SignInToNtasks({ size = "sm", className }: { size?: "sm" | "defa
     </Button>
   );
   const origin = signIn.kind === "unconfigured" ? signIn.origin : signIn.app.origin;
-  if (!keptApp(storage, origin)?.held) return button;
+  const kept = keptApp(storage, origin);
+  if (!kept?.held || owner.mode === "hosted" && (signIn.kind === "unconfigured" || kept.clientId !== signIn.app.clientId)) return button;
   return (
     <div className="flex basis-full flex-col items-start gap-2">
       {button}

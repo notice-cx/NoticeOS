@@ -795,6 +795,10 @@ folder on first start. Open one of the two owner invitations in the private
 mail folder printed at startup. Enter the listed `@example.test` address on
 the sign-in page and open the new message in that folder to get its code.
 Use **Settings** to invite another fixture identity or change its role.
+If Postgres is unavailable before the first setup creates a database, retry
+with the same folder after installing the tools. On restart, an expired
+first-owner invitation for a fixture workspace without members becomes
+usable again. Use the message in the private mailbox.
 
 Ctrl-C stops the app and database. Start with the same folder, profile, and
 Tower port to reopen the saved workspaces, sessions, and private object

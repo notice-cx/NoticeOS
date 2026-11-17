@@ -184,6 +184,7 @@ function useArrivals(items: readonly WallFeedItem[] | undefined) {
 export interface WallFeedProps {
   /** The last good read; undefined before the first one lands. */
   feed: WallFeedPayload | undefined;
+  snapshot?: boolean;
   /** The last poll failed: the rows are the last good ones. */
   failed?: boolean;
   /** The Wall's slow clock, which ages the rows. */
@@ -194,7 +195,7 @@ export interface WallFeedProps {
 }
 
 /** The feed column itself, from a payload; `WallFeedWidget` polls for it. */
-export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) {
+export function WallFeed({ feed, failed = false, snapshot = false, nowMs, icons }: WallFeedProps) {
   const { visible, arrived } = useArrivals(feed?.items);
   const listRef = useRef<HTMLOListElement>(null);
   const fit = useWholeRows(listRef, visible);
@@ -203,19 +204,20 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
   return (
     <div
       data-wall-feed
-      data-feed-state={failed ? "reconnecting" : "live"}
+      data-feed-state={failed ? "reconnecting" : snapshot ? "saved" : "live"}
       className="h-full min-h-0 min-w-0"
     >
-      <MetricTile title="Live feed" icon={Radio} className="wall-feed-metric" context={<span className="inline-flex items-center gap-2">
+      <MetricTile title={snapshot ? "Recent activity" : "Live feed"} icon={Radio} className="wall-feed-metric" context={<span className="inline-flex items-center gap-2">
         <span
           aria-hidden
+          hidden={snapshot}
           data-feed-live-dot
           className={cn(
             "size-2 shrink-0 rounded-full",
             failed ? "bg-muted-foreground" : "bg-healthy",
           )}
         />
-          {failed ? "Reconnecting" : "since last night"}
+          {failed ? (snapshot ? "Last read failed" : "Reconnecting") : "since last night"}
       </span>}>
       {feed && !failed && feed.items.length === 0 ? (
         <p className="wall-feed-empty text-muted-foreground">Nothing new since last night</p>
@@ -356,11 +358,13 @@ function FeedEvidence({ evidence }: { evidence: string }) {
 export function WallFeedWidget({
   nowMs,
   assets,
+  snapshot,
 }: {
+  snapshot?: boolean;
   nowMs: number;
   assets?: readonly Pick<AssetCard, "id" | "icons">[];
 }) {
   const { data, isError } = useWallFeed();
   const icons = useMemo(() => new Map(assets?.map((asset) => [asset.id, asset.icons])), [assets]);
-  return <WallFeed feed={data} failed={isError} nowMs={nowMs} icons={icons} />;
+  return <WallFeed feed={data} failed={isError} snapshot={snapshot} nowMs={nowMs} icons={icons} />;
 }

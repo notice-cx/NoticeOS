@@ -369,9 +369,11 @@ by task prefix in the Tower. Each request checks the current grant. An unmapped
 project grant stops the connection, including workspace-wide task searches.
 Standalone installations continue to use their existing Ntasks connection.
 
-The hosted Wall and Work reads request a summary refresh for their selected
-workspace. While those pages are open, ingest checks the Ntasks change feed at
-most once a minute per workspace in each running Worker. It reads the project
+The hosted Wall and Work pages return the saved task summary. Each read also
+requests a background refresh for its selected workspace. A visible hosted
+Wall checks for completed reports hourly and when the viewer returns to the
+tab. Hidden tabs skip the hourly check. Ingest limits Ntasks change-feed
+reads to one per minute per workspace in each running Worker. It reads the project
 boards again after a relevant change, when the mapping changes, or after 15
 minutes to account for date-based changes such as the end of a deferral. It
 stores the dated summary and cursor together and preserves the last complete

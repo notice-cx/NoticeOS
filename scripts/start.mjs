@@ -399,11 +399,17 @@ async function runCustomerStart(plan, opts) {
     if (opts.open) openBrowser(plan.url);
   });
   try {
+    let failure = 'customer startup or shutdown could not finish.';
     const code = await new Promise(resolve => {
-      worker.once('error', () => {});
+      worker.once('error', error => {
+        if (error.message === 'Customer database schema needs operator maintenance.') failure = error.message;
+        else if (error.message.startsWith('no Postgres server binaries') || error.message.startsWith('no psql on this machine')) {
+          failure = 'Install the PostgreSQL 18 server and client tools, then retry with the same folder.';
+        }
+      });
       worker.once('exit', resolve);
     });
-    return code === 0 ? 0 : refuse('customer startup or shutdown could not finish.');
+    return code === 0 ? 0 : refuse(failure);
   } finally {
     process.off('SIGINT', stop);
     process.off('SIGTERM', stop);

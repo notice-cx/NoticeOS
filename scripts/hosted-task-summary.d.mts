@@ -2,6 +2,7 @@
 import type { BeadsProjectInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { MappedTaskProject } from './task-projects.mjs';
 import { type NtasksReads } from './ntasks-board.mjs';
+export declare function assertHostedTaskReadAccess(status: number | undefined): void;
 /** An interrupted capture leaves both the baseline and cursor at their last
  * saved values. An expired cursor triggers a fresh read, with the same page cap. */
 export declare function hostedTaskChanges(service: NtasksReads, cursor: number): Promise<{

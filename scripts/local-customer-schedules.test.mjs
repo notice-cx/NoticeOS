@@ -63,6 +63,71 @@ test('a slow tenant leaves a worker available to another tenant on the next tick
   assert.equal(seen.at(-1), 'backlog/next');
 });
 
+test('discovery retries only the affected workspace and resumes its current targets once', async () => {
+  const due = Date.parse('2026-11-17T10:00:00Z');
+  const minute = 60_000;
+  let now = due - 5 * minute, stopHolding, startedHolding;
+  const held = new Promise(resolve => { stopHolding = resolve; });
+  const holding = new Promise(resolve => { startedHolding = resolve; });
+  const recovering = { workspaceId: 'recovering' }, healthy = { workspaceId: 'healthy' };
+  const reads = [], runs = [], warnings = [];
+  const timed = (job, cron, assets) => ({ job, schedule: { cron, enabled: true }, assets });
+  const clock = customerScheduleClock({ workspaces: [recovering, healthy], now: () => now,
+    async read(binding) {
+      reads.push([binding.workspaceId, now]);
+      if (binding === healthy) return [timed('signal-dumps', '0 * * * *', ['same-site'])];
+      if (now >= due && now < due + 3 * minute) throw new Error('Temporary configuration read failure');
+      const counters = now < due ? ['holding', 'queued', 'removed'] : ['holding', 'queued'];
+      return [timed('counters', '55 * * * *', counters), timed('signal-dumps', '0 * * * *', ['same-site'])];
+    },
+    async run({ binding, job, asset, scheduledAt }) {
+      runs.push([binding.workspaceId, job, asset, Date.parse(scheduledAt)]);
+      if (asset === 'holding') { startedHolding(); await held; }
+    },
+    warn: () => warnings.push(now),
+  });
+  try {
+    await clock.tick();
+    await holding;
+    now = due;
+    await clock.tick();
+    assert.equal(clock.status('recovering').error, 'waiting');
+    assert.equal(clock.status('healthy').error, null);
+    stopHolding();
+    await clock.whenIdle();
+    assert.deepEqual(runs, [
+      ['recovering', 'counters', 'holding', due - 5 * minute],
+      ['healthy', 'signal-dumps', 'same-site', due],
+    ]);
+    now = due + minute;
+    await clock.tick();
+    now = due + 2 * minute;
+    await clock.tick();
+    assert.deepEqual(warnings, [due, due + minute]);
+    assert.equal(runs.length, 2);
+    now = due + 3 * minute;
+    await clock.tick();
+    await clock.whenIdle();
+    assert.equal(clock.status('recovering').error, null);
+    assert.deepEqual(runs.slice(2), [
+      ['recovering', 'counters', 'queued', due - 5 * minute],
+      ['recovering', 'signal-dumps', 'same-site', due],
+    ]);
+    const completed = runs.slice();
+    now = due + 4 * minute;
+    await clock.tick();
+    await clock.whenIdle();
+    assert.deepEqual(runs, completed);
+    assert.deepEqual(reads.filter(([tenant]) => tenant === 'recovering').map(([, at]) => at),
+      [due - 5 * minute, due, due + minute, due + 3 * minute]);
+    assert.deepEqual(reads.filter(([tenant]) => tenant === 'healthy').map(([, at]) => at),
+      [due - 5 * minute, due]);
+  } finally {
+    stopHolding();
+    await clock.close();
+  }
+});
+
 test('restart resumes only the latest eligible free collection since activation', async () => {
   const at = Date.parse('2026-11-17T10:07:00Z');
   const selected = [

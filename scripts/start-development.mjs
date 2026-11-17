@@ -42,7 +42,7 @@ export function developmentRefusal(plan) {
 }
 
 /** Hosted mode reopens its own cluster. Standalone removes its data on close. */
-export function openDevelopmentStart(plan, { profile = 'standalone' } = {}) {
+export function openDevelopmentStart(plan, { profile = 'standalone', tools } = {}) {
   const refusal = developmentRefusal(plan);
   if (refusal) throw new Error(refusal);
   const port = plan.port + 2;
@@ -89,7 +89,11 @@ export function openDevelopmentStart(plan, { profile = 'standalone' } = {}) {
     writeFileSync(plan.mark, 'Local runtime files for a development-only NoticeOS instance.\n');
     mkdirSync(path.dirname(clusterRoot), { recursive: true, mode: 0o700 });
     if (lstatSync(path.dirname(clusterRoot)).isSymbolicLink()) throw new Error('development state changed during setup.');
-    const fresh = !existsSync(clusterRoot);
+    const held = lstatSync(clusterRoot, { throwIfNoEntry: false });
+    // Tool discovery can fail after the private directory was made and
+    // before initdb wrote anything. Only that empty state can start afresh.
+    const fresh = !held || (hosted && held.isDirectory() && !(held.mode & 0o077) && !existsSync(customer)
+      && readdirSync(clusterRoot).length === 0);
     if (hosted && (!fresh || existsSync(customer))) {
       for (const dir of [customer, clusterRoot, path.join(clusterRoot, 'data')]) {
         const stat = lstatSync(dir);
@@ -99,9 +103,9 @@ export function openDevelopmentStart(plan, { profile = 'standalone' } = {}) {
         if (!lstatSync(path.join(clusterRoot, file)).isFile()) throw new Error('Customer database must use its own files.');
       }
       if (!lstatSync(path.join(customer, 'settings.json')).isFile()) throw new Error('Customer setup did not finish.');
-    } else if (fresh) mkdirSync(clusterRoot, { mode: 0o700 });
+    } else if (!held) mkdirSync(clusterRoot, { mode: 0o700 });
     ownsClusterRoot = true;
-    cluster = openThrowaway(clusterRoot, undefined, { loopbackPort: port, durable: hosted });
+    cluster = openThrowaway(clusterRoot, tools, { loopbackPort: port, durable: hosted });
     if (fresh) applyMigrations(cluster, { dir });
     else {
       const status = migrationStatus(cluster, { dir });

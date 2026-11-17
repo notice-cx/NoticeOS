@@ -154,6 +154,31 @@ test('hosted occurrences preserve workspace authority, atomic steps and uncertai
       assert.equal(succeeded.state, 'succeeded'); assert.equal(calls, 2);
       assert.equal(await count(0, 'returned-failure'), 1);
     });
+    await t.test('a malformed database result rolls back and can be retried immediately', async () => {
+      let calls = 0;
+      const r = make(0, definition([database('collect', async (_, tx) => {
+        await bump(tx, 'malformed-result');
+        return ++calls === 1 ? { projects: [null] } : { written: 1 };
+      })]));
+      const failed = await r.run('synthetic', 'malformed-result', null);
+      assert.equal(failed.state, 'retryable');
+      assert.equal(failed.steps.collect.state, 'failed');
+      assert.equal(await count(0, 'malformed-result'), 0);
+      const succeeded = await r.run('synthetic', 'malformed-result', null);
+      assert.equal(succeeded.state, 'succeeded');
+      assert.equal(succeeded.attempt, 2);
+      assert.equal(await count(0, 'malformed-result'), 1);
+    });
+    await t.test('an opted-in outside effect stops after reporting a structured failure', async () => {
+      let calls = 0;
+      const r = make(0, definition([{ ...effect('collect', async () => { calls++; return { ok: false }; }),
+        terminalReportedFailure: true }]));
+      const failed = await r.run('synthetic', 'reported-effect-failure', null);
+      assert.equal(failed.state, 'exhausted');
+      assert.equal(failed.steps.collect.output.fields.some(field => field.key === 'ok' && field.value === false), true);
+      assert.equal((await r.run('synthetic', 'reported-effect-failure', null)).state, 'exhausted');
+      assert.equal(calls, 1);
+    });
     await t.test('outside failure is uncertain and cannot be blindly retried', async () => {
       let calls = 0; const r = make(0, definition([effect('send', async () => { calls++; throw new Error('secret provider body'); })]));
       assert.equal((await r.run('synthetic', 'uncertain', null)).state, 'uncertain');

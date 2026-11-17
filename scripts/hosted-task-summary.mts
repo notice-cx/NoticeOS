@@ -4,6 +4,22 @@ import { boardReads, LABEL_READS, readFeed, readLabels, type NtasksReads } from 
 import { summarizeTaskProject, TASK_CLOSES_DAYS, taskProjectError, tasksClosedSince, tasksClosesSince } from './task-snapshot-summary.mjs';
 import { TaskServiceUnavailable } from './task-records.mjs';
 
+export function assertHostedTaskReadAccess(status: number | undefined): void {
+  if (status === 401 || status === 403) throw new TaskServiceUnavailable('refused', status);
+}
+
+async function readTogether<T>(reads: readonly Promise<T>[]): Promise<T[]> {
+  const replies = await Promise.allSettled(reads);
+  // Once a refusal is known, an interruption of a separate read cannot hide it.
+  const denial = replies.find(reply => reply.status === 'rejected'
+    && reply.reason instanceof TaskServiceUnavailable && reply.reason.reason === 'refused');
+  if (denial?.status === 'rejected') throw denial.reason;
+  return replies.map(reply => {
+    if (reply.status === 'rejected') throw reply.reason;
+    return reply.value;
+  });
+}
+
 /** An interrupted capture leaves both the baseline and cursor at their last
  * saved values. An expired cursor triggers a fresh read, with the same page cap. */
 export async function hostedTaskChanges(service: NtasksReads, cursor: number): Promise<{ changed: Set<string>; cursor: number; complete: boolean; reset: boolean }> {
@@ -26,10 +42,12 @@ export async function readHostedTaskBoards(service: NtasksReads, projects: reado
       continue;
     }
     const id = encodeURIComponent(project.project.projectId);
-    const [board, closes] = await Promise.all([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
+    const [board, closes] = await readTogether([`/api/tasks?project=${id}`, `/api/tasks?project=${id}&status=closed&closedDays=${TASK_CLOSES_DAYS}`]
       .map(path => service.call({ method: 'GET', path })));
+    assertHostedTaskReadAccess(board?.status);
+    assertHostedTaskReadAccess(closes?.status);
     if (board?.status !== 200 || closes?.status !== 200) throw new TaskServiceUnavailable('invalid-response');
-    const labels = await Promise.all(Object.entries(LABEL_READS).map(async ([key, names]) =>
+    const labels = await readTogether(Object.entries(LABEL_READS).map(async ([key, names]) =>
       [key, await readLabels(service, project.project!.projectId, names)] as const));
     const entry = summarizeTaskProject(project, boardReads(board.body, closes.body, Object.fromEntries(labels)), reach);
     if (!entry.ok) throw new TaskServiceUnavailable('invalid-response');

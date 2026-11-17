@@ -342,10 +342,16 @@ export function createHostedJobRunner(options: {
       } catch (error) {
         // Failure after an outside start cannot prove no effect. Diagnostics
         // record only redacted arguments and the observed error, never authority.
-        const verdict = hasReturned ? stepResult(returned) : null;
+        let verdict: ReturnType<typeof stepResult> | null = null;
+        if (hasReturned) {
+          try { verdict = stepResult(returned); } catch { /* Keep the original classification failure. */ }
+        }
         const reportedFailure = effectStarted && step.kind === 'effect' && step.terminalReportedFailure === true
           && !controller.signal.aborted && verdict?.state === 'failed';
-        const output = reportedFailure ? captureWorkflowOutput(returned) : null;
+        let output: WorkflowStepOutput | undefined;
+        if (reportedFailure) {
+          try { output = captureWorkflowOutput(returned); } catch { /* The verdict can be recorded without output. */ }
+        }
         return finish(reportedFailure ? 'exhausted' : effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
           key: step.key, evidence: { state: 'failed', summary: verdict?.state === 'failed' ? verdict.summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
             ...(output ? { output } : {}),

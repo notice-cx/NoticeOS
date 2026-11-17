@@ -5,6 +5,7 @@ import { sourceReadings, type ConnectionReads } from "@shared/connection-status"
 import type { WallPayload } from "@shared/wall";
 import { FlowGraph, type FlowEdge, type FlowNode } from "@/components/viz/FlowGraph";
 import { operatorWaiting } from "@/lib/operator-posture";
+import { WallHealthStamp } from "./WallHealthStamp";
 
 // The loop NoticeOS runs, Sense → Attribute → Decide → Act → Learn and back,
 // each stage with the one live count the payload has for it, so the room sees
@@ -26,7 +27,8 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
   const retired = new Set(data.assets.filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const readings = watched.flatMap((asset) => sourceReadings(asset.id, asset.dataSources, connections, nowMs));
   const owed = readings.filter((reading) => reading.kind !== "not-using" && reading.kind !== "not-applicable");
-  const live = owed.filter((reading) => reading.kind === "working" || reading.kind === "collecting").length;
+  const snapshot = connections.snapshot;
+  const live = owed.filter((reading) => reading.kind === "working" || (!snapshot && reading.kind === "collecting")).length;
   const failing = owed.filter((reading) => reading.kind === "failing").length;
   const counted = watched.filter((asset) => asset.work);
   const inProgress = counted.reduce((sum, asset) => sum + (asset.work?.inProgress ?? 0), 0);
@@ -38,8 +40,10 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
     ? { id: "sense", label: "Sense", column: 0, icon: Radar, caption: "no sources yet", state: "idle" }
     : {
         id: "sense", label: "Sense", column: 0, icon: Radar, value: `${live} of ${owed.length}`,
-        caption: failing > 0 ? `live · ${failing} failing` : "sources live",
-        state: failing > 0 ? "warn" : "ok",
+        caption: snapshot
+          ? failing > 0 ? `${failing} failing at check` : live > 0 ? "working at check" : "sources unconfirmed"
+          : failing > 0 ? `live · ${failing} failing` : "sources live",
+        state: failing > 0 ? "warn" : snapshot && live === 0 ? "idle" : "ok",
       };
   const decide: FlowNode = waiting === null
     ? { id: "decide", label: "Decide", column: 2, icon: Gavel, caption: "not read", state: "idle" }
@@ -71,12 +75,14 @@ export interface WallLoopProps {
   data: Pick<WallPayload, "assets" | "attention" | "operator">;
   connections: ConnectionReads;
   nowMs: number;
+  timeZone?: string;
 }
 
 /** The loop as one band across the TV; a narrow screen stacks it. */
-export function WallLoop({ data, connections, nowMs }: WallLoopProps) {
+export function WallLoop({ data, connections, nowMs, timeZone }: WallLoopProps) {
   return (
     <section aria-label="The loop" className="min-w-0" data-wall-loop>
+      {connections.snapshot ? <WallHealthStamp snapshot={connections.snapshot} timeZone={timeZone} /> : null}
       <FlowGraph
         nodes={loopNodes(data, connections, nowMs)}
         edges={EDGES}

@@ -246,6 +246,7 @@ export interface WallPreviewProps {
   data: WallPayload;
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  calendarCheck?: { run(): void; checking: boolean };
   weather?: WallWeatherState;
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
@@ -295,6 +296,7 @@ export function WallPreview({
   data,
   meetings,
   calendarState,
+  calendarCheck,
   weather,
   ga4Realtime,
   ga4RealtimeError,
@@ -505,6 +507,7 @@ export function WallPreview({
               data={data}
               meetings={meetings}
               calendarState={calendarState}
+              calendarCheck={calendarCheck}
               weather={weather}
               ga4Realtime={ga4Realtime}
               ga4RealtimeError={ga4RealtimeError}

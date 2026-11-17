@@ -20,9 +20,10 @@ function next(schedule, after) {
  * pairs. Between discovery windows only due work touches the store. */
 export function customerScheduleClock({ workspaces, read, run, now = Date.now, resumeSince,
   warn = () => console.warn('Customer collection could not finish. See workflow history.') }) {
-  const entries = workspaces.map(binding => ({ binding, jobs: [], planned: false, queued: new Map(), running: false }));
+  const entries = workspaces.map(binding => ({ binding, jobs: [], planned: false, queued: new Map(),
+    running: false, discovery: -Infinity, retryDelay: MINUTE, initial: true }));
   const running = new Set();
-  let discovery = -Infinity, pending, stopped = false, turn = 0;
+  let pending, stopped = false, turn = 0;
   const inPairs = async (items, apply) => {
     for (let index = 0; index < items.length && !stopped; index += 2) {
       await Promise.all(items.slice(index, index + 2).map(async item => {
@@ -36,7 +37,7 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
       for (let tried = 0; tried < entries.length; tried++) {
         const candidate = entries[turn];
         turn = (turn + 1) % entries.length;
-        if (!candidate.running && candidate.queued.size) { entry = candidate; break; }
+        if (candidate.planned && !candidate.running && candidate.queued.size) { entry = candidate; break; }
       }
       if (!entry) return;
       const [key, call] = entry.queued.entries().next().value;
@@ -54,15 +55,15 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
   }
   async function dispatch() {
     const at = Math.floor(now() / MINUTE) * MINUTE;
-    const starting = discovery === -Infinity;
-    if (at >= discovery) {
-      discovery = Math.floor(at / HOUR) * HOUR + HOUR;
-      await inPairs(entries, async entry => {
+    const dueDiscovery = entries.filter(entry => at >= entry.discovery);
+    if (dueDiscovery.length) {
+      // Pause admissions until each enabled target and service grant has been checked again.
+      for (const entry of dueDiscovery) entry.planned = false;
+      await inPairs(dueDiscovery, async entry => {
         const previous = entry.jobs;
-        entry.jobs = [];
-        entry.planned = false;
-        let selected;
-        try { selected = await read(entry.binding); } catch (error) { entry.queued.clear(); throw error; }
+        entry.discovery = at + entry.retryDelay;
+        entry.retryDelay = Math.min(15 * MINUTE, entry.retryDelay * 2);
+        const selected = await read(entry.binding);
         for (const [key, call] of entry.queued) {
           if (!selected.some(item => item.job === call.job && (call.archive
             ? item.archives?.some(target => customerJobSubject(target.asset, target.archive) === customerJobSubject(call.asset, call.archive))
@@ -72,7 +73,7 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           const old = previous.find(j => j.job === item.job && j.schedule.cron === item.schedule.cron
             && scheduleTimezone(j.schedule) === scheduleTimezone(item.schedule));
           let due = old?.due ?? next(item.schedule, at - 1);
-          const resumeCollection = starting && Number.isFinite(resumeSince)
+          const resumeCollection = entry.initial && Number.isFinite(resumeSince)
             && ['counters', 'signal-dumps'].includes(item.job);
           if (!old && (item.job === 'panel-refresh' || resumeCollection)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
@@ -83,9 +84,13 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           return { ...item, due };
         });
         entry.planned = true;
+        entry.initial = false;
+        entry.retryDelay = MINUTE;
+        entry.discovery = Math.floor(at / HOUR) * HOUR + HOUR;
       });
     }
-    for (const { binding, jobs, queued } of entries) {
+    for (const { binding, jobs, queued, planned } of entries) {
+      if (!planned) continue;
       for (const item of jobs) {
         if (item.due > at) continue;
         // Resume at most the most recent occurrence after a delayed tick.
@@ -138,9 +143,15 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer schedule'),
           authority: () => grant.facts() });
         return await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
-          new Request(privateUrl, { method: 'POST' }), async () => [
-            ...await customerSchedules(store), ...(await reports?.targets(store) ?? []),
-          ]);
+          new Request(privateUrl, { method: 'POST' }), async () => {
+            const collection = await customerSchedules(store);
+            if (!reports) return collection;
+            try { return [...collection, ...await reports.targets(store)]; }
+            catch {
+              console.warn('Customer report settings could not be read. Check the report configuration.');
+              return collection;
+            }
+          });
       } finally { await Promise.all([store.close(), grant.close()]); }
     },
     async run({ binding, job, asset, archive, scheduledAt }) {
