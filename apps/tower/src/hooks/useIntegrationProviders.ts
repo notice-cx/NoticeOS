@@ -1,4 +1,6 @@
 import { useTowerApi } from '@/lib/browser-context';
+import { workspaceReadDenied } from '@/lib/api';
+import { AppReleaseError } from '@/lib/app-release';
 import { useQuery } from "@tanstack/react-query";
 import type { IntegrationCredentialsPayload } from "@shared/integrations-page";
 
@@ -20,11 +22,13 @@ export const INTEGRATION_PROVIDERS_KEY = ["integration-providers"] as const;
  */
 export function useIntegrationProviders(watch = true) {
   const { fetchIntegrationProviders } = useTowerApi();
-  return useQuery<IntegrationCredentialsPayload>({
+  const query = useQuery<IntegrationCredentialsPayload>({
     queryKey: INTEGRATION_PROVIDERS_KEY,
     queryFn: ({ signal }) => fetchIntegrationProviders(signal),
     refetchInterval: watch ? 300_000 : false,
     refetchOnWindowFocus: !watch,
     staleTime: 60_000,
+    ...(watch ? {} : { retry: (count: number, error: Error) => !(error instanceof AppReleaseError) && !workspaceReadDenied(error) && count < 1 }),
   });
+  return !watch && workspaceReadDenied(query.error) ? { ...query, data: undefined } : query;
 }

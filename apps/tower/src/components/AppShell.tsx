@@ -1,4 +1,4 @@
-import { useBrowserContext, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserContext, useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
@@ -296,7 +296,8 @@ function LiveIntegrationsNav({
   item: NavItem;
   onNavigate?: () => void;
 }) {
-  const { data } = useIntegrationProviders();
+  const { owner } = useBrowserRuntime();
+  const { data } = useIntegrationProviders(owner.mode !== 'hosted');
   return <IntegrationsNav item={item} payload={data ?? null} onNavigate={onNavigate} />;
 }
 
@@ -654,7 +655,8 @@ function PaletteLauncher({
  * task counts stay on their pages.
  */
 function NavAlarm() {
-  const { data } = useIntegrationProviders();
+  const { owner } = useBrowserRuntime();
+  const { data } = useIntegrationProviders(owner.mode !== 'hosted');
   const rows = expiringCredentials(data ?? null, Date.now());
   const severity = expiringCredentialSeverity(rows);
   if (!severity) return null;

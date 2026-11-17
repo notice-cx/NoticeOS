@@ -1,7 +1,7 @@
 import { useTowerApi } from '@/lib/browser-context';
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { AssetDetailResponse, AssetDetailView } from "@shared/asset-detail-views";
-import { ApiError } from "@/lib/api";
+import { ApiError, workspaceReadDenied } from "@/lib/api";
 
 /** One tab's read of one asset. `["asset-detail", id]` stays the prefix, so
  * every existing invalidation of an asset's page still reaches every view. */
@@ -46,16 +46,18 @@ function newestRead(client: QueryClient, id: string): AssetDetailResponse | unde
  * carries that tab's sections (`viewCovers`). Another asset's read is never
  * held.
  */
-export function useAssetDetail(id: string, view: AssetDetailView) {
+export function useAssetDetail(id: string, view: AssetDetailView, { watch = true }: { watch?: boolean } = {}) {
   const { fetchAssetDetail } = useTowerApi();
   const client = useQueryClient();
   const query = useQuery<AssetDetailResponse>({
     queryKey: assetDetailKey(id, view),
     queryFn: ({ signal }) => fetchAssetDetail(id, signal, view),
-    refetchInterval: POLL_MS,
+    refetchInterval: watch ? POLL_MS : false,
     staleTime: STALE_MS,
-    retry,
+    retry: watch ? retry : (count, error) => !workspaceReadDenied(error) && retry(count, error),
+    ...(watch ? {} : { refetchOnWindowFocus: 'always' as const }),
   });
+  if (!watch && workspaceReadDenied(query.error)) return { ...query, data: undefined };
   return { ...query, data: query.data ?? newestRead(client, id) };
 }
 
