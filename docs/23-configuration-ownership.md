@@ -97,6 +97,11 @@ provisioning creates a workspace and its first owner; an owner can invite people
 to that workspace. An invitation has a workspace, intended recipient, role,
 expiry and single-use acceptance. Signing in without an accepted invitation
 does not create a customer workspace. The public demo requires no membership.
+An operator can prepare first-owner enrollment for an existing standalone
+workspace after applying the handoff migration. Verified email and a live
+project-scoped Ntasks check are required before first ownership and the
+workflow service grant commit. Preparation and activation preserve the
+workspace's lifecycle, settings and stored evidence.
 
 For a first owner using a separate Ntasks service, the platform verifier checks
 the deployment's exact project mapping and current project-scoped write grant

@@ -67,7 +67,9 @@ async function input(request) {
         throw new IdentityRefused('Identity input refused');
     return { email: value.email.toLowerCase(), ...(typeof value.otp === 'string' ? { otp: value.otp } : {}) };
 }
-async function eligibility(trx, email, enrollment) {
+async function eligibility(trx, email, enrollment, standaloneOwnerWorkspaceId) {
+    if (standaloneOwnerWorkspaceId !== undefined && enrollment?.kind !== 'platform')
+        return { allowed: false };
     if (!enrollment) {
         const result = await sql `SELECT id FROM noticeos_identity.auth_user WHERE email=${email}`.execute(trx);
         return { allowed: result.rows.length === 1 };
@@ -76,8 +78,9 @@ async function eligibility(trx, email, enrollment) {
         ? await sql `SELECT workspace_id FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid`.execute(trx)
         : await sql `SELECT organization_id AS workspace_id FROM noticeos_identity.auth_invitation WHERE id=${enrollment.id}::uuid`.execute(trx);
     const workspaceId = target.rows[0]?.workspace_id;
-    if (!workspaceId)
+    if (!workspaceId || (standaloneOwnerWorkspaceId !== undefined && workspaceId !== standaloneOwnerWorkspaceId)) {
         return { allowed: false };
+    }
     // All later invitation/provisioning lifecycle operations must use this same
     // order: organization, canonical workspace, then invitation/enrollment. Login
     // first holds its maintained rate bucket and normalized mailbox locks.
@@ -87,7 +90,19 @@ async function eligibility(trx, email, enrollment) {
         const result = await sql `SELECT email=${email} AND workspace_id=${workspaceId}::uuid
       AND revoked_at IS NULL AND verified_at IS NULL AND expires_at>clock_timestamp() AS allowed
       FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid FOR UPDATE`.execute(trx);
-        const allowed = workspace.rows[0]?.status === 'provisioning' && result.rows[0]?.allowed === true;
+        const status = workspace.rows[0]?.status;
+        let allowed = standaloneOwnerWorkspaceId === undefined && result.rows[0]?.allowed === true && status === 'provisioning';
+        if (status === 'active' && result.rows[0]?.allowed === true) {
+            // Before the operator applies the adoption migration, active workspace
+            // enrollment keeps its original refusal.
+            const installed = await sql `SELECT
+        to_regprocedure('noticeos_identity.is_standalone_owner_enrollment(uuid,uuid)') IS NOT NULL AS exists`.execute(trx);
+            if (installed.rows[0]?.exists === true) {
+                const existing = await sql `SELECT noticeos_identity.is_standalone_owner_enrollment(
+          ${workspaceId}::uuid,${enrollment.id}::uuid) AS allowed`.execute(trx);
+                allowed = existing.rows[0]?.allowed === true;
+            }
+        }
         return { allowed, ...(allowed ? { platformId: enrollment.id } : {}) };
     }
     const result = await sql `SELECT lower(email)=${email} AND organization_id=${workspaceId}::uuid
@@ -100,10 +115,15 @@ async function eligibility(trx, email, enrollment) {
  * headers never choose a rate bucket. Close in finally after the last action. */
 export function openEmailCodeLogin(options) {
     options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin,
-        sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver });
+        sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
+        ...(options.standaloneOwnerWorkspaceId === undefined ? {} : { standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId }) });
     const trustedOrigin = validateIdentityOptions(options);
     if (typeof options.peerAddress !== 'string' || !isValidIP(options.peerAddress) || typeof options.deliver !== 'function') {
         throw new IdentityRefused('Identity requires a trusted peer and delivery adapter');
+    }
+    if (options.standaloneOwnerWorkspaceId !== undefined && (typeof options.standaloneOwnerWorkspaceId !== 'string'
+        || !UUID.test(options.standaloneOwnerWorkspaceId))) {
+        throw new IdentityRefused('Identity enrollment refused');
     }
     const peer = normalizeIP(options.peerAddress);
     const policy = createBrowserRequestPolicy(trustedOrigin);
@@ -144,7 +164,7 @@ export function openEmailCodeLogin(options) {
             await sql `SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
             if (body)
                 await sql `SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-            const eligible = body ? await eligibility(trx, body.email, enrollment) : { allowed: true };
+            const eligible = body ? await eligibility(trx, body.email, enrollment, options.standaloneOwnerWorkspaceId) : { allowed: true };
             const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
                 ...(action === 'logout' ? { readOnlySession: true } : {}),
                 peer, eligible: eligible.allowed, deliver: (message) => { mail.push(message); } });

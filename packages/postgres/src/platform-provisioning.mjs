@@ -12,6 +12,10 @@ export class PlatformProvisioningRefused extends Error {
     name = 'PlatformProvisioningRefused';
     constructor() { super('Platform provisioning refused'); }
 }
+export class StandaloneOwnerMigrationRequired extends Error {
+    name = 'StandaloneOwnerMigrationRequired';
+    constructor() { super('Apply the standalone owner handoff migration with the operator migration command first.'); }
+}
 function refuse() { throw new PlatformProvisioningRefused(); }
 function record(input, keys) {
     if (!input || typeof input !== 'object' || Array.isArray(input))
@@ -59,17 +63,49 @@ function preparation(input) {
     const workspaceId = uuid(row.workspaceId);
     if (typeof row.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,62}$/u.test(row.slug)
         || typeof row.displayName !== 'string' || row.displayName.length < 1 || row.displayName.length > 80
-        || row.displayName.trim() !== row.displayName || /[\u0000-\u001f\u007f]/u.test(row.displayName)
-        || typeof row.intendedEmail !== 'string' || row.intendedEmail.length > 320
-        || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(row.intendedEmail)
-        || typeof row.expiresAt !== 'string')
+        || row.displayName.trim() !== row.displayName || /[\u0000-\u001f\u007f]/u.test(row.displayName))
         refuse();
-    const expires = Date.parse(row.expiresAt);
+    return Object.freeze({ workspaceId, slug: row.slug, displayName: row.displayName,
+        ...intendedOwner(row.intendedEmail, row.expiresAt) });
+}
+function ownerEmail(input) {
+    if (typeof input !== 'string' || input.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(input))
+        refuse();
+    return input.toLowerCase();
+}
+function intendedOwner(intendedEmail, expiresAt) {
+    if (typeof expiresAt !== 'string')
+        refuse();
+    const expires = Date.parse(expiresAt);
     const now = Date.now();
     if (!Number.isFinite(expires) || expires <= now || expires > now + 7 * 86400000)
         refuse();
-    return Object.freeze({ workspaceId, slug: row.slug, displayName: row.displayName,
-        intendedEmail: row.intendedEmail.toLowerCase(), expiresAt: new Date(expires).toISOString() });
+    return { intendedEmail: ownerEmail(intendedEmail), expiresAt: new Date(expires).toISOString() };
+}
+function standaloneBinding(row) {
+    if (typeof row.ntasksOrigin !== 'string' || row.ntasksOrigin.length > 512)
+        refuse();
+    let origin;
+    try {
+        origin = new URL(row.ntasksOrigin);
+    }
+    catch {
+        refuse();
+    }
+    if (origin.origin !== row.ntasksOrigin || (origin.protocol !== 'https:'
+        && (origin.protocol !== 'http:' || origin.hostname !== '127.0.0.1')))
+        refuse();
+    return { workspaceId: uuid(row.workspaceId), projectId: uuid(row.projectId),
+        ntasksWorkspaceId: uuid(row.ntasksWorkspaceId), ntasksOrigin: origin.origin };
+}
+async function requireStandaloneSchema(trx) {
+    const result = await sql `SELECT
+    to_regprocedure('noticeos_platform.prepare_standalone_owner(uuid,text,timestamptz,text,uuid,uuid)') IS NOT NULL
+    AND to_regprocedure('noticeos_platform.lock_standalone_owner(uuid,uuid,text,text,uuid,uuid)') IS NOT NULL
+    AND to_regprocedure('noticeos_platform.complete_standalone_owner(uuid,uuid)') IS NOT NULL
+    AND to_regprocedure('noticeos_identity.is_standalone_owner_enrollment(uuid,uuid)') IS NOT NULL AS installed`.execute(trx);
+    if (result.rows[0]?.installed !== true)
+        throw new StandaloneOwnerMigrationRequired();
 }
 const ROLE_SQL = `SELECT session_user::text AS session_role,current_user::text AS acting_role,
   r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication AS elevated,
@@ -156,7 +192,9 @@ export function openPlatformProvisioning(input) {
                 refuse();
             return await work(db, controller.signal, deadline);
         }
-        catch {
+        catch (error) {
+            if (error instanceof StandaloneOwnerMigrationRequired)
+                throw error;
             refuse();
         }
         finally {
@@ -167,6 +205,10 @@ export function openPlatformProvisioning(input) {
         pending.add(work);
         void work.then(() => pending.delete(work), () => pending.delete(work));
         return work;
+    }
+    async function addFirstOwner(trx, organizationId, userId) {
+        await identityEngine(trx, { connectionString: options.platformConnectionString,
+            trustedOrigin: options.trustedOrigin, sessionSecret: options.sessionSecret }, { transaction: false, validateSchema: false }).api.addMember({ body: { organizationId, userId, role: 'owner' } });
     }
     return Object.freeze({
         prepare(input) {
@@ -220,10 +262,7 @@ export function openPlatformProvisioning(input) {
                 await options.verifyProject(mapping, Object.freeze({ signal, deadline: Math.min(deadline, Date.now() + 30000) }));
                 if (signal.aborted)
                     refuse();
-                await identityEngine(trx, { connectionString: options.platformConnectionString,
-                    trustedOrigin: options.trustedOrigin, sessionSecret: options.sessionSecret }, { transaction: false, validateSchema: false }).api.addMember({ body: {
-                        organizationId: command.workspaceId, userId: row.person_id, role: 'owner',
-                    } });
+                await addFirstOwner(trx, command.workspaceId, row.person_id);
                 if (signal.aborted)
                     refuse();
                 await sql `SELECT noticeos_platform.complete_workspace_activation(${command.workspaceId}::uuid,
@@ -231,6 +270,68 @@ export function openPlatformProvisioning(input) {
                 if (signal.aborted)
                     refuse();
                 return Object.freeze({ workspaceId: command.workspaceId, enrollmentId: command.enrollmentId });
+            })));
+        },
+        prepareStandaloneOwner(input) {
+            if (closed)
+                return Promise.reject(new PlatformProvisioningRefused());
+            let command;
+            try {
+                const row = record(input, ['workspaceId', 'ntasksWorkspaceId', 'ntasksOrigin', 'projectId', 'intendedEmail', 'expiresAt']);
+                command = { ...standaloneBinding(row), ...intendedOwner(row.intendedEmail, row.expiresAt) };
+            }
+            catch {
+                return Promise.reject(new PlatformProvisioningRefused());
+            }
+            return track(transaction(async (db, signal) => db.transaction().execute(async (trx) => {
+                await requireStandaloneSchema(trx);
+                if (signal.aborted)
+                    refuse();
+                const result = await sql `SELECT noticeos_platform.prepare_standalone_owner(
+          ${command.workspaceId}::uuid,${command.intendedEmail},${command.expiresAt}::timestamptz,${command.ntasksOrigin},
+          ${command.ntasksWorkspaceId}::uuid,${command.projectId}::uuid) AS enrollment_id`.execute(trx);
+                const enrollmentId = result.rows[0]?.enrollment_id;
+                if (!enrollmentId || !UUID.test(enrollmentId) || signal.aborted)
+                    refuse();
+                return Object.freeze({ workspaceId: command.workspaceId, enrollmentId });
+            })));
+        },
+        activateStandaloneOwner(input) {
+            if (closed)
+                return Promise.reject(new PlatformProvisioningRefused());
+            let command;
+            try {
+                const row = record(input, ['workspaceId', 'ntasksWorkspaceId', 'ntasksOrigin', 'projectId', 'enrollmentId', 'intendedEmail']);
+                command = { ...standaloneBinding(row), enrollmentId: uuid(row.enrollmentId), intendedEmail: ownerEmail(row.intendedEmail) };
+            }
+            catch {
+                return Promise.reject(new PlatformProvisioningRefused());
+            }
+            return track(transaction(async (db, signal, deadline) => db.transaction().execute(async (trx) => {
+                await requireStandaloneSchema(trx);
+                if (signal.aborted)
+                    refuse();
+                const result = await sql `SELECT * FROM noticeos_platform.lock_standalone_owner(
+          ${command.workspaceId}::uuid,${command.enrollmentId}::uuid,${command.intendedEmail},${command.ntasksOrigin},${command.ntasksWorkspaceId}::uuid,
+          ${command.projectId}::uuid)`.execute(trx);
+                const row = result.rows[0];
+                if (!row || result.rows.length !== 1 || !UUID.test(row.person_id) || !UUID.test(row.service_id)
+                    || typeof row.completed !== 'boolean' || row.project_id !== command.projectId || !UUID.test(row.executor_ref)
+                    || !UUID.test(row.credential_ref) || !/^n_[0-9a-f]{32}$/u.test(row.database_key) || signal.aborted)
+                    refuse();
+                if (!row.completed) {
+                    const mapping = Object.freeze({ workspaceId: command.workspaceId, projectId: row.project_id,
+                        executorRef: row.executor_ref, credentialRef: row.credential_ref, databaseKey: row.database_key });
+                    await options.verifyProject(mapping, Object.freeze({ signal, deadline: Math.min(deadline, Date.now() + 30000) }));
+                    if (signal.aborted)
+                        refuse();
+                    await addFirstOwner(trx, command.workspaceId, row.person_id);
+                    const completed = await sql `SELECT noticeos_platform.complete_standalone_owner(
+            ${command.workspaceId}::uuid,${command.enrollmentId}::uuid) AS service_id`.execute(trx);
+                    if (signal.aborted || completed.rows[0]?.service_id !== row.service_id)
+                        refuse();
+                }
+                return Object.freeze({ workspaceId: command.workspaceId, enrollmentId: command.enrollmentId, serviceId: row.service_id });
             })));
         },
         close() {
