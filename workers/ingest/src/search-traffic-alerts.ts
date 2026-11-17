@@ -13,10 +13,9 @@ const SEARCH_TRAFFIC = 'search-traffic';
 export async function checkSearchTraffic(
   env: Pick<IngestEnv, 'STORE'>,
   config: RuleConfig,
-  nowMs = Date.now(),
+  nowMs?: number,
 ): Promise<{ assets: number; raised: number; resolved: number }> {
-  const at = new Date(nowMs).toISOString();
-  const through = utcDay(at);
+  const through = utcDay(nowMs ?? Date.now());
   const from = shiftUtcDay(through, -(seasonalHistorySpanDays(config) + LIVE_SIGNAL_WINDOW_DAYS));
   const integrations = Object.keys(SOURCES);
   const assets = await env.STORE.read((tx) => tx.query<{ asset: string }>(
@@ -31,6 +30,7 @@ export async function checkSearchTraffic(
       await holdCondition(tx, asset, SEARCH_TRAFFIC);
       if (await isRetiredForAlert(tx, asset)) return { raised: 0, resolved: 0 };
       const rows = await readDailySignalTrend(tx, asset, from, integrations, through);
+      const at = new Date(nowMs ?? Date.now()).toISOString();
       let raised = 0;
       let resolved = 0;
       for (const [integration, provider] of Object.entries(SOURCES)) {
@@ -87,7 +87,7 @@ async function reconcileTraffic(
   const [comparison] = await tx.query<{ changed: boolean }>('SELECT $1::jsonb IS DISTINCT FROM $2::jsonb AS changed',
     [open.ruleInputs, ruleInputs]);
   if (comparison?.changed) {
-    await appendReading(tx, [open.flagId], { observedAt: at, severity, message, ruleInputs });
+    await appendReading(tx, [open.flagId], { observedAt: null, severity, message, ruleInputs });
   }
   return { raised: 0, resolved: 0 };
 }

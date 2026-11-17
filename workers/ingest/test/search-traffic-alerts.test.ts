@@ -60,12 +60,14 @@ describe('search traffic alerts from stored provider counts', () => {
       prediction: { model: 'weekday-log-predictive-v1' } });
 
     const nextDay = shiftUtcDay(DROP, 1);
-    await save('bing-webmaster', [zero(nextDay), zero(shiftUtcDay(DROP, 2))]);
-    expect(await sweep(NOW + 60_000)).toMatchObject({ raised: 0, resolved: 0 });
-    await sweep(NOW + 120_000);
+    await save('bing-webmaster', [zero(nextDay)]);
+    expect(await sweep()).toMatchObject({ raised: 0, resolved: 0 });
+    await save('bing-webmaster', [zero(shiftUtcDay(DROP, 2))]);
+    expect(await sweep()).toMatchObject({ raised: 0, resolved: 0 });
+    await sweep();
     const [updated] = await alerts(BING_RULE);
     expect(JSON.parse(updated!.inputs).observationEnd).toBe(shiftUtcDay(DROP, 2));
-    expect(await pgCount('SELECT count(*) AS n FROM noticeos.flag_evidence')).toBe(1);
+    expect(await pgCount('SELECT count(*) AS n FROM noticeos.flag_evidence')).toBe(2);
 
     const recovered = Array.from({ length: 7 }, (_, index) => typical(shiftUtcDay(DROP, index + 3), 'impressions', 5_000));
     await save('bing-webmaster', recovered);
