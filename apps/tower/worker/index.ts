@@ -439,9 +439,13 @@ const towerHandler = {
   // Every way in — a request, a scheduled tick — runs with a store of its
   // own, opened for the call and closed when it ends (the ingest does the same).
   async fetch(request: Request, env: TowerEnv, ctx: CallContext): Promise<Response> {
-    if (env.NOTICEOS_CUSTOMER_SHADOW) {
+    const viewer = demoViewer();
+    if (viewer === null && env.NOTICEOS_CUSTOMER_SHADOW === true) {
       // Only the native gateway knows the shadow's per-process peer proof.
-      try { edgePeer(request, env); }
+      try {
+        if (env.NOTICEOS_IDENTITY_EDGE !== 'local-loopback') throw new Error('Native gateway required');
+        edgePeer(request, env);
+      }
       catch { return new Response(null, { status: 403, headers: { 'cache-control': 'no-store' } }); }
     }
     if ([MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH].includes(new URL(request.url).pathname)) {
@@ -460,7 +464,6 @@ const towerHandler = {
     if (new URL(request.url).pathname === BROWSER_SESSION_PATH) {
       return handleBrowserSessionRequest(request, env);
     }
-    const viewer = demoViewer();
     const answer = demoViewerResponse(request, viewer);
     if (answer !== null) return answer;
     let profile: ReturnType<typeof workspaceProfile>;

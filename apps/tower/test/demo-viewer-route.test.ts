@@ -20,6 +20,19 @@ function forbiddenEnvironment() {
   const get = vi.fn(() => { throw new Error('Refusal opened a store or reached a binding'); });
   return { env: new Proxy({} as TowerEnv, { get }), get };
 }
+it('requires the native peer proof before serving the backup preview', async () => {
+  const origin = 'http://127.0.0.1:16500';
+  const env = {
+    NOTICEOS_CUSTOMER_SHADOW: true, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: origin,
+    NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: 'a'.repeat(43),
+  } as TowerEnv;
+  for (const proof of [null, 'b'.repeat(43)]) {
+    const headers = proof === null ? undefined : { 'x-noticeos-local-peer-proof': proof };
+    const response = await worker.fetch(new Request(`${origin}/api/work`, { headers }), env, { waitUntil: vi.fn() });
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe('');
+  }
+});
 describe('the actual demo Worker entry points', () => {
   it('refuses unsafe GETs and mutations before accessing any store, binding or request body', async () => {
     vi.stubGlobal('__DEMO_VIEWER__', descriptor);
