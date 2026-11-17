@@ -437,6 +437,7 @@ it fires exactly once (`CRON_CATCHUP_POLICIES` in `scripts/job-runs.mjs`):
 | Hourly freshness, operator notifications, panel review | 2 hours | one latest reconciliation |
 | Daily ingest lanes (including the PostHog archive), panel refresh, backup | 36 hours | one latest daily obligation; trailing-window collectors store an unchanged window as `unchanged` |
 | Mediavine (`10,30,50 * * * *`) | 36 hours | checks the cutoff and stored coverage; requests a report only when due |
+| AdSense (`35 16 * * *`) | 36 hours | refreshes the previous and current months through yesterday |
 | Weekly DataForSEO collection | 8 days | one missed weekly collection |
 
 The pass is sequential, cheapest cadence first, so a reboot is not a provider

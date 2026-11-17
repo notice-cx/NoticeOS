@@ -1101,8 +1101,8 @@ export function readEnvCredential(
 ): EnvCredentialRead {
   const fields: Record<string, string> = {};
   const legacySlots: Record<string, string> = {};
-  // Mediavine never had an env login; Disconnect must not revive one.
-  if (provider.id === 'mediavine') return { fields, legacySlots };
+  // These connections are created in Integrations and have no legacy bindings.
+  if (provider.id === 'mediavine' || provider.id === 'adsense') return { fields, legacySlots };
   for (const field of provider.fields) {
     const direct = bindings[field.name];
     let value = typeof direct === 'string' && direct.trim() !== '' ? direct : undefined;

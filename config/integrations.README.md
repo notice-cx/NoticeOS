@@ -174,10 +174,12 @@ search, feeds, Cloudflare infra) are owned once at the OS level.
 `discord-webhooks`, `uptime` and `github-app` are included because they are
 asset #0's own integrations. `affiliate-cj` and `affiliate-amazon` are
 separate lanes because two networks run simultaneously with different
-postures; ad networks are one lane, `ad-network`, because AdSense →
-Raptive/Mediavine is a sequential migration. Mediavine's `mediavineSiteId` and
-`mediavineEnabled` sit on that cell, with credentials in Connected accounts
-([Mediavine revenue](../docs/11-integrations.md#mediavine-revenue)).
+postures. The `ad-network` entry holds Mediavine's `mediavineSiteId` and
+`mediavineEnabled`. The `adsense` entry holds the domain selected in the
+Google AdSense connection and is created when the operator maps the asset.
+Both connections are managed in **Integrations**. See
+[Mediavine revenue](../docs/11-integrations.md#mediavine-revenue) and
+[AdSense](../docs/11-integrations.md#adsense).
 
 The catalog is the product's own definition of the sources it can collect,
 not a setting: every field is fixed once written, so the write lane refuses an
