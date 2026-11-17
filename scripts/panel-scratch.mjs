@@ -24,10 +24,18 @@ export async function previewPanelScratch(reports) {
   const inodes = new Map();
   while (pending.length) {
     const file = pending.pop();
-    const stat = await fs.lstat(file);
-    if (stat.isDirectory()) {
-      for (const name of await fs.readdir(file)) pending.push(path.join(file, name));
-    } else if (stat.isFile() || stat.isSymbolicLink()) {
+    let stat;
+    try {
+      stat = await fs.lstat(file);
+      if (stat.isDirectory()) {
+        for (const name of await fs.readdir(file)) pending.push(path.join(file, name));
+        continue;
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') return busy();
+      throw error;
+    }
+    if (stat.isFile() || stat.isSymbolicLink()) {
       files++;
       logicalBytes += stat.size;
       const key = stat.dev + '/' + stat.ino;

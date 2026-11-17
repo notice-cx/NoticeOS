@@ -400,6 +400,20 @@ test('it never replaces a folder it did not write, and one job at a time writes 
   assert.equal((await previewPanelScratch(reports)).files, 0);
 });
 
+test('a scratch preview reports busy if a staging directory disappears during traversal', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-scratch-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const reports = path.join(root, 'asset.reports');
+  const staging = path.join(reports, '.staging-42-00000000');
+  await fs.mkdir(staging, { recursive: true });
+  const read = fs.readdir.bind(fs);
+  t.mock.method(fs, 'readdir', async (file, ...args) => {
+    if (file === staging) await fs.rmdir(staging);
+    return read(file, ...args);
+  });
+  assert.equal((await previewPanelScratch(reports)).busy, true);
+});
+
 test('the command line answers help and each refusal before it reads anything', () => {
   const run = (...args) => spawnSync(process.execPath, [MODULE, ...args], {
     cwd: REPO_ROOT,
