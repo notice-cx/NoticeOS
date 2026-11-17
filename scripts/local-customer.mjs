@@ -15,6 +15,7 @@ import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
+import { localSiteReportsEnabled } from './workspace-operations.mjs';
 
 const HOST = '127.0.0.1';
 const MAIL_SENDER = 'noticeos@example.test';
@@ -243,6 +244,10 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
   if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating)) {
     throw new Error('Customer shadow cannot start providers or schedules.');
   }
+  const siteReports = operating?.siteReports ? { NOTICEOS_LOCAL_SITE_REPORTS: '1' } : {};
+  if (operating?.siteReports && !localSiteReportsEnabled({ ...siteReports, NOTICEOS_WORKSPACE_ORIGIN: publicOrigin })) {
+    throw new Error('Site reports require the same explicit loopback address as the customer Tower.');
+  }
   const state = mkdtempSync(path.join(customer, 'build-'));
   const artifactRoot = path.join(state, 'app');
   let runtime, schedules, server;
@@ -294,7 +299,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
       telemetry: { enabled: false }, workers: [
-        { ...tower, bindings: { ...bindings, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
+        { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
           ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
           NOTICEOS_IDENTITY_EMAIL_FROM: MAIL_SENDER },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
@@ -305,7 +310,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
               return status ? Response.json(status) : new Response(null, { status: 404 });
             } } : {}) },
           r2Buckets: { NOTICEOS_PORTFOLIO: 'customer-portfolio-summaries' } },
-        { ...ingest, ...archive, bindings: { ...ingestBindings, ...(google ? {} : scheduleBindings),
+        { ...ingest, ...archive, bindings: { ...ingestBindings, ...siteReports, ...(google ? {} : scheduleBindings),
           ...(ntasksOrigin === null ? {} : { NOTICEOS_NTASKS_ORIGIN: ntasksOrigin }) },
           ...(google ? {} : scheduleTransport) },
         ...(google ? [{

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
+import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
+import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
 import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { readCustomerOperating, openCustomerOperating } from './local-customer-operating.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
@@ -34,13 +36,14 @@ test('the operator chooses the one loopback database and only explicit providers
   };
   assert.equal(read().googleDaily, false);
   assert.equal(read().ntasksOrigin, null);
+  assert.equal(read().siteReports, false);
   assert.equal(read({ ntasksOrigin: 'https://tasks.example.test' }).ntasksOrigin, 'https://tasks.example.test');
   for (const override of [
     { database: { ...config.database, app: config.database.app.replace('127.0.0.1', 'db.example.test') } },
     { database: { ...config.database, grant: config.database.grant.replace('11424', '11425') } },
     { database: { ...config.database, identity: config.database.app } },
     { ntasksOrigin: 'http://127.0.0.1:11424' }, { ntasksOrigin: 'https://tasks.example.test/elsewhere' },
-    { ntasksOrigin: 'http://tasks.example.test' }, { googleDaily: 'yes' },
+    { ntasksOrigin: 'http://tasks.example.test' }, { googleDaily: 'yes' }, { siteReports: 'yes' },
   ]) assert.throws(() => read(override), /private customer config/u);
   const targets = [];
   const transport = async (url, init) => {
@@ -70,7 +73,7 @@ function customerArgs(plan, configFile) {
     '--dir', plan.home, '--port', String(plan.port), '--no-open'];
 }
 
-async function assertNormalLauncher(plan, configFile) {
+async function assertNormalLauncher(plan, configFile, exercise) {
   const child = spawn(process.execPath, customerArgs(plan, configFile), { stdio: ['ignore', 'pipe', 'pipe'] });
   const exited = new Promise(resolve => {
     child.once('exit', code => resolve(code));
@@ -91,11 +94,57 @@ async function assertNormalLauncher(plan, configFile) {
       new Promise(resolve => timeout.addEventListener('abort', () => resolve(false), { once: true }))]);
     assert.equal(running, true);
     assert.equal((await fetch(plan.url + 'wall', { signal: timeout })).status, 200);
+    await exercise();
   } finally {
     child.kill('SIGTERM');
     const code = await exited;
     if (running) assert.equal(code, 0);
   }
+}
+
+async function workspaceOwner(app) {
+  const { email, url, workspaceId } = app.workspaces[0];
+  const origin = app.publicOrigin;
+  const invitationId = new URL(url).hash.slice('#invitation='.length);
+  const proof = { [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: invitationId };
+  const post = (route, body, headers) => fetch(origin + route, { method: 'POST',
+    headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  assert.equal((await post(EMAIL_CODE_PATHS.request, { email }, proof)).status, 202);
+  const message = readdirSync(app.outbox).map(file => JSON.parse(readFileSync(path.join(app.outbox, file), 'utf8')))
+    .find(mail => mail.to === email && /\b\d{6}\.$/u.test(mail.text));
+  assert.ok(message);
+  const otp = message.text.match(/\b(\d{6})\.$/u)[1];
+  const verified = await post(EMAIL_CODE_PATHS.verify, { email, otp }, proof);
+  assert.equal(verified.status, 200);
+  const cookie = verified.headers.getSetCookie().map(header => header.split(';')[0]).join('; ');
+  const reader = await fetch(origin + '/api/session', { headers: { cookie } });
+  const { session } = await reader.json();
+  const headers = { cookie, [WORKSPACE_SESSION_HEADER]: session.sessionId, origin };
+  assert.equal((await post(ACCEPT_INVITATION_PATH, { invitationId }, headers)).status, 200);
+  return { ...headers, [WORKSPACE_SELECTION_HEADER]: workspaceId };
+}
+
+async function exerciseSiteReports(origin, owner, db) {
+  const asset = 'archive-app';
+  const manage = (method, headers = owner) => fetch(origin + '/api/assets/' + asset + '/report-token', { method, headers });
+  const send = (token, namedAsset = asset) => fetch(origin + '/api/pulse', { method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+    body: JSON.stringify({ asset: namedAsset, generatedAt: new Date().toISOString(),
+      capabilities: ['signups'], metrics: { signups: { last24h: 9, avg7d: 3, total: 105 } } }),
+  });
+  assert.equal((await manage('POST', { ...owner, origin: 'http://127.0.0.1:19056' })).status, 403);
+  const created = await manage('POST');
+  assert.equal(created.status, 201);
+  const { token } = await created.json();
+  assert.equal((await send(token, 'unrelated-site')).status, 401);
+  assert.equal((await send(token)).status, 201);
+  assert.equal((await manage('DELETE')).status, 204);
+  assert.equal((await send(token)).status, 401);
+  assert.equal((await (await manage('GET')).json()).issued, false);
+  assert.deepEqual(db.cluster.sql(`SELECT workspace_id,asset_id,envelope->'metrics'->'signups'->>'last24h' AS signups
+    FROM noticeos.current_pulses WHERE asset_id='archive-app'`), [
+    { workspace_id: owner[WORKSPACE_SELECTION_HEADER], asset_id: asset, signups: '9' },
+  ]);
 }
 
 async function recordedGoogle(archive) {
@@ -137,13 +186,14 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     app = await startLocalCustomer(source, db);
     const { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(db.customer, 'settings.json'), 'utf8'));
     const workspaces = app.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }));
-    const archive = customerArchiveFixture(app);
+    const owner = await workspaceOwner(app);
+    const archive = customerArchiveFixture(app, { useServiceAccount: true });
     await archive.configure(db, credentialsKey);
     provider = await recordedGoogle(archive);
     const config = { format: 'noticeos-customer-operating/1', database: {
       app: db.address, identity: db.identityDatabase, grant: db.grantConnectionString,
     }, identitySecret, credentialsKey, workspaces, mailRecipients: app.workspaces.map(row => row.email) };
-    const save = googleDaily => writeFileSync(configFile, JSON.stringify({ ...config, googleDaily }), { mode: 0o600 });
+    const save = (googleDaily, siteReports) => writeFileSync(configFile, JSON.stringify({ ...config, googleDaily, siteReports }), { mode: 0o600 });
     await app.close(); app = undefined;
 
     let resources;
@@ -160,6 +210,7 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     const session = await fetch(app.publicOrigin + '/api/session');
     assert.equal((await session.json()).mode, 'hosted');
     assert.equal((await fetch(app.publicOrigin + '/api/mcp')).status, 401);
+    assert.equal((await fetch(app.publicOrigin + '/api/assets/archive-app/report-token', { method: 'POST', headers: owner })).status, 404);
     const other = startPlan({ dir: path.join(root, 'second-runtime'), port: await availableCustomerPort() });
     await assert.rejects(promisify(execFile)(process.execPath, customerArgs(other, configFile)),
     error => /already owns this database/u.test(error.stdout + error.stderr));
@@ -182,8 +233,8 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     const resumed = await openCustomerOperating(operator, configFile);
     try { assert.ok(Number.isSafeInteger(resumed.resumeSince)); }
     finally { await resumed.close(); }
-    save(false);
-    await assertNormalLauncher(operator, configFile);
+    save(false, true);
+    await assertNormalLauncher(operator, configFile, () => exerciseSiteReports(new URL(operator.url).origin, owner, db));
     assert.equal(provider.calls(), archived);
   } finally {
     try { await app?.close(); } finally { db?.close(); await provider?.close(); }

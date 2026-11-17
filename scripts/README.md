@@ -918,10 +918,17 @@ Provider HTTP starts disabled. Add `ntasksOrigin` for a separately running
 Ntasks, as either a loopback HTTP origin or its exact HTTPS origin. Workspace
 connections still need project-scoped credentials. Set `googleDaily` to
 `true` to allow the scheduled Google Analytics and Search Console report
-requests from an existing credential. Connect or reconnect Google in the
-separately authorized provisioning environment first. The launcher limits
-Google access to due collection and stops provider redirects. Customer
-backups and paid research require their separate controls.
+requests from an existing credential. To connect or reconnect with a
+property-scoped service account, use **Integrations → Google → Service
+account** in the separately authorized provisioning environment. The
+attached runtime uses that saved connection and its existing encryption key.
+The runtime permits Google access during due collection and stops redirects.
+Customer backups and paid research require their separate controls.
+
+Set `siteReports` to `true` to allow site credentials and report intake on
+the exact loopback Tower address. From the site's settings, a workspace
+owner can issue and revoke a credential scoped to that site. Send the report
+to the same address using the [site report guide](../docs/guides/send-your-own-report.md).
 
 Only one scheduler can hold the database lease. Ctrl-C stops the app and
 releases that lease. If the database disconnects the launcher stops this
