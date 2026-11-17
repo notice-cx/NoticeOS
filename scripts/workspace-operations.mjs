@@ -194,6 +194,7 @@ export function connectionReadinessRequest(request) {
         return Object.freeze({ provider: match[1], method: 'probeCredential' });
     return null;
 }
+export const SITE_REPORT_INTAKE_PATH = '/api/pulse';
 export function siteReportGrantRequest(request) {
     if (!(request instanceof Request) || request.url.length > 2048)
         return null;

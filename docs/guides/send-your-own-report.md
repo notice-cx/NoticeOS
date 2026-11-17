@@ -12,7 +12,7 @@ Most of the data NoticeOS has about an asset comes from data sources you connect
 ## Before you begin
 
 - The asset added in NoticeOS. Its id is its domain as added in the product.
-- The asset's token. In a local customer workspace with report intake enabled, open the asset's **Settings** tab and choose **Create token** under **Daily site reports**. Copy the token to your site's server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
+- The asset's token. In a local customer workspace with report intake enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
 - In a standalone installation, the operator keeps the token map under `ASSET_TOKENS` in `workers/ingest/.dev.secrets.json`. The token authenticates a push and, when configured, NoticeOS presents it to the asset's metrics endpoint for a fetch. See [the bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment).
 
 ### What belongs in a report

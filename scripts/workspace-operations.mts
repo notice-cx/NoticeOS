@@ -189,6 +189,8 @@ export function connectionReadinessRequest(request: Request): {
 export type CredentialWriteMethod = 'putCredential' | 'deleteCredential' |
   'setCredentialExpiry' | 'connectCredential' | 'putSiteToken';
 
+export const SITE_REPORT_INTAKE_PATH = '/api/pulse';
+
 export function siteReportGrantRequest(request: Request): { readonly asset: string; readonly method: 'GET' | 'POST' | 'DELETE' } | null {
   if (!(request instanceof Request) || request.url.length > 2048) return null;
   const { method } = request;

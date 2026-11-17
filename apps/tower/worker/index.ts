@@ -22,7 +22,7 @@ import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH } from '../../../scripts/identi
 import { demoViewer } from '../shared/demo-viewer';
 import { demoViewerReadResponse, demoViewerResponse } from './demo-viewer-route';
 import { requireStandaloneWorkspace, withWorkspaceEntry, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
-import { localSiteReportsEnabled, siteReportGrantRequest } from '../../../scripts/workspace-operations.mjs';
+import { SITE_REPORT_INTAKE_PATH, localSiteReportsEnabled, siteReportGrantRequest } from '../../../scripts/workspace-operations.mjs';
 import { isCloudflareD1Request, cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
 import { crossOrigin } from './http';
 import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK, isHostedStoredRead, isHostedGoogleDiscovery, connectionReadinessRequest, credentialWriteRequest, providerCollectionRequest, liveProviderReadRequest, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from '../../../scripts/workspace-operations.mjs';
@@ -455,7 +455,7 @@ const towerHandler = {
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
     const path = new URL(request.url).pathname;
-    if (profile === 'hosted' && path === '/api/pulse') {
+    if (profile === 'hosted' && path === SITE_REPORT_INTAKE_PATH) {
       if (!localSiteReportsEnabled(env) || !env.INGEST.siteReport) return jsonError('not_found', 404);
       try { return await env.INGEST.siteReport(request.clone()); }
       catch { return jsonError('site_report_unavailable', 503); }

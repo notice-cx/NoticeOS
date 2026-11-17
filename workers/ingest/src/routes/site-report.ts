@@ -3,13 +3,12 @@ import { openWorkspaceStore, type CallContext, type Transaction } from '@noticeo
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../../scripts/browser-request-policy.mjs';
 import { readBoundedJsonText } from '../../../../scripts/bounded-json-body.mjs';
 import { workspaceEntryOrigin, workspaceProfile } from '../../../../scripts/workspace-entry.mjs';
-import { localSiteReportsEnabled, type siteReportGrantRequest } from '../../../../scripts/workspace-operations.mjs';
+import { SITE_REPORT_INTAKE_PATH, localSiteReportsEnabled, type siteReportGrantRequest } from '../../../../scripts/workspace-operations.mjs';
 import { bearer } from '../auth.js';
 import { hasSiteReportVerifier, saveSiteReportVerifier, siteReportVerifier } from '../credentials.js';
 import { ingestAuthorizedPulse } from '../db.js';
 import { zodIssues } from '../responses.js';
 
-const PATH = '/api/pulse';
 const TOKEN = /^noticeos_site_v1\.([a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})\.[A-Za-z0-9_-]{43}$/u;
 const MAX_BYTES = 256 * 1024;
 const absentVerifier = '0'.repeat(64);
@@ -60,7 +59,7 @@ export async function handleSiteReportGrant(env: IngestEnv, route: NonNullable<R
 export async function handleHostedSiteReport(request: Request, env: IngestEnv, ctx: CallContext): Promise<Response> {
   const url = new URL(request.url);
   if (workspaceProfile(env) !== 'hosted' || !localSiteReportsEnabled(env)
-    || url.origin !== workspaceEntryOrigin(env) || url.pathname !== PATH || request.url !== url.origin + PATH
+    || url.origin !== workspaceEntryOrigin(env) || url.pathname !== SITE_REPORT_INTAKE_PATH || request.url !== url.origin + SITE_REPORT_INTAKE_PATH
     || request.method !== 'POST') return unavailable();
   if (['cookie', 'origin', WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER].some(name => request.headers.has(name))) return denied();
   const token = bearer(request);

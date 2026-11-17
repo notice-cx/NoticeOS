@@ -24,17 +24,17 @@ export function SiteReportSetup({ asset }: { asset: string }) {
     },
   });
 
-  return <Panel id="data-collection" title="Daily site reports">
+  return <Panel id="data-collection" title="Daily reports">
     {grant.isPending ? <p>Reading report setup…</p>
     : grant.isError ? <p role="alert">Could not read report setup.</p>
     : grant.data === null ? <p>Report intake is unavailable for this workspace.</p>
     : <div className="space-y-3">
         <p>Send daily counts such as sign-ups or saved items to <code>POST /api/pulse</code>.</p>
-        <p>{grant.data.issued ? 'A report token is active.' : 'This site needs a report token.'}</p>
+        <p>{grant.data.issued ? 'A report token is active.' : 'This asset needs a report token.'}</p>
         {confirmation ? <div className="space-y-2">
           <p>{confirmation === 'issue'
             ? 'The old token stops working as soon as you replace it.'
-            : 'Reports stop until the site has a new token.'}</p>
+            : 'Set a new token before sending another report.'}</p>
           <div className="flex flex-wrap gap-2">
             <Button disabled={change.isPending} onClick={() => change.mutate(confirmation)}>
               {confirmation === 'issue' ? 'Replace token' : 'Revoke token'}
@@ -50,7 +50,7 @@ export function SiteReportSetup({ asset }: { asset: string }) {
             onClick={() => setConfirmation('revoke')}>Revoke token</Button> : null}
         </div> : null}
         {token ? <div className="space-y-1">
-          <p>Copy this token to your site’s server. It is shown once.</p>
+          <p>Copy this token to your server. It is shown once.</p>
           <code className="block break-all">{token}</code>
           <Button variant="ghost" onClick={() => setToken(null)}>Hide token</Button>
         </div> : null}
