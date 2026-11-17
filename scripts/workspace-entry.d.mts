@@ -13,7 +13,7 @@ import type { WatchQueryHistoryInput } from '../packages/contract/src/create-wat
 import { type ApplyConfigOpsInput } from '../packages/contract/src/configuration.mjs';
 export { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 export { workspaceProfile, type WorkspaceProfile };
-export type WorkspaceEntryBindings = Partial<Record<typeof PRODUCT_ENV.workspaceProfile.name | typeof PRODUCT_ENV.workspaceOrigin.name | typeof PRODUCT_ENV.workspaceDatabase.name | typeof PRODUCT_ENV.identityDatabase.name | typeof PRODUCT_ENV.identitySecret.name | typeof PRODUCT_ENV.demoWorkspace.name, string>>;
+export type WorkspaceEntryBindings = Partial<Record<typeof PRODUCT_ENV.workspaceProfile.name | typeof PRODUCT_ENV.workspaceOrigin.name | typeof PRODUCT_ENV.workspaceDatabase.name | typeof PRODUCT_ENV.identityDatabase.name | typeof PRODUCT_ENV.identitySecret.name | typeof PRODUCT_ENV.demoWorkspace.name | 'NOTICEOS_LOCAL_SITE_REPORTS', string>>;
 export declare class WorkspaceEntryRefused extends Error {
     name: string;
     constructor();

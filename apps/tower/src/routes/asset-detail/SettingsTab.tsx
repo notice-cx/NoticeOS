@@ -6,7 +6,7 @@ import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { changesetSlug } from "@shared/changeset";
 import { fieldClass } from "@/components/ui/field";
 import { useWall } from "@/hooks/useWall";
-import { useDemoReadonly, useOwnerMutation, useTowerApi } from '@/lib/browser-context';
+import { useBrowserRuntime, useDemoReadonly, useOwnerMutation, useTowerApi } from '@/lib/browser-context';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CollectNowResult } from "@noticeos/contract";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -74,6 +74,7 @@ import { useAssetLifecycle } from "@/hooks/useAssetLifecycle";
 import { NightlyReportScope } from "@/routes/asset-detail/NightlyReportSwitch";
 import { WhereItShowsCard } from "@/routes/asset-detail/WhereItShows";
 import { SiteIconsSection } from "@/routes/asset-detail/SiteIcons";
+import { SiteReportSetup } from "./SiteReportSetup";
 
 // --- edit op builders (what a Save writes) ---------------------------------
 /** A file-json-set op factory: `expect` is baked to the current value the UI
@@ -117,6 +118,7 @@ export function AssetSettingsPanel({
   nowMs: number;
 }) {
   const { wiring, rules, asset } = data;
+  const runtime = useBrowserRuntime();
   return (
     // One column of panels at the width /settings draws its own, so the two
     // settings pages read as one: a form is easier to scan narrow.
@@ -134,7 +136,9 @@ export function AssetSettingsPanel({
       {/* The System is no site of the list: it has no place and no switches. */}
       {asset.isOs ? null : <WhereItShowsCard key="display" assetId={asset.id} />}
       <AutomationCard key="automation" asset={asset} />
-      <DataCollectionCard key="collection" wiring={wiring} asset={asset} nowMs={nowMs} />
+      {runtime.owner.mode === 'hosted'
+        ? <SiteReportSetup key={runtime.ownerKey + '/' + asset.id} asset={asset.id} />
+        : <DataCollectionCard key="collection" wiring={wiring} asset={asset} nowMs={nowMs} />}
       <CardTotalsCard key="totals" asset={asset.id} stored={data.countersConfig} />
       <AlertRulesCard key="rules" rules={rules} />
       <PanelSettings key="panel"

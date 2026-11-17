@@ -12,7 +12,7 @@ import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProvid
   credentialWriteRequest, credentialWriteInput, type CredentialWriteMethod,
   providerCollectionRequest, providerCollectionInput, type ProviderCollectionMethod, storedResearchReadRequest,
   assetMutationRequest, assetMutationInput, type AssetMutationMethod, personPreferenceRequest,
-  watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
+  watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput, siteReportGrantRequest } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
@@ -26,7 +26,7 @@ export { workspaceProfile, type WorkspaceProfile };
 export type WorkspaceEntryBindings = Partial<Record<
   typeof PRODUCT_ENV.workspaceProfile.name | typeof PRODUCT_ENV.workspaceOrigin.name |
   typeof PRODUCT_ENV.workspaceDatabase.name | typeof PRODUCT_ENV.identityDatabase.name |
-  typeof PRODUCT_ENV.identitySecret.name | typeof PRODUCT_ENV.demoWorkspace.name, string>>;
+  typeof PRODUCT_ENV.identitySecret.name | typeof PRODUCT_ENV.demoWorkspace.name | 'NOTICEOS_LOCAL_SITE_REPORTS', string>>;
 export class WorkspaceEntryRefused extends Error {
   override name = 'WorkspaceEntryRefused';
   constructor() { super('Workspace entry is unavailable or unauthorized.'); }
@@ -252,11 +252,12 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const settings = pathname === '/api/config' && ['GET', 'PUT'].includes(proof.method);
   const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
   const storedResearch = ['/api/mcp', '/api/alerts/backtest'].includes(pathname) && proof.method === 'POST';
+  const reportGrant = siteReportGrantRequest(proof);
   if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
       && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
       && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
-      && !personPreferenceRequest(proof))
+      && !personPreferenceRequest(proof) && !reportGrant)
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);
@@ -267,6 +268,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const agent = bearer !== null;
   if (agent && (bearer === false || kind !== 'hosted' || pathname !== AGENT_RESOURCE_PATH)) refuse();
   if (!agent && (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)
+    || (reportGrant && reportGrant.method !== 'GET')
     || (isCloudflareD1Request(proof) && proof.method === 'POST'))) browser.assertEffect(proof);
   if (googleStart) await googleOAuthRequest(proof, origin, 'start');
   const requested = proof.headers.get(WORKSPACE_SELECTION_HEADER);
