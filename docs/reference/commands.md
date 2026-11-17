@@ -67,6 +67,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `signals:collect` | Collect one asset's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
 | `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
 | `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
+| `signals:scratch` | Estimate interrupted report scratch in one explicit <asset>.reports directory. | `scripts/panel-scratch.mjs` |
 | `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
 | `signals:refresh` | Keep every rostered asset's panel dir current. | `scripts/signal-panels-refresh.mjs` |
 | `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |

@@ -71,6 +71,7 @@ with its size and sha256.
 - A version stays readable for 14 days (`PANEL_VERSION_KEEP_DAYS` in
   `scripts/panel-versions.mts`). The latest version and the one before it are
   stored as written; older ones are stored gzipped and return the same rows.
+- Consecutive versions share disk space for identical CSVs when the filesystem supports hard links. The analyzer checks the previous file's bytes before reusing it. A changed CSV gets a separate file.
 - **Cite the version you read in a finding**, so a later reader opens the same
   evidence. A review task filed by NoticeOS records the version it covers in
   `noticeos_panel_version` and names it in its description.
