@@ -181,6 +181,9 @@ test('default cloud preparation reconciles dependencies and fetches no browser, 
   // The stub toolchain is this Node, so the fixture pins it.
   fs.writeFileSync(path.join(repo, '.node-version'), `${process.versions.node}\n`);
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ name: 'noticeos', engines: { node: `>=${process.versions.node}` }, packageManager: 'pnpm@12.8.1' }));
+  const patch = 'patches/@notice-cx__ntasks-ui@0.5.0.patch';
+  fs.mkdirSync(path.dirname(path.join(repo, patch)));
+  fs.writeFileSync(path.join(repo, patch), 'synthetic package patch\n');
   for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'fixture']]) {
     assert.equal(spawnSync('git', ['-C', repo, ...args]).status, 0);
   }
@@ -188,7 +191,7 @@ test('default cloud preparation reconciles dependencies and fetches no browser, 
   const calls = path.join(base, 'calls');
   const bin = path.join(pins.tools, 'node_modules/.bin'); fs.mkdirSync(bin, { recursive: true });
   fs.symlinkSync(process.execPath, path.join(bin, 'node'));
-  fs.writeFileSync(path.join(bin, 'pnpm'), `#!/bin/sh\necho "pnpm $*" >> "$CLOUD_TEST_CALLS"\ncase "$1" in --version) echo ${pins.pnpm};; exec) exit 1;; install) mkdir -p node_modules;; esac\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'pnpm'), `#!/bin/sh\necho "pnpm $*" >> "$CLOUD_TEST_CALLS"\ncase "$1" in --version) echo ${pins.pnpm};; exec) exit 1;; install) mkdir -p node_modules;; --dir) cmp "${patch}" "$2/${patch}";; esac\n`, { mode: 0o755 });
   const stubs = path.join(base, 'stubs'); fs.mkdirSync(stubs);
   for (const name of ['docker', 'npm']) fs.writeFileSync(path.join(stubs, name), `#!/bin/sh\necho "${name} $*" >> "$CLOUD_TEST_CALLS"\nexit 1\n`, { mode: 0o755 });
   fs.mkdirSync(path.join(env.NOTICEOS_CLOUD_CACHE, 'npm/_cacache'), { recursive: true });

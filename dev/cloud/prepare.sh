@@ -49,7 +49,7 @@ prepare_toolchain() {
 
 # Explicit frozen setup after checkout. Test commands never install dependencies.
 prepare_dependencies() {
-  local task_key task_fetch task_store
+  local task_key task_fetch task_store task_patch
   task_key=$(python3 "$NOTICEOS_CLOUD_SOURCE/requirements.py" dependencies)
   # One content-addressed store serves every revision: a changed lockfile
   # fetches only the packages it adds, and node_modules hard-links its files.
@@ -63,6 +63,11 @@ prepare_dependencies() {
     noticeos_discard "$task_fetch"
     mkdir -p "$task_fetch"
     cp pnpm-lock.yaml pnpm-workspace.yaml "$task_fetch/"
+    task_patch=patches/@notice-cx__ntasks-ui@0.5.0.patch
+    if [ -f "$task_patch" ] && [ ! -L "$task_patch" ] && [ ! -L patches ]; then
+      mkdir -p "$task_fetch/patches"
+      cp "$task_patch" "$task_fetch/$task_patch"
+    fi
     CI=1 pnpm --dir "$task_fetch" --config.ignoreScripts=true --config.managePackageManagerVersions=false fetch --store-dir "$task_store"
     CI=1 pnpm install --offline --frozen-lockfile --store-dir "$task_store"
     # Earlier setup versions kept one store per dependency key under pnpm/.
