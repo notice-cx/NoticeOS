@@ -930,7 +930,7 @@ include their names in `collectorProviders`, using `mediavine`, `stripe` and
 `bing-webmaster`. Each uses the workspace’s saved connection, saved source
 settings and schedule. The schedule keeps the single Mediavine or Stripe
 account read for the workspace, and keeps Bing under **Nightly reports**.
-A Stripe account waits when a mapped site's collection is disabled, so a
+A Stripe account waits when an active mapped site's collection is disabled, so a
 later run can still record that site's receipts.
 
 For a site that the standalone app already pulls, add a `sitePulls` entry
