@@ -11,6 +11,7 @@
 export interface ScheduledJob {
   id: string; surface: 'workflow' | 'system'; label: string; group: string; cron: string;
   source?: string; keywords?: string[]; local?: boolean;
+  customerOnly?: true;
   /** How System health's operations footer names this job's work, for a local
    * job an installation runs only once it is set up. */
   footer?: string;
@@ -147,6 +148,12 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { id: 'backup', surface: 'system', label: 'Backups', group: 'System maintenance', cron: '0 4 * * *', keywords: ['central store', 'task hub'], local: true, footer: 'backups' },
 ];
 
+export const CUSTOMER_SCHEDULED_JOBS: ScheduledJob[] = [
+  { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Site counters', group: 'Asset health', cron: '*/15 * * * *' },
+];
+
+export const ALL_SCHEDULED_JOBS = [...SCHEDULED_JOBS, ...CUSTOMER_SCHEDULED_JOBS];
+
 /**
  * The job one scheduled fire names. A job the ingest runs
  * (not `local`) is fired by its `cron`, the dispatch key: the runner fires that
@@ -170,7 +177,7 @@ export function collectNowStep(provider: string): { job: ScheduledJob; step: Col
 
 export function scheduleFor(job: ScheduledJob, overrides: ScheduleOverrides = {}): JobSchedule {
   if (job.manualOnly) return { enabled: true, cron: job.cron };
-  return overrides[job.id] ?? { enabled: true, cron: job.cron };
+  return overrides[job.id] ?? (job.id === 'site-counters' ? overrides.counters : undefined) ?? { enabled: true, cron: job.cron };
 }
 
 export function scheduleTimezone(schedule: Pick<JobSchedule, 'timezone'>): string { return schedule.timezone ?? 'UTC'; }
@@ -222,7 +229,7 @@ export const RETIRED_JOB_IDS: readonly string[] = Object.freeze(['push-state', '
 export function schedulesRefusal(value: unknown): string | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'Schedules must be a job configuration.';
   for (const [id, schedule] of Object.entries(value)) {
-    if (!RETIRED_JOB_IDS.includes(id) && !SCHEDULED_JOBS.some((job) => job.id === id)) return `Unknown scheduled job: ${id}`;
+    if (!RETIRED_JOB_IDS.includes(id) && !ALL_SCHEDULED_JOBS.some((job) => job.id === id)) return `Unknown scheduled job: ${id}`;
     if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule) ||
       Object.keys(schedule).some((key) => !['enabled', 'cron', 'timezone'].includes(key)) ||
       typeof schedule.enabled !== 'boolean') return `Invalid schedule for ${id}.`;
@@ -245,5 +252,5 @@ export function schedulesOpRefusal(op: { file?: string; pointer?: string; kind: 
 }
 
 export function jobRunName(job: ScheduledJob): string {
-  return job.local ? job.id : `cron ${job.cron}`;
+  return job.local || job.customerOnly ? job.id : `cron ${job.cron}`;
 }

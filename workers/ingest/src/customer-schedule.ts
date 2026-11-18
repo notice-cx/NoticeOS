@@ -6,19 +6,23 @@ import { Cron } from 'croner';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { customerArchive, customerJobStep, customerJobSubject, customerSchedules, isCustomerJob } from '../../../scripts/customer-collection.mjs';
-import { customerCollectionPolicy, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
+import { customerCollectionPolicy, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
 import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { eligibleAssets, runUptimeChecks } from './hygiene.js';
 import { runGoogleSignals } from './google-signals.js';
-import { runSignalDumps } from './signal-dumps.js';
+import { runSignalDumps, type Ga4CustomDimensionConfig } from './signal-dumps.js';
+import type { JourneyConfig } from './ga4-journeys.js';
 import type { LaneRegister } from './lane-mapping.js';
 import { runBingSignals } from './bing-signals.js';
 import { runMediavine } from './mediavine.js';
 import { runStripeRevenue } from './stripe.js';
 import { runPullAdapter, type PullAssetConfig } from './pull.js';
+import { runCountersScrape, type CountersConfig } from './counters.js';
+import { runPosthogDumps } from './posthog-dumps.js';
+import { runClarityDumps } from './clarity-dumps.js';
 
 interface ScheduleEnv extends IngestEnv {
   NOTICEOS_WORKSPACE_DATABASE_URL?: string;
@@ -47,7 +51,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       || (asset !== null && (typeof asset !== 'string' || !asset.length || asset.length > 512))
       || typeof occurrence !== 'string' || occurrence.length > 128) return denied();
     const archive = customerArchive(body.archive);
-    if (job === 'signal-dumps' ? !archive || asset === null : body.archive !== undefined) return denied();
+    if (job === 'signal-dumps' ? !archive || (archive.provider === 'bing-webmaster') !== (asset === null) : body.archive !== undefined) return denied();
     const [at, suffix, extra] = occurrence.split('/');
     const time = Date.parse(at ?? '');
     if (!Number.isFinite(time) || time % 60_000 || new Date(time).toISOString() !== at || extra !== undefined) return denied();
@@ -94,7 +98,9 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             return Response.json({ attempted: result.checked, failed: result.failed.length });
           }
           const { documents, sources } = await readCollectorConfigs(env, ['config/constants.json', 'config/integrations.json',
-            ...(job === 'pull' && asset !== null ? ['config/pull.json'] as const : [])]);
+            ...(job === 'pull' && asset !== null ? ['config/pull.json'] as const : []),
+            ...(job === 'site-counters' ? ['config/counters.json'] as const : []),
+            ...(archive?.provider === 'ga4' && !archive.report ? ['config/ga4-custom-dimensions.json', 'config/value-events.json'] as const : [])]);
           const constants = documents['config/constants.json'];
           if (job === 'freshness') {
             await runFreshnessCheck(env);
@@ -125,12 +131,32 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
               credential: { asset, token: selected.token } });
             return Response.json({ attempted, succeeded, failed });
           }
-          if (asset === null) return denied();
           if (archive) {
             if (!env.RAW_SIGNALS) return new Response(null, { status: 503 });
             const result = await runSignalDumps(env, { ...options, retryLimit: 1,
-              googleArchive: { asset, integration: archive.provider, report: archive.report } });
+              ga4CustomDimensions: documents['config/ga4-custom-dimensions.json'] as Ga4CustomDimensionConfig | undefined,
+              journeyConfig: documents['config/value-events.json'] as JourneyConfig | undefined,
+              ...(archive.provider === 'bing-webmaster'
+                ? { bingArchiveAssets: plan.portfolioAssets ?? [] }
+                : { googleArchive: { asset: asset!, integration: archive.provider, report: archive.report } }) });
             return Response.json({ attempted: result.attempted, succeeded: result.succeeded, unchanged: result.unchanged, failed: result.failed });
+          }
+          if (job === 'posthog' || job === 'clarity') {
+            if (!env.RAW_SIGNALS) return new Response(null, { status: 503 });
+            const assets = plan.portfolioAssets ?? [];
+            const { attempted, succeeded, unchanged, failed } = job === 'posthog'
+              ? await runPosthogDumps(env, { ...options, assets })
+              : await runClarityDumps(env, { ...options, assets });
+            return Response.json({ attempted, succeeded, unchanged, failed });
+          }
+          if (asset === null) return denied();
+          if (job === 'site-counters') {
+            const config = documents['config/counters.json'] as CountersConfig | undefined;
+            const selected = selectedCustomerCounter(policy, workspaceId, asset, config?.assets[asset]);
+            if (!selected) return Response.json({ outcome: 'skipped' });
+            const { attempted, succeeded, failed } = await runCountersScrape(env, { ...options,
+              config: { assets: { [asset]: selected.entry } }, credential: { asset, token: selected.token } });
+            return Response.json({ attempted, succeeded, failed });
           }
           const result = await runGoogleSignals(env, { ...options, assets: [asset] });
           return Response.json({ attempted: result.attempted, succeeded: result.succeeded, failed: result.failed });

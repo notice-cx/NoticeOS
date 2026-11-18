@@ -50,7 +50,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now);
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   data = { overrides: null, runtimeFresh: true, observationsFresh: true, generatedAt: new Date(now).toISOString(), historyAvailable: true,
-    runtime: { updatedAt: new Date(now).toISOString(), error: null, jobs: WORKFLOW_DEFINITIONS.map((w) => ({ id: w.id, enabled: true, cron: w.cron, nextRun: '2026-09-10T04:00:00Z' })) },
+    runtime: { updatedAt: new Date(now).toISOString(), error: null, jobs: WORKFLOW_DEFINITIONS.filter(w => !w.customerOnly).map((w) => ({ id: w.id, enabled: true, cron: w.cron, nextRun: '2026-09-10T04:00:00Z' })) },
     ...buildWorkflowHistory(records, [trace], [], now) };
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const selected = new URL(url, 'http://localhost').searchParams.get('run');
@@ -149,14 +149,14 @@ describe('workflow operating surface', () => {
     data.runtimeFresh = false;
     mount();
     expect(await screen.findByText(/Live operation is unconfirmed/)).toBeInTheDocument();
-    const listed = WORKFLOW_DEFINITIONS.filter((workflow) => workflow.surface === 'system');
+    const listed = WORKFLOW_DEFINITIONS.filter((workflow) => !workflow.customerOnly && workflow.surface === 'system');
     expect(screen.getAllByText('Unconfirmed')).toHaveLength(listed.filter(workflow => !workflow.manualOnly).length);
     expect(screen.getAllByText('Unknown')).toHaveLength(listed.length);
   });
   it('lists only the ingest’s jobs for an installation whose runner runs no host lanes', async () => {
     // A runner without host lanes (the hosted scheduler): no task hub, push state or offsite
     // backup, so none of them is listed or counted unconfirmed.
-    const ingest = WORKFLOW_DEFINITIONS.filter((w) => !w.local);
+    const ingest = WORKFLOW_DEFINITIONS.filter((w) => !w.customerOnly && !w.local);
     data.runtime = { ...data.runtime!, hostLanes: false, jobs: data.runtime!.jobs.filter((job) => ingest.some((w) => w.id === job.id)) };
     mount();
     expect(await screen.findByRole('link', { name: 'Live traffic and counters' })).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('workflow operating surface', () => {
   it('lists a host lane such an installation has set up, and no other', async () => {
     // A started installation with a task project saved runs its task board
     // refresh; with no offsite folder named it runs no backup.
-    const listed = WORKFLOW_DEFINITIONS.filter((w) => !w.local || w.id === 'beads-snapshot');
+    const listed = WORKFLOW_DEFINITIONS.filter((w) => !w.customerOnly && (!w.local || w.id === 'beads-snapshot'));
     data.runtime = { ...data.runtime!, hostLanes: false, jobs: data.runtime!.jobs.filter((job) => listed.some((w) => w.id === job.id)) };
     mount();
     expect(await screen.findByRole('link', { name: 'Task board refresh' })).toBeInTheDocument();
@@ -197,6 +197,20 @@ describe('workflow operating surface', () => {
     expect(screen.queryByRole('link', { name: 'Task service health' })).toBeNull();
     const system = listed.filter((w) => w.surface === 'system').length;
     expect(screen.getByText(new RegExp(`${system} of ${system} operations`))).toBeInTheDocument();
+  });
+  it('shows site counters only on the registered customer schedule, even when paused', async () => {
+    data.runtime = null;
+    mount();
+    expect(await screen.findByRole('link', { name: 'Live traffic and counters' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Site counters' })).toBeNull();
+    cleanup();
+    client.clear();
+    data.runtime = { updatedAt: new Date(now).toISOString(), error: null, onlyListedJobs: true, registeredJobs: ['site-counters'],
+      jobs: [{ id: 'site-counters', enabled: false, cron: '*/15 * * * *', nextRun: null }] };
+    data.workflows = buildWorkflowHistory([], [], [], now, undefined, WORKFLOW_DEFINITIONS.filter(workflow => workflow.id === 'site-counters')).workflows;
+    mount('/health/operations/schedule');
+    expect(await screen.findByRole('link', { name: 'Site counters' })).toHaveAttribute('href', '/health/operations/site-counters');
+    expect(screen.getByText('No upcoming run')).toBeVisible();
   });
   it('shows a pending save while retaining the runner-confirmed next execution', async () => {
     data.overrides = { backup: { enabled: false, cron: '0 4 * * *' } };

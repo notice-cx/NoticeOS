@@ -2,25 +2,28 @@
 import { type JobSchedule } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
-declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero"];
+declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity"];
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export declare const isCustomerJob: (value: unknown) => value is CustomerJob;
-export declare const customerJobStep: (job: CustomerJob) => "report" | "collect";
+export declare const customerJobStep: (job: CustomerJob) => "clarity" | "product" | "counters" | "report" | "collect";
 declare const ARCHIVE_REPORTS: {
     readonly ga4: readonly ["pages-screens", "landing-pages", "traffic-acquisition", "events", "events-28d", "page-events"];
     readonly gsc: readonly ["query", "page", "page-query"];
 };
 type GoogleProvider = keyof typeof ARCHIVE_REPORTS;
-export interface CustomerArchive {
+export type CustomerArchive = {
     provider: GoogleProvider;
-    report: string;
-}
+    report?: string;
+} | {
+    provider: 'bing-webmaster';
+    report?: never;
+};
 export interface CustomerSchedule {
     job: CustomerJob;
     schedule: JobSchedule;
     assets: (string | null)[];
     archives?: {
-        asset: string;
+        asset: string | null;
         archive: CustomerArchive;
     }[];
     portfolioAssets?: string[];

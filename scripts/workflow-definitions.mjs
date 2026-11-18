@@ -3,7 +3,7 @@
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Tower and local runner import and the `.d.mts` beside it.
-import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
+import { ALL_SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 const action = (id, label, description, kind = 'task', after = ['config']) => ({ id, label, description, kind, after });
 const workerSteps = {
     'portfolio-brief': [action('portfolio-brief', 'Refresh portfolio briefing', 'Compares saved portfolio and task evidence and generates cited guidance with the connected model.')],
@@ -31,6 +31,7 @@ const workerSteps = {
     dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
     'ga4-realtime': [action('traffic', 'Retain realtime traffic', 'Records per-minute activity and live user counts for connected properties.', 'collection')],
     counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
+    'site-counters': [action('counters', 'Refresh site counters', 'Reads the configured site counter feed.', 'collection')],
 };
 // What a local job's one stage does, where a hosted service runs it too and
 // "this machine" would not be true.
@@ -38,7 +39,7 @@ const localSteps = {
     'beads-snapshot': 'Reads each project’s task board and keeps its summary.',
     'watch-readbacks': 'Posts each closed outcome’s verdict on the task that owns its reading.',
 };
-export const WORKFLOW_DEFINITIONS = SCHEDULED_JOBS.map((job) => {
+export const WORKFLOW_DEFINITIONS = ALL_SCHEDULED_JOBS.map((job) => {
     const stages = job.local
         ? [action('execute', job.label, localSteps[job.id] ?? 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
         : [action('config', 'Load collection settings', 'Reads the saved configuration for this execution.', 'task', []), ...workerSteps[job.id]];
