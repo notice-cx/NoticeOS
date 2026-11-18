@@ -2,6 +2,7 @@
 import type { WorkspaceAction } from './workspace-admission.mjs';
 import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.js';
 import { type D1Request } from '../packages/contract/src/cloudflare-d1.mjs';
+import { type ReportReturn } from '../packages/contract/src/report-return.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 export interface WorkspaceOperation {
     /** Classification only: neither caller authorization nor RPC argument,
@@ -160,11 +161,13 @@ export interface GoogleCallbackInput {
     readonly code: string | null;
     readonly error: string | null;
 }
+interface GoogleStartInput {
+    readonly workspaceId: string;
+    readonly report?: ReportReturn;
+}
 /** Fixed protocol grammar, not identity or authority. Consumers pass the real
  * original Request and their server-declared origin, never serialized results. */
-export declare function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'start'): Promise<{
-    readonly workspaceId: string;
-}>;
+export declare function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'start'): Promise<GoogleStartInput>;
 export declare function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'callback'): GoogleCallbackInput;
 /** Reviewed store-only dispatch. Provider, credential and native reads have
  * separate entry work even when the semantic catalog classifies them. */

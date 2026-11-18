@@ -3,6 +3,7 @@
  * Provider exchange must happen only AFTER issue/claim resolves (commit). */
 import { sql, type Transaction } from 'kysely';
 import { googleOAuthRedirectUri, googleRedirectVerdict } from '@noticeos/contract/google-oauth';
+import { readReportReturn, reportReturnFromParams, type ReportReturn } from '@noticeos/contract/report-return';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { identityEngine, identityMembership, openIdentityDatabase, validateIdentityOptions,
   UUID, IdentityRefused, type IdentityDatabase, type IdentityOptions,
@@ -20,7 +21,7 @@ export interface IntegrationOAuthCustody {
   issueGoogle(request: Request, workspaceId: string, authorize: AuthorizeGoogleOAuth): Promise<string>;
   /** Exact callback only; current initiator/membership/lifecycle and atomic
    * consumption share one transaction. No operational capability runs here. */
-  claimGoogleCallback(request: Request, authorize: AuthorizeGoogleOAuth): Promise<void>;
+  claimGoogleCallback(request: Request, authorize: AuthorizeGoogleOAuth): Promise<ReportReturn | null>;
   close(): Promise<void>;
 }
 interface Binding {
@@ -32,6 +33,7 @@ interface Binding {
   readonly redirectUri: string;
   readonly issuedAt: number;
   readonly expiresAt: number;
+  readonly report?: ReportReturn;
 }
 function refuse(): never { throw new IdentityRefused('Integration OAuth custody refused'); }
 function now(): number { const value = Date.now(); if (!Number.isFinite(value)) refuse(); return value; }
@@ -48,12 +50,18 @@ function readBinding(value: string, redirectUri: string, provider: Binding['prov
   let row: Record<string, unknown>;
   try { row = JSON.parse(value) as Record<string, unknown>; } catch { refuse(); }
   const fields = ['version', 'provider', 'workspaceId', 'principalId', 'sessionId', 'redirectUri', 'issuedAt', 'expiresAt'];
-  if (!row || Array.isArray(row) || Object.keys(row).length !== fields.length || fields.some(key => !Object.hasOwn(row, key))
+  if (!row || Array.isArray(row) || fields.some(key => !Object.hasOwn(row, key))
+    || Object.keys(row).some(key => !fields.includes(key) && key !== 'report')
     || row.version !== 1 || row.provider !== provider || row.redirectUri !== redirectUri
     || [row.workspaceId, row.principalId, row.sessionId].some(id => typeof id !== 'string' || !UUID.test(id))
     || typeof row.issuedAt !== 'number' || !Number.isSafeInteger(row.issuedAt) || row.issuedAt < 0
     || typeof row.expiresAt !== 'number' || !Number.isSafeInteger(row.expiresAt)
     || row.expiresAt - row.issuedAt !== GOOGLE_INTEGRATION_TTL_MS || row.issuedAt > now()) refuse();
+  if (Object.hasOwn(row, 'report')) {
+    const report = readReportReturn(row.report);
+    if (!report) refuse();
+    row.report = report;
+  }
   return Object.freeze(row) as unknown as Binding;
 }
 async function proof(request: Request, origin: string, action: 'start' | 'callback', localTowerOrigin?: string): Promise<Request> {
@@ -118,6 +126,7 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
         const original = await proof(request, origin, 'start', options.localTowerOrigin);
         const provider = googleOAuthProvider(original);
         const redirectUri = googleOAuthRedirectUri(origin, provider);
+        const report = reportReturnFromParams(new URL(original.url).searchParams);
         const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
         if (selected !== workspaceId) refuse();
         const db = await database();
@@ -128,7 +137,7 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
           const state = token(); const issuedAt = now();
           const binding: Binding = { version: 1, provider, workspaceId,
             principalId: facts.principalId, sessionId: facts.sessionId, redirectUri,
-            issuedAt, expiresAt: issuedAt + GOOGLE_INTEGRATION_TTL_MS };
+            issuedAt, expiresAt: issuedAt + GOOGLE_INTEGRATION_TTL_MS, ...(report ? { report } : {}) };
           const auth = identityEngine(trx, options, { transaction: false, validateSchema: false });
           const context = await auth.$context;
           await context.internalAdapter.createVerificationValue({ identifier: NAMESPACE + state,
@@ -137,7 +146,7 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
         });
       });
     },
-    claimGoogleCallback(request: Request, authorize: AuthorizeGoogleOAuth): Promise<void> {
+    claimGoogleCallback(request: Request, authorize: AuthorizeGoogleOAuth): Promise<ReportReturn | null> {
       return run(async () => {
         if (typeof authorize !== 'function') refuse();
         const original = await proof(request, origin, 'callback', options.localTowerOrigin);
@@ -164,9 +173,10 @@ export function openIntegrationOAuthCustody(input: IdentityOptions): Integration
           if (consumed.id !== held.id || consumed.value !== held.value) refuse();
           // Expiry between the maintained consume and this final check is
           // still spent. Return a refusal result so the outer commit survives.
-          return binding.expiresAt > now();
+          return binding.expiresAt > now() ? binding.report ?? null : false;
         });
-        if (!accepted) refuse();
+        if (accepted === false) refuse();
+        return accepted;
       });
     },
     close(): Promise<void> {

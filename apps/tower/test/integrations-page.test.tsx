@@ -2,6 +2,9 @@ import { integrationStatus } from '@shared/integration-status';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect } from 'react';
+import { BrowserRuntimeProvider } from '@/lib/browser-context';
+import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CredentialBalance,
@@ -214,16 +217,25 @@ function page(
   };
 }
 
-function renderPage(data: IntegrationCredentialsPayload, at = "/integrations") {
+function renderPage(data: IntegrationCredentialsPayload, at = "/integrations", workspaceId?: string) {
   payload.data = data;
-  return render(
+  const page = (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[at]}>
         <IntegrationsRoute />
         <CurrentAddress />
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  if (!workspaceId) return render(page);
+  const runtime = createBrowserRuntime({ mode: 'hosted', workspaceId, principalId: workspaceId, sessionId: workspaceId, clientGeneration: 1 }, {
+    origin: window.location.origin, fetch: vi.fn(async () => Response.json({}, { status: 404 })), sendAnswer: async () => {},
+  });
+  function HostedFixture() {
+    useEffect(() => () => runtime.retire(), []);
+    return <BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Fixture workspace', workspaceRole: 'owner' }}>{page}</BrowserRuntimeProvider>;
+  }
+  return render(<HostedFixture />);
 }
 
 it("keeps provider coverage and every catalog group reachable with observed failures first", () => {
@@ -1389,6 +1401,26 @@ describe("connecting in the panel", () => {
     expect(screen.getByRole("dialog", { name: "bing-webmaster" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Return to report" })).toBeNull();
     expect(address()).not.toContain("elsewhere.invalid");
+  });
+
+  it.each([['google', 'journeys'], ['adsense', 'financials']] as const)("restores the %s report after a hosted consent result", async (provider, report) => {
+    const workspace = '11111111-1111-4111-8111-111111111111';
+    const definition = INTEGRATION_PROVIDERS.find(candidate => candidate.id === provider)!;
+    renderPage(page([status(provider, [...definition.fields], {}, [], definition)]),
+      `/integrations?connect=${provider}&google=denied&asset=meadow.example&fromReport=${report}&range=90&reportWorkspace=${workspace}`, workspace);
+    const panel = await screen.findByRole('dialog');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }));
+    expect(address()).toBe(`/assets/meadow.example/${report}?range=90`);
+  });
+
+  it('drops a consent return from the workspace no longer selected', async () => {
+    const prior = '11111111-1111-4111-8111-111111111111', selected = '22222222-2222-4222-8222-222222222222';
+    const google = INTEGRATION_PROVIDERS.find(candidate => candidate.id === 'google')!;
+    renderPage(page([status('google', [...google.fields], {}, [], google)]),
+      `/integrations?connect=google&google=connected&asset=meadow.example&fromReport=journeys&reportWorkspace=${prior}`, selected);
+    await waitFor(() => expect(address()).toBe('/integrations'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Return to report' })).toBeNull();
   });
 
   it("opens the panel from a link — ?connect= and an older ?provider= alike — and cleans the address", () => {

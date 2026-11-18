@@ -810,10 +810,19 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
       const selected = googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'callback');
       if (!('code' in selected)) throw new WorkspaceEntryRefused();
-      return withGoogleWorkspaceEntry(this.env, proof, 'callback', (call) => {
-        if (selected.error !== null) return Promise.resolve({ ok: false, error: 'denied' } as const);
-        return call.withStore(this.ctx, (store) => exchangeStoredGoogleOAuth({ ...this.env, STORE: store },
-          { code: selected.code, redirectUri: selected.redirectUri, provider: selected.provider }));
+      return withGoogleWorkspaceEntry(this.env, proof, 'callback', (call, _state, destination) => {
+        if (selected.error !== null && !destination) return Promise.resolve({ ok: false, error: 'denied' } as const);
+        return call.withStore(this.ctx, async (store) => {
+          const result = selected.error !== null ? { ok: false, error: 'denied' } as const
+            : await exchangeStoredGoogleOAuth({ ...this.env, STORE: store },
+              { code: selected.code, redirectUri: selected.redirectUri, provider: selected.provider });
+          if (!destination) return result;
+          // The optional destination cannot change where the grant is stored.
+          const workspaceId = call.context.workspaceId;
+          const [asset] = await store.read(tx => tx.query('SELECT 1 FROM noticeos.assets WHERE workspace_id = $1::uuid AND asset_id = $2',
+            [workspaceId, destination.asset])).catch(() => []);
+          return asset ? { ...result, reportReturn: { destination, workspaceId } } : result;
+        });
       });
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();

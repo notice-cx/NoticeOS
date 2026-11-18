@@ -117,7 +117,7 @@ export type GoogleOAuthStart =
 
 /** What `completeGoogleOAuth` answers. Never carries a token, and a refusal
  * carries its code and facts, never a sentence (see `GoogleOAuthStart`). */
-export type GoogleOAuthCompletion =
+export type GoogleOAuthCompletion = (
   | {
       ok: true;
       /** The account the operator signed in as, for the card and the toast. */
@@ -131,7 +131,7 @@ export type GoogleOAuthCompletion =
       withheld?: GoogleReadProduct[];
       /** `exchange_failed`: the HTTP status Google refused the exchange with. */
       status?: number;
-    };
+    }) & { reportReturn?: { destination: import('./report-return.mjs').ReportReturn; workspaceId: string } };
 
 /** The two products a sign-in has to grant, by the names Google's consent
  * screen shows them under. */

@@ -21,6 +21,7 @@
     "scripts/read-validator.mts",
     "scripts/change-topics.mts",
     "packages/contract/src/configuration.mts",
+    "packages/contract/src/report-return.mts",
     "packages/contract/src/product-use.mts",
     "packages/contract/src/journeys.mts",
     "packages/contract/src/session-exploration.mts",

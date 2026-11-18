@@ -5,13 +5,14 @@
 // chart pairs, so a KPI's delta cannot disagree with the chart under it.
 
 import { type SeriesPoint, type TimeZoneChangePoint } from "./wall";
+import { REPORT_RANGES } from "@noticeos/contract/report-return";
 
 const DAY_MS = 86_400_000;
 
 /** The ranges the operator can pick. `28` is the default: a week is too
  * short to see a trend through weekly seasonality, and ninety days puts the
  * last fortnight into a few dozen pixels. */
-export const SURFACE_RANGES = [7, 28, 90] as const;
+export const SURFACE_RANGES = REPORT_RANGES;
 
 export type RangeDays = (typeof SURFACE_RANGES)[number];
 

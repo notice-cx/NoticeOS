@@ -14,6 +14,7 @@ import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.j
 import { WATCH_QUERY_MAX_CHARS, WATCH_SERIES } from '../packages/contract/src/watch-series.mjs';
 import { VIEW_PREFERENCE_PATH } from '../packages/contract/src/views.mjs';
 import { CLOUDFLARE_D1_PATH, cloudflareAccountId, d1DatabaseId, d1Selection, type D1Request } from '../packages/contract/src/cloudflare-d1.mjs';
+import { REPORT_RETURN_PARAMETERS, reportReturnFromParams, type ReportReturn } from '../packages/contract/src/report-return.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 
 export interface WorkspaceOperation {
@@ -330,12 +331,13 @@ export async function credentialWriteInput(request: Request): Promise<Credential
   return Object.freeze({ method, input: Object.freeze({ provider, asset: body.asset, token: body.token }) });
 }
 export interface GoogleCallbackInput { readonly state: string; readonly code: string | null; readonly error: string | null; }
+interface GoogleStartInput { readonly workspaceId: string; readonly report?: ReportReturn; }
 /** Fixed protocol grammar, not identity or authority. Consumers pass the real
  * original Request and their server-declared origin, never serialized results. */
-export function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'start'): Promise<{ readonly workspaceId: string }>;
+export function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'start'): Promise<GoogleStartInput>;
 export function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'callback'): GoogleCallbackInput;
 export function googleOAuthRequest(request: Request, trustedOrigin: string, phase: 'start' | 'callback'):
-  Promise<{ readonly workspaceId: string }> | GoogleCallbackInput {
+  Promise<GoogleStartInput> | GoogleCallbackInput {
   if (!(request instanceof Request) || request.url.length > 12288 || !['start', 'callback'].includes(phase)) refuse();
   const url = new URL(request.url);
   if (url.origin !== trustedOrigin || url.username || url.password || url.hash
@@ -344,9 +346,11 @@ export function googleOAuthRequest(request: Request, trustedOrigin: string, phas
       : [GOOGLE_INTEGRATION_CALLBACK, ADSENSE_INTEGRATION_CALLBACK]).includes(url.pathname)) refuse();
   if (phase === 'start') {
     const workspaceId = request.headers.get(WORKSPACE_SELECTION_HEADER);
-    if (url.search || !workspaceId
+    if (!workspaceId
       || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(workspaceId)) refuse();
-    return emptyRequestBody(request).then(() => Object.freeze({ workspaceId }));
+    const report = reportReturnFromParams(url.searchParams);
+    if (url.search && (!report || [...url.searchParams.keys()].some(key => !REPORT_RETURN_PARAMETERS.some(allowed => allowed === key)))) refuse();
+    return emptyRequestBody(request).then(() => Object.freeze({ workspaceId, ...(report ? { report } : {}) }));
   }
   if (request.headers.has(WORKSPACE_SELECTION_HEADER)) refuse();
   const allowed = ['state', 'code', 'error', 'scope', 'authuser', 'prompt', 'hd', 'error_description', 'error_uri'];
