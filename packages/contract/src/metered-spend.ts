@@ -65,6 +65,12 @@ export interface MeteredDataSpend {
   unattributedUsd: number;
   unattributedUnknownPrices: number;
 }
+export interface MeteredBudgetAvailability {
+  /** Held by requests whose provider price is still unconfirmed. */
+  heldUsd: number;
+  /** The portion of the monthly cap available for additional purchases. */
+  availableUsd: number;
+}
 export type MeteredSpendRow = { asset: string | null; spent: string; unknown: number | string };
 
 /** The instant the window opens, ISO UTC — the same string both tables compare
@@ -90,6 +96,45 @@ export function meteredSpendBounds(now: Date | string, window: MeteredSpendWindo
 /** Only the portion of a report's cost without an individual receipt. */
 export const METERED_ARCHIVE_COST = 'cost_usd - dataforseo_cost_accounted_usd';
 
+// Archive and log totals exclude charges counted directly from request rows.
+// Keep money in Postgres numeric through the comparison and the subtraction.
+const METERED_COSTS_SQL = `
+  SELECT asset_id AS asset, sum(${METERED_ARCHIVE_COST}) AS spent, 0::numeric AS held,
+         count(*) FILTER (WHERE cost_state = 'unknown') AS unknown
+    FROM noticeos.archive_runs
+   WHERE integration=$1 AND requested_at >= $2::timestamptz AND requested_at < $3::timestamptz
+   GROUP BY asset_id
+  UNION ALL
+  SELECT asset_id, sum(provider_cost_usd), sum(reserve_usd) FILTER (WHERE provider_cost_usd IS NULL), 0
+    FROM noticeos.dataforseo_request_charges
+   WHERE reserved_at >= $2::timestamptz AND reserved_at < $3::timestamptz
+   GROUP BY asset_id
+  UNION ALL
+  SELECT asset_id, sum(cost_usd), 0::numeric, count(*) FILTER (WHERE cost_state = 'unknown')
+    FROM noticeos.research_log
+   WHERE provider=$1 AND bought_at >= $2::timestamptz AND bought_at < $3::timestamptz AND actor <> $4
+   GROUP BY asset_id`;
+
+/** The balance used by both the collector and the Tower. Append a projection
+ * from `budget` using {@link meteredBudgetParams} as the first five arguments. */
+export const METERED_BUDGET_SQL = `WITH costs AS (${METERED_COSTS_SQL}), saved AS (
+  SELECT CASE WHEN jsonb_typeof(body::jsonb #> '{monthly_caps,data_usd}') = 'number'
+    THEN (body::jsonb #>> '{monthly_caps,data_usd}')::numeric END AS cap
+  FROM noticeos.config_documents WHERE document_key='constants'
+), budget AS (
+  SELECT coalesce(sum(spent), 0) AS spent, coalesce(sum(held), 0) AS held,
+    least($5::numeric, (SELECT cap FROM saved)) AS cap, (SELECT cap FROM saved) AS saved_cap
+  FROM costs
+)`;
+
+function meteredCostParams(now: Date | string, window: MeteredSpendWindow = 'month') {
+  return [METERED_DATA_PROVIDER, ...meteredSpendBounds(now, window), RESEARCH_COLLECTOR_ACTOR];
+}
+
+export function meteredBudgetParams(now: Date | string, capUsd: number) {
+  return [...meteredCostParams(now), capUsd];
+}
+
 function finite(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -106,34 +151,25 @@ export async function loadMeteredDataSpend(
   now: Date | string,
   window: MeteredSpendWindow = 'month',
 ): Promise<MeteredDataSpend> {
-  const [since, next] = meteredSpendBounds(now, window);
+  const rows = await store.read(tx => tx.query<MeteredSpendRow>(
+    `SELECT asset, coalesce(spent, 0)::text AS spent, unknown::text FROM (${METERED_COSTS_SQL}) costs`, meteredCostParams(now, window),
+  ));
+  return summarizeMeteredDataSpend(rows);
+}
 
-  const [collected, requests, research] = await store.read(async (tx) => [
-    await tx.query<MeteredSpendRow>(
-      `SELECT asset_id AS asset, COALESCE(SUM(${METERED_ARCHIVE_COST}), 0)::text AS spent,
-              count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
-         FROM noticeos.archive_runs
-        WHERE integration = $1 AND requested_at >= $2::timestamptz AND requested_at < $3::timestamptz
-        GROUP BY asset_id`,
-      [METERED_DATA_PROVIDER, since, next],
-    ),
-    await tx.query<MeteredSpendRow>(
-      `SELECT asset_id AS asset, sum(provider_cost_usd)::text AS spent, 0 AS unknown
-         FROM noticeos.dataforseo_request_charges
-        WHERE provider_cost_usd IS NOT NULL AND reserved_at >= $1::timestamptz AND reserved_at < $2::timestamptz
-        GROUP BY asset_id`,
-      [since, next],
-    ),
-    await tx.query<MeteredSpendRow>(
-      `SELECT asset_id AS asset, COALESCE(SUM(cost_usd), 0)::text AS spent,
-              count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
-         FROM noticeos.research_log
-        WHERE provider = $1 AND bought_at >= $2::timestamptz AND bought_at < $3::timestamptz AND actor <> $4
-        GROUP BY asset_id`,
-      [METERED_DATA_PROVIDER, since, next, RESEARCH_COLLECTOR_ACTOR],
-    ),
-  ]);
-  return summarizeMeteredDataSpend([...collected, ...requests, ...research]);
+export async function loadMeteredDataBudget(store: MeteredSpendStore, now: Date | string, capUsd: number) {
+  const [balance] = await store.read(tx => tx.query<{
+    spent: string; held: string; available: string; cap: string; rows: string;
+  }>(`${METERED_BUDGET_SQL}
+    SELECT spent::text, held::text, greatest(0, cap-spent-held)::text AS available, cap::text,
+           coalesce((SELECT json_agg(items) FROM (
+             SELECT asset, coalesce(spent, 0)::text AS spent, unknown::text FROM costs
+           ) items), '[]'::json)::text AS rows
+    FROM budget`, meteredBudgetParams(now, capUsd)));
+  if (!balance) throw new Error('The data budget is unavailable.');
+  const rows = JSON.parse(balance.rows) as MeteredSpendRow[];
+  return { ...summarizeMeteredDataSpend(rows), spentUsd: Number(balance.spent), capUsd: Number(balance.cap),
+    budget: { heldUsd: Number(balance.held), availableUsd: Number(balance.available) } satisfies MeteredBudgetAvailability };
 }
 
 export function summarizeMeteredDataSpend(rows: readonly MeteredSpendRow[]): MeteredDataSpend {

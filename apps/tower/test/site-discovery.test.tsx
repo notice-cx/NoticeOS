@@ -384,7 +384,7 @@ describe("the assets and collect routes", () => {
     return {
       ingest: binding, store: ctx.call,
       config: async () => ({ integrations: { catalog: [], assets: { "journey.example": { "bing-webmaster": { status: "needs-setup" as const, note: "", since: "2026-09-23", siteUrl: "https://journey.example/" } } } }, capUsd: 25 }),
-      spend: vi.fn(async () => ({ period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns: {} })),
+      spend: vi.fn(async () => ({ period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, budget: { heldUsd: 0, availableUsd: 25 }, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns: {} })),
     };
   };
 
@@ -723,7 +723,7 @@ describe("the picker", () => {
               { lane: "dataforseo", ref: "journey.example", label: "journey.example", host: "journey.example", mapping: {}, asset: "journey.example", ready: true },
             ] },
             assets: [asset("journey.example", { cells: { dataforseo: { status: "needs-setup", mapping: {} } } })],
-            spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5, panelRuns: {} },
+            spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, budget: { heldUsd: 0.25, availableUsd: 21.65 }, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5, panelRuns: {} },
           }}
           onStart={async () => null}
           onClose={() => {}}
@@ -733,6 +733,7 @@ describe("the picker", () => {
     expect(screen.getByText("United States · English")).toBeTruthy();
     expect(document.querySelector("[data-spend-week]")?.textContent).toBe("≈ $0.45");
     expect(document.querySelector("[data-spend-month]")?.textContent).toBe("$3.10 of $25");
+    expect(document.querySelector("[data-spend-preview]")).toHaveTextContent(/Held pending price\s*\$0\.25\s*Available\s*\$21\.65/u);
     expect(screen.getByRole("button", { name: /Start weekly reports/ }).textContent).toBe("Start weekly reports · 1 asset");
   });
 
@@ -745,7 +746,7 @@ describe("the picker", () => {
           payload={{
             discovery: { ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: AT, sites: [listed("journey.example"), listed("second.example")] },
             assets: ["journey.example", "second.example"].map((id) => asset(id, { cells: { dataforseo: { status: "needs-setup", note: "", mapping: {} } } })),
-            spend: { period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.5, perSiteCeilingUsd: 2.5, panelRuns: {} },
+            spend: { period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, budget: { heldUsd: 0, availableUsd: 25 }, perSiteWeekUsd: 0.5, perSiteCeilingUsd: 2.5, panelRuns: {} },
           }}
           onStart={async () => null}
           onClose={() => {}}

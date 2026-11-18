@@ -4,12 +4,14 @@
 // provider card read these, so no page states the same sum its own way.
 
 import type { WorkspaceStore } from "@noticeos/postgres";
+import type { DataSpendSummary } from "../shared/integrations";
 import {
   DATAFORSEO_BASE_REPORTS,
   DATAFORSEO_PANEL_REPORT,
   DATAFORSEO_PERIODIC_REPORTS,
   MAX_REPORT_COST_USD,
   METERED_DATA_PROVIDER,
+  loadMeteredDataBudget,
   loadMeteredDataSpend,
   meteredSpendBounds,
   summarizeMeteredDataSpend,
@@ -49,6 +51,15 @@ export async function loadDataForSeoSpend(store: WorkspaceStore, now: Date, wind
   return loadMeteredDataSpend(store, now, window);
 }
 export type { SpendWindow };
+
+/** Backup projections carry past bills only. No purchasing balance is inferred from them. */
+export async function loadDataForSeoMonth(store: WorkspaceStore, now: Date, capUsd: number, backupPreview = false): Promise<DataSpendSummary> {
+  return {
+    period: utcMonth(now),
+    ...(backupPreview ? { ...await loadDataForSeoSpend(store, now, 'month', true), capUsd }
+      : await loadMeteredDataBudget(store, now, capUsd)),
+  };
+}
 
 /**
  * What a call-metered provider has spent today, per asset. Counts rows, not
@@ -96,8 +107,8 @@ export async function loadProviderMeter(
   backupPreview = false,
 ): Promise<ProviderMeterReading> {
   if (meter.window === "portfolio-month") {
-    const { spentUsd, unknownPrices } = await loadDataForSeoSpend(store, now, 'month', backupPreview);
-    return { window: "portfolio-month", period: utcMonth(now), spentUsd, unknownPrices, capUsd };
+    const { spentUsd, unknownPrices, capUsd: effectiveCap, period, budget } = await loadDataForSeoMonth(store, now, capUsd, backupPreview);
+    return { window: "portfolio-month", period, spentUsd, unknownPrices, capUsd: effectiveCap, ...(budget ? { budget } : {}) };
   }
   return loadMeteredCallsToday(store, meter.countedFrom, now);
 }
@@ -123,7 +134,7 @@ export async function loadSpendPreview(
   now: Date,
   capUsd: number,
 ): Promise<SiteSpendPreview> {
-  const { spentUsd, unknownPrices } = await loadDataForSeoSpend(store, now);
+  const { spentUsd, unknownPrices, capUsd: effectiveCap, budget } = await loadMeteredDataBudget(store, now, capUsd);
   const since = new Date(now.getTime() - SPEND_PREVIEW_DAYS * 86_400_000).toISOString();
   // A report date whose every price is unknown recorded no spend: 0.
   const weeks = (
@@ -152,7 +163,8 @@ export async function loadSpendPreview(
     period: utcMonth(now),
     spentUsd,
     unknownPrices,
-    capUsd,
+    capUsd: effectiveCap,
+    budget,
     perSiteWeekUsd: weeks.length === 0 ? null : weeks.reduce((sum, value) => sum + value, 0) / weeks.length,
     perSiteCeilingUsd: families * MAX_REPORT_COST_USD,
     panelRuns: Object.fromEntries(panelRuns.map((row) => [row.asset, {

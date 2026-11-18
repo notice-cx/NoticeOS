@@ -508,6 +508,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["on a row's top edge"],
   },
   {
+    name: "DataBudgetRows",
+    file: "components/DataBudgetRows.tsx",
+    purpose: "Held and available amounts in the monthly data budget, with fractional cents visible when needed.",
+    variants: [],
+  },
+  {
     name: "UnknownPriceCount",
     file: "components/UnknownPriceCount.tsx",
     purpose:

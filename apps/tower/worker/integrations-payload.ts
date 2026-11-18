@@ -14,7 +14,7 @@ import {
   recordConnectionDay,
 } from "./connection-daily";
 import type { PullConfigEntry } from "./asset-config";
-import { loadDataForSeoSpend, utcMonth } from "./metered-spend";
+import { loadDataForSeoMonth } from "./metered-spend";
 import {
   type DerivedLaneRow,
   type IntegrationCatalogRow,
@@ -341,11 +341,7 @@ async function assembleIntegrationsMatrix(
     // About credentials the operator still has to create; the derived lane is
     // never file-declared, so it is outside that count.
     sharedCredential: sharedCredentialInsight(catalog, cells),
-    dataSpend: {
-      period: utcMonth(now),
-      ...(await loadDataForSeoSpend(store, now, 'month', backupPreview)),
-      capUsd: monthlyCaps.dataUsd,
-    },
+    dataSpend: await loadDataForSeoMonth(store, now, monthlyCaps.dataUsd, backupPreview),
   };
 }
 

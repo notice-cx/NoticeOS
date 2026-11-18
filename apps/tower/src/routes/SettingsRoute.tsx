@@ -477,7 +477,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
  * maximum to draw. */
 function budgetVisual(
   knob: PortfolioKnob,
-  spend: { period: string; spentUsd: number; unknownPrices: number } | null,
+  spend: DataSpendSummary | null,
 ) {
   if (knob.key === "monthly_caps.data_usd") {
     return <DataSpendMeter cap={knob.value} spend={spend} />;
@@ -498,8 +498,11 @@ function DataSpendMeter({
   spend,
 }: {
   cap: number;
-  spend: { period: string; spentUsd: number; unknownPrices: number } | null;
+  spend: DataSpendSummary | null;
 }) {
+  const budget = spend?.budget;
+  const heldUsd = budget?.heldUsd ?? 0;
+  const limit = spend?.capUsd ?? cap;
   return (
     <div data-budget-meter="data">
       <div className="flex items-baseline justify-between gap-2 text-xs">
@@ -509,16 +512,17 @@ function DataSpendMeter({
         <span className="shrink-0 tabular-nums text-foreground">
           {/* Never a fabricated zero: a spend nobody has read yet is unread, not
               nothing. */}
-          {spend ? `${formatUsd(spend.spentUsd, { cents: true })} of ${formatUsd(cap)}` : "not read yet"}
+          {spend ? `${formatUsd(spend.spentUsd, { cents: true })} of ${formatUsd(limit)}` : "not read yet"}
           {spend ? <UnknownPriceCount count={spend.unknownPrices} /> : null}
         </span>
       </div>
       <Meter
         className="mt-1.5"
-        value={spend?.spentUsd ?? 0}
-        max={cap}
-        ariaLabel="Metered data spend this month against the monthly cap"
+        value={(spend?.spentUsd ?? 0) + heldUsd}
+        max={limit}
+        ariaLabel={heldUsd > 0 ? "Data spend and holds against the monthly cap" : "Metered data spend this month against the monthly cap"}
       />
+      {budget && heldUsd > 0 ? <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 text-xs"><DataBudgetRows budget={budget} /></dl> : null}
       {/* What happens at the cap, as a state beside the meter rather than a
           sentence under it. */}
       <div className="mt-1.5 flex items-center gap-1">
@@ -1340,3 +1344,5 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
 
 export default SettingsRoute;
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
+import { DataBudgetRows } from "@/components/DataBudgetRows";
+import type { DataSpendSummary } from "@shared/integrations";

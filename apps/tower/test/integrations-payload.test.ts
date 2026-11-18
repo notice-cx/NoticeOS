@@ -1570,12 +1570,16 @@ describe("a full register renders completely", () => {
     await insertDump(ctx, "dfs-jul-2", "northwind.example", "dataforseo", "backlinks-summary", "2026-07-05", "2026-07-05T10:05:00.000Z", 0.75);
     await insertDump(ctx, "dfs-jun", "meadow.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 4);
     await insertDump(ctx, "ga4-jul", "meadow.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
+    await ctx.call.write(tx => tx.execute(`INSERT INTO noticeos.dataforseo_request_charges
+      (workspace_id,asset_id,attempt_id,request_key,reserved_at,reserve_usd)
+      VALUES ($1,'meadow.example',$2,repeat('a',64),'2026-07-05T10:15:00Z',0.25)`, [tx.workspaceId, crypto.randomUUID()]));
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     expect(m.dataSpend).toEqual({
       period: "2026-07",
       spentUsd: 2, unknownPrices: 0,
       capUsd: 25,
+      budget: { heldUsd: 0.25, availableUsd: 22.75 },
       unattributedUsd: 0, unattributedUnknownPrices: 0,
       byAsset: [
         { asset: "meadow.example", spentUsd: 1.25, unknownPrices: 0 },
@@ -1614,6 +1618,7 @@ describe("a full register renders completely", () => {
       period: "2026-07",
       spentUsd: 0, unknownPrices: 0,
       capUsd: 25,
+      budget: { heldUsd: 0, availableUsd: 25 },
       byAsset: [],
       unattributedUsd: 0, unattributedUnknownPrices: 0,
     });
@@ -2210,6 +2215,7 @@ describe("loadMeteredCallsToday", () => {
       period: "2026-09",
       spentUsd: spend.spentUsd, unknownPrices: spend.unknownPrices,
       capUsd: 25,
+      budget: { heldUsd: 0, availableUsd: 23.467_228 },
     });
     expect(spend.spentUsd).toBeCloseTo(1.532_772, 10);
   });
@@ -2300,6 +2306,7 @@ describe("loadMeteredCallsToday", () => {
       period: "2026-09",
       spentUsd: month.spentUsd, unknownPrices: month.unknownPrices,
       capUsd: 25,
+      budget: { heldUsd: 0, availableUsd: 23.66 },
     });
     expect(day.spentUsd).toBeCloseTo(month.spentUsd, 10);
     expect(matrix.dataSpend).toMatchObject({
@@ -2319,6 +2326,7 @@ describe("loadMeteredCallsToday", () => {
       period: "2026-09",
       spentUsd: 0, unknownPrices: 0,
       capUsd: 40,
+      budget: { heldUsd: 0, availableUsd: 40 },
     });
   });
 

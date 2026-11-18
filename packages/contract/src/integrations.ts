@@ -304,6 +304,8 @@ export interface PortfolioMonthMeterReading {
   unknownPrices: number;
   /** `monthly_caps.data_usd` as this deployment holds it. */
   capUsd: number;
+  /** Available for live reads. Backup summaries hold historical spending. */
+  budget?: import('./metered-spend.js').MeteredBudgetAvailability;
 }
 
 export interface ProviderMeterAsset {

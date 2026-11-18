@@ -34,6 +34,7 @@ import { IntegrationMatrix } from "@/components/IntegrationMatrix";
 import { IntegrationSummaryStrip } from "@/components/IntegrationSummaryStrip";
 import { PageHeader } from "@/components/PageHeader";
 import { SegmentBar } from "@/components/SegmentBar";
+import { DataBudgetRows } from "@/components/DataBudgetRows";
 import { StateChip } from "@/components/StateChip";
 import { HeroChart } from "@/components/surface/HeroChart";
 import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
@@ -354,7 +355,8 @@ function Layers({
     return urgency(b.id) - urgency(a.id) || a.at.localeCompare(b.at);
   });
   const spend = matrix.dataSpend;
-  const atCap = spend.capUsd > 0 && spend.spentUsd >= spend.capUsd;
+  const heldUsd = spend.budget?.heldUsd ?? 0;
+  const atCap = spend.capUsd > 0 && (spend.budget ? spend.budget.availableUsd === 0 : spend.spentUsd >= spend.capUsd);
 
   return (
     <>
@@ -459,24 +461,27 @@ function Layers({
               value={<>{formatUsd(spend.spentUsd, { cents: true })}<UnknownPriceCount count={spend.unknownPrices} /></>}
               valueTone={atCap ? "warn" : "default"}
               caption={`of ${formatUsd(spend.capUsd)} in ${formatPeriodMonth(spend.period)}`}
-              footer={
+              footer={<>
                 <SegmentBar
                   className="mt-2"
-                  ariaLabel={`${formatUsd(spend.spentUsd, { cents: true })} of the ${formatUsd(spend.capUsd)} monthly cap is spent`}
+                  ariaLabel={heldUsd > 0 ? "Data spend and holds against the monthly cap"
+                    : `${formatUsd(spend.spentUsd, { cents: true })} of the ${formatUsd(spend.capUsd)} monthly cap is spent`}
                   segments={[
                     {
                       name: "spent",
                       value: spend.spentUsd,
                       fill: atCap ? "bg-warn" : "bg-foreground/70",
                     },
+                    ...(heldUsd > 0 ? [{ name: "held", value: heldUsd, fill: "bg-warn" }] : []),
                     {
-                      name: "left",
-                      value: Math.max(0, spend.capUsd - spend.spentUsd),
+                      name: spend.budget ? "available" : "unspent",
+                      value: spend.budget?.availableUsd ?? Math.max(0, spend.capUsd - spend.spentUsd),
                       fill: "bg-muted-foreground/25",
                     },
                   ]}
                 />
-              }
+                {spend.budget && heldUsd > 0 ? <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 text-xs"><DataBudgetRows budget={spend.budget} /></dl> : null}
+              </>}
             />
         </KpiStrip>
         <DataSpend

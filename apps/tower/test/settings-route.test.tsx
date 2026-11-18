@@ -900,11 +900,26 @@ describe("/settings", () => {
     const bar = within(dataMeter as HTMLElement).getByRole("progressbar");
     expect(bar.getAttribute("aria-valuenow")).toBe("11");
     expect(bar.getAttribute("aria-valuemax")).toBe("25");
+    expect(within(dataMeter as HTMLElement).queryByText("Held pending price")).toBeNull();
 
     // Budget holds only caps that have a meter.
     expect(document.querySelector('[data-budget-meter="inference"]')).toBeNull();
     expect(screen.queryByText("not instrumented")).toBeNull();
     expect(screen.queryByText("Monthly inference cap")).toBeNull();
+  });
+
+  it("shows held and available budget separately from confirmed spend", () => {
+    const recorded = matrix(11.4);
+    state.integrations = { ...recorded,
+      dataSpend: { ...recorded.dataSpend, budget: { heldUsd: 0.75, availableUsd: 12.85 } } };
+    stubFetch();
+    renderPage("budget");
+
+    const meter = within(document.querySelector<HTMLElement>('[data-budget-meter="data"]')!);
+    expect(meter.getByText("$11.40 of $25")).toBeVisible();
+    expect(meter.getByText("$0.75")).toBeVisible();
+    expect(meter.getByText("$12.85")).toBeVisible();
+    expect(meter.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "12");
   });
 
   it("says the spend is unread rather than zero when the matrix has not answered", () => {

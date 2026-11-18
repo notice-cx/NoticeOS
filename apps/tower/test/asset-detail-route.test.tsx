@@ -5456,11 +5456,12 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
 
   /** The month's spend and this site's last panel run, as the spend preview
    * states them. */
-  const spendWith = (spentUsd: number, panelRuns: Record<string, { reportDate: string; costUsd: number | null }>) => ({
+  const spendWith = (spentUsd: number, panelRuns: Record<string, { reportDate: string; costUsd: number | null }>, heldUsd = 0) => ({
     discovery: { ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: "2026-10-14T20:00:00.000Z", sites: [] },
     assets: [],
     domainMatch: [],
-    spend: { period: "2026-10", spentUsd, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns },
+    spend: { period: "2026-10", spentUsd, unknownPrices: 0, capUsd: 25,
+      budget: { heldUsd, availableUsd: Math.max(0, Number((25 - spentUsd - heldUsd).toFixed(6))) }, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns },
   });
   /** The cost read and the press's answer, and every other read as
    * `stubPanelLanes` answers it. */
@@ -5507,10 +5508,10 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     );
   });
 
-  it("offers no Collect over the monthly data cap, and bounds a first run by the reserve", async () => {
+  it("blocks Collect when a hold leaves less than the first run requires", async () => {
     const fetchMock = stubCollect(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
-      spendWith(24.9, {}),
+      spendWith(24.5, {}, 0.250_001),
       { ok: false, provider: "dataforseo", error: "over-cap", job: "dataforseo" },
     );
     const { container, findByText, findByRole } = renderRoute("meadow.example", "", "settings");
@@ -5520,6 +5521,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const estimate = container.querySelector<HTMLElement>("[data-collect-estimate]")!;
     await waitFor(() => expect(estimate.textContent).toContain("At most"));
     expect(estimate.querySelector("[data-collect-cost]")!.textContent).toBe("$0.25");
+    expect(estimate).toHaveTextContent(/Held pending price\s*\$0\.250001\s*Available\s*\$0\.249999/u);
     expect(estimate.querySelector('[data-collect-refusal="over-cap"]')!.textContent).toContain("Over the monthly data cap");
     const collect = within(estimate).getByRole("button", { name: "Collect" });
     expect(collect).toBeDisabled();

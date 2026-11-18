@@ -398,6 +398,7 @@ export interface DataSpendSummary extends MeteredDataSpend {
   /** The UTC calendar month, YYYY-MM. */
   period: string;
   capUsd: number;
+  budget?: import('@noticeos/contract').MeteredBudgetAvailability;
 }
 
 /** The connection history behind /health's strip and its freshness chart
