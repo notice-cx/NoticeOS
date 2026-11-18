@@ -10,10 +10,13 @@ import {
   DATAFORSEO_PERIODIC_REPORTS,
   MAX_REPORT_COST_USD,
   METERED_DATA_PROVIDER,
-  loadMeteredDataSpend as loadDataForSeoSpend,
+  loadMeteredDataSpend,
+  meteredSpendBounds,
+  summarizeMeteredDataSpend,
   type AssetDayMeterReading,
   type IntegrationMeter,
   type MeteredSpendWindow as SpendWindow,
+  type MeteredSpendRow,
   type ProviderMeterReading,
   type SiteSpendPreview,
 } from "@noticeos/contract";
@@ -30,7 +33,21 @@ export function utcMonth(now: Date): string {
  * desk can never under-report. The headline is the sum of the asset groups plus
  * the research that names no property.
  */
-export { loadDataForSeoSpend };
+export async function loadDataForSeoSpend(store: WorkspaceStore, now: Date, window: SpendWindow = 'month', backupPreview = false) {
+  if (backupPreview) {
+    const [since, until] = meteredSpendBounds(now, window).map(bound => bound.slice(0, 10));
+    const rows = await store.read(async tx => {
+      const [projection] = await tx.query<{ present: boolean }>(`SELECT EXISTS (
+        SELECT FROM information_schema.tables WHERE table_schema='noticeos_shadow' AND table_name='metered_spend'
+      ) AS present`);
+      return projection?.present ? tx.query<MeteredSpendRow>(`
+        SELECT asset_id AS asset, SUM(spent_usd)::text AS spent, SUM(unknown_prices)::text AS unknown
+        FROM noticeos_shadow.metered_spend WHERE day >= $1::date AND day < $2::date GROUP BY asset_id`, [since!, until!]) : null;
+    });
+    if (rows) return summarizeMeteredDataSpend(rows);
+  }
+  return loadMeteredDataSpend(store, now, window);
+}
 export type { SpendWindow };
 
 /**
@@ -76,9 +93,10 @@ export async function loadProviderMeter(
   meter: IntegrationMeter,
   now: Date,
   capUsd: number,
+  backupPreview = false,
 ): Promise<ProviderMeterReading> {
   if (meter.window === "portfolio-month") {
-    const { spentUsd, unknownPrices } = await loadDataForSeoSpend(store, now);
+    const { spentUsd, unknownPrices } = await loadDataForSeoSpend(store, now, 'month', backupPreview);
     return { window: "portfolio-month", period: utcMonth(now), spentUsd, unknownPrices, capUsd };
   }
   return loadMeteredCallsToday(store, meter.countedFrom, now);

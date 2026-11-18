@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen, within, waitFor } from './render';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WorkflowsRoute from '@/routes/WorkflowsRoute';
+import { BrowserRuntimeProvider } from '@/lib/browser-context';
+import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { WORKFLOW_DEFINITIONS, workflowState, type WorkflowsPayload, type WorkflowRun } from '@shared/workflows';
 import { buildWorkflowHistory, createWorkflowHistoryReader, manualRecords } from '../vite/workflow-history';
 import { captureWorkflowOutput } from '../../../scripts/workflow-output.mjs';
@@ -61,6 +63,24 @@ afterEach(() => {
   window.localStorage.clear(); cleanup(); client.clear(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('workflow operating surface', () => {
+  it('identifies history omitted from a backup without reading live workflow status', async () => {
+    const id = '10000000-0000-4000-8000-000000000000';
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const runtime = createBrowserRuntime({ mode: 'hosted', clientGeneration: 1, principalId: id, sessionId: id, workspaceId: id },
+      { origin: window.location.origin, fetch, sendAnswer: async () => {} });
+    try {
+      render(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Copied workspace', workspaceRole: 'owner', backupPreview: true }}>
+        <QueryClientProvider client={client}><MemoryRouter initialEntries={['/workflows']}>
+          <Routes><Route path="/workflows/:id?" element={<WorkflowsRoute />} /></Routes>
+        </MemoryRouter></QueryClientProvider>
+      </BrowserRuntimeProvider>);
+      expect(screen.getByRole('status')).toHaveAttribute('data-status-for', 'preview:workflow-history');
+      expect(screen.queryByText('No recorded runs')).toBeNull();
+      fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }));
+      expect(screen.getByRole('status')).toHaveAttribute('data-status-for', 'preview:schedule');
+      expect(fetch).not.toHaveBeenCalled();
+    } finally { runtime.retire(); }
+  });
   it('does not report a backup in progress when no run has been recorded', async () => {
     data = { ...data, ...buildWorkflowHistory([], [], [], now) };
     mount('/health/operations/backup');

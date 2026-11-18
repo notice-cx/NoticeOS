@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { SHADOW_EVIDENCE_FORMAT, SHADOW_EVIDENCE_TABLES, SHADOW_RUN_ERROR, SHADOW_RUN_REFERENCE, SHADOW_SETTINGS_MAX_BYTES,
   validShadowColumns, validShadowSetting } from './customer-shadow-export.mjs';
 import { openPrivateShadowFile as privateFile, privateShadowDirectory as privateDirectory,
@@ -12,12 +13,15 @@ import { openPrivateShadowFile as privateFile, privateShadowDirectory as private
 import { invokedDirectly } from './invoked-directly.mjs';
 import { findPsql } from './postgres-tools.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
+import { SHADOW_DISPLAY_DOCUMENTS, shadowDisplayAssets, shadowDisplayDocument } from './customer-shadow-display.mjs';
+import { checkShadowSpendRows } from './customer-shadow-spend.mjs';
 import { validShadowJourneys } from './customer-shadow-journeys.mjs';
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HASH = /^[0-9a-f]{64}$/u;
 const INT = /^\d{1,10}$/u;
-const EXTRA_EMPTY = ['archive_runs', 'archive_objects', 'integration_connections', 'connection_secrets', 'task_snapshots', 'hosted_job_occurrences', 'job_runs'];
+const EXTRA_EMPTY = ['archive_runs', 'archive_objects', 'integration_connections', 'connection_secrets', 'task_snapshots',
+  'hosted_job_occurrences', 'job_runs', 'research_log', 'dataforseo_request_charges'];
 const MIN_DISK_BYTES = 8n * 1024n ** 3n;
 const TIMEOUT = 15 * 60_000;
 const env = { PATH: '/usr/bin:/bin', LC_ALL: 'C', TZ: 'UTC', PGCONNECT_TIMEOUT: '5' };
@@ -62,9 +66,18 @@ function safeText(value) {
 }
 function checkSettings(value) {
   const hasJourneys = record(value) && Object.hasOwn(value, 'journeys');
-  if (!exact(value, ['values', 'document', 'audit', ...(hasJourneys ? ['journeys'] : [])])
+  if (!exact(value, ['values', 'document', 'audit', ...(hasJourneys ? ['journeys'] : []), ...(value?.display === undefined ? [] : ['display']),
+    ...(value?.metered === undefined ? [] : ['metered'])])
     || (hasJourneys && !validShadowJourneys(value.journeys)) || !record(value.values) || !Array.isArray(value.audit)
     || !Object.entries(value.values).every(([key, data]) => validShadowSetting(key, data))) refuse('The bundle has invalid saved settings.');
+  if (value.display !== undefined) {
+    try {
+      if (!record(value.display) || !Object.entries(value.display).every(([key, doc]) => SHADOW_DISPLAY_DOCUMENTS.includes(key)
+        && exact(doc, ['body', 'updatedAt']) && validDate(doc.updatedAt)
+        && isDeepStrictEqual(doc.body, shadowDisplayDocument(key, doc.body)))) refuse('The bundle has invalid display settings.');
+    } catch { refuse('The bundle has invalid display settings.'); }
+  }
+  if (value.metered !== undefined) checkShadowSpendRows(value.metered);
   const settings = value.document;
   if (settings === null) {
     if (Object.keys(value.values).length || value.audit.length) refuse('The saved settings have no source document.');
@@ -198,6 +211,10 @@ function transferSql(manifest, settings, manifestHash) {
   const version = change ? Math.max(2, Number(saved.version)) : 1;
   const audit = change ? settings.audit.filter(row => Number(row.versionBefore) > 0) : [];
   const settingsBody = literal(JSON.stringify(settings.values));
+  const display = new Map(Object.entries(settings.display ?? {}).map(([key, { body, updatedAt }]) => {
+    const baseline = defaults.find(row => row.key === key);
+    return [key, { body: literal(JSON.stringify({ ...JSON.parse(baseline.body), ...body })), updatedAt: literal(updatedAt) }];
+  }));
   const journeys = settings.journeys ?? [];
   const byDocument = new Map([
     ['value-events', Object.fromEntries(journeys.map(({ asset, definitions }) => [asset, { journeys: definitions }]))],
@@ -213,9 +230,9 @@ function transferSql(manifest, settings, manifestHash) {
   const registers = includeChanges => {
     const bodies = defaults.map(row => {
       const changed = includeChanges && change && row.key === 'constants';
-      const journeyBody = includeChanges ? journeyBodies.get(row.key) : undefined;
-      return `(${literal(row.key)}::text,${literal(journeyBody ?? row.body)}::jsonb${changed ? ' || ' + settingsBody + '::jsonb' : ''},
-        ${changed ? version : journeyBody ? 2 : 1},${literal(changed ? saved.updatedBy : journeyBody ? 'offline-shadow' : 'platform-provisioning')}::text)`;
+      const displayBody = includeChanges ? (display.get(row.key)?.body ?? (journeyBodies.has(row.key) ? literal(journeyBodies.get(row.key)) : undefined)) : undefined;
+      return `(${literal(row.key)}::text,${displayBody ?? literal(row.body)}::jsonb${changed ? ' || ' + settingsBody + '::jsonb' : ''},
+        ${changed ? version : displayBody ? 2 : 1},${literal(changed ? saved.updatedBy : displayBody ? 'offline-shadow' : 'platform-provisioning')}::text)`;
     }).join(',');
     return `(SELECT count(*) FROM noticeos.config_documents)=${defaults.length}
       AND NOT EXISTS(SELECT 1 FROM (VALUES ${bodies}) expected(key,body,version,actor)
@@ -223,7 +240,17 @@ function transferSql(manifest, settings, manifestHash) {
       WHERE saved.version IS DISTINCT FROM expected.version OR saved.updated_by IS DISTINCT FROM expected.actor
       OR saved.body::jsonb IS DISTINCT FROM expected.body)`;
   };
-  let sql = journeys.length ? verifySql(`NOT EXISTS (
+  const metered = settings.metered;
+  const meteredColumns = 'day,asset_id,spent_usd,unknown_prices';
+  const meteredQuery = metered?.length ? `SELECT * FROM (VALUES ${metered.map(({ day, asset, usd, unknown }) =>
+    `(${literal(day)}::date,${literal(asset)}::text,${literal(usd)}::numeric,${unknown}::integer)`).join(',')}) copied(${meteredColumns})`
+    : 'SELECT null::date,null::text,null::numeric,null::integer WHERE false';
+  const displayAssets = [...new Set([...shadowDisplayAssets(settings.display ?? {}), ...(metered ?? []).flatMap(row => row.asset === null ? [] : [row.asset])])];
+  let sql = displayAssets.length ? verifySql(`NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(${literal(JSON.stringify(displayAssets))}::jsonb) selected(asset)
+    WHERE NOT EXISTS (SELECT 1 FROM pg_temp.shadow_assets a WHERE a.asset_id=selected.asset))`,
+  'Saved cost evidence does not belong to an imported asset') : '';
+  sql += journeys.length ? verifySql(`NOT EXISTS (
     SELECT 1 FROM jsonb_array_elements_text(${literal(JSON.stringify(journeys.map(entry => entry.asset)))}::jsonb) selected(asset)
     WHERE NOT EXISTS (SELECT 1 FROM pg_temp.shadow_assets a WHERE a.asset_id=selected.asset))`,
   'Saved journeys do not belong to an imported asset') : '';
@@ -241,6 +268,15 @@ function transferSql(manifest, settings, manifestHash) {
   for (const table of missing) sql += verifySql(`NOT EXISTS(SELECT 1 FROM noticeos.${table})`, 'The shadow gained extra evidence');
   sql += verifySql(registers(true) + ` AND (SELECT count(*) FROM noticeos.config_changes)=${defaults.length + audit.length}`,
     'Imported settings or audit count changed after publication');
+  for (const [key, { updatedAt }] of display) {
+    sql += verifySql(`EXISTS (SELECT 1 FROM noticeos.config_documents WHERE document_key=${literal(key)}
+      AND updated_at=${updatedAt}::timestamptz)`, 'Imported display settings changed after publication');
+  }
+  if (metered !== undefined) {
+    const imported = `SELECT ${meteredColumns} FROM noticeos_shadow.metered_spend WHERE workspace_id=${workspace}::uuid`;
+    sql += verifySql(`NOT EXISTS ((${imported} EXCEPT ALL ${meteredQuery})
+      UNION ALL (${meteredQuery} EXCEPT ALL ${imported}))`, 'Imported metered spend changed after publication');
+  }
   for (const row of audit) {
     sql += verifySql(`EXISTS (SELECT 1 FROM noticeos.config_changes WHERE document_key='constants'
       AND version_before=${Number(row.versionBefore)} AND version_after=${Number(row.versionAfter)}
@@ -281,6 +317,11 @@ function transferSql(manifest, settings, manifestHash) {
       VALUES (${workspace}::uuid,'constants',${literal(JSON.stringify(row.ops))}::jsonb,${literal(row.reason)},${literal(row.actor)},
       ${Number(row.versionBefore)},${Number(row.versionAfter)},${literal(row.changedAt)}::timestamptz);\n`;
   }
+  for (const [key, { body, updatedAt }] of display) {
+    sql += `UPDATE noticeos.config_documents SET body=${body}::json, version=2, updated_by='offline-shadow',
+      updated_at=${updatedAt}::timestamptz
+      WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
+  }
   for (const [key, body] of journeyBodies) {
     sql += `UPDATE noticeos.config_documents SET body=${literal(body)}::jsonb::json, version=2, updated_at=clock_timestamp(),
       updated_by='offline-shadow' WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
@@ -289,7 +330,25 @@ function transferSql(manifest, settings, manifestHash) {
 REVOKE ALL ON SCHEMA noticeos_shadow FROM PUBLIC;
 CREATE TABLE noticeos_shadow.evidence_import (workspace_id uuid PRIMARY KEY, manifest_sha256 text NOT NULL);
 INSERT INTO noticeos_shadow.evidence_import VALUES (${workspace}::uuid,${literal(manifestHash)});
-\\echo shadow-imported
+`;
+  if (metered !== undefined) {
+    sql += `CREATE TABLE noticeos_shadow.metered_spend (
+      workspace_id uuid NOT NULL REFERENCES noticeos.workspaces,
+      day date NOT NULL, asset_id text, spent_usd numeric(26,6) NOT NULL CHECK (spent_usd >= 0),
+      unknown_prices integer NOT NULL CHECK (unknown_prices >= 0),
+      UNIQUE NULLS NOT DISTINCT (workspace_id,day,asset_id),
+      FOREIGN KEY (workspace_id,asset_id) REFERENCES noticeos.assets
+    );
+    INSERT INTO noticeos_shadow.metered_spend (workspace_id,${meteredColumns})
+      SELECT ${workspace}::uuid,staged.* FROM (${meteredQuery}) staged;
+    ALTER TABLE noticeos_shadow.metered_spend ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY shadow_workspace_scope ON noticeos_shadow.metered_spend FOR SELECT
+      USING (workspace_id=noticeos.current_workspace_id());
+    GRANT USAGE ON SCHEMA noticeos_shadow TO noticeos_app;
+    GRANT SELECT ON noticeos_shadow.metered_spend TO noticeos_app;
+    `;
+  }
+  sql += `\\echo shadow-imported
 \\endif
 COMMIT;\n`;
   return sql;

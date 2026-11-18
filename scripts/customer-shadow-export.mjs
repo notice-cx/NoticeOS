@@ -8,6 +8,8 @@ import path from 'node:path';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { findPsql } from './postgres-tools.mjs';
+import { SHADOW_DISPLAY_DOCUMENTS, shadowDisplayAssets, shadowDisplayDocument } from './customer-shadow-display.mjs';
+import { SHADOW_SPEND_SOURCES, recordShadowSpend, shadowSpendRows } from './customer-shadow-spend.mjs';
 import { projectShadowJourneys } from './customer-shadow-journeys.mjs';
 
 export const SHADOW_EVIDENCE_FORMAT = 'noticeos-shadow-evidence-v1';
@@ -17,7 +19,7 @@ export const SHADOW_EVIDENCE_TABLES = Object.freeze([
   'assets', 'pulses', 'asset_insight_snapshots', 'flags', 'annotations', 'counter_readings',
   'measurement_series', 'signal_runs', 'signal_observations', 'revenue_observations', 'ledger_entries', 'task_daily_counts',
 ]);
-const SELECTED = ['workspaces', 'config_documents', 'config_changes', 'archive_objects', ...SHADOW_EVIDENCE_TABLES];
+const SELECTED = ['workspaces', 'config_documents', 'config_changes', 'archive_objects', ...Object.keys(SHADOW_SPEND_SOURCES), ...SHADOW_EVIDENCE_TABLES];
 const REQUIRED = ['workspaces', 'assets', 'pulses', 'asset_insight_snapshots'];
 const EVIDENCE_COLUMNS = Object.fromEntries(Object.entries({
   workspaces: 'workspace_id slug display_name created_at status',
@@ -36,6 +38,7 @@ const EVIDENCE_COLUMNS = Object.fromEntries(Object.entries({
   revenue_observations: 'workspace_id observation_id observation_number asset_id source account_ref revenue_date item_ref amount_minor currency run_ref recorded_at sales_minor refunds_minor fees_minor payment_count refund_count occurred_at covered_from covered_until',
   ledger_entries: 'workspace_id entry_id entry_number kind asset_id period_month family amount_minor currency source ref booking_state supersedes_id note recorded_at external_id coverage_start coverage_end coverage_complete predicted_monthly_value_minor predicted_success_chance predicted_cost_minor predicted_days_to_signal',
   task_daily_counts: 'workspace_id project day captured_at waiting urgent open in_progress blocked closed_ids',
+  ...SHADOW_SPEND_SOURCES,
 }).map(([table, columns]) => [table, new Set(columns.split(' '))]));
 const WORKSPACE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const COPY_HEADER = /^COPY noticeos\.([a-z][a-z0-9_]*) \(([a-z0-9_, ]+)\) FROM stdin;$/u;
@@ -146,6 +149,9 @@ const SETTINGS = {
     try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; }
   })(),
   operator_rate_usd_per_min: value => typeof value === 'number' && Number.isFinite(value) && value >= 0,
+  monthly_caps: value => value !== null && typeof value === 'object' && Object.keys(value).length === 1
+    && Object.hasOwn(value, 'data_usd') && typeof value.data_usd === 'number'
+    && Number.isFinite(value.data_usd) && value.data_usd >= 0,
 };
 
 export function validShadowSetting(field, value) {
@@ -212,10 +218,12 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
   const seen = new Set(), knownWorkspaces = new Set(), recordWorkspaces = new Set();
   const assets = new Set(), assetReferences = new Set();
   const settings = { values: {}, document: null, audit: [] };
+  const display = {};
+  const metered = new Map();
   const journeyDocuments = new Map();
   const omitted = { credentialAndIdentityState: true, jobState: true, providerDiagnostics: true, closedTaskIdentifiers: true, rawArchiveObjects: 0,
     legacyArchiveObjects: 0, unlistedSettings: 0, unlistedAudit: 0, unavailableTables: [] };
-  let active = null;
+  let active = null, accountedArchiveCosts = false;
   try {
     await restoreText(tool, handle, ['--format=custom', '--data-only', '--file=-', '--no-owner', '--no-acl',
       '--schema=noticeos', ...SELECTED.map(table => `--table=${table}`)], async line => {
@@ -229,6 +237,7 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
         if (!SELECTED.includes(name) || seen.has(name) || !validShadowColumns(name, columns)) {
           refuse('The backup contains an unexpected table or column.');
         }
+        if (name === 'archive_runs') accountedArchiveCosts = columns.includes('dataforseo_cost_accounted_usd');
         seen.add(name);
         const file = SHADOW_EVIDENCE_TABLES.includes(name) ? await tableFile(root, name, columns) : null;
         if (file) files.set(name, file);
@@ -250,6 +259,12 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
       if (owner !== workspaceId || name === 'workspaces') return;
       const row = Object.fromEntries(columns.map((column, index) => [column, copyField(values[index])]));
       if (name === 'config_documents') {
+        if (SHADOW_DISPLAY_DOCUMENTS.includes(row.document_key)) {
+          if (Object.hasOwn(display, row.document_key)) refuse('The backup contains repeated display settings.');
+          try { display[row.document_key] = { body: shadowDisplayDocument(row.document_key, jsonRecord(row.body)), updatedAt: row.updated_at }; }
+          catch (error) { refuse(error.message); }
+          return;
+        }
         if (['value-events', 'integrations'].includes(row.document_key)) {
           if (journeyDocuments.has(row.document_key)) refuse('The backup contains duplicate journey settings.');
           const body = row.document_key === 'integrations' ? JSON.parse(row.body) : jsonRecord(row.body);
@@ -261,7 +276,8 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
         const body = jsonRecord(row.body);
         if (body === null) refuse('The backup has invalid workspace settings.');
         for (const [field, value] of Object.entries(body)) {
-          if (validShadowSetting(field, value)) settings.values[field] = value;
+          const permitted = field === 'monthly_caps' ? { data_usd: value?.data_usd } : value;
+          if (validShadowSetting(field, permitted)) settings.values[field] = permitted;
           else omitted.unlistedSettings++;
         }
         settings.document = { key: 'constants', version: row.version, updatedAt: row.updated_at, updatedBy: row.updated_by };
@@ -276,6 +292,11 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
       if (name === 'archive_objects') {
         omitted.rawArchiveObjects++;
         if (!row.object_key?.startsWith(`workspaces/${workspaceId}/raw/`)) omitted.legacyArchiveObjects++;
+        return;
+      }
+      if (Object.hasOwn(SHADOW_SPEND_SOURCES, name)) {
+        if (row.asset_id) assetReferences.add(row.asset_id);
+        recordShadowSpend(metered, name, row);
         return;
       }
       if (name === 'assets') {
@@ -296,7 +317,12 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
     if (!knownWorkspaces.has(workspaceId) || [...recordWorkspaces].some(id => !knownWorkspaces.has(id))) {
       refuse('The selected workspace or evidence ownership is missing from the backup.');
     }
-    if ([...assetReferences].some(asset => !assets.has(asset))) refuse('The backup contains evidence without its owning asset.');
+    if ([...assetReferences, ...shadowDisplayAssets(display)].some(asset => !assets.has(asset))) refuse('The backup contains evidence without its owning asset.');
+    if (Object.keys(display).length) settings.display = display;
+    if (seen.has('archive_runs') && accountedArchiveCosts !== seen.has('dataforseo_request_charges')) {
+      refuse('The backup contains incomplete metered charge evidence.');
+    }
+    if (seen.has('archive_runs') && seen.has('research_log')) settings.metered = shadowSpendRows(metered);
     settings.journeys = projectShadowJourneys(journeyDocuments.get('value-events'), journeyDocuments.get('integrations'), assets);
     omitted.unavailableTables = SHADOW_EVIDENCE_TABLES.filter(name => !seen.has(name));
     const settingsText = JSON.stringify(settings, null, 2) + '\n';

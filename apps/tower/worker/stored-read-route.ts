@@ -21,9 +21,9 @@ import type { TaskSnapshotRefresh } from "./task-snapshot";
 import { PERIOD_PATTERN } from "../shared/financials";
 
 export async function handleStoredRead(request: Request, {
-  store, config, compiledTimeZone, reportGa4Today, portfolioSummary, refreshTaskSnapshot,
+  store, config, compiledTimeZone, reportGa4Today, portfolioSummary, refreshTaskSnapshot, backupPreview,
 }: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string;
-  reportGa4Today?: boolean; portfolioSummary?: PortfolioSummaryStore; refreshTaskSnapshot?: TaskSnapshotRefresh }): Promise<Response | null> {
+  reportGa4Today?: boolean; portfolioSummary?: PortfolioSummaryStore; refreshTaskSnapshot?: TaskSnapshotRefresh; backupPreview?: boolean }): Promise<Response | null> {
   const url = new URL(request.url);
   if (url.pathname === "/api/alerts/daily") {
     return handleAlertDailyRequest(request, store, new Date());
@@ -139,6 +139,7 @@ export async function handleStoredRead(request: Request, {
         schedules: cfg.schedules,
         reportGa4Today,
         refreshTaskSnapshot,
+        backupPreview,
       };
       const payload = portfolioSummary
         ? (await readPortfolioSummary(store, portfolioSummary, options)).wall
@@ -159,7 +160,7 @@ export async function handleStoredRead(request: Request, {
     const cfg = await config();
     try {
       // Reads only: the hourly tick records each source's day (tower-cron.ts).
-      const payload = await buildIntegrationsMatrix(store, integrationsDeps(cfg, new Date()));
+      const payload = await buildIntegrationsMatrix(store, { ...integrationsDeps(cfg, new Date()), backupPreview });
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
