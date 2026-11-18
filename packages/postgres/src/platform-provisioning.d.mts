@@ -21,6 +21,7 @@ export interface PreparedWorkspace {
 }
 export interface PlatformProvisioning {
     prepare(input: unknown, project?: unknown): Promise<PreparedWorkspace>;
+    recoverPreparation(input: unknown, project: unknown): Promise<PreparedWorkspace>;
     activate(input: unknown, scheduler?: {
         serviceId: string;
         intendedEmail: string;

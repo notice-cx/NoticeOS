@@ -115,10 +115,12 @@ export async function runStandaloneOwner(args, input, { smtpLaunch } = {}) {
 }
 
 function ntasksProject(plan) {
-  // Directory uniqueness follows the physical workspace/project IDs across
-  // address aliases. The credential reference separately pins the exact origin.
+  // The directory uses the physical IDs. The credential reference pins the
+  // exact origin and the planned workspace and scheduler.
   const { origin, workspaceId, projectId } = plan.ntasks;
-  const hash = createHash('sha256').update(JSON.stringify(['local-ntasks/1', plan.workspaceId, origin, workspaceId, projectId])).digest('hex');
+  const hash = createHash('sha256').update(JSON.stringify([
+    'local-ntasks/1', plan.workspaceId, plan.slug, plan.serviceId, origin, workspaceId, projectId,
+  ])).digest('hex');
   return {
     projectId,
     executorRef: workspaceId,
@@ -130,8 +132,9 @@ function ntasksProject(plan) {
 async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunch } = {}) {
   const invalidPlan = newWorkspace ? newWorkspaceInvalid : invalid;
   const [action, file, enrollmentId] = args;
-  if (!['prepare', 'send-code', 'verify-code', 'activate'].includes(action)
-    || (action === 'prepare' ? args.length !== 2 : args.length !== 3 || !uuid.test(enrollmentId))) throw invalidPlan();
+  const setup = action === 'prepare' || (newWorkspace && action === 'recover');
+  if (setup ? args.length !== 2 : !['send-code', 'verify-code', 'activate'].includes(action)
+    || args.length !== 3 || !uuid.test(enrollmentId)) throw invalidPlan();
   const plan = readPlan(file, newWorkspace, invalidPlan);
   const localTowerOrigin = isPrivateTowerOrigin(plan.trustedOrigin) ? plan.trustedOrigin : undefined;
   const binding = { workspaceId: plan.workspaceId, ntasksWorkspaceId: plan.ntasks.workspaceId,
@@ -139,14 +142,17 @@ async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunc
   if (action === 'send-code' || action === 'verify-code') {
     if (!plan.mail && !plan.smtp) throw new Error('Configure delivery to the intended email before requesting an enrollment code.');
     const smtp = plan.smtp && smtpIdentityMail(plan.smtp, recipient => recipient === plan.intendedEmail, { launch: smtpLaunch });
+    let delivered = false;
     const login = openEmailCodeLogin({ connectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, localTowerOrigin,
       sessionSecret: plan.identitySecret, peerAddress: '127.0.0.1',
       ...(newWorkspace ? { provisioningWorkspaceId: plan.workspaceId } : { standaloneOwnerWorkspaceId: plan.workspaceId }),
       async deliver(message) {
-        if (!smtp) return sendMail(plan.mail, plan.intendedEmail, message);
-        if (!/^\d{6}$/u.test(message.code)) throw new Error('Mail delivery refused.');
-        await smtp({ from: plan.smtp.from, to: message.email, subject: 'Your NoticeOS sign-in code',
-          text: `Your NoticeOS sign-in code is ${message.code}.` });
+        if (smtp) {
+          if (!/^\d{6}$/u.test(message.code)) throw new Error('Mail delivery refused.');
+          await smtp({ from: plan.smtp.from, to: message.email, subject: 'Your NoticeOS sign-in code',
+            text: `Your NoticeOS sign-in code is ${message.code}.` });
+        } else await sendMail(plan.mail, plan.intendedEmail, message);
+        delivered = true;
       } });
     try {
       const verify = action === 'verify-code';
@@ -157,6 +163,7 @@ async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunc
       const enrollment = { kind: 'platform', id: enrollmentId };
       const response = verify ? await login.verifyCode(request, enrollment) : await login.requestCode(request, enrollment);
       if (response.status !== (verify ? 200 : 202)) throw new Error('Email enrollment did not complete.');
+      if (!verify && !delivered) throw new Error('No enrollment code was sent. Check the enrollment ID, address and expiry.');
       return { workspaceId: plan.workspaceId, enrollmentId, emailVerified: verify };
     } finally { await login.close(); }
   }
@@ -179,10 +186,12 @@ async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunc
         { serviceId: plan.serviceId, intendedEmail: plan.intendedEmail });
       return { ...activated, serviceId: plan.serviceId };
     }
-    const owner = { intendedEmail: plan.intendedEmail, expiresAt: new Date(Date.now() + 6 * 86400_000).toISOString() };
-    const prepared = project
-      ? await provisioning.prepare({ workspaceId: plan.workspaceId, slug: plan.slug, displayName: plan.displayName, ...owner }, project)
-      : await provisioning.prepareStandaloneOwner({ ...binding, ...owner });
+    const { workspaceId, intendedEmail, displayName, slug } = plan;
+    const expiresAt = new Date(Date.now() + 6 * 86400_000).toISOString();
+    let prepared;
+    if (!project) prepared = await provisioning.prepareStandaloneOwner({ ...binding, intendedEmail, expiresAt });
+    else if (action === 'recover') prepared = await provisioning.recoverPreparation({ workspaceId, displayName, intendedEmail }, project);
+    else prepared = await provisioning.prepare({ workspaceId, slug, displayName, intendedEmail, expiresAt }, project);
     return { ...prepared, enrollmentUrl: emailEnrollmentUrl(plan.trustedOrigin, { kind: 'platform', id: prepared.enrollmentId }) };
   } finally { await provisioning.close(); }
 }
@@ -193,7 +202,7 @@ export async function ownerEnrollmentMain(args, { newWorkspace = false } = {}) {
     return 0;
   } catch (error) {
     const safe = new Set([invalid().message, newWorkspaceInvalid().message, 'Configure delivery to the intended email before requesting an enrollment code.',
-      'Email enrollment did not complete.', mailRequired, codeRequired, tokenRequired]);
+      'Email enrollment did not complete.', 'No enrollment code was sent. Check the enrollment ID, address and expiry.', mailRequired, codeRequired, tokenRequired]);
     const message = error instanceof StandaloneOwnerMigrationRequired || safe.has(error?.message) ? error.message
       : newWorkspace ? 'Local workspace owner enrollment refused. Check the workspace ID, verified email and project binding.'
         : 'Standalone owner enrollment refused. Check the selected workspace, verified email and project binding.';

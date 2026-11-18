@@ -876,11 +876,14 @@ Use `db:provision-workspace` with the
 This command adds a new workspace to the prepared database. The ordinary
 Compose customer profile supports one workspace.
 
-1. In the separate local Ntasks instance, prepare the team's workspace and
-   project. If the Tower already has an `ntasksOrigin`, use that same origin
-   for the new team. Create a service credential with write access to
-   exactly the new team's project. Choose a project that another NoticeOS
-   workspace has never reserved.
+1. Check the attached declaration before preparing a workspace. It can list
+   up to 64 `workspaces` and, when used, up to 64 `mailRecipients`. Make sure
+   both lists have room for the entries you will add. This command uses a
+   separate Ntasks origin of the form `http://127.0.0.1:<port>`. If the Tower
+   already declares an `ntasksOrigin`, it must be that same loopback origin.
+   Prepare the team's workspace and project there. Create a service
+   credential with write access to exactly the new team's project. Choose
+   a project that another NoticeOS workspace has never reserved.
 2. Make a separate operator-owned plan file with mode `0600`. Use the fields
    in the [owner plan above](#enroll-the-owner-of-an-existing-standalone-workspace),
    with these values:
@@ -922,9 +925,11 @@ Preparation leaves the workspace inactive. The owner and its scheduler
 grant are recorded together after email and project verification. Complete
 verification and activation within six days of preparation. Before the
 enrollment expires, correct a refused input and repeat that action with the
-same enrollment ID. An expired workspace stays inactive, with its original
-project reserved. To start a separate rehearsal, use a new workspace ID,
-slug and Ntasks project.
+same enrollment ID. If preparation committed and you lost the ID, use
+`pnpm db:provision-workspace recover /absolute/private-owner-plan.json` with
+the original plan to retrieve the pending ID. An expired workspace stays
+inactive, with its original project reserved. To start a separate rehearsal,
+use a new workspace ID, slug and Ntasks project.
 
 ---
 
@@ -1038,6 +1043,13 @@ uses its existing schema, roles, members, and keys. Private mail, new
 archives, and reports stay in the runtime folder. The mailbox delivers only
 to the configured addresses. Use the Tower's ordinary sign-in and roles,
 and read the code in the printed mailbox.
+
+To send invitations and sign-in codes to inboxes, configure `mailDelivery`.
+Omit `mailRecipients` to use the prepared workspaces' active members and
+pending invitations. Keep the list to limit delivery to specific addresses.
+Invitation links from this command use `127.0.0.1:4747`. Open them on the
+computer running the Tower.
+[Configure the SMTP relay](../deploy/compose/README.md#deliver-sign-in-codes-to-an-inbox).
 
 Provider HTTP starts disabled. Add `ntasksOrigin` for a separately running
 Ntasks, as either a loopback HTTP origin or its exact HTTPS origin. Workspace

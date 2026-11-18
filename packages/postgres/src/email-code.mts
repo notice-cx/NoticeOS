@@ -14,6 +14,8 @@ export interface EmailCodeOptions extends IdentityOptions {
   /** The private operator command binds its email operations to one workspace. */
   readonly standaloneOwnerWorkspaceId?: string;
   readonly provisioningWorkspaceId?: string;
+  /** Set by the attached customer runtime when mail follows workspace access. */
+  readonly mailWorkspaceIds?: readonly string[];
   /** Called only after database commit. No real sender is selected here. */
   readonly deliver: (message: EmailCodeMessage) => Promise<void>;
 }
@@ -74,10 +76,21 @@ async function input(request: Request): Promise<{ email: string; otp?: string }>
   return { email: value.email.toLowerCase(), ...(typeof value.otp === 'string' ? { otp: value.otp } : {}) };
 }
 
-async function eligibility(trx: Transaction<IdentityDatabase>, email: string, enrollment?: EmailEnrollment,
-  operator?: { workspaceId: string; status: 'active' | 'provisioning' }): Promise<Eligibility> {
+async function eligibility(trx: Transaction<IdentityDatabase>, email: string, enrollment: EmailEnrollment | undefined,
+  operator: { workspaceId: string; status: 'active' | 'provisioning' } | undefined,
+  mailWorkspaceIds?: readonly string[]): Promise<Eligibility> {
   if (operator && enrollment?.kind !== 'platform') return { allowed: false };
   if (!enrollment) {
+    if (mailWorkspaceIds) {
+      // The OTP adapter also looks up the normalized address by exact equality.
+      const result = await sql<{ allowed: boolean }>`SELECT EXISTS (
+        SELECT 1 FROM noticeos_identity.auth_user u
+        JOIN noticeos_identity.auth_member m ON m.user_id=u.id
+        JOIN LATERAL noticeos_identity.workspace_summary(m.organization_id) w ON w.status='active'
+        WHERE u.email=${email} AND u.email_verified=true AND m.organization_id=ANY(${mailWorkspaceIds}::uuid[])
+      ) AS allowed`.execute(trx);
+      return { allowed: result.rows[0]?.allowed === true };
+    }
     const result = await sql<{ id: string }>`SELECT id FROM noticeos_identity.auth_user WHERE email=${email}`.execute(trx);
     return { allowed: result.rows.length === 1 };
   }
@@ -85,7 +98,8 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
     ? await sql<{ workspace_id: string }>`SELECT workspace_id FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid`.execute(trx)
     : await sql<{ workspace_id: string }>`SELECT organization_id AS workspace_id FROM noticeos_identity.auth_invitation WHERE id=${enrollment.id}::uuid`.execute(trx);
   const workspaceId = target.rows[0]?.workspace_id;
-  if (!workspaceId || (operator && workspaceId !== operator.workspaceId)) {
+  if (!workspaceId || (operator && workspaceId !== operator.workspaceId)
+    || (mailWorkspaceIds !== undefined && !mailWorkspaceIds.includes(workspaceId))) {
     return { allowed: false };
   }
   // All later invitation/provisioning lifecycle operations must use this same
@@ -132,7 +146,8 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
   const operator = operatorWorkspaceId === undefined ? undefined : { workspaceId: operatorWorkspaceId,
     status: standaloneOwnerWorkspaceId === undefined ? 'provisioning' as const : 'active' as const };
   options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin,
-    sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver });
+    sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
+    mailWorkspaceIds: options.mailWorkspaceIds === undefined ? undefined : Object.freeze([...options.mailWorkspaceIds]) });
   const trustedOrigin = validateIdentityOptions(options);
   if (typeof options.peerAddress !== 'string' || !isValidIP(options.peerAddress) || typeof options.deliver !== 'function') {
     throw new IdentityRefused('Identity requires a trusted peer and delivery adapter');
@@ -169,7 +184,15 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
       const bucket = createRateLimitKey(peer, path);
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
       if (body) await sql`SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-      const eligible = body ? await eligibility(trx, body.email, enrollment, operator) : { allowed: true };
+      let eligible = body ? await eligibility(trx, body.email, enrollment, operator, options.mailWorkspaceIds) : { allowed: true };
+      if (body && eligible.allowed && enrollment && options.mailWorkspaceIds) {
+        // An invitation can create a person. Do not create a new normalized
+        // identity when a legacy row already represents the same mailbox.
+        const existing = await sql`SELECT id FROM noticeos_identity.auth_user
+          WHERE lower(email COLLATE pg_catalog.pg_unicode_fast)=${body.email}
+            AND email COLLATE pg_catalog.pg_unicode_fast<>${body.email} LIMIT 1`.execute(trx);
+        if (existing.rows.length) eligible = { allowed: false };
+      }
       const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
         ...(action === 'logout' ? { readOnlySession: true as const } : {}),
         peer, eligible: eligible.allowed, deliver: (message) => { mail.push(message); } });

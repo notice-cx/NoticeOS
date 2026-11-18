@@ -5,7 +5,7 @@ import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, type EmailEnrollment } from
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
 import { createBrowserRequestPolicy, isPrivateTowerOrigin, WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
-import { captureIdentityMail, type IdentityMailBindings } from './identity-mail';
+import { captureIdentityMail, identityMailWorkspaces, type IdentityMailBindings } from './identity-mail';
 
 export interface AuthEntryBindings extends WorkspaceEntryBindings, IdentityMailBindings {
   NOTICEOS_IDENTITY_EDGE?: string;
@@ -85,7 +85,7 @@ export async function handleAuthRequest(request: Request, env: AuthEntryBindings
     // Verification and logout keep working if delivery is unavailable.
     const deliver = action === 'request' ? codeSender(env) : async () => refuse();
     login = open({ connectionString, sessionSecret, trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env), peerAddress,
-      deliver,
+      deliver, mailWorkspaceIds: action === 'logout' ? undefined : identityMailWorkspaces(env),
     });
     const result = action === 'request' ? await login.requestCode(request, selected)
       : action === 'verify' ? await login.verifyCode(request, selected) : await login.logout(request);

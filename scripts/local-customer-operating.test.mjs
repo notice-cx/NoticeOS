@@ -7,9 +7,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
-import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
+import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH } from './identity-protocol.mjs';
 import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { readCustomerOperating, openCustomerOperating } from './local-customer-operating.mjs';
+import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
@@ -103,8 +104,8 @@ async function assertNormalLauncher(plan, configFile, exercise) {
   }
 }
 
-async function workspaceOwner(app) {
-  const { email, url, workspaceId } = app.workspaces[0];
+async function workspaceOwner(app, workspace = app.workspaces[0]) {
+  const { email, url, workspaceId } = workspace;
   const origin = app.publicOrigin;
   const invitationId = new URL(url).hash.slice('#invitation='.length);
   const proof = { [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: invitationId };
@@ -148,6 +149,12 @@ async function exerciseSiteReports(origin, owner, db) {
   ]);
 }
 
+function resetCodeRate(db) {
+  // These independent scenarios share the fixture's one trusted loopback peer.
+  db.cluster.run(`DELETE FROM noticeos_identity.auth_rate_limit
+    WHERE key LIKE '%|/email-otp/send-verification-otp' OR key LIKE '%|/sign-in/email-otp'`);
+}
+
 async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
   const origin = app.publicOrigin;
   const post = (route, body) => fetch(origin + route, { method: 'POST',
@@ -171,7 +178,7 @@ async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
   const { session, workspaces } = await current.json();
   assert.ok(session?.sessionId);
   assert.ok(workspaces.some(workspace => workspace.workspaceId === workspaceId && workspace.role === 'owner'));
-  db.cluster.run("UPDATE noticeos_identity.auth_rate_limit SET last_request=last_request-61000 WHERE key='127.0.0.1|/email-otp/send-verification-otp'");
+  resetCodeRate(db);
   const sessions = () => db.cluster.sql('SELECT count(*) AS count FROM noticeos_identity.auth_session');
   const before = sessions();
   relay.reject();
@@ -181,6 +188,100 @@ async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
   assert.deepEqual(await failed.json(), { ok: false });
   assert.equal(relay.inbox.length, 1);
   assert.deepEqual(sessions(), before);
+  relay.reject(false);
+}
+
+async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, otherEmail, identitySecret }) {
+  const origin = app.publicOrigin;
+  const workspaceId = owner[WORKSPACE_SELECTION_HEADER];
+  const route = (pathname, body, headers) => fetch(origin + pathname, { method: 'POST',
+    headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const members = (body, actor = owner) => route(MEMBERSHIP_PATH, body, actor);
+  const email = 'joining@example.test';
+  const headers = id => id === undefined ? {} : { [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: id };
+  const request = (email, id) => route(EMAIL_CODE_PATHS.request, { email }, headers(id));
+  const noCode = async (email, invitationId) => {
+    const before = relay.recipients.length;
+    const response = await request(email, invitationId);
+    assert.equal(response.status, 202);
+    assert.equal(response.headers.has('set-cookie'), false);
+    assert.equal(relay.recipients.length, before);
+  };
+  const invite = async email => {
+    const response = await members({ kind: 'invite', email, role: 'viewer' });
+    assert.equal(response.status, 200);
+    const { invitationId } = await response.json();
+    assert.equal(relay.inbox.at(-1)?.recipient, email);
+    assert.ok(relay.inbox.at(-1)?.wire.includes(`${origin}/sign-in#invitation=${invitationId}`));
+    return invitationId;
+  };
+
+  resetCodeRate(db);
+  const before = relay.recipients.length;
+  await noCode('unregistered@example.test');
+  await noCode(otherEmail);
+  assert.equal((await members({ kind: 'invite', email, role: 'viewer' }, {})).status, 403);
+  assert.equal((await members({ kind: 'invite', email, role: 'viewer' }, otherOwner)).status, 403);
+  assert.equal(relay.recipients.length, before);
+  const invitationId = await invite(email);
+  await noCode('wrong-mailbox@example.test', invitationId);
+  resetCodeRate(db);
+  assert.equal((await request(email, invitationId)).status, 202);
+  assert.equal(relay.inbox.at(-1).recipient, email);
+  const otp = relay.inbox.at(-1).wire.match(/\b(\d{6})\./u)?.[1];
+  assert.ok(otp);
+  const verified = await route(EMAIL_CODE_PATHS.verify, { email, otp }, headers(invitationId));
+  assert.equal(verified.status, 200);
+  const cookie = verified.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+  const session = async () => (await fetch(origin + '/api/session', { headers: { cookie } })).json();
+  const prepared = await session();
+  assert.deepEqual(prepared.workspaces, []);
+  assert.equal((await route(ACCEPT_INVITATION_PATH, { invitationId }, { cookie,
+    [WORKSPACE_SESSION_HEADER]: prepared.session.sessionId })).status, 200);
+  assert.deepEqual((await session()).workspaces.map(({ workspaceId, role }) => ({ workspaceId, role })), [{ workspaceId, role: 'viewer' }]);
+  assert.equal((await request(email.toUpperCase())).status, 202);
+  assert.deepEqual(relay.recipients.slice(before), [email, email, email]);
+
+  resetCodeRate(db);
+  const { items } = await (await members({ kind: 'list', collection: 'members' })).json();
+  assert.equal((await members({ kind: 'remove', memberId: items.find(item => item.email === email).id })).status, 200);
+  await noCode(email);
+  const cancelled = 'cancelled@example.test', expired = 'expired@example.test';
+  const cancelledId = await invite(cancelled), expiredId = await invite(expired);
+  assert.equal((await members({ kind: 'cancel', invitationId: cancelledId })).status, 200);
+  db.cluster.run("UPDATE noticeos_identity.auth_invitation SET expires_at=clock_timestamp()-interval '1 minute' WHERE id=:'id'::uuid", { vars: { id: expiredId } });
+  await noCode(cancelled, cancelledId);
+  await noCode(expired, expiredId);
+
+  resetCodeRate(db);
+  const [turkish] = db.cluster.sql(`SELECT 1 FROM pg_catalog.pg_collation WHERE oid=to_regcollation('pg_catalog."tr-x-icu"')`);
+  if (turkish) db.cluster.run(`ALTER TABLE noticeos_identity.auth_user ALTER COLUMN email TYPE text COLLATE pg_catalog."tr-x-icu"`);
+  const legacyEmail = 'Ipek@example.test', legacyId = randomUUID();
+  db.cluster.run(`INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
+    VALUES (:'user'::uuid,'Legacy member',:'email',true);
+    INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at)
+    VALUES (gen_random_uuid(),:'workspace'::uuid,:'user'::uuid,'viewer',now());`,
+  { vars: { user: legacyId, email: legacyEmail, workspace: workspaceId } });
+  if (turkish) assert.deepEqual(db.cluster.sql("SELECT lower(email) AS normalized FROM noticeos_identity.auth_user WHERE email='Ipek@example.test'"),
+    [{ normalized: 'ıpek@example.test' }]);
+  await noCode(legacyEmail);
+  const legacyInvitation = await invite(legacyEmail.toLowerCase());
+  await noCode(legacyEmail, legacyInvitation);
+  let issuedCode;
+  const prior = openEmailCodeLogin({ connectionString: db.identityDatabase, trustedOrigin: origin,
+    sessionSecret: identitySecret, peerAddress: '192.0.2.17', deliver: async ({ code }) => { issuedCode = code; } });
+  try {
+    const pending = { kind: 'invitation', id: legacyInvitation };
+    const request = new Request(origin + EMAIL_CODE_PATHS.request, { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ email: legacyEmail }) });
+    assert.equal((await prior.requestCode(request, pending)).status, 202);
+    assert.ok(issuedCode, 'a code exists from before the membership-mail policy');
+  } finally { await prior.close(); }
+  const refused = await route(EMAIL_CODE_PATHS.verify, { email: legacyEmail, otp: issuedCode }, headers(legacyInvitation));
+  assert.equal(refused.status, 400);
+  assert.equal(refused.headers.has('set-cookie'), false);
+  assert.deepEqual(db.cluster.sql("SELECT id,email FROM noticeos_identity.auth_user WHERE email IN ('Ipek@example.test','ipek@example.test')"),
+    [{ id: legacyId, email: legacyEmail }]);
 }
 
 async function recordedGoogle(archive) {
@@ -224,13 +325,16 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     const workspaces = app.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }));
     const email = app.workspaces[0].email;
     const owner = await workspaceOwner(app);
+    const otherEmail = app.workspaces[1].email;
+    const otherOwner = await workspaceOwner(app, app.workspaces[1]);
     const archive = customerArchiveFixture(app, { useServiceAccount: true });
     await archive.configure(db, credentialsKey);
     provider = await recordedGoogle(archive);
     const config = { format: 'noticeos-customer-operating/1', database: {
       app: db.address, identity: db.identityDatabase, grant: db.grantConnectionString,
     }, identitySecret, credentialsKey, workspaces, mailRecipients: app.workspaces.map(row => row.email) };
-    const save = (googleDaily, siteReports, mailDelivery) => writeFileSync(configFile, JSON.stringify({ ...config, googleDaily, siteReports, mailDelivery }), { mode: 0o600 });
+    const save = (googleDaily, siteReports, mailDelivery, overrides) => writeFileSync(configFile,
+      JSON.stringify({ ...config, googleDaily, siteReports, mailDelivery, ...overrides }), { mode: 0o600 });
     await app.close(); app = undefined;
     relay = await identitySmtpFixture(root);
     writeFileSync(path.join(root, 'mail.json'), JSON.stringify(relay.declaration), { mode: 0o600 });
@@ -248,7 +352,15 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     assert.deepEqual(db.cluster.sql('SELECT 1 FROM noticeos.archive_runs'), []);
     const session = await fetch(app.publicOrigin + '/api/session');
     assert.equal((await session.json()).mode, 'hosted');
+    resetCodeRate(db);
     await exerciseSignInDelivery(app, relay, email, workspaces[0].workspaceId, db);
+    const attempts = relay.recipients.length;
+    const restricted = await fetch(app.publicOrigin + MEMBERSHIP_PATH, { method: 'POST',
+      headers: { ...owner, 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'invite', email: 'restricted@example.test', role: 'viewer' }) });
+    assert.equal(restricted.status, 503);
+    assert.ok((await restricted.json()).invitationId);
+    assert.equal(relay.recipients.length, attempts);
     assert.equal((await fetch(app.publicOrigin + '/api/mcp')).status, 401);
     assert.equal((await fetch(app.publicOrigin + '/api/assets/archive-app/report-token', { method: 'POST', headers: owner })).status, 404);
     const other = startPlan({ dir: path.join(root, 'second-runtime'), port: await availableCustomerPort() });
@@ -257,11 +369,12 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     assert.equal(provider.calls(), 0);
     await app.close(); app = undefined;
 
-    save(true);
+    save(true, false, 'mail.json', { mailRecipients: undefined, workspaces: [workspaces[0]] });
     app = await launch();
     assert.equal(resources.resumeSince, undefined);
     await app.whenIdle();
     await archive.verify({ db, options: resources, t });
+    await exerciseMembershipMail(app, relay, db, { owner, otherOwner, otherEmail, identitySecret });
     const archived = provider.calls();
     const backend = db.cluster.sql(`SELECT pid FROM pg_stat_activity WHERE application_name='noticeos-local-customer-scheduler'`);
     assert.equal(backend.length, 1);

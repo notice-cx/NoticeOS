@@ -5,7 +5,7 @@
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import { openIdentity } from './identity.mjs';
-import { identityEngine, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
+import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
 import type { TaskProjectMapping } from './task-directory.mjs';
 import { releasedDefaultDocuments } from '../../../scripts/released-defaults.mjs';
 
@@ -29,6 +29,7 @@ export interface PreparedWorkspace {
 }
 export interface PlatformProvisioning {
   prepare(input: unknown, project?: unknown): Promise<PreparedWorkspace>;
+  recoverPreparation(input: unknown, project: unknown): Promise<PreparedWorkspace>;
   activate(input: unknown, scheduler?: { serviceId: string; intendedEmail: string }): Promise<PreparedWorkspace>;
   prepareStandaloneOwner(input: unknown): Promise<PreparedWorkspace>;
   activateStandaloneOwner(input: unknown): Promise<PreparedWorkspace & { readonly serviceId: string }>;
@@ -245,6 +246,35 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         if (signal.aborted) refuse();
         return Object.freeze({ workspaceId: command.workspaceId, enrollmentId });
       })));
+    },
+    recoverPreparation(input: unknown, projectInput: unknown) {
+      if (closed) return Promise.reject(new PlatformProvisioningRefused());
+      let expected: { workspaceId: string; displayName: string; intendedEmail: string };
+      let project: ReturnType<typeof initialProject>;
+      try {
+        const row = record(input, ['workspaceId', 'displayName', 'intendedEmail']);
+        if (typeof row.displayName !== 'string' || row.displayName.length < 1 || row.displayName.length > 80) refuse();
+        expected = { workspaceId: uuid(row.workspaceId), displayName: row.displayName, intendedEmail: ownerEmail(row.intendedEmail) };
+        project = initialProject(projectInput);
+      } catch { return Promise.reject(new PlatformProvisioningRefused()); }
+      return track(transaction(async (db, signal) => {
+        const reservation = await sql`SELECT 1 FROM noticeos_platform.task_project_directory
+          WHERE workspace_id=${expected.workspaceId}::uuid AND project_id=${project.projectId}::uuid
+            AND executor_ref=${project.executorRef}::uuid AND credential_ref=${project.credentialRef}::uuid
+            AND database_key=${project.databaseKey} AND revoked_at IS NULL`.execute(db);
+        if (reservation.rows.length !== 1 || signal.aborted) refuse();
+        const identity = await openIdentityDatabase({ connectionString: options.identityConnectionString, trustedOrigin: options.trustedOrigin,
+          localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret });
+        try {
+          const result = await sql<{ id: string }>`SELECT e.id FROM noticeos_identity.platform_enrollment e
+            JOIN LATERAL noticeos_identity.workspace_summary(e.workspace_id) w ON w.status='provisioning'
+            WHERE e.workspace_id=${expected.workspaceId}::uuid AND e.email=${expected.intendedEmail} AND w.display_name=${expected.displayName}
+              AND e.activated_at IS NULL AND e.revoked_at IS NULL AND e.expires_at>pg_catalog.clock_timestamp() LIMIT 2`.execute(identity.database);
+          const enrollmentId = result.rows[0]?.id;
+          if (result.rows.length !== 1 || !enrollmentId || !UUID.test(enrollmentId) || signal.aborted) refuse();
+          return Object.freeze({ workspaceId: expected.workspaceId, enrollmentId });
+        } finally { await identity.database.destroy(); }
+      }));
     },
     activate(input: unknown, schedulerInput?: { serviceId: string; intendedEmail: string }) {
       if (closed) return Promise.reject(new PlatformProvisioningRefused());

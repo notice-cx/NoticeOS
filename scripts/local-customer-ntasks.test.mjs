@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { createRequire } from 'node:module';
@@ -211,7 +212,11 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     };
     const conflict = ownerPlan(oak, 'overlap');
     await runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
-    const alternateOrigin = `http://127.0.0.1:${plan.doorPort}`;
+    let alternateRequests = 0;
+    const alternate = createServer((_request, response) => { alternateRequests++; response.writeHead(503).end(); });
+    t.after(() => new Promise(resolve => alternate.close(resolve)));
+    await new Promise((resolve, reject) => alternate.once('error', reject).listen(0, '127.0.0.1', resolve));
+    const alternateOrigin = `http://127.0.0.1:${alternate.address().port}`;
     await runOwner('prepare', prepareFile('alias-overlap', { ...conflict, ntasks: { ...conflict.ntasks, origin: alternateOrigin } }),
       { status: 1 });
     const legacyProjectId = randomUUID();
@@ -230,6 +235,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     const secondFile = prepareFile('elm', secondOwner);
     const second = await runOwner('prepare', secondFile);
     await runOwner('prepare', secondFile, { status: 1 });
+    assert.deepEqual(await runOwner('recover', secondFile), second);
     await activate(secondFile, second, elm.token, 1);
     await verifyOwner(secondFile, second.enrollmentId, secondOwner.intendedEmail);
     await activate(secondFile, { enrollmentId: first.enrollmentId }, elm.token, 1);
@@ -238,12 +244,16 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     const otherOrigin = prepareFile('wrong-origin', { ...secondOwner, ntasks: { ...secondOwner.ntasks, origin: alternateOrigin } });
     await activate(otherOrigin, second, elm.token, 1);
     const editedEmail = prepareFile('wrong-recipient', { ...secondOwner, intendedEmail: firstOwner.intendedEmail });
+    await runOwner('recover', editedEmail, { status: 1 });
+    await runOwner('recover', otherOrigin, { status: 1 });
     await activate(editedEmail, second, elm.token, 1);
     const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
     await activate(reusedGrant, second, elm.token, 1);
     await firstStillOwnsWorkspace();
     assert.equal((await activate(secondFile, second, elm.token)).serviceId, secondOwner.serviceId);
     await activate(secondFile, second, elm.token, 1);
+    await runOwner('recover', secondFile, { status: 1 });
+    assert.equal(alternateRequests, 0);
     await app.close(); app = undefined;
     app = await attach([firstOwner, secondOwner]);
     await firstStillOwnsWorkspace();

@@ -96,7 +96,12 @@ export function readComposeCustomerOperating(file, plan, bootstrap) {
 }
 
 function withDelivery(config, operating, file) {
-  if (config.mailDelivery === undefined) return operating;
+  if (config.mailDelivery === undefined) {
+    if (operating.mailRecipients === undefined) {
+      throw new CustomerOperatingRefused('Configure SMTP to deliver mail for workspace members and invitations, or list recipients for the local mailbox.');
+    }
+    return operating;
+  }
   try { return { ...operating, mailDelivery: readLocalIdentityMail(config.mailDelivery, file) }; }
   catch { throw new CustomerOperatingRefused('Restore the private SMTP mail file beside the customer configuration before starting the app.'); }
 }
@@ -108,8 +113,9 @@ function customerOperating(config, plan, compose = false) {
       || typeof config.identitySecret !== 'string' || config.identitySecret.length < 32 || config.identitySecret.length > 512
       || typeof config.credentialsKey !== 'string' || !/^[A-Za-z0-9+/]{43}=$/u.test(config.credentialsKey)
       || config.siteReports !== undefined && typeof config.siteReports !== 'boolean'
-      || !Array.isArray(config.mailRecipients) || config.mailRecipients.length < 1 || config.mailRecipients.length > 64
-      || config.mailRecipients.some(email => typeof email !== 'string' || email.length > 320 || !EMAIL.test(email))
+      || config.mailRecipients !== undefined && (!Array.isArray(config.mailRecipients)
+        || config.mailRecipients.length < 1 || config.mailRecipients.length > 64
+        || config.mailRecipients.some(email => typeof email !== 'string' || email.length > 320 || !EMAIL.test(email)))
       || !Array.isArray(config.workspaces) || config.workspaces.length < 1 || config.workspaces.length > 64
       || config.workspaces.some(binding => !binding || typeof binding.workspaceId !== 'string' || !UUID.test(binding.workspaceId)
         || typeof binding.serviceId !== 'string' || !UUID.test(binding.serviceId)
@@ -129,7 +135,7 @@ function customerOperating(config, plan, compose = false) {
       || collection.taskFollowups.some(entry => !approvedWorkspaces.has(entry.workspaceId) || !config.ntasksOrigin
         || workspaces.some(binding => binding.serviceId === entry.serviceId))) throw refused();
     return { target, address: app.href, identityAddress: identity.href, grantAddress: grant.href,
-      mailRecipients: config.mailRecipients.map(email => email.toLowerCase()), workspaces,
+      mailRecipients: config.mailRecipients?.map(email => email.toLowerCase()), workspaces,
       identitySecret: config.identitySecret, credentialsKey: config.credentialsKey,
       ntasksOrigin: taskOrigin(config.ntasksOrigin, plan, Number(app.port)), ...collection,
       siteReports: config.siteReports === true };

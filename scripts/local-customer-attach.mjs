@@ -33,12 +33,16 @@ export async function startPreparedCustomer(plan, db, {
   try {
     const owned = dir => privateDirectory(dir, !existsSync(dir));
     const customer = owned(db.customer);
+    const membershipMail = operating.mailRecipients === undefined;
+    if (membershipMail && !operating.mailDelivery) throw new Error('Customer mail requires a configured relay or recipient list.');
     const outbox = operating.mailDelivery ? undefined : owned(path.join(customer, 'mail'));
-    const accepts = email => operating.mailRecipients.includes(email.toLowerCase());
+    // Only the private Tower binding can submit a message. In membership mode
+    // the fixed invitation and sign-in routes authorize its recipient.
+    const accepts = email => membershipMail || operating.mailRecipients.includes(email.toLowerCase());
     const deliver = operating.mailDelivery ? smtpIdentityMail(operating.mailDelivery, accepts, { launch: smtpLaunch, signal })
       : localMailbox(outbox, accepts);
     app = await startCustomerRuntime(plan, { customer, outbox, workerState: deployment?.workerState ?? owned(path.join(customer, 'worker-state')),
-      deliver, mailFrom: operating.mailDelivery?.from,
+      deliver, mailFrom: operating.mailDelivery?.from, membershipMail,
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
