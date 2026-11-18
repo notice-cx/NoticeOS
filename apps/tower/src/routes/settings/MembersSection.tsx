@@ -33,6 +33,10 @@ function OwnerMembers() {
     return { members, invitations };
   } });
   const update = runtime.guard((callback: () => void) => callback());
+  async function refreshAccess() {
+    await recheckAccess?.();
+    if (runtime.guard(() => true)() === true) await read.refetch();
+  }
   async function execute(command: MemberCommand) {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
@@ -70,7 +74,7 @@ function OwnerMembers() {
   }
   const oneOwner = read.data?.members.nextCursor === null && read.data.members.items.filter(member => member.role === 'owner').length === 1;
   return <>
-    <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void recheckAccess?.()}>Refresh access</Button>}>
+    <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void refreshAccess()}>Refresh access</Button>}>
       <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void execute({ kind: 'invite', email, role }); }}>
         <div className="min-w-0 flex-[2] basis-52 space-y-1.5">
           <label htmlFor="invite-email" className="block text-sm font-medium">Email *</label>
