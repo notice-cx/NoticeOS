@@ -17,6 +17,7 @@ const SRC = path.join(REPO_ROOT, 'workers', 'ingest', 'src');
 /** Registered with isolateState(...) in the same file. */
 const REGISTERED = {
   'config-store.ts': ['caches'],
+  'customer-schedule.ts': ['googleArchiveTokens'],
   // laneTokens is never forgotten on purpose: release tokens keep rising, so a
   // run still going from before cannot free a later run's lane.
   'dataforseo-dumps.ts': ['lane', 'laneTokens'],

@@ -24,6 +24,7 @@ import { runPullAdapter, type PullAssetConfig } from './pull.js';
 import { runCountersScrape, type CountersConfig } from './counters.js';
 import { runPosthogDumps } from './posthog-dumps.js';
 import { runClarityDumps } from './clarity-dumps.js';
+import { isolateState } from './isolate-state.js';
 
 interface ScheduleEnv extends IngestEnv {
   NOTICEOS_WORKSPACE_DATABASE_URL?: string;
@@ -36,6 +37,7 @@ const denied = () => new Response(null, { status: 403 });
 // Only admitted archive calls share these tokens. Reading the current credential first
 // changes the key on rotation, and missing, expired and rejected grants are never reused.
 const googleArchiveTokens = new Map<string, { accessToken: string; expiresAt: number }>();
+isolateState('Customer Google archive tokens', { forget: () => googleArchiveTokens.clear(), held: () => googleArchiveTokens.size > 0 });
 
 function archiveAuthorization(workspaceId: string) {
   let used: { key: string; accessToken: string } | undefined;
