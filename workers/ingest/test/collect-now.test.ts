@@ -71,9 +71,9 @@ async function seed({ paused = null as string | null, dataCapUsd }: { paused?: s
     assets: Record<string, Record<string, Record<string, unknown>>>;
   };
   integrations.assets['meadow.example']!['bing-webmaster']!.siteUrl = MAPPED;
-  const constants = structuredClone(constantsJson) as Record<string, unknown>;
+  const constants: Record<string, unknown> = dataCapUsd === undefined
+    ? structuredClone(constantsJson) : { monthly_caps: { data_usd: dataCapUsd } };
   if (paused) constants.schedules = { [paused]: { enabled: false, cron: '30 2 * * *' } };
-  if (dataCapUsd !== undefined) constants.monthly_caps = { data_usd: dataCapUsd };
   const seeded = await seedConfigDocuments(env, {
     documents: {
       'config/integrations.json': integrations as unknown as Record<string, unknown>,
@@ -161,7 +161,7 @@ describe('collect now runs the job step for the confirmed assets', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
   });
 
-  it('enforces the saved monthly cap in the scheduled lane and both manual paths', async () => {
+  it('enforces the saved monthly cap without the flag defaults in the scheduled lane and both manual paths', async () => {
     await seed({ dataCapUsd: 1 });
     await storeArchiveRun({ id: 'spent-under-old-cap', asset: 'northwind.example', integration: 'dataforseo', report: 'ranked-keywords',
       report_date: '2026-09-21', finished_at: '2026-09-21T12:46:00.000Z', provider_cost_usd: 0.9 });

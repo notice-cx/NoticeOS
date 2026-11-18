@@ -1810,7 +1810,6 @@ function finish(
       ...configSourceLine(configSources, [
         'config/integrations.json',
         'config/serp-panel.json',
-        'config/constants.json',
       ]),
       skippedFresh,
       // The word and never the figure: a balance does not belong in a log file.

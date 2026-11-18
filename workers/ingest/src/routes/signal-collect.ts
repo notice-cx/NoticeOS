@@ -128,7 +128,7 @@ export async function handleSignalCollect(
     laneRegister,
     serpPanelConfig,
     configSources: dataForSeoOptions.configSources ?? configs?.sources,
-    monthlyCapUsd: dataForSeoOptions.monthlyCapUsd ?? dataForSeoMonthlyCap(configs?.documents['config/constants.json']),
+    monthlyCapUsd: dataForSeoOptions.monthlyCapUsd ?? dataForSeoMonthlyCap(configs?.storedConstants),
     scope: { asset, families: collected },
   });
 

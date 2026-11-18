@@ -99,7 +99,7 @@ function schedulePaused(constants: unknown, job: string): boolean {
 
 /** The cast happens once, against documents `readCollectorConfigs` has already
  * shape-checked. */
-function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
+function runConfig({ documents, sources, storedConstants }: CollectorConfigs): RunConfig {
   return {
     journeyConfig: documents['config/value-events.json'] as JourneyConfig | undefined,
     pullEntries: documents['config/pull.json'] as PullAssetConfig[] | undefined,
@@ -111,7 +111,7 @@ function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
     serpPanelConfig: documents['config/serp-panel.json'] as SerpPanelConfig | undefined,
     osTimeZone: savedOsTimeZone(documents['config/constants.json'], OS_TIME_ZONE),
     dataForSeoPaused: schedulePaused(documents['config/constants.json'], 'dataforseo'),
-    dataForSeoMonthlyCapUsd: dataForSeoMonthlyCap(documents['config/constants.json']),
+    dataForSeoMonthlyCapUsd: dataForSeoMonthlyCap(storedConstants),
     constants: documents['config/constants.json'],
     configSources: sources,
   };
