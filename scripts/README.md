@@ -1117,8 +1117,10 @@ pnpm db:shadow-export -- --dump /absolute/backup.dump --only-workspace --out /ab
 The bundle contains the selected workspace's sites, dated portfolio and
 site reports, stored calculations and daily facts where available, the
 reporting time zone and operator time rate, and approved settings audit
-entries. Its manifest records row counts, file hashes, and the archive's
-recorded local creation time. Saved reports retain their dates and
+entries. Journeys use the saved definitions for the selected sites and, where
+needed, their GA4 property or disabled state. Historical reports cannot
+restore a deleted journey. The manifest records row counts, file hashes, and
+the archive's recorded local creation time. Saved reports retain their dates and
 timestamps. The private files can contain business data. Raw archive objects
 and ambiguous legacy archive keys are counted and omitted. The export also
 omits credentials, connections, sessions, task snapshots, job history, and
@@ -1151,7 +1153,8 @@ node scripts/local-customer-shadow.mjs /absolute/new-target/runtime.json
 
 The importer verifies the active owner, fresh target, scope and hashes before
 committing selected evidence. Importing the same bundle again verifies the
-saved data. The launcher checks the prepared database before starting the
+saved data. Prepare a separate private target to load a newer or expanded
+bundle. The launcher checks the prepared database before starting the
 Tower, which shows **Read-only backup** after sign-in. Stop the Tower with
 Ctrl-C, then stop the private database. The original installation is outside
 these commands.
