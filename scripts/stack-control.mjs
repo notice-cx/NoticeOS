@@ -281,14 +281,28 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
       "import { runningContainerProfile, selectedCustomerProfile } from './deploy/compose/customer-entry.mjs'; process.exitCode = runningContainerProfile() === 'customer' && selectedCustomerProfile() === 'customer' ? 0 : 1;"],
     'Customer profile check', 20000);
   }
-  const replace = async (env, expected) => {
-    await call(APP_REPLACE, 'Tower restart', 130000, env);
+  const verifyHealthy = async expected => {
     const after = await inventory();
     const updated = after.get('noticeos');
     if (!updated || after.has('replacement') || updated.health !== 'healthy' || await inspect(updated.id) !== expected
       || !sameIds(siblingIds(after), verified.siblings)) {
       refuse('The installation did not return with the expected app and supporting containers.');
     }
+  };
+  const replace = async (env, expected) => {
+    await call(APP_REPLACE, 'Tower restart', 130000, env);
+    await verifyHealthy(expected);
+  };
+  const restoreNormal = async app => {
+    if (app && await inspect(app.id) === normal) {
+      if (app.health === 'healthy') return;
+      if (app.state === 'running') await call(['restart', '--no-deps', 'noticeos'], 'Restarting the usual Tower', 130000, NORMAL_ENV);
+      await call(['start', '--wait', '--wait-timeout', '90', 'noticeos'], 'Starting the usual Tower', 130000, NORMAL_ENV);
+      await verifyHealthy(normal);
+      return;
+    }
+    if (app) recovery?.save({ ...verified, previousApp: app.id });
+    await replace(NORMAL_ENV, normal);
   };
   if (opening && current !== setup) {
     if (signal?.aborted) refuse('Google setup was canceled before the Tower restarted.');
@@ -303,10 +317,7 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
         const after = await inventory();
         if (!sameIds(siblingIds(after), verified.siblings)
           || await declared(NORMAL_ENV, 'Normal Tower recovery validation') !== normal || await declaredImage() !== image) throw new Error();
-        const replacement = await removeUnstartedReplacement(after, active.id);
-        if (!replacement || await inspect(replacement.id) !== normal || replacement.health !== 'healthy') {
-          await replace(NORMAL_ENV, normal);
-        }
+        await restoreNormal(await removeUnstartedReplacement(after, active.id));
         recovery?.clear();
       } catch {
         refuse('Google setup did not open and the usual Tower did not come back. Run pnpm os:customer-google-setup -- close to restore it.');
@@ -314,8 +325,7 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
       refuse('Google setup did not open. The usual Tower address is available again.');
     }
   } else if (!opening) {
-    if (active) recovery?.save({ ...verified, previousApp: active.id });
-    await replace(NORMAL_ENV, normal);
+    await restoreNormal(active);
     recovery?.clear();
   }
   if (opening) {

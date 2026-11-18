@@ -154,7 +154,7 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   const model = { ports: [{ host_ip: '127.0.0.1', published: '25173', target: 5173, protocol: 'tcp' }],
     environment: { NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' },
     image: 'noticeos-local:synthetic' };
-  const updates = [], removed = [];
+  const updates = [], removed = [], started = [];
   const controller = new AbortController();
   const [app, postgres] = rows();
   let current = normal, appId = app.ID, databaseId = postgres.ID, healthy = true, failure, standalone = false, saved, staged;
@@ -185,6 +185,13 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
       ? answer(`noticeos ${env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal}`)
       : answer(JSON.stringify({ services: { noticeos: model } }));
     if (action === 'exec') return { code: standalone ? 1 : 0, stdout: '' };
+    if (action === 'start') {
+      assert.deepEqual(rest, ['--wait', '--wait-timeout', '90', 'noticeos']);
+      assert.equal(current, normal);
+      started.push(appId);
+      healthy = true;
+      return answer('');
+    }
     assert.equal(action, 'up');
     assert.deepEqual(rest, ['--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos']);
     updates.push([env.NOTICEOS_CUSTOMER_GOOGLE_SETUP, env.NOTICEOS_TOWER_BIND]);
@@ -193,7 +200,7 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
       appId = null;
       return { code: 1, stdout: '' };
     }
-    if (failure === (opening ? 'opening-replacement' : 'closing-replacement')) {
+    if (failure === (opening ? 'opening-replacement' : 'closing-replacement') || !opening && failure === 'rollback-replacement') {
       staged = { id: (opening ? 'a2' : 'b2').repeat(32), hash: opening ? setup : normal, state: 'created' };
       healthy = false;
       return { code: 1, stdout: '' };
@@ -204,7 +211,7 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
     }
     appId = (updates.length + 3).toString(16).repeat(64).slice(0, 64);
     current = opening ? setup : normal;
-    healthy = !(failure === 'unhealthy' && current === setup);
+    healthy = !(['unhealthy', 'rollback-replacement'].includes(failure) && current === setup);
     if (failure === 'interrupt' && current === setup) controller.abort();
     return { code: healthy ? 0 : 1, stdout: '', stderr: 'private login' };
   };
@@ -222,13 +229,17 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   assert.deepEqual(updates, [['1', '127.0.0.1'], ['0', undefined]]);
   assert.equal(saved, undefined);
   failure = 'stopped';
+  const originalId = appId;
   await assert.rejects(command('open'), /usual Tower address is available again/u);
+  assert.deepEqual(started, [originalId]);
+  assert.equal(appId, originalId);
   failure = 'unhealthy';
   await assert.rejects(command('open'), /usual Tower address is available again/u);
   failure = 'interrupt';
   await assert.rejects(command('open', controller.signal), /usual Tower address is available again/u);
   assert.equal(current, normal);
-  assert.deepEqual(updates.slice(2), Array.from({ length: 3 }, () => [['1', '127.0.0.1'], ['0', undefined]]).flat());
+  assert.deepEqual(updates.slice(2), [['1', '127.0.0.1'], ['1', '127.0.0.1'], ['0', undefined],
+    ['1', '127.0.0.1'], ['0', undefined]]);
   failure = 'gone';
   await assert.rejects(command('open'), /close to restore it/u);
   assert.ok(saved, 'a failed recovery retains the verified installation');
@@ -262,6 +273,17 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   assert.deepEqual(removed, ['a2'.repeat(32), 'b2'.repeat(32)]);
   assert.equal(current, normal);
   assert.equal(saved, undefined);
+  const beforeRollback = appId;
+  failure = 'rollback-replacement';
+  await assert.rejects(command('open'), /close to restore it/u);
+  assert.equal(saved.previousApp, appId);
+  assert.notEqual(appId, beforeRollback);
+  assert.equal(current, setup);
+  failure = undefined;
+  await command('close');
+  assert.deepEqual(removed, ['a2'.repeat(32), 'b2'.repeat(32), 'b2'.repeat(32)]);
+  assert.equal(saved, undefined);
+  assert.equal(current, normal);
   const beforeBadInput = updates.length;
   model.ports.push({ ...model.ports[0], host_ip: '0.0.0.0' });
   await assert.rejects(command('open'), /one loopback-only Tower port/u);
