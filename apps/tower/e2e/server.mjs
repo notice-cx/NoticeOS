@@ -76,6 +76,7 @@ const vite = await createTestViteServer(createServer, {
     server.middlewares.use((req, res, next) => dispatch ? dispatch(req, res, next) : next());
   } }, react(), tailwindcss()],
   resolve: { alias: { "@": path.join(root, "src"), "@shared": path.join(root, "shared") } },
+  optimizeDeps: { include: ["cmdk"] },
   server: { host: "127.0.0.1", port, strictPort: true, hmr: false },
   logLevel: "warn",
 }, { pages: true });

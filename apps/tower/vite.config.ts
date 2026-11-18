@@ -269,6 +269,8 @@ export default defineConfig(({ command }) => {
   },
   environments: {
     client: {
+      // Search is loaded on demand. Discovering cmdk after first paint can invalidate the page's React bundle.
+      optimizeDeps: { include: ["cmdk"] },
       build: {
         rolldownOptions: {
           treeshake: {
