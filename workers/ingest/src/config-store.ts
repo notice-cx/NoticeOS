@@ -596,6 +596,8 @@ export interface CollectorConfigs {
   /** Per file: the stored document, or `undefined` to keep the compiled copy. */
   documents: Readonly<Partial<Record<CollectorConfigFile, unknown>>>;
   sources: ConfigSourceMap;
+  /** Individual saved settings can exist without the bundled flag defaults. */
+  storedConstants?: unknown;
 }
 
 /** Whether a stored document is the shape this file's readers index into. */
@@ -621,8 +623,10 @@ export async function readCollectorConfigs(
   const reads = await getConfigDocuments(env, files);
   const documents: Partial<Record<CollectorConfigFile, unknown>> = {};
   const sources: Partial<Record<CollectorConfigFile, ConfigSource>> = {};
+  let storedConstants: unknown;
   for (const read of reads) {
     const file = read.file as CollectorConfigFile;
+    if (file === 'config/constants.json' && read.source === 'store') storedConstants = read.body;
     if (read.source === 'store' && USABLE[file](read.body)) {
       documents[file] = read.body;
       sources[file] = 'store';
@@ -635,7 +639,7 @@ export async function readCollectorConfigs(
     }
     sources[file] = 'file';
   }
-  return { documents, sources };
+  return { documents, sources, storedConstants };
 }
 
 /**

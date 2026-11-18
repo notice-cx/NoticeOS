@@ -1,6 +1,6 @@
 import { ASSET_ID_RE } from '../packages/contract/src/configuration.mjs';
 
-export const CUSTOMER_PROVIDERS = ['mediavine', 'stripe', 'bing-webmaster'] as const;
+export const CUSTOMER_PROVIDERS = ['mediavine', 'stripe', 'bing-webmaster', 'posthog', 'clarity'] as const;
 export type CustomerProvider = typeof CUSTOMER_PROVIDERS[number];
 export interface CustomerSitePull {
   workspaceId: string;
@@ -15,6 +15,7 @@ export interface CustomerCollectionPolicy {
   revenueNotices: CustomerRevenueNotices[];
   taskFollowups: { workspaceId: string; serviceId: string }[];
   googleDaily: boolean;
+  extendedArchives: boolean;
   collectorProviders: CustomerProvider[];
   sitePulls: CustomerSitePull[];
 }
@@ -75,7 +76,7 @@ export function revenueWebhookId(url: URL) {
  * disable a target, but cannot redirect its existing bearer elsewhere. */
 export function customerCollectionPolicy(value: unknown): CustomerCollectionPolicy {
   if (!isRecord(value)) throw new Error('Invalid local customer collection settings.');
-  const { googleDaily = false, collectorProviders = [], sitePulls = [], siteChecks = [], revenueNotices = [], taskFollowups = [] } = value;
+  const { googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], siteChecks = [], revenueNotices = [], taskFollowups = [] } = value;
   if (!Array.isArray(siteChecks) || siteChecks.length > 256 || !siteChecks.every(siteCheck)
     || new Set(siteChecks.map(site => JSON.stringify([site.workspaceId, site.asset]))).size !== siteChecks.length
     || !Array.isArray(revenueNotices) || revenueNotices.length > 64 || !revenueNotices.every(revenueNotice)
@@ -85,12 +86,20 @@ export function customerCollectionPolicy(value: unknown): CustomerCollectionPoli
       && typeof entry.serviceId === 'string' && UUID.test(entry.serviceId))
     || new Set(taskFollowups.map(entry => entry.workspaceId)).size !== taskFollowups.length
     || new Set(taskFollowups.map(entry => entry.serviceId)).size !== taskFollowups.length
-    || typeof googleDaily !== 'boolean' || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
+    || typeof googleDaily !== 'boolean' || typeof extendedArchives !== 'boolean' || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
     || new Set(collectorProviders).size !== collectorProviders.length || !Array.isArray(sitePulls) || sitePulls.length > 64
     || !sitePulls.every(sitePull) || new Set(sitePulls.map(site => JSON.stringify([site.workspaceId, site.asset]))).size !== sitePulls.length) {
     throw new Error('Invalid local customer collection settings.');
   }
-  return { googleDaily, collectorProviders, sitePulls, siteChecks, revenueNotices, taskFollowups };
+  return { googleDaily, extendedArchives, collectorProviders, sitePulls, siteChecks, revenueNotices, taskFollowups };
+}
+
+export function selectedCustomerCounter<T>(policy: CustomerCollectionPolicy | undefined, workspaceId: string, asset: string, entry: T) {
+  const approved = policy?.sitePulls.find(site => site.workspaceId === workspaceId && site.asset === asset);
+  if (!approved || !isRecord(entry) || !isRecord(entry.source) || entry.source.kind !== 'prometheus'
+    || entry.source.enabled !== true || typeof entry.source.url !== 'string' || !approved.urls.includes(entry.source.url)
+    || !Array.isArray(entry.cards) || !entry.cards.length) return null;
+  return { entry, token: approved.token };
 }
 
 export function selectedCustomerPull<T>(policy: CustomerCollectionPolicy | undefined, workspaceId: string, asset: string, pulls: readonly T[] | undefined) {

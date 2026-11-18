@@ -464,8 +464,11 @@ export interface SignalDumpsOptions {
   egress?: EgressGate;
   /** Override {@link ARCHIVE_RETRY_LIMIT} (tests pin the bound with a small one). */
   retryLimit?: number;
-  /** One admitted customer occurrence covers a single Google report family. */
+  /** A customer occurrence covers one property and integration. */
   googleArchive?: { asset: string; integration: GoogleIntegrationId; report: string };
+  accessToken?: typeof googleAccessToken;
+  /** A customer Bing occurrence covers only its admitted eligible sites. */
+  bingArchiveAssets?: readonly string[];
 }
 
 interface PriorDump {
@@ -542,7 +545,7 @@ async function collectTargetJourneys(
 }
 
 export interface Ga4JourneyDumpsOptions extends Pick<SignalDumpsOptions,
-  'nowMs' | 'fetchImpl' | 'rawConfig' | 'journeyConfig' | 'laneRegister' | 'configSources' | 'osTimeZone' | 'egress'> {
+  'nowMs' | 'fetchImpl' | 'rawConfig' | 'journeyConfig' | 'laneRegister' | 'configSources' | 'osTimeZone' | 'egress' | 'accessToken'> {
   assets: readonly string[];
 }
 
@@ -575,7 +578,7 @@ export async function runGa4JourneyDumps(
   for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     // Cached windows need no token mint. A rejected mint is reused within this account too.
     let token: Promise<string> | undefined;
-    const accessToken = () => token ??= googleAccessToken(accountTargets[0]!.auth, GOOGLE_SCOPES.ga4, nowMs, egress.transport.fetch);
+    const accessToken = () => token ??= (options.accessToken ?? googleAccessToken)(accountTargets[0]!.auth, GOOGLE_SCOPES.ga4, nowMs, egress.transport.fetch);
     for (const target of accountTargets) {
       outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, budget, monitoring));
     }
@@ -603,7 +606,7 @@ export async function runSignalDumps(
   options: SignalDumpsOptions = {},
 ): Promise<SignalDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
-  const { googleArchive } = options;
+  const { googleArchive, bingArchiveAssets } = options;
   const requestedAt = new Date(nowMs).toISOString();
   const fetchImpl = options.fetchImpl ?? fetch;
   const revisionDays = options.revisionDays ?? DEFAULT_REVISION_DAYS;
@@ -623,23 +626,22 @@ export async function runSignalDumps(
   const providerFetch = egress.transport.fetch;
   const ga4CustomDimensions = options.ga4CustomDimensions ?? GA4_CUSTOM_DIMENSIONS;
   // Store first, legacy env binding second, for both halves of this lane.
-  const google = await resolveGoogleCredential(env);
-  const googleHealth = await tryHealthConnection(env, 'google', google.credential, [google.oauth?.clientId ?? '', google.oauth?.clientSecret ?? '']);
+  const google = bingArchiveAssets === undefined ? await resolveGoogleCredential(env) : null;
+  const googleHealth = google
+    ? await tryHealthConnection(env, 'google', google.credential, [google.oauth?.clientId ?? '', google.oauth?.clientSecret ?? '']) : null;
   const googleMonitoring = beginCollection(env.STORE, googleHealth);
-  const googleSource: CredentialSource =
-    options.rawConfig === undefined ? google.source : 'env';
-  const googleAccounts = options.rawConfig ?? google.accounts;
+  const googleSource: CredentialSource = options.rawConfig === undefined ? google?.source ?? 'none' : 'env';
   // The register first, the credential blob second. An install with nothing
   // mapped, or with Google not connected, archives nothing rather than failing
   // every family; a property its Data sources row declines is not archived.
-  const targets = googleTargets(
-    { accounts: googleAccounts, oauth: google.oauth, connected: google.connected },
+  const targets = google ? googleTargets(
+    { accounts: options.rawConfig ?? google.accounts, oauth: google.oauth, connected: google.connected },
     googleSource,
     googleCredentialResolver(env),
     options.laneRegister,
     options.osTimeZone,
   ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister)
-    && (!googleArchive || target.asset === googleArchive.asset && target.integration === googleArchive.integration));
+    && (!googleArchive || target.asset === googleArchive.asset && target.integration === googleArchive.integration)) : [];
   const outcomes: SignalDumpOutcome[] = [];
   const journeyBudget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
   const timeoutRetries = { remaining: SEARCH_APPEARANCE_TIMEOUT_RETRIES };
@@ -651,7 +653,7 @@ export async function runSignalDumps(
   for (const target of targets) {
     const byReport = new Map<string, string[]>();
     for (const report of reportsFor(target.integration, target.asset, ga4CustomDimensions)) {
-      if (googleArchive && report !== googleArchive.report) continue;
+      if (googleArchive?.report && report !== googleArchive.report) continue;
       const dates = await resolveReportDates(env.STORE, target, report, reportDates, scheduledRevisions);
       const due = scheduledRevisions && dates.length > 1
         ? await dueGoogleRevisions(env.STORE, target, report, dates, nowMs) : dates;
@@ -676,12 +678,12 @@ export async function runSignalDumps(
     for (const integration of ['ga4', 'gsc'] as const) {
       const scopedTargets = accountTargets.filter((target) => target.integration === integration);
       if (scopedTargets.length === 0) continue;
-      if (googleArchive && !scopedTargets.some(target => (retry.dates.get(target)?.length ?? 0) > 0
+      if (googleArchive?.report && !scopedTargets.some(target => (retry.dates.get(target)?.length ?? 0) > 0
         || [...(plans.get(target)?.values() ?? [])].some(dates => dates.length > 0))) continue;
 
       let accessToken: string;
       try {
-        accessToken = await googleAccessToken(
+        accessToken = await (options.accessToken ?? googleAccessToken)(
           scopedTargets[0]!.auth,
           GOOGLE_SCOPES[integration],
           nowMs,
@@ -804,6 +806,7 @@ export async function runSignalDumps(
         ),
         options.laneRegister,
         bingMonitoring,
+        bingArchiveAssets,
       );
     }
   }
@@ -821,6 +824,8 @@ export async function runSignalDumps(
     const dated = part === null ? null : parseArchivePart(part);
     if (googleArchive && (!dated || asset !== googleArchive.asset || dated.integration !== googleArchive.integration
       || dated.report !== googleArchive.report)) return false;
+    if (bingArchiveAssets !== undefined) return part !== null && bingArchiveAssets.includes(asset)
+      && BING_REPORTS.some(report => report.name === part) && answered.has(archivePartKey(asset, part));
     if (dated === null) return true;
     const target = targets.find((candidate) => candidate.asset === asset && candidate.integration === dated.integration);
     if (target === undefined || !plans.get(target)?.has(dated.report)) return true;
@@ -891,10 +896,13 @@ async function collectBingDumps(
   credentialRef: string,
   laneRegister?: LaneRegister,
   monitoring?: CollectionMonitoring,
+  assets?: readonly string[],
 ): Promise<number> {
   // A site its Data sources row declines (Not using) owes no archive.
   const candidates = (await loadBingPortfolioCandidates(env.STORE))
-    .filter((candidate) => !laneDeclined(candidate.asset, 'bing-webmaster', laneRegister));
+    .filter(candidate => (assets === undefined || assets.includes(candidate.asset))
+      && !laneDeclined(candidate.asset, 'bing-webmaster', laneRegister));
+  if (assets !== undefined && !candidates.length) return 0;
   // What this run owes, decided before it writes a single manifest, so today's
   // archive can never satisfy today's own cadence check. A family that is not
   // due is not one of this run's reports, so the credential and

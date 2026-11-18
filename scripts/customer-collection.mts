@@ -1,20 +1,22 @@
-import { scheduleFor, schedulesRefusal, SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
+import { scheduleFor, schedulesRefusal, ALL_SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
-import { selectedCustomerSite, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
+import { selectedCustomerSite, selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
-const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'hygiene', 'notifications', 'watch-windows', 'panel-review', 'watch-readbacks'] as const;
+const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity', 'hygiene', 'notifications', 'watch-windows', 'panel-review', 'watch-readbacks'] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
-export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : 'collect';
+export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : job === 'site-counters' ? 'counters'
+  : job === 'posthog' ? 'product' : job === 'clarity' ? 'clarity' : 'collect';
 const ARCHIVE_REPORTS = {
   ga4: ['pages-screens', 'landing-pages', 'traffic-acquisition', 'events', 'events-28d', 'page-events'],
   gsc: ['query', 'page', 'page-query'],
 } as const;
+const EXTENDED_ARCHIVE_REPORTS = {
+  ga4: [...ARCHIVE_REPORTS.ga4, 'content-groups', 'event-source', 'event-state', 'traffic-sources', 'js-errors', 'landing-page-acquisition'],
+  gsc: [...ARCHIVE_REPORTS.gsc, 'country', 'device', 'page-country', 'page-device', 'search-appearance-pages', 'image-page-query', 'discover-page'],
+} as const;
 type GoogleProvider = keyof typeof ARCHIVE_REPORTS;
-export interface CustomerArchive {
-  provider: GoogleProvider;
-  report: string;
-}
+export type CustomerArchive = { provider: GoogleProvider; report: string } | { provider: 'bing-webmaster'; report?: never };
 export interface CustomerSchedule {
   job: CustomerJob;
   schedule: JobSchedule;
@@ -26,9 +28,11 @@ export interface CustomerSchedule {
 export function customerArchive(value: unknown): CustomerArchive | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const { provider, report } = value as Partial<Record<keyof CustomerArchive, unknown>>;
-  if ((provider !== 'ga4' && provider !== 'gsc') || typeof report !== 'string'
-    || !ARCHIVE_REPORTS[provider].some(family => family === report)) return null;
-  return { provider, report };
+  if (Object.keys(value).some(key => key !== 'provider' && key !== 'report')) return null;
+  if (provider === 'bing-webmaster' && report === undefined) return { provider };
+  if ((provider === 'ga4' || provider === 'gsc') && typeof report === 'string'
+    && (EXTENDED_ARCHIVE_REPORTS[provider].some(family => family === report) || provider === 'ga4' && report === 'journeys')) return { provider, report };
+  return null;
 }
 
 export function customerJobSubject(asset: string, archive?: CustomerArchive): string {
@@ -39,19 +43,24 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
  * a fresh service grant for this store. */
 export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]> {
   const enrolled = await store.read(tx => tx.query<{
-    workspace: string; overrides: string; asset: string | null; isOs: boolean; domain: string | null; connected: string[]; sources: string; pulls: string;
+    workspace: string; overrides: string; asset: string | null; isOs: boolean; domain: string | null; status: string;
+    connected: string[]; sources: string; pulls: string; counter: string | null; journeys: string | null;
   }>(`SELECT COALESCE(c.body->'schedules','{}'::json)::text AS overrides,
-      c.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,
+      c.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,a.status,
       COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
+      (n.body->'assets'->a.asset_id)::text AS counter,
+      (v.body->'assets'->a.asset_id->'journeys')::text AS journeys,
       ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks') AND g.workspace_id=c.workspace_id) AS connected
+        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks','posthog','clarity') AND g.workspace_id=c.workspace_id) AS connected
     FROM noticeos.config_documents c
     LEFT JOIN noticeos.assets a ON a.workspace_id=c.workspace_id AND (
       (a.is_os AND $1::text IS NULL) OR
       (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1)))
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
     LEFT JOIN noticeos.config_documents p ON p.workspace_id=a.workspace_id AND p.document_key='pull'
+    LEFT JOIN noticeos.config_documents n ON n.workspace_id=a.workspace_id AND n.document_key='counters'
+    LEFT JOIN noticeos.config_documents v ON v.workspace_id=a.workspace_id AND v.document_key='value-events'
     WHERE c.document_key='constants' AND ($1::text IS NULL OR a.asset_id IS NOT NULL)
     ORDER BY a.asset_id COLLATE "C"`, [asset]));
   if (!enrolled.length) return [];
@@ -59,7 +68,7 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   if (!overrides || schedulesRefusal(overrides)) throw new Error('Invalid saved collection schedule.');
   const planned: CustomerSchedule[] = [];
   const settings = (job: CustomerJob) => {
-    const released = SCHEDULED_JOBS.find(entry => entry.id === job)!;
+    const released = ALL_SCHEDULED_JOBS.find(entry => entry.id === job)!;
     return scheduleFor(job === 'counters' ? { ...released, cron: '0 * * * *' } : released, overrides);
   };
   const selfReport = settings('asset-zero');
@@ -80,28 +89,52 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   if (!rows.length) return planned;
   const sites = rows.filter(row => policy ? selectedCustomerSite(policy, workspace, row.asset, row.domain) : row.domain).map(row => row.asset);
   if (policy && sites.length) planned.push({ job: 'hygiene', schedule: settings('hygiene'), assets: sites });
-  for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
-    if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false)) continue;
-    const schedule = settings(job);
-    const assets = job === 'freshness' ? [null, ...sites] : rows.map(row => row.asset);
-    if (job !== 'signal-dumps') {
-      planned.push({ job, schedule, assets });
-      continue;
-    }
-    const archives = rows.flatMap(({ asset, sources }) => {
+  const portfolioAssets = rows.map(row => row.asset);
+  const allowed = new Set(policy?.collectorProviders);
+  const providerSites = rows.filter(row => row.domain && ['baselining', 'live'].includes(row.status));
+  const bingAssets = providerSites.filter(row => {
+    const source = JSON.parse(row.sources)?.['bing-webmaster'];
+    return source?.status !== 'skipped' && source?.status !== 'not-applicable';
+  }).map(row => row.asset);
+  planned.push({ job: 'freshness', schedule: settings('freshness'),
+    assets: [null, ...sites] });
+  const archives: NonNullable<CustomerSchedule['archives']> = [];
+  if (connected.has('google') && policy?.googleDaily !== false) {
+    planned.push({ job: 'counters', schedule: settings('counters'), assets: portfolioAssets });
+    archives.push(...rows.flatMap(({ asset, sources, journeys }) => {
       const source = JSON.parse(sources) as Partial<Record<GoogleProvider, { status?: unknown; propertyId?: unknown; siteUrl?: unknown }>>;
-      return (['ga4', 'gsc'] as const).flatMap(provider => {
+      return (['ga4', 'gsc'] as const).flatMap<{ asset: string; archive: CustomerArchive }>(provider => {
         const selected = source?.[provider];
         const ref = provider === 'ga4' ? selected?.propertyId : selected?.siteUrl;
         if (typeof ref !== 'string' || !ref.trim() || selected?.status === 'skipped' || selected?.status === 'not-applicable') return [];
-        return ARCHIVE_REPORTS[provider].map(report => ({ asset, archive: { provider, report } }));
+        const reports: string[] = [...(policy?.extendedArchives ? EXTENDED_ARCHIVE_REPORTS : ARCHIVE_REPORTS)[provider]];
+        if (policy?.extendedArchives && provider === 'ga4') {
+          const definitions: unknown = JSON.parse(journeys ?? 'null');
+          if (Array.isArray(definitions) && definitions.some(item => item?.kind === 'funnel' && item.status === 'active' && item.source !== 'first-party')) {
+            reports.push('journeys');
+          }
+        }
+        return reports.map(report => ({ asset, archive: { provider, report } }));
       });
-    });
-    if (archives.length) planned.push({ job, schedule, assets: [...new Set(archives.map(target => target.asset))], archives });
+    }));
   }
+  if (policy?.extendedArchives && allowed.has('bing-webmaster') && connected.has('bing-webmaster')) {
+    for (const asset of bingAssets) archives.push({ asset, archive: { provider: 'bing-webmaster' } });
+  }
+  if (archives.length) planned.push({ job: 'signal-dumps', schedule: settings('signal-dumps'),
+    assets: [...new Set(archives.map(target => target.asset))], archives });
   if (!policy) return planned;
-  const allowed = new Set(policy.collectorProviders);
-  const portfolioAssets = rows.map(row => row.asset);
+  const counterAssets = rows.filter(row => selectedCustomerCounter(policy, row.workspace, row.asset, JSON.parse(row.counter ?? 'null'))).map(row => row.asset);
+  if (counterAssets.length) planned.push({ job: 'site-counters', schedule: settings('site-counters'), assets: counterAssets });
+  for (const job of ['posthog', 'clarity'] as const) {
+    if ((job === 'posthog' && asset !== null) || !allowed.has(job) || !connected.has(job)) continue;
+    const scopedAssets = providerSites.filter(row => {
+      const source = JSON.parse(row.sources)?.[job];
+      return source?.status !== 'skipped' && source?.status !== 'not-applicable' && (job === 'clarity' || source?.projectId !== undefined);
+    }).map(row => row.asset);
+    if (scopedAssets.length) planned.push(job === 'clarity' ? { job, schedule: settings(job), assets: scopedAssets }
+      : { job, schedule: settings(job), assets: [null], portfolioAssets: scopedAssets });
+  }
   for (const job of ['mediavine', 'stripe'] as const) {
     const schedule = settings(job);
     if (!allowed.has(job) || !connected.has(job)) continue;

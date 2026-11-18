@@ -150,6 +150,18 @@ export async function verifyComposeCustomerFollowups(operating) {
   }
 }
 
+export async function verifyComposeCustomerCollection(operating) {
+  if (!operating.collectorProviders.includes('clarity')) return;
+  const { openWorkspaceStore } = await import('../../packages/postgres/src/store.mjs');
+  const store = openWorkspaceStore(operating.address, { workspaceId: operating.workspaces[0].workspaceId, maxConnections: 1 });
+  try {
+    const connected = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.integration_connections c
+      JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
+      WHERE c.workspace_id=$1::uuid AND c.provider='clarity' LIMIT 1`, [tx.workspaceId]));
+    if (!connected.length) throw new ContainerRefusal('Connect Microsoft Clarity in the standalone Tower before enabling its customer schedule.');
+  } finally { await store.close(); }
+}
+
 export function composeArchiveBucket(installationDir) {
   try {
     const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
@@ -264,6 +276,7 @@ if (!isMainThread && workerData?.composeCustomer === true) {
     try {
       const { backup, operating } = await prepareCustomer();
       await verifyComposeCustomerFollowups(operating);
+      await verifyComposeCustomerCollection(operating);
       const problem = await backup?.check();
       if (problem) throw new ContainerRefusal(problem);
       const { readDemoArtifact } = await import('../../scripts/hosted-demo-server.mjs');

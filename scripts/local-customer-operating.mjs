@@ -14,7 +14,7 @@ const ROLES = { app: 'noticeos_app', identity: 'noticeos_identity', grant: 'noti
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/iu;
 const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'mailDelivery', 'ntasksOrigin',
-  'googleDaily', 'collectorProviders', 'sitePulls', 'siteReports', 'siteChecks', 'revenueNotices', 'taskFollowups']);
+  'googleDaily', 'extendedArchives', 'collectorProviders', 'sitePulls', 'siteReports', 'siteChecks', 'revenueNotices', 'taskFollowups']);
 
 export class CustomerOperatingRefused extends Error {}
 function refused() { return new CustomerOperatingRefused('Use a private customer config for one separately provisioned loopback Postgres database.'); }

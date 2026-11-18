@@ -5,6 +5,8 @@ import { boundWorkflowRunDiagnostics, isWorkflowStepDiagnostics } from './workfl
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from './workflow-definitions.mjs';
+
+const STANDALONE_WORKFLOWS = WORKFLOW_DEFINITIONS.filter(workflow => !workflow.customerOnly);
 export interface WorkflowBucket {
   at: string; succeeded: number; failed: number; skipped: number; runId: string | null;
 }
@@ -94,7 +96,7 @@ export function manualRecords(runs: unknown): unknown[] {
 
 // Only exact fixed briefing diagnostics survive coarse reconstruction; arbitrary
 // detail can contain subprocess/provider output and never enters this projection.
-export function buildWorkflowHistory(records: unknown[], traces: unknown[], active: unknown[], now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = WORKFLOW_DEFINITIONS) {
+export function buildWorkflowHistory(records: unknown[], traces: unknown[], active: unknown[], now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = STANDALONE_WORKFLOWS) {
   const byTrace = new Map(traces.flatMap(value => readTrace(value, definitions)).map((r) => [r.id, r]));
   const names = new Map(definitions.map((w) => [jobRunName(w), w.id]));
   const seenRuns = new Set<string>();
@@ -152,7 +154,7 @@ export function workflowDailyHistory(records: readonly WorkflowRun[], now: numbe
 /** Callers validate their source and can replace bucket counts with complete
  * database aggregates when the retained detail page is deliberately bounded. */
 export function summarizeWorkflowHistory(records: readonly WorkflowRun[], active: readonly WorkflowRun[],
-  now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = WORKFLOW_DEFINITIONS) {
+  now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = STANDALONE_WORKFLOWS) {
   const runs = [...records].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   const completedIds = new Set(runs.map((run) => run.id));
   const activeRuns = active.filter((run) => run.state === 'running' && !run.finishedAt && !completedIds.has(run.id) && Date.parse(run.startedAt) <= now);
