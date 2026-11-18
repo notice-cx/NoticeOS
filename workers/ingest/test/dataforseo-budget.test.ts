@@ -132,7 +132,7 @@ it('collects only an approved customer property and requires a saved budget', as
     assets: [{ asset: 'northwind.example', families: ['ranked-keywords', 'backlinks-summary'] }],
     approvedMonthlyCapUsd: 1, weekly: true, recovery: true };
   const run = (job: 'dataforseo' | 'dataforseo-recovery') => runCustomerDataForSeo(customer,
-    { approval, job, signal: new AbortController().signal }, { fetchImpl, nowMs: AUGUST });
+    { approval, job, signal: new AbortController().signal, authorizePurchase: async () => undefined }, { fetchImpl, nowMs: AUGUST });
   await expect(run('dataforseo')).rejects.toThrow(/monthly data cap/u);
   expect(paidTargets).toEqual([]);
   expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 0.26 } } }, actor: 'config:seed' }, AUGUST)).ok).toBe(true);
@@ -173,10 +173,24 @@ it('allows recovery on its own for approved outage gaps only', async () => {
       tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
   };
   const run = (job: 'dataforseo' | 'dataforseo-recovery') => runCustomerDataForSeo(customer,
-    { approval, job, signal: new AbortController().signal }, { fetchImpl, nowMs: SEPTEMBER });
+    { approval, job, signal: new AbortController().signal, authorizePurchase: async () => undefined }, { fetchImpl, nowMs: SEPTEMBER });
   await expect(run('dataforseo')).rejects.toThrow(/paid DataForSEO schedule is unavailable/iu);
   expect(calls).toEqual([]);
   expect(await run('dataforseo-recovery')).toMatchObject({ attempted: 1, succeeded: 1, costUsd: 0.03 });
   expect(calls.map(url => new URL(url).pathname)).toEqual(['/v3/backlinks/summary/live']);
   expect((await openEgressLaneRecord(customer, 'dataforseo'))?.parts).toEqual({ [property]: ['backlinks-anchors'] });
+});
+
+it('returns an unused reservation when the purchase grant is withdrawn after admission', async () => {
+  let purchased = false;
+  const fetchImpl: typeof fetch = async () => {
+    purchased = true;
+    throw new Error('The provider must see no request.');
+  };
+  const controller = new AbortController();
+  await expect(runDataForSeoDumps(env, { ...options, monthlyCapUsd: 0.25, signal: controller.signal, fetchImpl,
+    async authorizePurchase() { controller.abort(); } })).rejects.toMatchObject({ name: 'AbortError' });
+  expect(purchased).toBe(false);
+  expect(await pgFirst(`SELECT provider_cost_usd::double precision AS cost FROM noticeos.dataforseo_request_charges`)).toEqual({ cost: 0 });
+  expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.25, 0.25)).toBe(true);
 });

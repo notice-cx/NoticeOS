@@ -102,13 +102,14 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     const grant = openWorkspaceServiceGrant({ connectionString: this.env.NOTICEOS_SCHEDULE_GRANT_DB.connectionString, workspaceId, principalId });
     try {
       const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer collection'), authority: () => grant.facts() });
-      return await admission.withAdmission('workflows.run', { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() }, request, async () => {
+      const selection = { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() };
+      return await admission.withAdmission('workflows.run', selection, request, async () => {
         const store = openWorkspaceStore(connectionString, { workspaceId, maxConnections: 1 });
         try {
-          const claimed = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_job_occurrences
+          const hasClaim = async () => (await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_job_occurrences
             WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3 AND state='running' AND service_id=$4::uuid
-              AND effect_step=$5 AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId, customerJobStep(job)]));
-          if (!claimed.length) return denied();
+              AND effect_step=$5 AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId, customerJobStep(job)]))).length === 1;
+          if (!await hasClaim()) return denied();
           const policy = this.env.NOTICEOS_CUSTOMER_COLLECTION
             ? customerCollectionPolicy(JSON.parse(this.env.NOTICEOS_CUSTOMER_COLLECTION))
             : undefined;
@@ -136,8 +137,21 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             const approval = policy?.paidDataForSeo.find(item => item.workspaceId === workspaceId);
             const assets = plan.portfolioAssets;
             if (!approval || !assets?.length || !env.RAW_SIGNALS) return denied();
-            const result = await runCustomerDataForSeo(env,
-              { job, approval: { ...approval, assets: approval.assets.filter(item => assets.includes(item.asset)) }, signal }, { fetchImpl });
+            const refused = new AbortController();
+            const result = await runCustomerDataForSeo(env, {
+              job, approval: { ...approval, assets: approval.assets.filter(item => assets.includes(item.asset)) },
+              signal: AbortSignal.any([signal, refused.signal]),
+              async authorizePurchase() {
+                try {
+                  await admission.withAdmission('workflows.run', selection, request, async () => {
+                    if (!await hasClaim()) throw new Error('The paid schedule claim expired.');
+                  });
+                } catch (error) {
+                  refused.abort();
+                  throw error;
+                }
+              },
+            }, { fetchImpl });
             if (result.refused || result.outcomes.some(outcome => outcome.unconfirmedCost)) {
               return new Response(null, { status: 503 });
             }

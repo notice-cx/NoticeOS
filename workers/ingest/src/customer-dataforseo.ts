@@ -9,6 +9,7 @@ export async function runCustomerDataForSeo(env: IngestEnv, input: {
   job: CustomerDataForSeoJob;
   approval: CustomerDataForSeoApproval;
   signal: AbortSignal;
+  authorizePurchase: () => Promise<void>;
 }, { fetchImpl = fetch, nowMs }: { fetchImpl?: typeof fetch; nowMs?: number } = {}) {
   const { job, approval, signal } = input;
   const { assets, approvedMonthlyCapUsd } = approval;
@@ -23,7 +24,7 @@ export async function runCustomerDataForSeo(env: IngestEnv, input: {
   if (!Number.isFinite(saved) || saved <= 0) throw new Error('Save a positive monthly data cap before scheduling paid DataForSEO.');
   const options = {
     fetchImpl, nowMs, signal, scheduledAssets: new Map(assets.map(({ asset, families }) => [asset, families])),
-    approvedCredential: approval, fenceUnsettled: true as const,
+    approvedCredential: approval, authorizePurchase: input.authorizePurchase, fenceUnsettled: true as const,
     monthlyCapUsd: Math.min(approvedMonthlyCapUsd, saved), configSources: sources,
     laneRegister: documents['config/integrations.json'] as LaneRegister | undefined,
     serpPanelConfig: documents['config/serp-panel.json'] as SerpPanelConfig | undefined,

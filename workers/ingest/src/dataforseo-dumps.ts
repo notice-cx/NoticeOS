@@ -304,6 +304,7 @@ export interface DataForSeoDumpsOptions {
   /** Workspace properties explicitly approved for an automated paid schedule. */
   scheduledAssets?: ReadonlyMap<string, readonly string[]>;
   approvedCredential?: DataForSeoConnectionPin;
+  authorizePurchase?: () => Promise<void>;
   signal?: AbortSignal;
   fenceUnsettled?: true;
   /** A scheduled sweep and its automatic retry must never take over outage recovery. */
@@ -912,7 +913,7 @@ async function collectDueReports(
     }
     const budget: RetryBudget = { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
       signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, approvedCredential: approval,
-      used: 0, confirmedUsd: 0, costUnconfirmed: false };
+      authorizePurchase: options.authorizePurchase, used: 0, confirmedUsd: 0, costUnconfirmed: false };
     const outcome = await collectReport(
       env,
       target,
@@ -927,6 +928,7 @@ async function collectDueReports(
     );
     outcomes.push(budget.costUnconfirmed ? { ...outcome, unconfirmedCost: true } : outcome);
   }
+  options.signal?.throwIfAborted();
   // One `os-egress-down` fact for the sweep — or the retraction of one an
   // earlier run left open.
   const egressOutcome = await egress.gate.finalize(egressCoverage);
@@ -1532,9 +1534,12 @@ async function callProvider(
           : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
       throw new SignalError(reservation.kind, message);
     }
-    if (budget.signal?.aborted) {
+    try {
+      await budget.authorizePurchase?.();
+      budget.signal?.throwIfAborted();
+    } catch (error) {
       await settleDataForSeo(budget.store, reservation.attemptId, 0);
-      budget.signal.throwIfAborted();
+      throw error;
     }
     // A reservation committed at midnight can cross the month before any I/O.
     if (meteredSpendSince(new Date(reservation.reservedAtMs)) !== meteredSpendSince(new Date(budget.requestClock()))) {
@@ -1616,6 +1621,7 @@ interface RetryBudget {
   readonly signal?: AbortSignal;
   readonly fenceUnsettled: boolean;
   readonly approvedCredential?: DataForSeoConnectionPin;
+  readonly authorizePurchase?: () => Promise<void>;
   confirmedUsd: number;
   costUnconfirmed: boolean;
   /** Retries already spent by this family. */
