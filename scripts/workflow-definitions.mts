@@ -35,7 +35,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
   'ga4-realtime': [action('traffic', 'Retain realtime traffic', 'Records per-minute activity and live user counts for connected properties.', 'collection')],
   counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
-  'site-counters': [action('counters', 'Refresh site counters', 'Reads the configured site counter feed.', 'collection')],
+  'site-counters': [action('counters', 'Refresh asset counters', 'Reads the configured counter feed.', 'collection')],
 };
 
 // What a local job's one stage does, where a hosted service runs it too and

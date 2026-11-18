@@ -149,7 +149,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
 ];
 
 export const CUSTOMER_SCHEDULED_JOBS: ScheduledJob[] = [
-  { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Site counters', group: 'Asset health', cron: '*/15 * * * *' },
+  { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Asset counters', group: 'Asset health', cron: '*/15 * * * *' },
 ];
 
 export const ALL_SCHEDULED_JOBS = [...SCHEDULED_JOBS, ...CUSTOMER_SCHEDULED_JOBS];

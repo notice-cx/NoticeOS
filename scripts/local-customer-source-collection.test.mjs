@@ -258,4 +258,3 @@ test('the native customer schedule continues scoped counters and free archive fa
     if (!existsSync(path.join(source.home, '.local', 'customer-postgres', 'data', 'postmaster.pid'))) rmSync(root, { recursive: true, force: true });
   }
 });
-

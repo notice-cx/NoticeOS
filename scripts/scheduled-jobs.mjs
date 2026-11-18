@@ -79,7 +79,7 @@ export const SCHEDULED_JOBS = [
     { id: 'backup', surface: 'system', label: 'Backups', group: 'System maintenance', cron: '0 4 * * *', keywords: ['central store', 'task hub'], local: true, footer: 'backups' },
 ];
 export const CUSTOMER_SCHEDULED_JOBS = [
-    { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Site counters', group: 'Asset health', cron: '*/15 * * * *' },
+    { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Asset counters', group: 'Asset health', cron: '*/15 * * * *' },
 ];
 export const ALL_SCHEDULED_JOBS = [...SCHEDULED_JOBS, ...CUSTOMER_SCHEDULED_JOBS];
 /**

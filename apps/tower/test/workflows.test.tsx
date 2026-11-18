@@ -202,14 +202,14 @@ describe('workflow operating surface', () => {
     data.runtime = null;
     mount();
     expect(await screen.findByRole('link', { name: 'Live traffic and counters' })).toBeVisible();
-    expect(screen.queryByRole('link', { name: 'Site counters' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Asset counters' })).toBeNull();
     cleanup();
     client.clear();
     data.runtime = { updatedAt: new Date(now).toISOString(), error: null, onlyListedJobs: true, registeredJobs: ['site-counters'],
       jobs: [{ id: 'site-counters', enabled: false, cron: '*/15 * * * *', nextRun: null }] };
     data.workflows = buildWorkflowHistory([], [], [], now, undefined, WORKFLOW_DEFINITIONS.filter(workflow => workflow.id === 'site-counters')).workflows;
     mount('/health/operations/schedule');
-    expect(await screen.findByRole('link', { name: 'Site counters' })).toHaveAttribute('href', '/health/operations/site-counters');
+    expect(await screen.findByRole('link', { name: 'Asset counters' })).toHaveAttribute('href', '/health/operations/site-counters');
     expect(screen.getByText('No upcoming run')).toBeVisible();
   });
   it('shows a pending save while retaining the runner-confirmed next execution', async () => {
