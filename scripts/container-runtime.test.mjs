@@ -12,6 +12,7 @@ import { composeArchiveState, composeBridgePeer, composeCustomerPlan, selectedCu
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
 import { readComposeCustomerOperating } from './local-customer-operating.mjs';
+import { customerWorkerdReady } from './local-customer.mjs';
 import { actionArgs } from './stack-control.mjs';
 import { towerAllowedHosts } from '../apps/tower/vite/allowed-hosts.ts';
 
@@ -160,6 +161,16 @@ test('customer readiness does not fall back to stale standalone state or ignore 
     assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);
   }
   assert.equal(await containerHealthy({ ...health, profile: () => null }), false);
+});
+
+test('customer readiness fails when the private Worker stops responding', async () => {
+  const planned = () => true;
+  assert.equal(await customerWorkerdReady(planned, async () => new Response(null, { status: 204 })), true);
+  assert.equal(await customerWorkerdReady(planned, async () => { throw new Error('Worker process exited'); }), false);
+  assert.equal(await customerWorkerdReady(planned, async () => new Response(null, { status: 503 })), false);
+  let probes = 0;
+  assert.equal(await customerWorkerdReady(() => false, async () => { probes++; return new Response(null, { status: 204 }); }), false);
+  assert.equal(probes, 0);
 });
 
 test('live source is explicit, checks dependencies and keeps the same installation boundaries', () => {

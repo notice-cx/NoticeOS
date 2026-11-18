@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../browser-request-policy.mjs';
+import { CONFIG_DOCUMENT_FILES, configDocumentKey } from '../config-documents.mjs';
 import { hostedTaskAuthorization } from '../hosted-task-request.mjs';
 import { buildHostedApp } from '../hosted-demo-build.mjs';
 import { startPreparedCustomer } from '../local-customer-attach.mjs';
 import { openCustomerTarget } from '../local-customer-operating.mjs';
 import { applyMigrations, bootstrapWorkspace } from '../postgres-migrate.mjs';
-import { releasedDefaultDocuments } from '../released-defaults.mjs';
 import { REPO_ROOT } from '../test-config-isolation.mjs';
 import { shadowEvidence } from '../test-fixtures/customer-shadow-evidence.mjs';
 import { bundleWorkerFixture, Miniflare } from '../worker-entry-test-fixture.mjs';
@@ -27,6 +27,11 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
   const workspaceId = randomUUID(), serviceId = randomUUID(), userId = randomUUID();
   const asset = 'canopy.example', email = 'handoff-owner@example.test';
   const slug = 'handoff-fixture';
+  const configurationRoot = path.join(root, 'handoff', 'fixture-config');
+  cpSync(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config'), configurationRoot, { recursive: true });
+  copyFileSync(path.join(REPO_ROOT, 'scripts/fixture-config/beads.json'), path.join(configurationRoot, 'beads.json'));
+  const defaults = CONFIG_DOCUMENT_FILES.map(file => ({ key: configDocumentKey(file),
+    body: readFileSync(path.join(configurationRoot, path.basename(file)), 'utf8') }));
   bootstrapWorkspace(copy, { workspaceId, slug, displayName: 'Handoff fixture' });
   copy.run(`INSERT INTO noticeos.assets(workspace_id,asset_id,domain,display_name,status,list_position)
     VALUES (:'workspace'::uuid, :'asset', :'asset', 'Canopy', 'live', 1);
@@ -43,7 +48,7 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     VALUES (:'workspace'::uuid, :'user'::uuid, 'owner', now());
     INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
     VALUES (:'service'::uuid, :'workspace'::uuid, ARRAY['workflows.run'], now()+interval '1 hour');`, {
-    vars: { workspace: workspaceId, asset, slug, user: userId, email, service: serviceId, defaults: JSON.stringify(releasedDefaultDocuments()),
+    vars: { workspace: workspaceId, asset, slug, user: userId, email, service: serviceId, defaults: JSON.stringify(defaults),
       spokes: JSON.stringify({ spokes: [{ asset, prefix: actor.prefix, database: actor.prefix }] }) },
   });
   const toCopy = connection => {
@@ -146,7 +151,7 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     await runtime.dispose(); runtime = undefined;
 
     const artifactRoot = path.join(root, 'handoff', 'hosted-artifacts');
-    await buildHostedApp({ out: artifactRoot, profile: 'hosted' });
+    await buildHostedApp({ out: artifactRoot, configurationRoot, profile: 'hosted' });
     const customerState = path.join(root, 'handoff', 'customer');
     mkdirSync(customerState, { mode: 0o700 });
     const plan = { root: REPO_ROOT, url: ownerOrigin, port: Number(new URL(ownerOrigin).port) };

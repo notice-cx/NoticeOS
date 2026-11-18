@@ -235,7 +235,8 @@ Run the isolated full-image test with a prepared local proof image tagged `notic
 
 ```sh
 NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_CONTAINER_CUSTOMER=1 \
-  NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-example node --test scripts/container-compose.test.mjs
+  NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-example \
+  node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
 ```
 
 ### Starting and stopping services

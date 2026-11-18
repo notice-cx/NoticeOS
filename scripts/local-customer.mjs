@@ -133,7 +133,7 @@ function customerServer(publicOrigin, runtime, peerProof, admits, { release, bri
       if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
       const url = requestTarget(publicOrigin, request);
       if (ready && url.pathname === '/_noticeos/ready') {
-        const healthy = peer === HOST && request.method === 'GET' && !url.search && ready();
+        const healthy = peer === HOST && request.method === 'GET' && !url.search && await ready();
         reply.writeHead(healthy ? 204 : 404, { 'cache-control': 'no-store' }).end();
         return;
       }
@@ -180,6 +180,12 @@ export function localNtasksOrigin(value) {
     throw new Error('Use the loopback HTTP address of a separate local Ntasks.');
   }
   return value;
+}
+
+export async function customerWorkerdReady(schedulerReady, probe) {
+  if (!schedulerReady()) return false;
+  try { return (await probe(AbortSignal.timeout(1500))).status === 204 && schedulerReady(); }
+  catch { return false; }
 }
 
 export function privateDirectory(name, create = false) {
@@ -256,7 +262,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
   }
   const state = deployment ? null : mkdtempSync(path.join(customer, 'build-'));
   const artifactRoot = deployment ? deployment.artifactRoot : path.join(state, 'app');
-  let runtime, schedules, server;
+  let runtime, schedules, server, probe;
   let closing;
   function close() {
     closing ??= (async () => {
@@ -324,8 +330,11 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
             transport: operating.googleTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
         }] : []),
         ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
-          script: `export default {fetch(r,e){return r.headers.get('${SCHEDULE_HEADER}') === e.PROOF
-            ? e.SCHEDULE.fetch(r) : new Response(null,{status:403})}}`, bindings: { PROOF: scheduleProof },
+          script: `export default {fetch(r,e){
+            if (r.headers.get('${SCHEDULE_HEADER}') !== e.PROOF) return new Response(null,{status:403});
+            if (r.method === 'HEAD' && new URL(r.url).pathname === '/health') return new Response(null,{status:204});
+            return e.SCHEDULE.fetch(r);
+          }}`, bindings: { PROOF: scheduleProof },
           serviceBindings: { SCHEDULE: { name: scheduleName, entrypoint: 'CustomerSchedule' } } }] : []),
         { name: 'mail', modules: true, compatibilityDate: '2026-07-06', script: MAIL_WORKER,
           serviceBindings: { OUTBOX: async request => {
@@ -337,6 +346,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     if (startSchedules) {
       operating?.signal.throwIfAborted();
       const trigger = await runtime.getWorker('customer-schedule-trigger');
+      probe = signal => trigger.fetch('https://scheduler.internal/health', { method: 'HEAD',
+        headers: { [SCHEDULE_HEADER]: scheduleProof }, signal });
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
@@ -351,9 +362,12 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         }, bucket });
     }
     operating?.signal.throwIfAborted();
-    const ready = deployment && (() => !closing && !operating.signal.aborted
-      && serviceWorkspaces.every(({ workspaceId }) => schedules?.status(workspaceId)?.error === null));
-    if (ready && (!serviceWorkspaces.length || !ready())) throw new Error('The configured customer schedule is unavailable.');
+    const schedulerReady = () => !closing && !operating.signal.aborted && serviceWorkspaces.length > 0
+      && serviceWorkspaces.every(({ workspaceId }) => schedules?.status(workspaceId)?.error === null);
+    // Both compiled Workers run in the same Workerd process as this private
+    // proof. Sampling it detects a disappeared Worker without provider calls.
+    const ready = deployment && (() => customerWorkerdReady(schedulerReady, probe));
+    if (ready && !await ready()) throw new Error('The configured customer schedule or Worker runtime is unavailable.');
     server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission,
       { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready });
     await new Promise((resolve, reject) => {

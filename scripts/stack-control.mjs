@@ -21,6 +21,7 @@
 //   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
 //   pnpm os:refresh-comparison  Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
+//   pnpm os:customer-check  Check the prepared customer configuration in the app container before switching profiles.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
 import * as fs from 'node:fs';
