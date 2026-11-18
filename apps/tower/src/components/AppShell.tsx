@@ -576,7 +576,7 @@ export function AppShell({
 
   return (
     <RoutePrefetch.Provider value={onPrefetch}>
-      <div className="flex min-h-screen" inert={menuOpen || paletteVisible}>
+      <div className="flex min-h-screen" inert={menuOpen || (paletteOpen && paletteVisible)}>
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}

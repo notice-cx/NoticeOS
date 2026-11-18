@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -10,6 +10,22 @@ const state = vi.hoisted(() => ({
   assets: undefined as AssetCard[] | undefined,
   credentials: undefined as unknown,
 }));
+
+const paletteLoad = vi.hoisted(() => {
+  let start!: () => void;
+  let finish!: () => void;
+  const started = new Promise<void>(resolve => { start = resolve; });
+  const pending = new Promise<void>(resolve => { finish = resolve; });
+  return { start, started, finish, pending };
+});
+vi.mock("@/components/CommandPalette", async () => {
+  paletteLoad.start();
+  await paletteLoad.pending;
+  return {
+    CommandPalette: ({ open }: { open: boolean }) => open
+      ? <div role="dialog" aria-label="Search pages and assets" /> : null,
+  };
+});
 
 // Tasks is listed once a task source is connected. Mocked for the same reason
 // `useWall` is.
@@ -463,6 +479,32 @@ describe("the small-screen drawer", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Open navigation" })).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
+  });
+
+  it("cancels pending Search when the drawer opens and keeps the page inert", async () => {
+    renderShell("/");
+    const opener = screen.getByRole("button", { name: "Open navigation" });
+    const main = screen.getByRole("main");
+    try {
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+      await paletteLoad.started;
+      expect(main.closest("[inert]")).toBeNull();
+      fireEvent.click(opener);
+      expect(screen.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+
+      await act(async () => {
+        paletteLoad.finish();
+        await import("@/components/CommandPalette");
+      });
+      expect(screen.queryByRole("dialog", { name: "Search pages and assets" })).toBeNull();
+      expect(main.closest("[inert]")).not.toBeNull();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(opener).toHaveFocus();
+      expect(main.closest("[inert]")).toBeNull();
+    } finally {
+      paletteLoad.finish();
+    }
   });
 
   it("closes on the backdrop and on any navigation, so it is never a dead end", () => {

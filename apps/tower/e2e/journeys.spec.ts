@@ -3571,38 +3571,6 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
   expect(pageErrors).toEqual([]);
 });
 
-test("opening phone navigation cancels a still-loading Search", { tag: DEV_SERVER }, async ({ page }, info) => {
-  test.skip(BUILT_APP || info.project.name !== "mobile", "Uses the first development module request on a phone");
-  let release!: () => void;
-  const pending = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/src/components/CommandPalette.tsx*", async route => {
-    await pending;
-    await route.fallback();
-  });
-  try {
-    await page.goto("/integrations");
-    const opener = page.getByRole("button", { name: "Open navigation", exact: true });
-    await expect(opener).toBeVisible();
-    const requested = page.waitForRequest(request => new URL(request.url()).pathname.endsWith("/components/CommandPalette.tsx"));
-    await page.keyboard.press("ControlOrMeta+k");
-    await requested;
-    await opener.click();
-    const drawer = page.getByRole("dialog", { name: "Navigation", exact: true });
-    await expect(drawer).toBeVisible();
-    const finish = page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/components/CommandPalette.tsx"));
-    release();
-    await finish;
-    await expect(page.getByRole("dialog", { name: "Search pages and assets", exact: true })).toHaveCount(0);
-    const mainInert = () => page.locator("main").evaluate(main => main.closest("[inert]") !== null);
-    await expect.poll(mainInert).toBe(true);
-    await page.keyboard.press("Escape");
-    await expect(opener).toBeFocused();
-    await expect.poll(mainInert).toBe(false);
-  } finally {
-    release();
-  }
-});
-
 test("an asset tab whose code cannot be fetched preserves its panel and recovers explicitly in a new tab", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   await addAssetByApi(page);
@@ -3851,6 +3819,12 @@ test("Settings stays within reach while the portfolio navigation scrolls", { tag
     await page.keyboard.press("Escape");
     await expect(opener).toBeFocused();
     await opener.click();
+  } else {
+    const search = page.locator("[data-app-sidebar]").getByRole("button", { name: /^Search/u });
+    await keyboardActivate(page, search);
+    await expect(page.getByRole("dialog", { name: "Search pages and assets" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(search).toBeFocused();
   }
   const main = page.getByRole("navigation", { name: "Main", exact: true });
   await expect(main.getByRole("link", { name: "Integrations" })).toHaveAttribute("aria-current", "page");
