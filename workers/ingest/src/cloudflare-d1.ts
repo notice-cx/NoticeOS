@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { D1_MAX_BYTES, cloudflareAccountId, cloudflareD1DownloadAddress, d1DatabaseId, d1Record, d1Receipt, d1Selection, storedD1Selection, type D1Failure, type D1Receipt, type D1Request, type D1Selection, type D1Status } from '@noticeos/contract/cloudflare-d1';
+import { D1_MAX_BYTES, cloudflareAccountId, d1DatabaseId, d1Record, d1Receipt, d1Selection, storedD1Selection, type D1Failure, type D1Receipt, type D1Request, type D1Selection, type D1Status } from '@noticeos/contract/cloudflare-d1';
+import { cloudflareD1DownloadAddress } from '../../../scripts/cloudflare-d1-download.mjs';
 import { resolveCredential, assertCredentialOwner, hasSavedCredentialConnection, publishCurrentIntegration, saveCloudflareSelection, type ResolvedCredential } from './credentials.js';
 import { CloudflareD1Error, d1Api, d1Bounded, listD1Databases } from './cloudflare-d1-client.js';
 import { tryHealthConnection, observeIntegration } from './integration-health-context.js';

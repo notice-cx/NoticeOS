@@ -5,11 +5,11 @@ import { OS_TIME_ZONE, savedOsTimeZone } from '@noticeos/contract';
 import { Cron } from 'croner';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
-import { customerArchive, customerJobSubject, customerSchedules, isCustomerJob } from '../../../scripts/customer-collection.mjs';
+import { customerArchive, customerJobStep, customerJobSubject, customerSchedules, isCustomerJob } from '../../../scripts/customer-collection.mjs';
 import { customerCollectionPolicy, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
-import { ruleConfigFromConstants, runFreshnessCheck } from './db.js';
+import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { eligibleAssets, runUptimeChecks } from './hygiene.js';
 import { runGoogleSignals } from './google-signals.js';
@@ -65,8 +65,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
         const store = openWorkspaceStore(connectionString, { workspaceId, maxConnections: 1 });
         try {
           const claimed = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_job_occurrences
-            WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3 AND state='running' AND effect_step='collect'
-              AND service_id=$4::uuid AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId]));
+            WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3 AND state='running' AND service_id=$4::uuid
+              AND effect_step=$5 AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId, customerJobStep(job)]));
           if (!claimed.length) return denied();
           const policy = this.env.NOTICEOS_CUSTOMER_COLLECTION
             ? customerCollectionPolicy(JSON.parse(this.env.NOTICEOS_CUSTOMER_COLLECTION))
@@ -77,9 +77,13 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           if (!plan || !new Cron(plan.schedule.cron, { timezone: plan.schedule.timezone ?? 'UTC', paused: true }).match(new Date(time))) {
             return Response.json({ outcome: 'skipped' });
           }
-          const env = { ...this.env, STORE: store };
           const signal = request.signal;
           signal?.throwIfAborted();
+          if (job === 'asset-zero') {
+            const report = await runAssetZeroPulse({ STORE: store });
+            return Response.json({ outcome: report ? 'ran' : 'skipped' });
+          }
+          const env = { ...this.env, STORE: store };
           const fetchImpl: typeof fetch = (input, init) => {
             const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
             return fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });

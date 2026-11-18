@@ -7,7 +7,6 @@ export declare const D1_MAX_TARGETS = 100;
 export declare const D1_MAX_BYTES: number;
 export declare const cloudflareAccountId: (value: unknown) => value is string;
 export declare const d1DatabaseId: (value: unknown) => value is string;
-export declare function cloudflareD1DownloadAddress(value: unknown): string | null;
 export declare const d1Record: (value: unknown) => Record<string, unknown> | null;
 export interface D1Database {
     id: string;

@@ -1,5 +1,5 @@
 import { hostedTaskProviderOperation } from './hosted-task-request.mjs';
-import { cloudflareD1DownloadAddress } from '../packages/contract/src/cloudflare-d1.mjs';
+import { cloudflareD1DownloadAddress } from './cloudflare-d1-download.mjs';
 
 function googleDailyQuery(url, method) {
   if (method !== 'POST' || url.search || url.hash || url.username || url.password) return false;

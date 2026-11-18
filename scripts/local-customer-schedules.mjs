@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { customerJobSubject, customerSchedules } from './customer-collection.mjs';
+import { customerJobStep, customerJobSubject, customerSchedules } from './customer-collection.mjs';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
@@ -174,7 +174,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     const snapshot = job === 'backup';
     let backupResult;
     const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
-      steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : 'collect', kind: 'effect', action: 'workflows.run',
+      steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : customerJobStep(job), kind: 'effect', action: 'workflows.run',
         ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
         if (snapshot) {
           backupResult = await backup.run(signal);
