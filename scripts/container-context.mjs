@@ -22,6 +22,7 @@ const PUBLIC_PATHS = [
   /^packages\/(?:contract|mediavine|postgres)\/(?:src\/[^\0]+|package\.json|tsconfig(?:\.build)?\.json)$/u,
   // Every workspace's manifest, or the image's frozen install refuses the lockfile.
   /^docs\/package\.json$/u,
+  /^patches\/@notice-cx__ntasks-ui@0\.5\.0\.patch$/u,
   /^scripts\/[^/]+\.(?:mjs|mts)$/u,
   /^scripts\/runner\/[^/]+\.mjs$/u,
   /^config\/[^/]+\.json$/u,

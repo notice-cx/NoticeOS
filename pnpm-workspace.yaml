@@ -32,3 +32,5 @@ overrides:
   "vitepress-plugin-llms>minimatch": "^11.0.1"
   # VitePress 1.6.4 requires Vite ^5.4.14; Vite 5 has no release past its advisories.
   "vitepress@1.6.4>vite": "^6.4.4"
+patchedDependencies:
+  '@notice-cx/ntasks-ui@0.5.0': patches/@notice-cx__ntasks-ui@0.5.0.patch

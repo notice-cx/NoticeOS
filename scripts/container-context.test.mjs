@@ -27,9 +27,9 @@ test('the public image context excludes every private root, nested state and sec
   const own = fixture(t);
   const denied = ['.git/config', '.beads/config.yaml', 'installation/beads.json', '.local/backups/secret.json', '.wrangler/state/data.json', 'postgres/secret.json',
     'artifacts/capture.json', 'deploy/compose/private.json', 'apps/tower/.env', 'apps/tower/.dev.vars', 'apps/tower/public/secrets/key.json',
-    'apps/tower/src/token.key', 'workers/ingest/src/.dev.secrets.json', 'packages/postgres/node_modules/secret.js', 'scripts/example.test.mjs', 'docs/private.md', '../package.json'];
+    'apps/tower/src/token.key', 'workers/ingest/src/.dev.secrets.json', 'packages/postgres/node_modules/secret.js', 'scripts/example.test.mjs', 'docs/private.md', 'patches/local.patch', '../package.json'];
   const allowed = ['scripts/dev-secrets.mjs', 'scripts/host-backup.mjs', 'packages/postgres/src/store.mjs', 'db/postgres/migrations/0001_baseline.sql',
-    'config/beads.json', 'apps/tower/src/App.tsx', 'deploy/compose/customer-entry.mjs'];
+    'config/beads.json', 'apps/tower/src/App.tsx', 'deploy/compose/customer-entry.mjs', 'patches/@notice-cx__ntasks-ui@0.5.0.patch'];
   for (const file of denied) assert.equal(publicContainerPath(file), false, file);
   for (const file of allowed) { assert.equal(publicContainerPath(file), true, file); own.write(file); }
   for (const file of denied.filter(file => !file.startsWith('../'))) own.write(file, 'PRIVATE-SENTINEL');

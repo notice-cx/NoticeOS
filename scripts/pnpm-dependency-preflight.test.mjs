@@ -55,11 +55,11 @@ test('pinned pnpm refuses stale dependencies without installing or running an ac
   const version = await invoke(['--version']);
   assert.equal(version.code, 0, version.stderr);
   assert.equal(version.stdout.trim(), pinnedVersion);
-  // Copy only tracked package-manager configuration, never hooks or runtime
-  // files. Its real setting must govern the fixture, without a CLI override.
+  // Keep the real refusal setting. This fixture installs only its local library.
   const workspace = fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8');
-  assert.match(workspace, /^verifyDepsBeforeRun: error$/mu);
-  fs.writeFileSync(path.join(project, 'pnpm-workspace.yaml'), workspace);
+  const policy = workspace.match(/^verifyDepsBeforeRun: error$/mu)?.[0];
+  assert.ok(policy);
+  fs.writeFileSync(path.join(project, 'pnpm-workspace.yaml'), `packages:\n  - 'packages/*'\n${policy}\n`);
   fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({
     name: 'maintenance-fixture', private: true, packageManager,
     dependencies: { 'fixture-library': 'workspace:*' },
