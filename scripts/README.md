@@ -879,7 +879,8 @@ Compose customer profile supports one workspace.
 1. In the separate local Ntasks instance, prepare the team's workspace and
    project. If the Tower already has an `ntasksOrigin`, use that same origin
    for the new team. Create a service credential with write access to
-   exactly the new team's project.
+   exactly the new team's project. Choose a project that another NoticeOS
+   workspace has never reserved.
 2. Make a separate operator-owned plan file with mode `0600`. Use the fields
    in the [owner plan above](#enroll-the-owner-of-an-existing-standalone-workspace),
    with these values:

@@ -106,11 +106,12 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
         child.stdin.on('error', () => undefined);
         child.stdin.end(input);
       });
-      assert.equal(result.status, status, `Operator ${action} returned an unexpected status.`);
+      if (status !== null) assert.equal(result.status, status, `Operator ${action} returned an unexpected status.`);
       for (const secret of [identitySecret, platformPassword, input]) {
         if (secret) assert.equal((result.stdout + result.stderr).includes(secret), false);
       }
       assert.equal(/@example\.test/u.test(result.stdout + result.stderr), false);
+      if (status === null) return result.status;
       return status === 0 ? JSON.parse(result.stdout) : null;
     };
     const verifyOwner = async (file, id, email) => {
@@ -213,6 +214,18 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     const alternateOrigin = `http://127.0.0.1:${plan.doorPort}`;
     await runOwner('prepare', prepareFile('alias-overlap', { ...conflict, ntasks: { ...conflict.ntasks, origin: alternateOrigin } }),
       { status: 1 });
+    const legacyProjectId = randomUUID();
+    postgres.cluster.run(`INSERT INTO noticeos_platform.task_project_directory(workspace_id,project_id,executor_ref,credential_ref,database_key)
+      VALUES (:'workspace'::uuid, :'project'::uuid, gen_random_uuid(), gen_random_uuid(), 'n_' || replace(gen_random_uuid()::text, '-', ''))`,
+    { vars: { workspace: firstOwner.workspaceId, project: legacyProjectId } });
+    const legacyOverlap = ownerPlan({ ...oak, projectId: legacyProjectId }, 'legacy-overlap');
+    await runOwner('prepare', prepareFile('legacy-overlap', legacyOverlap), { status: 1 });
+    const concurrent = actors[2];
+    const preparations = await Promise.all([
+      runOwner('prepare', prepareFile('pending-a', ownerPlan(concurrent, 'pending-a')), { status: null }),
+      runOwner('prepare', prepareFile('pending-b', ownerPlan({ ...concurrent, workspaceId: randomUUID() }, 'pending-b')), { status: null }),
+    ]);
+    assert.deepEqual(preparations.sort(), [0, 1]);
     const secondOwner = ownerPlan(elm, 'elm');
     const secondFile = prepareFile('elm', secondOwner);
     const second = await runOwner('prepare', secondFile);

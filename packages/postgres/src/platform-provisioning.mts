@@ -99,6 +99,15 @@ function initialProject(input: unknown): Omit<TaskProjectMapping, 'workspaceId'>
   return { projectId: uuid(row.projectId), executorRef: uuid(row.executorRef),
     credentialRef: uuid(row.credentialRef), databaseKey: row.databaseKey };
 }
+async function lockAvailableProject(trx: Transaction<IdentityDatabase>, workspaceId: string, projectId: string) {
+  // The physical project UUID also identifies reservations written by the
+  // standalone adopter, whose executor and database references differ.
+  await sql`SELECT pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('noticeos:initial-task-project:' || ${projectId}::text, 0))`.execute(trx);
+  const existing = await sql`SELECT 1 FROM noticeos_platform.task_project_directory
+    WHERE project_id=${projectId}::uuid AND workspace_id<>${workspaceId}::uuid LIMIT 1`.execute(trx);
+  if (existing.rows.length) refuse();
+}
 function standaloneBinding(row: Record<string, unknown>) {
   if (typeof row.ntasksOrigin !== 'string' || row.ntasksOrigin.length > 512) refuse();
   let origin: URL;
@@ -220,7 +229,8 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         command = preparation(input);
         if (projectInput !== undefined) project = initialProject(projectInput);
       } catch { return Promise.reject(new PlatformProvisioningRefused()); }
-      return track(transaction(async (db, signal) => db.transaction().execute(async trx => {
+      return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async trx => {
+        if (project) await lockAvailableProject(trx, command.workspaceId, project.projectId);
         if (signal.aborted) refuse();
         const result = await sql<{ enrollment_id: string }>`SELECT noticeos_platform.prepare_workspace(
           ${command.workspaceId}::uuid,${command.slug},${command.displayName},${command.intendedEmail},
@@ -287,8 +297,9 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         const row = record(input, ['workspaceId', 'ntasksWorkspaceId', 'ntasksOrigin', 'projectId', 'intendedEmail', 'expiresAt']);
         command = { ...standaloneBinding(row), ...intendedOwner(row.intendedEmail, row.expiresAt) };
       } catch { return Promise.reject(new PlatformProvisioningRefused()); }
-      return track(transaction(async (db, signal) => db.transaction().execute(async trx => {
+      return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async trx => {
         await requireStandaloneSchema(trx);
+        await lockAvailableProject(trx, command.workspaceId, command.projectId);
         if (signal.aborted) refuse();
         const result = await sql<{ enrollment_id: string }>`SELECT noticeos_platform.prepare_standalone_owner(
           ${command.workspaceId}::uuid,${command.intendedEmail},${command.expiresAt}::timestamptz,${command.ntasksOrigin},
