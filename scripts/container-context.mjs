@@ -27,7 +27,7 @@ const PUBLIC_PATHS = [
   /^scripts\/runner\/[^/]+\.mjs$/u,
   /^config\/[^/]+\.json$/u,
   /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json|frozen-migrations\.sha256)$/u,
-  /^deploy\/compose\/(?:Dockerfile|development\.mjs|(?:backup-)?health\.mjs|(?:backup-)?entrypoint\.mjs)$/u,
+  /^deploy\/compose\/(?:Dockerfile|development\.mjs|(?:backup-)?health\.mjs|(?:backup-)?entrypoint\.mjs|customer-entry\.mjs)$/u,
 ];
 
 export function publicContainerPath(file) {

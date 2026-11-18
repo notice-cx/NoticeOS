@@ -24,6 +24,7 @@
 | `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
 | `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
+| `os:customer-check` | Check the prepared customer configuration in the app container before switching profiles. | `scripts/stack-control.mjs customer-check` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
 | `os:customer-archive` | Estimate scoped copies of the running standalone installation's historical archive. | `scripts/stack-control.mjs customer-archive` |

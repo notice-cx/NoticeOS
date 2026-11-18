@@ -123,15 +123,21 @@ async function requestBody(request) {
   return Buffer.concat(chunks);
 }
 
-function customerServer(publicOrigin, runtime, peerProof, admits, release) {
+function customerServer(publicOrigin, runtime, peerProof, admits, { release, bridgePeer, ready }) {
   const server = createServer(async (request, reply) => {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 30000);
     const stop = () => abort.abort();
     reply.once('close', stop);
     try {
-      if (request.socket.remoteAddress !== HOST) throw new Error('Loopback required.');
+      const peer = request.socket.remoteAddress;
+      if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
       const url = requestTarget(publicOrigin, request);
+      if (ready && url.pathname === '/_noticeos/ready') {
+        const healthy = peer === HOST && request.method === 'GET' && !url.search && await ready();
+        reply.writeHead(healthy ? 204 : 404, { 'cache-control': 'no-store' }).end();
+        return;
+      }
       if (isAppApiPath(url.pathname)) {
         // The browser checks the release on gateway denials as well as Worker responses.
         reply.setHeader(APP_RELEASE_HEADER, release);
@@ -175,6 +181,12 @@ export function localNtasksOrigin(value) {
     throw new Error('Use the loopback HTTP address of a separate local Ntasks.');
   }
   return value;
+}
+
+export async function customerWorkerdReady(schedulerReady, probe) {
+  if (!schedulerReady()) return false;
+  try { return (await probe(AbortSignal.timeout(1500))).status === 204 && schedulerReady(); }
+  catch { return false; }
 }
 
 export function privateDirectory(name, create = false) {
@@ -239,19 +251,19 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 /** Runtime composition shared by the disposable fixture and its read-only shadow. */
 export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
-  startSchedules, fixtureProvider, shadowAdmission, resumeSince, operating }) {
+  startSchedules, fixtureProvider, shadowAdmission, resumeSince, operating, deployment }) {
   const publicOrigin = `http://${HOST}:${plan.port}`;
   if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
-  if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating)) {
+  if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating || deployment)) {
     throw new Error('Customer shadow cannot start providers or schedules.');
   }
   const siteReports = operating?.siteReports ? { NOTICEOS_LOCAL_SITE_REPORTS: '1' } : {};
   if (operating?.siteReports && !localSiteReportsEnabled({ ...siteReports, NOTICEOS_WORKSPACE_ORIGIN: publicOrigin })) {
     throw new Error('Site reports require the same explicit loopback address as the customer Tower.');
   }
-  const state = mkdtempSync(path.join(customer, 'build-'));
-  const artifactRoot = path.join(state, 'app');
-  let runtime, schedules, server;
+  const state = deployment ? null : mkdtempSync(path.join(customer, 'build-'));
+  const artifactRoot = deployment ? deployment.artifactRoot : path.join(state, 'app');
+  let runtime, schedules, server, probe;
   let closing;
   function close() {
     closing ??= (async () => {
@@ -262,12 +274,12 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       }
       try { await schedules?.close(); }
       finally { await runtime?.dispose(); }
-      rmSync(state, { recursive: true, force: true });
+      if (state) rmSync(state, { recursive: true, force: true });
     })();
     return closing;
   }
   try {
-    await buildCustomer(state, artifactRoot);
+    if (state) await buildCustomer(state, artifactRoot);
     operating?.signal.throwIfAborted();
     const artifact = readHostedArtifact(artifactRoot);
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
@@ -297,7 +309,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       ...(collection ? { NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify(collection) } : {}) } : {};
     const scheduleTransport = grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {};
     const ingestBindings = { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}) };
-    const archive = { r2Buckets: { RAW_SIGNALS: 'customer-raw-signals' } };
+    const archive = { r2Buckets: { RAW_SIGNALS: deployment?.archiveBucket ?? 'customer-raw-signals' } };
     runtime = new Miniflare({ host: HOST, port: 0, cf: { colo: 'LOCAL' }, inspectorPort: undefined,
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
@@ -321,8 +333,11 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
             transport: operating.collectorTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
         }] : []),
         ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
-          script: `export default {fetch(r,e){return r.headers.get('${SCHEDULE_HEADER}') === e.PROOF
-            ? e.SCHEDULE.fetch(r) : new Response(null,{status:403})}}`, bindings: { PROOF: scheduleProof },
+          script: `export default {fetch(r,e){
+            if (r.headers.get('${SCHEDULE_HEADER}') !== e.PROOF) return new Response(null,{status:403});
+            if (r.method === 'HEAD' && new URL(r.url).pathname === '/health') return new Response(null,{status:204});
+            return e.SCHEDULE.fetch(r);
+          }}`, bindings: { PROOF: scheduleProof },
           serviceBindings: { SCHEDULE: { name: scheduleName, entrypoint: 'CustomerSchedule' } } }] : []),
         { name: 'mail', modules: true, compatibilityDate: '2026-07-06', script: MAIL_WORKER,
           serviceBindings: { OUTBOX: async request => {
@@ -330,10 +345,12 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
             catch { return new Response(null, { status: 403 }); }
           } } },
       ] });
-    await runtime.getWorker('tower');
+    await Promise.all([runtime.getWorker('tower'), runtime.getWorker('ingest')]);
     if (startSchedules) {
       operating?.signal.throwIfAborted();
       const trigger = await runtime.getWorker('customer-schedule-trigger');
+      probe = signal => trigger.fetch('https://scheduler.internal/health', { method: 'HEAD',
+        headers: { [SCHEDULE_HEADER]: scheduleProof }, signal });
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
@@ -348,10 +365,18 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         }, bucket });
     }
     operating?.signal.throwIfAborted();
-    server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission, artifact.release);
+    const schedulerReady = () => !closing && !operating.signal.aborted && serviceWorkspaces.length > 0
+      && serviceWorkspaces.every(({ workspaceId }) => schedules?.status(workspaceId)?.error === null);
+    // Both compiled Workers run in the same Workerd process as this private
+    // proof. Sampling it detects a disappeared Worker without provider calls.
+    const ready = deployment && (() => customerWorkerdReady(schedulerReady, probe));
+    if (ready && !await ready()) throw new Error('The configured customer schedule or Worker runtime is unavailable.');
+    server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission,
+      { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready });
     await new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(plan.port, HOST, () => { server.off('error', reject); resolve(); });
+      server.listen(deployment?.listenPort ?? plan.port, deployment ? '0.0.0.0' : HOST,
+        () => { server.off('error', reject); resolve(); });
     });
     return Object.freeze({ publicOrigin, workspaces, outbox, whenIdle: () => schedules?.whenIdle(), close });
   } catch (error) {

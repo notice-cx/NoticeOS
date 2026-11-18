@@ -8,6 +8,12 @@ import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
  * changing database ownership. This controller owns the single scheduler. */
 export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport } = {}) {
   const db = await openCustomerOperating(plan, file);
+  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport });
+}
+
+export async function startPreparedCustomer(plan, db, {
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, deployment,
+} = {}) {
   const { operating, signal } = db;
   let app, closing;
   const close = () => {
@@ -25,12 +31,12 @@ export async function startAttachedCustomer(plan, file, { startSchedules = start
     const owned = dir => privateDirectory(dir, !existsSync(dir));
     const customer = owned(db.customer);
     const outbox = owned(path.join(customer, 'mail'));
-    app = await startCustomerRuntime(plan, { customer, outbox, workerState: owned(path.join(customer, 'worker-state')),
+    app = await startCustomerRuntime(plan, { customer, outbox, workerState: deployment?.workerState ?? owned(path.join(customer, 'worker-state')),
       deliver: localMailbox(outbox, email => operating.mailRecipients.includes(email.toLowerCase())),
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
-      startSchedules, resumeSince: db.resumeSince, operating: { googleDaily: operating.googleDaily, collectorTransport,
+      startSchedules, resumeSince: db.resumeSince, deployment, operating: { googleDaily: operating.googleDaily, collectorTransport,
         collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteReports: operating.siteReports, signal } });
     db.ready();

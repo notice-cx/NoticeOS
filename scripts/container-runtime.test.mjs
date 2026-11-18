@@ -8,8 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
+import { composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
+import { readComposeCustomerOperating } from './local-customer-operating.mjs';
+import { customerWorkerdReady } from './local-customer.mjs';
+import { actionArgs } from './stack-control.mjs';
 import { towerAllowedHosts } from '../apps/tower/vite/allowed-hosts.ts';
 
 function io(defect) {
@@ -71,6 +75,21 @@ test('a refused container says why in its own words, and never repeats another e
   assert.equal(written, 'NoticeOS container refused: prepare its mounted installation and internal service credentials.\n');
 });
 
+test('app jobs wait for the running profile and customer startup cannot dispatch standalone work', async () => {
+  const err = { write() {} };
+  const environment = () => ({ NOTICEOS_IMMUTABLE_APP: '1' });
+  const startup = start => ({
+    lstatSync: () => ({ isFile: () => true, uid: process.getuid(), size: 15, mode: 0o600 }),
+    readFileSync: file => file === '/proc/1/stat' ? `1 (test init) S ${Array(18).fill(0).join(' ')} ${start} 0` : '100 standalone\n',
+  });
+  assert.equal(runningContainerProfile(startup(100)), 'standalone');
+  assert.equal(runningContainerProfile(startup(101)), null);
+  for (const argv of [['backup'], ['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
+    assert.equal(await containerMain(argv, { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
+    assert.equal(await containerMain(argv, { err, environment, runningProfile: () => 'customer' }), 2);
+  }
+});
+
 test('container health requires a fresh supervised runner and both answering internal doors', async () => {
   const now = Date.parse('2026-09-30T12:00:00Z');
   const state = { status: 'healthy', homeRoot: '/state', towerReady: true, schedulerArmed: true, updatedAt: new Date(now - 1000).toISOString() };
@@ -83,6 +102,101 @@ test('container health requires a fresh supervised runner and both answering int
   assert.equal(await check({}, async () => { throw new Error('Own fixture refused'); }), false);
   assert.equal(await containerHealthy({ read: async () => JSON.stringify(state), now: () => now,
     backupStatus: async () => ({ configured: true, available: false }) }), false);
+});
+
+test('the same container explicitly selects one customer clock, exact loopback ingress and its existing raw storage', t => {
+  const missing = () => { throw Object.assign(new Error(), { code: 'ENOENT' }); };
+  const select = (value, mode = 0o600) => selectedCustomerProfile({ lstatSync: () => ({
+    isFile: () => true, uid: process.getuid(), size: value.length, mode,
+  }), readFileSync: () => value });
+  assert.equal(selectedCustomerProfile({ lstatSync: missing }), 'standalone');
+  assert.equal(select('noticeos-compose-customer/1\n'), 'customer');
+  assert.throws(() => select('noticeos-compose-customer/1\n', 0o644), ContainerRefusal);
+  assert.throws(() => select('unknown\n'), ContainerRefusal);
+  assert.deepEqual(containerCommand([], 'customer'), ['deploy/compose/customer-entry.mjs']);
+  assert.deepEqual(containerCommand(['capacity'], 'customer'), ['scripts/os-capacity.mjs']);
+  assert.deepEqual(actionArgs('customer-check', []), { job: ['customer-check'] });
+  assert.deepEqual(containerCommand(['customer-check']), ['deploy/compose/customer-entry.mjs', '--check']);
+  assert.throws(() => actionArgs('customer-check', ['--apply']));
+  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
+    assert.equal(containerCommand(command, 'customer'), null);
+  }
+
+  const plan = composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' });
+  assert.equal(plan.url, 'http://127.0.0.1:25173');
+  assert.throws(() => composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173' }), ContainerRefusal);
+  const header = 'Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n';
+  const route = 'eth0 00000000 010011AC 0003 0 0 0 00000000 0 0 0\n';
+  const subnet = 'eth0 000011AC 00000000 0001 0 0 0 0000FFFF 0 0 0\n';
+  assert.equal(composeBridgePeer(header + route + subnet), '172.17.0.1');
+  assert.throws(() => composeBridgePeer(header + subnet), ContainerRefusal);
+  assert.throws(() => composeBridgePeer(header + route + route), ContainerRefusal);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-compose-archive-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const archive = composeArchiveState(root, fs, dir => fs.mkdirSync(dir, { recursive: true, mode: 0o700 }));
+  fs.writeFileSync(path.join(archive, 'existing'), 'keep');
+  assert.equal(composeArchiveState(root, fs, () => {}), path.join(root, '.wrangler/state/v3'));
+  assert.equal(fs.readFileSync(path.join(archive, 'existing'), 'utf8'), 'keep');
+  const alternate = path.join(root, 'alternate');
+  fs.mkdirSync(alternate);
+  fs.symlinkSync(path.join(root, '.wrangler'), path.join(alternate, '.wrangler'));
+  assert.throws(() => composeArchiveState(alternate, fs, () => {}), ContainerRefusal);
+
+  const file = path.join(root, 'prepared.json');
+  const database = { identity: 'postgresql://noticeos_identity:fixture@postgres/product',
+    grant: 'postgresql://noticeos_service_grant:fixture@postgres:5432/product' };
+  const bootstrap = { DATABASE_URL: 'postgresql://noticeos_app:fixture@postgres:5432/product', CREDENTIALS_KEY: 'A'.repeat(43) + '=' };
+  const options = { format: 'noticeos-compose-customer/1', database, identitySecret: 'fixture'.repeat(8),
+    mailRecipients: ['owner@example.test'], workspaces: [{ workspaceId: '00000000-0000-4000-8000-000000000001', serviceId: '00000000-0000-4000-8000-000000000002' }] };
+  const read = (value = {}, bindings = bootstrap) => {
+    fs.writeFileSync(file, JSON.stringify({ ...options, ...value }), { mode: 0o600 });
+    return readComposeCustomerOperating(file, plan, bindings);
+  };
+  const prepared = read();
+  assert.equal(prepared.target, 'postgres:5432/product');
+  assert.equal(prepared.googleDaily, false);
+  assert.equal(prepared.ntasksOrigin, null);
+  assert.throws(() => read({ database: { ...database, grant: database.grant.replace('/product', '/different') } }), /existing database/u);
+  assert.throws(() => read({ database: { ...database, identity: database.identity.replace('@postgres', '@foreign.example') } }), /existing database/u);
+  assert.throws(() => read({ database: { ...database, app: bootstrap.DATABASE_URL } }), /existing database/u);
+  const site = { workspaceId: options.workspaces[0].workspaceId, asset: 'fixture-site', urls: ['https://example.test/metrics'] };
+  const tokens = { 'fixture-site': 'fixture-bearer', 'different-site': 'unused-bearer' };
+  for (const ASSET_TOKENS of [tokens, JSON.stringify(tokens)]) {
+    assert.deepEqual(read({ sitePulls: [site] }, { ...bootstrap, ASSET_TOKENS }).sitePulls, [
+      { ...site, token: tokens['fixture-site'] },
+    ]);
+  }
+  assert.throws(() => read({ sitePulls: [site] }), /existing bearer in ASSET_TOKENS/u);
+  const bound = { ...bootstrap, ASSET_TOKENS: tokens };
+  assert.throws(() => read({ sitePulls: [{ ...site, token: 'replacement-bearer' }] }, bound), /existing database/u);
+  assert.throws(() => read({ sitePulls: [{ ...site, workspaceId: options.workspaces[0].serviceId }] }, bound), /existing database/u);
+});
+
+test('customer readiness does not fall back to stale standalone state or ignore a declared backup', async () => {
+  const env = { NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' };
+  const checks = [];
+  const health = { profile: () => 'customer', env, read: async () => assert.fail('stale runner state'),
+    backupStatus: async () => ({ configured: false }), customerProbe: async (url, options) => {
+      checks.push([url, options.host]); return 204;
+    } };
+  assert.equal(await containerHealthy(health), true);
+  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:25173']]);
+  assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
+  for (const available of [true, false]) {
+    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);
+  }
+  assert.equal(await containerHealthy({ ...health, profile: () => null }), false);
+});
+
+test('customer readiness fails when the private Worker stops responding', async () => {
+  const planned = () => true;
+  assert.equal(await customerWorkerdReady(planned, async () => new Response(null, { status: 204 })), true);
+  assert.equal(await customerWorkerdReady(planned, async () => { throw new Error('Worker process exited'); }), false);
+  assert.equal(await customerWorkerdReady(planned, async () => new Response(null, { status: 503 })), false);
+  let probes = 0;
+  assert.equal(await customerWorkerdReady(() => false, async () => { probes++; return new Response(null, { status: 204 }); }), false);
+  assert.equal(probes, 0);
 });
 
 test('live source is explicit, checks dependencies and keeps the same installation boundaries', () => {

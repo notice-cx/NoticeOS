@@ -243,6 +243,39 @@ For example, `~/noticeos/noticeos run-job --id panel-refresh` rebuilds local
 research summaries. The supported IDs, Tower action and refusal behavior are
 documented in [Run one local job now](../../scripts/README.md#run-one-local-job-now).
 
+### Customer mode on the existing app service
+
+The prepared application image supports a customer profile for a disposable, separately enrolled installation. Standalone is the default. Both profiles use the existing `noticeos` service, published Tower port and Postgres database. Customer mode requires the published address `127.0.0.1` and uses the current `.wrangler/state/v3` archive at its original bucket name. Hosted reads require workspace-prefixed archives. Older unprefixed archives remain available in standalone mode.
+
+Before switching, complete [Prepare existing signal archives for customer mode](#prepare-existing-signal-archives-for-customer-mode) so older reports are also available in customer mode. Follow [Prepare the Postgres logins on the existing local stack](../../scripts/README.md#prepare-the-postgres-logins-on-the-existing-local-stack) to enable the dedicated logins and add the Postgres access rule before preflight. The role tool requires confirmation of the exact Compose project when applying or rolling back changes.
+
+Prepare `state/installation/customer-runtime.json` as a regular file owned by the application UID with mode `0600`. Set `format` to `noticeos-compose-customer/1`. Its `database` object contains `identity` and `grant`, with URLs for `noticeos_identity` and `noticeos_service_grant` on the same internal `postgres:5432` database the existing app uses. `identitySecret` must match enrollment. The single entry in `workspaces` contains the enrolled `workspaceId` and `serviceId` for its `workflows.run` grant. `mailRecipients` lists addresses allowed to use the private file mailbox. The app reads the existing application role URL and encryption key from its bootstrap file.
+
+Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials. Both external connections stay off by default. The file mailbox captures sign-in messages under `state/.local/compose-customer/customer/mail/`. A real enrollment requires independently verified email delivery. Connecting or reconnecting Google interactively is a separate setup step.
+
+To continue the existing scheduled provider reads, include `mediavine`,
+`stripe` or `bing-webmaster` in `collectorProviders`. For each enabled nightly
+site report already pulled by this app, add a `sitePulls` entry with the
+enrolled `workspaceId`, its `asset` ID and the exact approved HTTPS `urls`
+from its saved pull settings. The preflight checks that the existing
+`ASSET_TOKENS` map has a bearer for that asset. Keep the bearer in that map.
+
+From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. This is a read-only check in the running app container.
+
+The app reads `state/installation/customer-runtime.enabled` on startup. To select customer mode in an approved disposable rehearsal, write `noticeos-compose-customer/1` followed by a newline into that file with the same ownership and permissions, then run `pnpm os:restart:noticeos` or the installation launcher's `noticeos restart noticeos`. Remove the enable file and restart the app again to return to standalone. Postgres, archives and the connected Ntasks project keep writes made during the rehearsal. A second customer scheduler for the same database cannot start while the first holds its database lease.
+
+The preflight and customer startup stop when a backup worker is declared. The existing scheduled and manual backup request and Ntasks export must be supported before switching such an installation. The readiness check requires the customer schedule and compiled Tower and ingest Workers. Standalone manual jobs stay available in standalone mode. Customer mode uses the Tower and its scoped MCP endpoint.
+
+Run the isolated full-image test with a prepared local proof image tagged `noticeos-local:compose-proof-<id>`.
+
+```sh
+NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_CONTAINER_CUSTOMER=1 \
+  NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-example \
+  node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
+```
+
+### Starting and stopping services
+
 Start, stop and restart never create containers, build or pull images, apply
 migrations or remove volumes. A failed step stops the sequence; read status
 before retrying. The full command list is in the

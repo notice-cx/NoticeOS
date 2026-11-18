@@ -7,6 +7,7 @@ import { ContainerRefusal, developmentDependencies } from './development.mjs';
 import { collectJobArgs } from '../../scripts/signal-collect.mjs';
 import { BACKUP_APP_ORIGIN } from '../../scripts/container-backup-profile.mjs';
 import { manualLocalJob } from '../../scripts/scheduled-jobs.mjs';
+import { recordContainerProfile, runningContainerProfile, selectedCustomerProfile } from './customer-entry.mjs';
 import { archiveTransitionArgs } from '../../scripts/customer-archive-transition.mjs';
 
 /** The installation as the host sees it (compose.yaml), shown read-only on the Tower's Settings > Installation. */
@@ -58,8 +59,13 @@ export function containerEnvironment(env = process.env, { fs: io = fs, checkDepe
  * here; `pnpm os:setup` runs `setup` in a one-off container and `seed-settings` in the
  * new app), each with the environment the runner itself gets. Null for
  * anything else. */
-export function containerCommand(argv) {
+export function containerCommand(argv, profile = 'standalone') {
   const [job, ...rest] = argv;
+  if (job === 'customer-check' && rest.length === 0) return ['deploy/compose/customer-entry.mjs', '--check'];
+  if (profile === 'customer') {
+    if (job === undefined) return ['deploy/compose/customer-entry.mjs'];
+    if (job !== 'capacity') return null;
+  }
   if (job === undefined) return ['scripts/os-up.mjs'];
   if (job === 'setup' && rest.length === 0) return ['scripts/os-setup-container.mjs'];
   if (job === 'seed-settings' && rest.length === 0) return ['scripts/config-seed.mjs'];
@@ -75,14 +81,22 @@ export function containerCommand(argv) {
   return null;
 }
 
-export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr, out = process.stdout } = {}) {
+export async function main(argv = process.argv.slice(2), { environment = containerEnvironment,
+  runningProfile = runningContainerProfile, err = process.stderr, out = process.stdout } = {}) {
   // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
   if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
-  const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], refresh-comparison, customer-archive --plan or --prepare <workspace UUID> --backup-bytes <bytes>, mcp [--actor <name>], setup or seed-settings.\n'); return 2; }
+  let command = containerCommand(argv);
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], customer-check, refresh-anomalies --asset <id> [--apply <preview-token>], refresh-comparison, customer-archive --plan or --prepare <workspace UUID> --backup-bytes <bytes>, mcp [--actor <name>], setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();
+    // Fresh setup runs in a one-off container before the application starts.
+    const profile = argv.length ? runningProfile() ?? (argv[0] === 'setup' ? selectedCustomerProfile() : null) : selectedCustomerProfile();
+    if (profile === null) throw new ContainerRefusal('The running application profile is not recorded yet.');
+    if ((profile === 'customer' || argv[0] === 'customer-check') && env.NOTICEOS_IMMUTABLE_APP !== '1') throw new ContainerRefusal('Customer mode requires the prepared application image.');
+    if (argv.length === 0) recordContainerProfile(profile);
+    command = containerCommand(argv, profile);
+    if (!command) { err.write('NoticeOS customer runtime uses the Tower and scoped agent access for supported operations. This standalone job is unavailable.\n'); return 2; }
     // An installation made before the app's home was in the layout gains it here.
     fs.mkdirSync(APP_HOME, { recursive: true, mode: 0o700 });
   }

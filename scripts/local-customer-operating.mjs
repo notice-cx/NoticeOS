@@ -23,13 +23,14 @@ function privateFile(file) {
   return readFileSync(file, 'utf8');
 }
 
-function localDatabase(value, role, plan) {
+function localDatabase(value, role, plan, compose) {
   if (typeof value !== 'string') throw refused();
   const url = new URL(value);
-  if (!['postgres:', 'postgresql:'].includes(url.protocol) || url.hostname !== '127.0.0.1'
-    || url.username !== role || !url.password || !url.port || MANAGED_START_PORTS.includes(Number(url.port))
-    || [plan.port, plan.doorPort].includes(Number(url.port))
+  const address = compose ? url.hostname === 'postgres' && ['', '5432'].includes(url.port)
+    : url.hostname === '127.0.0.1' && url.port && ![...MANAGED_START_PORTS, plan.port, plan.doorPort].includes(Number(url.port));
+  if (!['postgres:', 'postgresql:'].includes(url.protocol) || !address || url.username !== role || !url.password
     || !/^\/[a-zA-Z0-9_-]{1,63}$/u.test(url.pathname) || !['', '?sslmode=disable'].includes(url.search) || url.hash) throw refused();
+  if (compose) url.port = '5432';
   return url;
 }
 
@@ -49,8 +50,46 @@ function taskOrigin(value, plan, databasePort) {
 }
 
 export function readCustomerOperating(file, plan) {
+  try { return customerOperating(JSON.parse(privateFile(file)), plan); }
+  catch { throw refused(); }
+}
+
+class SitePullBearerMissing extends Error {}
+
+function composeSitePulls(pulls, assetTokens, workspaceId) {
+  if (pulls === undefined) return [];
+  if (!Array.isArray(pulls)) throw refused();
+  if (!pulls.length) return [];
+  let tokens = assetTokens;
+  try { if (typeof tokens === 'string') tokens = JSON.parse(tokens); }
+  catch { throw new SitePullBearerMissing(); }
+  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) throw new SitePullBearerMissing();
+  return pulls.map(entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).length !== 3
+      || Object.hasOwn(entry, 'token') || entry.workspaceId !== workspaceId || typeof entry.asset !== 'string') throw refused();
+    const token = Object.hasOwn(tokens, entry.asset) ? tokens[entry.asset] : null;
+    if (typeof token !== 'string' || !token.trim()) throw new SitePullBearerMissing();
+    return { ...entry, token };
+  });
+}
+
+export function readComposeCustomerOperating(file, plan, bootstrap) {
   try {
     const config = JSON.parse(privateFile(file));
+    if (config.format !== 'noticeos-compose-customer/1' || !config.database || !Array.isArray(config.workspaces)
+      || config.workspaces.length !== 1 || Object.keys(config.database).length !== 2
+      || 'app' in config.database || 'credentialsKey' in config) throw refused();
+    const sitePulls = composeSitePulls(config.sitePulls, bootstrap.ASSET_TOKENS, config.workspaces[0]?.workspaceId);
+    return customerOperating({ ...config, format: FORMAT, credentialsKey: bootstrap.CREDENTIALS_KEY, sitePulls,
+      database: { ...config.database, app: bootstrap.DATABASE_URL } }, plan, true);
+  } catch (error) {
+    if (error instanceof SitePullBearerMissing) throw new CustomerOperatingRefused('A configured site pull needs its existing bearer in ASSET_TOKENS.');
+    throw new CustomerOperatingRefused('The app needs a private customer configuration for its existing database and one prepared workspace.');
+  }
+}
+
+function customerOperating(config, plan, compose = false) {
+  try {
     if (config.format !== FORMAT || Object.keys(config).some(key => !options.has(key))
       || !config.database || Object.keys(config.database).length !== 3
       || typeof config.identitySecret !== 'string' || config.identitySecret.length < 32 || config.identitySecret.length > 512
@@ -63,9 +102,9 @@ export function readCustomerOperating(file, plan) {
         || typeof binding.serviceId !== 'string' || !UUID.test(binding.serviceId)
         || Object.keys(binding).some(key => !['workspaceId', 'serviceId'].includes(key)))
       || new Set(config.workspaces.map(binding => binding.workspaceId)).size !== config.workspaces.length) throw refused();
-    const app = localDatabase(config.database.app, ROLES.app, plan);
-    const identity = localDatabase(config.database.identity, ROLES.identity, plan);
-    const grant = localDatabase(config.database.grant, ROLES.grant, plan);
+    const app = localDatabase(config.database.app, ROLES.app, plan, compose);
+    const identity = localDatabase(config.database.identity, ROLES.identity, plan, compose);
+    const grant = localDatabase(config.database.grant, ROLES.grant, plan, compose);
     const target = app.host + app.pathname;
     if ([identity, grant].some(url => url.host + url.pathname !== target)) throw refused();
     const workspaces = config.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }))
@@ -144,11 +183,19 @@ export async function openCustomerOperating(plan, file) {
   const operating = readCustomerOperating(file, plan);
   const state = operatingFolder(plan);
   const release = await holdLock(path.join(state, '.customer-start.lock'), () => new CustomerOperatingRefused('This customer runtime folder is already in use.'));
+  try { return await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'customer-target.json'), { release }); }
+  catch (error) { await release(); throw error; }
+}
+
+/** Compose already replaces the single app container. It still takes the same
+ * database session lease as the attached runner, including across containers. */
+export async function openCustomerTarget(plan, operating, customer, receipt, { release = async () => {}, activation } = {}) {
   let lease;
   try {
-    const publicOrigin = new URL(plan.url).origin, customer = path.join(state, 'customer');
-    const receipt = path.join(state, 'customer-target.json');
-    const schedule = createHash('sha256').update(JSON.stringify(operating.workspaces)).digest('hex');
+    const publicOrigin = new URL(plan.url).origin;
+    const scope = createHash('sha256').update(JSON.stringify(operating.workspaces));
+    if (activation !== undefined) scope.update('\0' + activation);
+    const schedule = scope.digest('hex');
     let previous;
     try { previous = JSON.parse(privateFile(receipt)); }
     catch (error) { if (error?.code !== 'ENOENT') throw error; }
@@ -173,7 +220,7 @@ export async function openCustomerOperating(plan, file) {
       async close() { try { await lease.close(); } finally { await release(); } },
     };
   } catch (error) {
-    try { await lease?.close(); } finally { await release(); }
+    await lease?.close();
     throw error;
   }
 }
