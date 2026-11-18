@@ -42,8 +42,9 @@ export async function transitionCustomerArchive(args, {
     { token: auth, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), ...options })).json();
   const plan = await read();
   if (!UUID.test(plan?.workspaceId ?? '') || !SEQUENCE.test(plan.through ?? '')
-    || ![plan.objects, plan.bytes, plan.otherObjects, plan.archiveBytes, plan.verified, plan.copiedBytes].every(validCount)
-    || plan.bytes > plan.archiveBytes || plan.verified > plan.objects || plan.copiedBytes > plan.bytes || typeof plan.complete !== 'boolean') {
+    || ![plan.objects, plan.bytes, plan.otherObjects, plan.archiveBytes, plan.verified, plan.copiedBytes, plan.stagedObjects, plan.stagedBytes].every(validCount)
+    || plan.bytes > plan.archiveBytes || plan.verified + plan.stagedObjects > plan.objects || plan.copiedBytes + plan.stagedBytes > plan.bytes
+    || typeof plan.complete !== 'boolean') {
     throw new Error('The local archive inventory is invalid.');
   }
   const additional = archiveAdditionalBytes(plan);
@@ -53,23 +54,27 @@ export async function transitionCustomerArchive(args, {
   if (plan.workspaceId !== args.workspaceId) throw new Error('The running app belongs to a different workspace.');
   if (plan.otherObjects) throw new Error('The archive manifest has unsupported keys. Preparation requires the whole selected workspace.');
   if (plan.complete) return estimate;
-  const remaining = archiveAdditionalBytes({ bytes: plan.bytes - plan.copiedBytes, objects: plan.objects - plan.verified });
+  const remaining = archiveAdditionalBytes({ bytes: plan.bytes - plan.copiedBytes - plan.stagedBytes,
+    objects: plan.objects - plan.verified - plan.stagedObjects });
   const required = BigInt(args.backupBytes) + additional + remaining;
   if (BigInt(estimate.availableArchiveBytes) < required) throw new Error(`Allow at least ${required} bytes for archive copies and the next backup.`);
   const { workspaceId, through, objects, bytes } = plan;
   let verified = plan.verified;
+  let copiedBytes = plan.copiedBytes;
   while (verified < objects) {
     const result = await read({ method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ workspaceId, through, objects, bytes }) });
     if (result?.workspaceId !== workspaceId || result.through !== through || result.objects !== objects || result.bytes !== bytes
       || !validCount(result.verified) || result.verified <= verified || result.verified > objects
-      || !validCount(result.copiedBytes) || result.copiedBytes > bytes || result.complete !== (result.verified === objects)) {
+      || !validCount(result.copiedBytes) || result.copiedBytes <= copiedBytes || result.copiedBytes > bytes
+      || result.complete !== (result.verified === objects) || result.complete && result.copiedBytes !== bytes) {
       throw new Error('The archive copy progress did not advance.');
     }
     verified = result.verified;
+    copiedBytes = result.copiedBytes;
     onProgress(result);
   }
-  return { ...estimate, complete: true, verified };
+  return { ...estimate, complete: true, verified, copiedBytes, stagedObjects: 0, stagedBytes: 0 };
 }
 
 if (invokedDirectly(process.argv[1], import.meta.url)) {

@@ -127,15 +127,20 @@ test('same-store preparation survives restart and enables only the selected work
     assert.deepEqual(batches, [4]);
     const copied = (await list()).filter(item => item.key.startsWith(archiveAlias('')));
     assert.equal(copied.length, 5);
-    assert.equal((await transitionCustomerArchive(archiveTransitionArgs(['--plan']), fixtureOptions())).verified, 4);
+    const interrupted = await transitionCustomerArchive(archiveTransitionArgs(['--plan']), fixtureOptions());
+    assert.equal(interrupted.verified, 4);
+    assert.equal(interrupted.stagedObjects, 1);
+    assert.equal(interrupted.stagedBytes, originals[4].bytes.byteLength);
     await bucket.put(bad.key, bad.bytes);
     await app.dispose(); app = undefined;
     app = start();
     door = (await app.ready).origin;
     bucket = await app.getR2Bucket('RAW_SIGNALS');
-    const complete = await transitionCustomerArchive(preparation(workspaceId), fixtureOptions());
+    const exactResumeBytes = BigInt(plan.estimatedAdditionalNextBackupBytes) + BigInt(bad.bytes.byteLength) + 8192n + 1000n;
+    const complete = await transitionCustomerArchive(preparation(workspaceId), { ...fixtureOptions(), availableBytes: () => exactResumeBytes });
     assert.equal(complete.complete, true);
     assert.equal(complete.verified, originals.length);
+    assert.equal(complete.copiedBytes, oldBytes);
     const finished = await list();
     for (const copy of copied) assert.deepEqual(finished.find(item => item.key === copy.key), copy);
     for (const entry of originals) {
@@ -179,6 +184,7 @@ test('same-store preparation survives restart and enables only the selected work
     const report = await reports.run({ store: selected, workspaceId, asset, scheduledAt: time });
     assert.equal(report.publication.created, true);
     assert.equal(report.objectReads, originals.length + 2);
+    assert.equal(report.archivesFetched, originals.length + 1);
     assert.equal(JSON.parse((await stored(selected)).at(-1).payload).sourceArchiveCount, originals.length + 1);
     assert.deepEqual((await stored(selected))[0], { snapshot_id: id, payload: savedPayload });
     assert.deepEqual(new Set(gets.filter(key => key.includes('/raw/'))), new Set([...originals.map(row => archiveAlias(row.key)), modern.key]));

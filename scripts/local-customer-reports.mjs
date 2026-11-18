@@ -69,7 +69,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
       const valueEvents = storedValueEvents(documents);
       const market = storedSearchMarket(documents, asset);
       const start = performance.now();
-      let reads = 0, heads = 0, objectBytes = 0, cost, fetchedTag;
+      let reads = 0, archiveReads = 0, heads = 0, objectBytes = 0, cost, fetchedTag;
       const env = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', STORE: store, RAW_SIGNALS: { async get(key) {
         signal.throwIfAborted();
         reads++;
@@ -97,6 +97,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
           fetchedTag = undefined;
           const body = await reader.object(key);
           if (body === null) throw new Error('Could not recover the archived report (HTTP 404).');
+          archiveReads++;
           parseArchive(body, { asset, source: 'durable report archive' });
           return { etag: fetchedTag, bytes: Buffer.from(body.endsWith('\n') ? body : `${body}\n`) };
         },
@@ -145,7 +146,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
           return result;
         },
       });
-      return { publication: report.publication, archivesFetched: reads, trendRows: report.trendRows,
+      return { publication: report.publication, archivesFetched: archiveReads, trendRows: report.trendRows,
         objectReads: reads, objectHeads: heads, objectBytes, elapsedMs: Math.round(performance.now() - start), cost };
     },
   });

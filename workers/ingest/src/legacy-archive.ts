@@ -85,8 +85,23 @@ export async function legacyArchivePlan(env: ArchiveEnv, scope: SignalObjectScop
   const plan = await estimateLegacyArchives(env, scope);
   const receipt = plan.objects ? (await progress(env.RAW_SIGNALS, scope))?.value : undefined;
   if (receipt && !sameInventory(plan, receipt)) throw new LegacyArchiveRefusal('The archive inventory differs from the saved copy progress.');
+  let stagedObjects = 0;
+  let stagedBytes = 0;
+  if (plan.objects && !plan.otherObjects && !receipt?.complete) {
+    // A failed page can leave destinations only in the next bounded page.
+    // Their storage is spent even though only preparation can verify them.
+    const rows = await archivePage(env, receipt?.cursor ?? '0', plan.through);
+    for (const row of rows) {
+      const key = scope.legacyArchiveCopy(row.key);
+      const existing = key ? await env.RAW_SIGNALS.head(key) : null;
+      if (existing && existing.size === Number(row.bytes) && matchesLegacyArchiveCopy(existing, scope.workspaceId, row.key, row.hash)) {
+        stagedObjects++;
+        stagedBytes += existing.size;
+      }
+    }
+  }
   return { ...plan, verified: receipt?.verified ?? 0, copiedBytes: receipt?.copiedBytes ?? 0,
-    complete: !plan.otherObjects && (plan.objects === 0 || receipt?.complete === true) };
+    stagedObjects, stagedBytes, complete: !plan.otherObjects && (plan.objects === 0 || receipt?.complete === true) };
 }
 
 type ArchiveRow = {
@@ -94,6 +109,26 @@ type ArchiveRow = {
   asset: string | null; integration: string | null; report: string | null; date: string | null;
   credential: string | null; property: string | null; version: number | null;
 };
+
+async function archivePage(env: ArchiveEnv, cursor: string, through: string): Promise<ArchiveRow[]> {
+  const rows = await env.STORE.read(tx => tx.query<ArchiveRow>(
+    `SELECT o.object_seq::text AS seq,o.object_key AS key,o.content_sha256 AS hash,o.object_bytes::text AS bytes,
+       r.asset_id AS asset,r.integration,r.report,r.report_date::text AS date,r.credential_ref AS credential,r.property_ref AS property,r.schema_version AS version
+     FROM noticeos.archive_objects o
+     LEFT JOIN LATERAL (SELECT asset_id,integration,report,report_date,credential_ref,property_ref,schema_version
+       FROM noticeos.archive_runs WHERE workspace_id=o.workspace_id AND object_seq=o.object_seq ORDER BY run_seq LIMIT 1) r ON true
+     WHERE ${legacy} AND o.object_seq>$1::bigint AND o.object_seq<=$2::bigint
+     ORDER BY o.object_seq LIMIT ${PAGE_OBJECTS}`, [cursor, through]));
+  const page: ArchiveRow[] = [];
+  let bytes = 0;
+  for (const row of rows) {
+    const size = Number(row.bytes);
+    if (page.length && bytes + size > OBJECT_BYTES) break;
+    page.push(row);
+    bytes += size;
+  }
+  return page;
+}
 
 async function digest(bytes: ArrayBuffer): Promise<string> {
   return [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -178,24 +213,13 @@ export async function prepareLegacyArchives(env: ArchiveEnv, scope: SignalObject
     throw new LegacyArchiveRefusal('The requested inventory differs from the saved copy progress.');
   }
   if (current.complete) return current;
-  const rows = await env.STORE.read(tx => tx.query<ArchiveRow>(
-    `SELECT o.object_seq::text AS seq,o.object_key AS key,o.content_sha256 AS hash,o.object_bytes::text AS bytes,
-       r.asset_id AS asset,r.integration,r.report,r.report_date::text AS date,r.credential_ref AS credential,r.property_ref AS property,r.schema_version AS version
-     FROM noticeos.archive_objects o
-     LEFT JOIN LATERAL (SELECT asset_id,integration,report,report_date,credential_ref,property_ref,schema_version
-       FROM noticeos.archive_runs WHERE workspace_id=o.workspace_id AND object_seq=o.object_seq ORDER BY run_seq LIMIT 1) r ON true
-     WHERE ${legacy} AND o.object_seq>$1::bigint AND o.object_seq<=$2::bigint
-     ORDER BY o.object_seq LIMIT ${PAGE_OBJECTS}`, [current.cursor, current.through]));
+  const rows = await archivePage(env, current.cursor, current.through);
   const next = { ...current };
-  let pageBytes = 0;
   for (const row of rows) {
-    const size = Number(row.bytes);
-    if (pageBytes > 0 && pageBytes + size > OBJECT_BYTES) break;
     await copyOne(bucket, scope, row);
-    pageBytes += size;
     next.cursor = row.seq;
     next.verified++;
-    next.copiedBytes += size;
+    next.copiedBytes += Number(row.bytes);
   }
   if (next.verified === next.objects) {
     const final = await estimateLegacyArchives(env, scope);
