@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
-import { composeArchiveState, composeBridgePeer, composeCustomerPlan, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
+import { composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
 import { readComposeCustomerOperating } from './local-customer-operating.mjs';
@@ -73,6 +73,21 @@ test('a refused container says why in its own words, and never repeats another e
   written = '';
   assert.equal(await containerMain([], { err, environment: refuse(new SyntaxError('Unexpected token in JSON near "PRIVATE-SENTINEL"')) }), 1);
   assert.equal(written, 'NoticeOS container refused: prepare its mounted installation and internal service credentials.\n');
+});
+
+test('app jobs wait for the running profile and customer startup cannot dispatch standalone work', async () => {
+  const err = { write() {} };
+  const environment = () => ({ NOTICEOS_IMMUTABLE_APP: '1' });
+  const startup = start => ({
+    lstatSync: () => ({ isFile: () => true, uid: process.getuid(), size: 15, mode: 0o600 }),
+    readFileSync: file => file === '/proc/1/stat' ? `1 (test init) S ${Array(18).fill(0).join(' ')} ${start} 0` : '100 standalone\n',
+  });
+  assert.equal(runningContainerProfile(startup(100)), 'standalone');
+  assert.equal(runningContainerProfile(startup(101)), null);
+  for (const argv of [['backup'], ['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
+    assert.equal(await containerMain(argv, { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
+    assert.equal(await containerMain(argv, { err, environment, runningProfile: () => 'customer' }), 2);
+  }
 });
 
 test('container health requires a fresh supervised runner and both answering internal doors', async () => {

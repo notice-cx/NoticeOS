@@ -29,10 +29,17 @@ export function selectedCustomerProfile(io = { lstatSync, readFileSync }) {
   }
 }
 
+function containerStart(io) {
+  const stat = io.readFileSync('/proc/1/stat', 'utf8');
+  const start = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+  if (!/^\d+$/u.test(start ?? '')) throw new ContainerRefusal('The container start cannot be established.');
+  return start;
+}
+
 export function recordContainerProfile(profile) {
   const temporary = `${selected}.${randomUUID()}`;
   try {
-    writeFileSync(temporary, `${profile}\n`, { mode: 0o600, flag: 'wx' });
+    writeFileSync(temporary, `${containerStart({ readFileSync })} ${profile}\n`, { mode: 0o600, flag: 'wx' });
     renameSync(temporary, selected);
   } finally { rmSync(temporary, { force: true }); }
 }
@@ -40,7 +47,10 @@ export function recordContainerProfile(profile) {
 export function runningContainerProfile(io = { lstatSync, readFileSync }) {
   try {
     const value = privateText(io, selected, 64).trim();
-    if (['customer', 'standalone'].includes(value)) return value;
+    const [start, profile, extra] = value.split(' ');
+    if (/^\d+$/u.test(start) && ['customer', 'standalone'].includes(profile) && extra === undefined) {
+      return start === containerStart(io) ? profile : null;
+    }
   } catch (error) { if (error.code === 'ENOENT') return null; }
   throw new ContainerRefusal('The running application profile cannot be established.');
 }

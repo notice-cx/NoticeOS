@@ -81,7 +81,8 @@ export function containerCommand(argv, profile = 'standalone') {
   return null;
 }
 
-export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr, out = process.stdout } = {}) {
+export async function main(argv = process.argv.slice(2), { environment = containerEnvironment,
+  runningProfile = runningContainerProfile, err = process.stderr, out = process.stdout } = {}) {
   // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
   if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   let command = containerCommand(argv);
@@ -89,10 +90,13 @@ export async function main(argv = process.argv.slice(2), { environment = contain
   let env;
   try {
     env = environment();
-    const profile = argv.length ? runningContainerProfile() : selectedCustomerProfile();
+    // Fresh setup runs in a one-off container before the application starts.
+    const profile = argv.length ? runningProfile() ?? (argv[0] === 'setup' ? selectedCustomerProfile() : null) : selectedCustomerProfile();
+    if (profile === null) throw new ContainerRefusal('The running application profile is not recorded yet.');
     if ((profile === 'customer' || argv[0] === 'customer-check') && env.NOTICEOS_IMMUTABLE_APP !== '1') throw new ContainerRefusal('Customer mode requires the prepared application image.');
     if (argv.length === 0) recordContainerProfile(profile);
     command = containerCommand(argv, profile);
+    if (!command) { err.write('NoticeOS customer runtime uses the Tower and scoped agent access for supported operations. This standalone job is unavailable.\n'); return 2; }
     // An installation made before the app's home was in the layout gains it here.
     fs.mkdirSync(APP_HOME, { recursive: true, mode: 0o700 });
   }
@@ -101,7 +105,6 @@ export async function main(argv = process.argv.slice(2), { environment = contain
     err.write(`NoticeOS container refused: ${reason}\n`);
     return 1;
   }
-  if (!command) { err.write('NoticeOS customer runtime uses the Tower and scoped agent access for supported operations. This standalone job is unavailable.\n'); return 2; }
   const child = spawn(process.execPath, command, { cwd: '/opt/noticeos', env, stdio: 'inherit' });
   const forward = signal => { if (child.exitCode === null && child.signalCode === null) child.kill(signal); };
   const onTerm = () => forward('SIGTERM');
