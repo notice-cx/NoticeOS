@@ -123,6 +123,21 @@ test('switch and disable touch only the app, preserving the original selector an
   const probe=f.calls.find(c=>c.args[2]==='run');assert.ok(probe.args.includes('none'));assert.ok(!probe.args.includes('/state'));
  }finally{f.close();}
 });
+test('a running checkout can bind verified patch metadata for the same dependency image', async t => {
+ const f=fixture();t.after(f.close);
+ const before=await developStack({root:f.root,selectorFile:f.file,...f});
+ const record=before.after.noticeos.mounts.find(mount=>mount.target==='/dependency-image.json').source;
+ const oldBytes=fs.readFileSync(record);
+ fs.mkdirSync(path.join(f.root,'patches'));
+ fs.writeFileSync(path.join(f.root,'patches','fixture.patch'),'approved fixture bytes');
+ const refreshed=await developStack({root:f.root,selectorFile:f.file,...f});
+ const updated=refreshed.after.noticeos.mounts.find(mount=>mount.target==='/dependency-image.json').source;
+ assert.notEqual(updated,record);
+ assert.deepEqual(JSON.parse(fs.readFileSync(updated)),dependencyDescription(f.root));
+ assert.deepEqual(fs.readFileSync(record),oldBytes);
+ assert.equal(refreshed.image,before.image);
+ assert.deepEqual(refreshed.after.postgres,before.after.postgres);
+});
 test('returning to the prepared image keeps backup settings but refuses changed app settings', async () => {
  const f=fixture();try {
   const dev=await developStack({root:f.root,selectorFile:f.file,...f});

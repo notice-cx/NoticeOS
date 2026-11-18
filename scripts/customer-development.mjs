@@ -6,15 +6,18 @@ import { developmentDependencies } from '../deploy/compose/development.mjs';
 import { readDemoArtifact } from './hosted-demo-server.mjs';
 import { buildCustomer } from './local-customer.mjs';
 
-const sourceDirectories = ['apps/tower', 'workers/ingest', 'packages', 'scripts', 'config', 'docs'];
+const sourceDirectories = ['apps/tower', 'workers/ingest', 'packages', 'config'];
 const sourceFiles = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json'];
-const ignored = new Set(['node_modules', 'dist', 'coverage', 'artifacts', 'test-results', 'playwright-report', 'test', 'tests', 'e2e']);
+const ignored = new Set(['node_modules', 'dist', 'coverage', 'artifacts', 'test-results', 'playwright-report', 'test', 'tests', 'e2e', 'test-fixtures']);
+const code = /\.(?:[cm]?[jt]sx?)$/u;
+const importPath = /(?:from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)['"](\.[^'"]+)['"]/gu;
 
 // Poll because host edits on a VM mount need not emit inotify events. Metadata
 // avoids rereading unchanged files, while identical bytes keep one revision.
 export function customerSourceRevision(root, cache = new Map()) {
   const hash = createHash('sha256');
   const seen = new Set();
+  const scripts = new Set();
   const file = relative => {
     const absolute = path.join(root, relative);
     const stat = lstatSync(absolute, { throwIfNoEntry: false });
@@ -23,11 +26,16 @@ export function customerSourceRevision(root, cache = new Map()) {
     let entry = cache.get(relative);
     if (entry?.signature !== signature) {
       const bytes = readFileSync(absolute, { flag: constants.O_RDONLY | constants.O_NOFOLLOW });
-      entry = { signature, digest: createHash('sha256').update(bytes).digest('hex') };
+      const imports = code.test(relative) ? Array.from(bytes.toString('utf8').matchAll(importPath), ([, name]) =>
+        path.posix.normalize(path.posix.join(path.posix.dirname(relative), name.split('?')[0]))) : [];
+      entry = { signature, digest: createHash('sha256').update(bytes).digest('hex'), imports };
       cache.set(relative, entry);
     }
     seen.add(relative);
     hash.update(JSON.stringify([relative, entry.digest]));
+    for (const imported of entry.imports) {
+      if (imported.startsWith('scripts/') && code.test(imported)) scripts.add(imported);
+    }
   };
   function walk(relative) {
     const entries = readdirSync(path.join(root, relative), { withFileTypes: true })
@@ -36,11 +44,12 @@ export function customerSourceRevision(root, cache = new Map()) {
       if (entry.name.startsWith('.') || ignored.has(entry.name) || /\.(?:test|spec)\./u.test(entry.name)) continue;
       const name = `${relative}/${entry.name}`;
       if (entry.isDirectory()) walk(name);
-      else if (entry.isFile()) file(name);
+      else if (entry.isFile() && (!entry.name.endsWith('.md') || name.startsWith('apps/tower/public/'))) file(name);
     }
   }
   for (const relative of sourceFiles) file(relative);
   for (const relative of sourceDirectories) walk(relative);
+  for (const relative of scripts) file(relative);
   if (lstatSync(path.join(root, 'patches'), { throwIfNoEntry: false })?.isDirectory()) walk('patches');
   for (const relative of cache.keys()) if (!seen.has(relative)) cache.delete(relative);
   return hash.digest('hex');
@@ -67,7 +76,7 @@ async function createArtifact(state, release, signal) {
  * Only one runtime can hold the archive handles and the scheduler lease. */
 export async function runLiveCustomer({ root, state, launch, stop,
   sourceRevision = customerSourceRevision, build = prepareLiveCustomerArtifact,
-  wait = signal => delay(2500, undefined, { signal }), out = process.stderr,
+  wait = (signal, editing) => delay(editing ? 2500 : 10_000, undefined, { signal }), out = process.stderr,
 }) {
   const shutdown = new AbortController();
   const { signal } = shutdown;
@@ -76,6 +85,7 @@ export async function runLiveCustomer({ root, state, launch, stop,
   let loaded;
   let attempted;
   let lost = false;
+  let editedAt = 0;
   const cache = new Map();
   const revisionOfSource = () => {
     try { return sourceRevision(root, cache); }
@@ -101,6 +111,7 @@ export async function runLiveCustomer({ root, state, launch, stop,
       const revision = revisionOfSource();
       if (revision && revision !== attempted) {
         attempted = revision;
+        editedAt = Date.now();
         let candidate;
         try { candidate = await build(state, revision, signal); }
         catch (error) {
@@ -126,7 +137,8 @@ export async function runLiveCustomer({ root, state, launch, stop,
           } finally { if (loaded !== candidate) candidate.dispose(); }
         }
       }
-      if (!signal.aborted) await wait(signal).catch(error => { if (!signal.aborted || error.name !== 'AbortError') throw error; });
+      if (!signal.aborted) await wait(signal, Date.now() - editedAt < 30_000)
+        .catch(error => { if (!signal.aborted || error.name !== 'AbortError') throw error; });
     }
     return lost ? 1 : 0;
   } finally {

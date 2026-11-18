@@ -14,14 +14,21 @@ test('the live build notices checkout edits and ignores installed and generated 
   const save = (name, text) => writeFileSync(path.join(root, name), text);
   const source = 'apps/tower/src/fixture.ts';
   const cache = new Map();
-  save(source, 'export const version = 1;');
+  save(source, "import '../../../scripts/fixture.mjs'; export const version = 1;");
+  save('scripts/fixture.mjs', "import './shared.mjs';");
+  save('scripts/shared.mjs', 'export const shared = 1;');
   const before = customerSourceRevision(root, cache);
   save('apps/tower/node_modules/hidden.js', 'not an input');
   save('.local/private.json', '{"fixture":true}');
+  save('docs/guide.md', 'Updated documentation');
+  save('scripts/host-only.mjs', 'export const host = true;');
   utimesSync(path.join(root, source), 1, 1);
   assert.equal(customerSourceRevision(root, cache), before);
-  save(source, 'export const version = 2;');
-  assert.notEqual(customerSourceRevision(root, cache), before);
+  save('scripts/shared.mjs', 'export const shared = 2;');
+  const after = customerSourceRevision(root, cache);
+  assert.notEqual(after, before);
+  save(source, "import '../../../scripts/fixture.mjs'; export const version = 2;");
+  assert.notEqual(customerSourceRevision(root, cache), after);
 });
 
 test('a source refresh keeps the last active app on broken edits and opens only one runtime at a time', async () => {

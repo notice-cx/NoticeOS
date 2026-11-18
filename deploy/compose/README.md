@@ -461,15 +461,18 @@ the checkout read-only and serves the existing Tower port. In standalone mode,
 Vite refreshes UI, styles, Workers and shared source. The Wall shows **DEV**,
 the checkout commit and time, and **live source**.
 
-In customer mode, the app builds saved source changes into a new set of Tower
-and Worker files in its private installation state. A failed build leaves the
-previous app available. A successful build briefly stops the previous runtime
+In customer mode, the app builds saved Tower and Worker source changes into
+new files in its private installation state. It tracks shared modules imported
+by path. A failed build leaves the previous app available. A successful build
+briefly stops the previous runtime
 before reopening the same archive and scheduler lease. The Wall refreshes when
 it sees the new version. Other open Tower pages offer the updated app in a new
 tab so drafts stay open. The dependency image and Compose app container stay in
-place. Run `pnpm os:restart:noticeos` after edits to the Compose supervisor or
-to the installation's private customer settings. Run `pnpm os:dev` when the
-checkout's dependency declarations, lockfile or package patches change.
+place. Run `pnpm os:restart:noticeos` to apply edits to the Node supervisor,
+scheduler, backup controller, or the installation's private customer settings.
+That restart also applies the Node side of scripts shared with a Worker. Run
+`pnpm os:dev` when the checkout's dependency declarations, lockfile or package
+patches change.
 
 On the development stack, first run `pnpm os:customer-check` to build
 and check the mounted checkout and verify the enrolled workspace. Enable the
