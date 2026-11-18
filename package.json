@@ -8,6 +8,7 @@
     "node": ">=24.21.0"
   },
   "scripts": {
+    "db:prepare-customer-roles": "node scripts/customer-postgres-roles.mjs",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",

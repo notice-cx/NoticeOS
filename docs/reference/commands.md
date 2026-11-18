@@ -43,6 +43,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
+| `db:prepare-customer-roles` | Preview, enable or reverse the dedicated Postgres logins for a local customer workspace. | `scripts/customer-postgres-roles.mjs` |
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
