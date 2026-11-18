@@ -174,6 +174,7 @@ export interface StripeOptions {
   nowMs?: number;
   timeZone?: string;
   fetchImpl?: typeof fetch;
+  assets?: readonly string[];
   /** `config/integrations.json` as this fire read it; the compiled copy when absent. */
   laneRegister?: LaneRegister;
 }
@@ -540,20 +541,21 @@ async function writeReceipts(
 async function runStripeProducts(
   env: IngestEnv, mapping: StripeProductMapping, apiKey: string | undefined,
   resolved: Awaited<ReturnType<typeof resolveCredential>>, clock: SourceClock, until: number, at: string, fetchImpl: typeof fetch,
+  assets?: readonly string[],
 ): Promise<StripeRunResult> {
   const skipped = (detail: string): StripeRunResult => ({ outcome: 'skipped', detail, connected: true, outcomes: [] });
   const eligible = await env.STORE.read((tx) => tx.query<{ asset: string }>(
     `SELECT asset_id AS asset FROM noticeos.assets WHERE status <> 'retired' AND is_os = false`));
-  const ids = new Set(eligible.map(({ asset }) => asset));
+  const ids = new Set(eligible.map(({ asset }) => asset).filter(asset => !assets || assets.includes(asset)));
   const targets = stripeProductTargets(mapping).filter(({ asset }) => ids.has(asset));
   // With every mapping cleared, still reconcile refunds for sales already
   // recorded. One previously credited asset anchors the completed days.
   const refundAnchor = targets.length > 0 ? null : await env.STORE.read(async (tx) => {
     const [row] = await tx.query<{ asset: string }>(
       `SELECT asset_id AS asset FROM noticeos.current_revenue
-        WHERE source = $1 AND account_ref = $2 AND payment_count > 0
+        WHERE source = $1 AND account_ref = $2 AND payment_count > 0 AND ($3::text[] IS NULL OR asset_id=ANY($3::text[]))
         ORDER BY revenue_date DESC, observation_id DESC LIMIT 1`,
-      [STRIPE_REVENUE_SOURCE, mapping.accountId]);
+      [STRIPE_REVENUE_SOURCE, mapping.accountId, assets ?? null]);
     return row?.asset ?? null;
   });
   if (targets.length === 0 && refundAnchor === null) return skipped('No Stripe products or collected sales.');
@@ -668,7 +670,8 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   if (register.stripeProducts != null && !mapping) {
     return { outcome: 'failed', detail: 'Stripe product mappings could not be read.', connected: true, outcomes: [] };
   }
-  const targets = mapping ? stripeProductTargets(mapping) : stripeTargets(register);
+  const targets = mapping ? stripeProductTargets(mapping) : stripeTargets(register)
+    .filter(target => !options.assets || options.assets.includes(target.asset));
   if (resolved.source === 'demo' || (!mapping && targets.length === 0)) {
     return { outcome: 'skipped', detail: 'No assets are assigned to Stripe.', connected: true, outcomes: [] };
   }
@@ -683,7 +686,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   }
   const until = collectionThrough(nowMs, clock, options.timeZone ?? clock.timeZone);
 
-  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, until, at, fetchImpl);
+  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, until, at, fetchImpl, options.assets);
 
   const health = await tryHealthConnection(env, 'stripe', resolved);
   let monitoringAvailable = health !== null;

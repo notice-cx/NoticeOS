@@ -1,7 +1,10 @@
 import { scheduleFor, schedulesRefusal, SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
+import { selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
-export type CustomerJob = 'counters' | 'freshness' | 'signal-dumps';
+const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull'] as const;
+export type CustomerJob = typeof CUSTOMER_JOBS[number];
+export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
 const ARCHIVE_REPORTS = {
   ga4: ['pages-screens', 'landing-pages', 'traffic-acquisition', 'events', 'events-28d', 'page-events'],
   gsc: ['query', 'page', 'page-query'],
@@ -16,6 +19,7 @@ export interface CustomerSchedule {
   schedule: JobSchedule;
   assets: (string | null)[];
   archives?: { asset: string; archive: CustomerArchive }[];
+  portfolioAssets?: string[];
 }
 
 export function customerArchive(value: unknown): CustomerArchive | null {
@@ -32,29 +36,35 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
 
 /** Read only configuration, asset IDs and the presence of a credential. The caller
  * must already hold a fresh service grant for this store. */
-export async function customerSchedules(store: WorkspaceStore, asset: string | null = null): Promise<CustomerSchedule[]> {
+export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]> {
   const rows = await store.read(tx => tx.query<{
-    overrides: string; asset: string; domain: string | null; google: boolean; sources: string;
+    workspace: string; overrides: string; asset: string; domain: string | null; connected: string[]; sources: string; pulls: string;
   }>(`SELECT COALESCE(c.body->'schedules','{}'::json)::text AS overrides,
-      a.asset_id AS asset,a.domain,COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources,
-      EXISTS (SELECT 1 FROM noticeos.integration_connections g
+      a.workspace_id::text AS workspace,a.asset_id AS asset,a.domain,
+      COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
+      ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-        WHERE g.provider='google' AND g.workspace_id=a.workspace_id) AS google
+        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster') AND g.workspace_id=a.workspace_id) AS connected
     FROM noticeos.assets a
     JOIN noticeos.config_documents c ON c.workspace_id=a.workspace_id AND c.document_key='constants'
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
+    LEFT JOIN noticeos.config_documents p ON p.workspace_id=a.workspace_id AND p.document_key='pull'
     WHERE a.status<>'retired' AND NOT a.is_os AND ($1::text IS NULL OR a.asset_id=$1)
     ORDER BY a.asset_id COLLATE "C"`, [asset]));
   if (!rows.length) return [];
   const overrides: ScheduleOverrides = JSON.parse(rows[0]!.overrides);
   if (!overrides || schedulesRefusal(overrides)) throw new Error('Invalid saved collection schedule.');
   const planned: CustomerSchedule[] = [];
-  for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
-    if (job !== 'freshness' && !rows[0]!.google) continue;
+  const connected = new Set(rows[0]!.connected);
+  const settings = (job: CustomerJob) => {
     const released = SCHEDULED_JOBS.find(entry => entry.id === job)!;
-    const schedule = scheduleFor(job === 'counters' ? { ...released, cron: '0 * * * *' } : released, overrides);
+    return scheduleFor(job === 'counters' ? { ...released, cron: '0 * * * *' } : released, overrides);
+  };
+  for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
+    if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false)) continue;
+    const schedule = settings(job);
     if (!schedule.enabled) continue;
-    const assets = job === 'freshness' ? [null, ...rows.filter(row => row.domain).map(row => row.asset)] : rows.map(row => row.asset);
+    const assets = job === 'freshness' ? [null, ...(policy ? [] : rows.filter(row => row.domain).map(row => row.asset))] : rows.map(row => row.asset);
     if (job !== 'signal-dumps') {
       planned.push({ job, schedule, assets });
       continue;
@@ -69,6 +79,28 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
       });
     });
     if (archives.length) planned.push({ job, schedule, assets: [...new Set(archives.map(target => target.asset))], archives });
+  }
+  if (!policy) return planned;
+  const allowed = new Set(policy.collectorProviders);
+  const portfolioAssets = rows.map(row => row.asset);
+  for (const job of ['mediavine', 'stripe'] as const) {
+    const schedule = settings(job);
+    if (!schedule.enabled || !allowed.has(job) || !connected.has(job)) continue;
+    const scopedAssets = job === 'stripe' ? rows.filter(row => {
+      const source = JSON.parse(row.sources)?.subscriptions;
+      return source?.status !== 'skipped' && source?.status !== 'not-applicable';
+    }).map(row => row.asset) : portfolioAssets;
+    if (scopedAssets.length) planned.push({ job, schedule, assets: [null], portfolioAssets: scopedAssets });
+  }
+  const pullSchedule = settings('pull');
+  if (pullSchedule.enabled) {
+    const pulls: unknown[] = JSON.parse(rows[0]!.pulls);
+    const assets: Array<string | null> = rows.filter(row => selectedCustomerPull(policy, row.workspace, row.asset, pulls)).map(row => row.asset);
+    if (asset === null && allowed.has('bing-webmaster') && connected.has('bing-webmaster') && rows.some(row => {
+      const source = JSON.parse(row.sources)?.['bing-webmaster'];
+      return row.domain && source?.status !== 'skipped' && source?.status !== 'not-applicable';
+    })) assets.unshift(null);
+    if (assets.length) planned.push({ job: 'pull', schedule: pullSchedule, assets, portfolioAssets });
   }
   return planned;
 }
