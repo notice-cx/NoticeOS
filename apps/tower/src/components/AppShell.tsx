@@ -1,7 +1,7 @@
 import { useBrowserContext, useBrowserRuntime, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
-import { Suspense, createContext, useContext, useEffect, useId, useRef, useState } from "react";
+import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -531,6 +531,7 @@ export function AppShell({
   const { theme, toggle } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const shell = useRef<HTMLDivElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const returnToMenu = useRef(false);
   function changePalette(open: boolean) {
@@ -574,7 +575,7 @@ export function AppShell({
 
   return (
     <RoutePrefetch.Provider value={onPrefetch}>
-      <div className="flex min-h-screen" inert={menuOpen || paletteOpen}>
+      <div ref={shell} className="flex min-h-screen" inert={menuOpen}>
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}
@@ -629,7 +630,7 @@ export function AppShell({
             )
           : null}
 
-        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} />
+        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} background={shell} />
       </div>
     </RoutePrefetch.Provider>
   );
@@ -644,15 +645,21 @@ export function AppShell({
 function PaletteLauncher({
   open,
   onOpenChange,
+  background,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  background: RefObject<HTMLElement | null>;
 }) {
   const [wanted, setWanted] = useState(open);
   if (open && !wanted) setWanted(true);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (open && event.key === "Escape" && !event.defaultPrevented) {
+        onOpenChange(false);
+        return;
+      }
       if (isPaletteModifier(event)) {
         void preloadCommandPalette();
         return;
@@ -669,8 +676,20 @@ function PaletteLauncher({
   return (
     <Suspense fallback={<RouteLoading surface="palette" />}>
       <LazyCommandPalette open={open} onOpenChange={onOpenChange} />
+      {open ? <ModalBackground background={background} /> : null}
     </Suspense>
   );
+}
+
+/** Keep the desk interactive until Search or its recovery panel is visible. */
+function ModalBackground({ background }: { background: RefObject<HTMLElement | null> }) {
+  useLayoutEffect(() => {
+    const desk = background.current;
+    if (!desk) return;
+    desk.inert = true;
+    return () => { desk.inert = false; };
+  }, [background]);
+  return null;
 }
 
 /**

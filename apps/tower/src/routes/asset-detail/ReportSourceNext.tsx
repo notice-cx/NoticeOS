@@ -47,6 +47,11 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   const { id } = data.asset;
   if (backupPreview) return <p className="text-sm text-muted-foreground">This preview shows the reports saved in the backup.</p>;
   if (demoReadonly) return null;
+  // Tracked terms are editable per asset even when its source catalog omits paid search.
+  if (configuredHref && !data.integrations.lanes.some(({ catalog }) => reportLanes[report].includes(catalog.id))) {
+    return canEdit ? <Button asChild size="sm" variant="outline"><Link to={configuredHref}>Track search terms</Link></Button>
+      : <p className="text-sm text-muted-foreground">A workspace owner or operator can set up tracked terms for this asset.</p>;
+  }
   const sources = reportLanes[report].flatMap(laneId => {
     const lane = data.integrations.lanes.find(({ catalog }) => catalog.id === laneId);
     if (!lane) return [];

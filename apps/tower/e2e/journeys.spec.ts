@@ -3360,7 +3360,8 @@ test("a one-asset install hides redundant comparisons and filters with one choic
   // tracking terms, never a blank page.
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   await expect(main.locator('[data-search-start="numbers"] [data-growth-chart="Clicks"]')).toBeVisible();
-  await expect(main.locator("[data-search-next]").getByRole("link")).toHaveCount(1);
+  await main.locator('[data-search-next]').getByRole('link', { name: 'Track search terms' }).click();
+  await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET}/settings#tracked-panels$`));
 
   // A filter with one answer is not drawn.
   await page.goto("/alerts");

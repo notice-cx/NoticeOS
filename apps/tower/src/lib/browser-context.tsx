@@ -43,9 +43,9 @@ export function useBackupPreview() { return useContext(BrowserContext)?.backupPr
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
 /** Read-only customer scopes are known before a capabilities request. */
 export function useWorkspaceReadOnlyReason(): string | null {
-  const { runtime, workspaceRole, backupPreview } = useBrowserContext();
-  if (backupPreview) return "Read-only backup";
-  return runtime.owner.mode === "hosted" && workspaceRole === "viewer" ? "Your workspace role is view-only." : null;
+  const access = useContext(BrowserContext);
+  if (access?.backupPreview) return "Read-only backup";
+  return access?.runtime.owner.mode === "hosted" && access.workspaceRole === "viewer" ? "Your workspace role is view-only." : null;
 }
 export function useCanManageMembers() {
   const { runtime, workspaceRole, backupPreview } = useBrowserContext();
