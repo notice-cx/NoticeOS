@@ -43,6 +43,7 @@
     "os:codebase-history": "node scripts/codebase-history.mjs",
     "db:new-migration": "node scripts/postgres-migrate.mjs new",
     "db:adopt-owner": "node scripts/standalone-owner.mjs",
+    "db:provision-workspace": "node scripts/local-workspace-owner.mjs",
     "db:try-migrations": "node scripts/postgres-migrate.mjs",
     "db:try-tower": "node scripts/start.mjs",
     "db:shadow-export": "node scripts/customer-shadow-export.mjs",

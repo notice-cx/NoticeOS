@@ -41,6 +41,12 @@ test('email entry refuses unsafe requests before connection and exposes only fix
   } finally { await login.close(); }
   for (const peerAddress of ['', 'forwarded unknown', undefined]) assert.throws(() => openEmailCodeLogin({ connectionString: 'postgresql://noticeos_identity@127.0.0.1:1/db',
     trustedOrigin: origin, sessionSecret: randomBytes(48).toString('base64url'), peerAddress, deliver: async () => {} }), IdentityRefused);
+  for (const invalidScope of [{ standaloneOwnerWorkspaceId: null }, { provisioningWorkspaceId: null },
+    { standaloneOwnerWorkspaceId: randomUUID(), provisioningWorkspaceId: randomUUID() }]) {
+    assert.throws(() => openEmailCodeLogin({ connectionString: 'postgresql://noticeos_identity@127.0.0.1:1/db',
+      trustedOrigin: origin, sessionSecret: randomBytes(48).toString('base64url'), peerAddress: '192.0.2.1',
+      deliver: async () => {}, ...invalidScope }), IdentityRefused);
+  }
 });
 
 test('whole-body deadline and oversized tee refuse without identity connection or hanging close', { timeout: 30_000 }, async (t) => {
@@ -192,6 +198,29 @@ test('owned email-code transactions preserve eligibility, attempts, cookies and 
       assert.equal((await query('SELECT count(*)::int n FROM noticeos_identity.auth_member'))[0].n, 0);
       const replay = await login.verifyCode(original('verify', { email: first.email, otp: code }), first.selector);
       assert.equal(replay.status, 400); assert.equal(replay.headers.has('set-cookie'), false);
+    });
+    await t.test('ordinary sign-in with a provisioning code creates no ownership evidence', async (caseTest) => {
+      const email = 'existing-member@example.test', personId = randomUUID();
+      const memberOf = await enrollment(email, 'active'), pending = await enrollment(email);
+      await admin.query('INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified) VALUES($1,$2,$3,true)',
+        [personId, 'Existing member', email]);
+      await admin.query("INSERT INTO noticeos_identity.auth_member(organization_id,user_id,role,created_at) VALUES($1,$2,'owner',now())",
+        [memberOf.workspace, personId]);
+      caseTest.after(() => admin.query('DELETE FROM noticeos_identity.auth_member WHERE organization_id=$1', [memberOf.workspace]));
+      const operator = openEmailCodeLogin({ ...options, provisioningWorkspaceId: pending.workspace,
+        peerAddress: '198.51.100.77', deliver: async message => { delivered.push(message); } });
+      clients.push(operator);
+      const { response, code } = await send(operator, pending);
+      assert.equal(response.status, 202);
+      assert.ok(code);
+      const ordinary = await client(undefined, '198.51.100.78').verifyCode(original('verify', { email, otp: code }));
+      assert.equal(ordinary.status, 200);
+      assert.ok(cookieFrom(ordinary));
+      assert.deepEqual(await query(`SELECT w.status,e.verified_person_id,e.activated_at,
+        EXISTS(SELECT 1 FROM noticeos_identity.auth_member WHERE organization_id=w.workspace_id) AS membership,
+        EXISTS(SELECT 1 FROM noticeos_platform.workspace_service_grants WHERE workspace_id=w.workspace_id) AS grant_present
+        FROM noticeos.workspaces w JOIN noticeos_identity.platform_enrollment e USING(workspace_id) WHERE e.id=$1`, [pending.selector.id]),
+      [{ status: 'provisioning', verified_person_id: null, activated_at: null, membership: false, grant_present: false }]);
     });
     await t.test('existing zero-membership person may login without enrollment; explicit enrollment is still checked and recorded', async () => {
       const login = client(), existing = { email: first.email };

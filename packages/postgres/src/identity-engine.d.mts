@@ -140,6 +140,7 @@ export declare const AGENT_NAMES: {
 };
 export declare const UUID: RegExp;
 export declare function validateIdentityOptions(input: IdentityOptions): string;
+export declare function hasConflictingLegacyMailbox(db: Kysely<IdentityDatabase>, email: string): Promise<boolean>;
 export declare function openIdentityDatabase(input: IdentityOptions): Promise<{
     pool: Pool;
     database: Kysely<IdentityDatabase>;

@@ -5,7 +5,7 @@ import { sql } from 'kysely';
 import { isValidIP, normalizeIP, createRateLimitKey } from '@better-auth/core/utils/ip';
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS } from '../../../scripts/identity-protocol.mjs';
-import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused } from './identity-engine.mjs';
+import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, hasConflictingLegacyMailbox, IdentityRefused } from './identity-engine.mjs';
 export { EMAIL_CODE_PATHS } from '../../../scripts/identity-protocol.mjs';
 const EXPECTED = {
     request: new Set(['INVALID_ORIGIN', 'MISSING_OR_NULL_ORIGIN', 'CROSS_SITE_NAVIGATION_LOGIN_BLOCKED']),
@@ -67,8 +67,8 @@ async function input(request) {
         throw new IdentityRefused('Identity input refused');
     return { email: value.email.toLowerCase(), ...(typeof value.otp === 'string' ? { otp: value.otp } : {}) };
 }
-async function eligibility(trx, email, enrollment, { standaloneOwnerWorkspaceId, mailWorkspaceIds }) {
-    if (standaloneOwnerWorkspaceId !== undefined && enrollment?.kind !== 'platform')
+async function eligibility(trx, email, enrollment, operator, mailWorkspaceIds) {
+    if (operator && enrollment?.kind !== 'platform')
         return { allowed: false };
     if (!enrollment) {
         if (mailWorkspaceIds) {
@@ -88,7 +88,7 @@ async function eligibility(trx, email, enrollment, { standaloneOwnerWorkspaceId,
         ? await sql `SELECT workspace_id FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid`.execute(trx)
         : await sql `SELECT organization_id AS workspace_id FROM noticeos_identity.auth_invitation WHERE id=${enrollment.id}::uuid`.execute(trx);
     const workspaceId = target.rows[0]?.workspace_id;
-    if (!workspaceId || (standaloneOwnerWorkspaceId !== undefined && workspaceId !== standaloneOwnerWorkspaceId)
+    if (!workspaceId || (operator && workspaceId !== operator.workspaceId)
         || (mailWorkspaceIds !== undefined && !mailWorkspaceIds.includes(workspaceId))) {
         return { allowed: false };
     }
@@ -102,8 +102,9 @@ async function eligibility(trx, email, enrollment, { standaloneOwnerWorkspaceId,
       AND revoked_at IS NULL AND verified_at IS NULL AND expires_at>clock_timestamp() AS allowed
       FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid FOR UPDATE`.execute(trx);
         const status = workspace.rows[0]?.status;
-        let allowed = standaloneOwnerWorkspaceId === undefined && result.rows[0]?.allowed === true && status === 'provisioning';
-        if (status === 'active' && result.rows[0]?.allowed === true) {
+        const matches = result.rows[0]?.allowed === true && (!operator || status === operator.status);
+        let allowed = matches && status === 'provisioning';
+        if (matches && status === 'active') {
             // Before the operator applies the adoption migration, active workspace
             // enrollment keeps its original refusal.
             const installed = await sql `SELECT
@@ -125,17 +126,20 @@ async function eligibility(trx, email, enrollment, { standaloneOwnerWorkspaceId,
  * connection/query. The trusted peer and fixed action are server facts; caller
  * headers never choose a rate bucket. Close in finally after the last action. */
 export function openEmailCodeLogin(options) {
+    const { standaloneOwnerWorkspaceId, provisioningWorkspaceId } = options;
+    const operatorWorkspaceId = standaloneOwnerWorkspaceId === undefined ? provisioningWorkspaceId : standaloneOwnerWorkspaceId;
+    if ((standaloneOwnerWorkspaceId !== undefined && provisioningWorkspaceId !== undefined)
+        || (operatorWorkspaceId !== undefined && (typeof operatorWorkspaceId !== 'string' || !UUID.test(operatorWorkspaceId)))) {
+        throw new IdentityRefused('Identity enrollment refused');
+    }
+    const operator = operatorWorkspaceId === undefined ? undefined : { workspaceId: operatorWorkspaceId,
+        status: standaloneOwnerWorkspaceId === undefined ? 'provisioning' : 'active' };
     options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin,
         sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
-        standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId,
         mailWorkspaceIds: options.mailWorkspaceIds === undefined ? undefined : Object.freeze([...options.mailWorkspaceIds]) });
     const trustedOrigin = validateIdentityOptions(options);
     if (typeof options.peerAddress !== 'string' || !isValidIP(options.peerAddress) || typeof options.deliver !== 'function') {
         throw new IdentityRefused('Identity requires a trusted peer and delivery adapter');
-    }
-    if (options.standaloneOwnerWorkspaceId !== undefined && (typeof options.standaloneOwnerWorkspaceId !== 'string'
-        || !UUID.test(options.standaloneOwnerWorkspaceId))) {
-        throw new IdentityRefused('Identity enrollment refused');
     }
     const peer = normalizeIP(options.peerAddress);
     const policy = createBrowserRequestPolicy(trustedOrigin, options.localTowerOrigin);
@@ -176,14 +180,11 @@ export function openEmailCodeLogin(options) {
             await sql `SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
             if (body)
                 await sql `SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-            let eligible = body ? await eligibility(trx, body.email, enrollment, options) : { allowed: true };
-            if (body && eligible.allowed && enrollment && options.mailWorkspaceIds) {
+            let eligible = body ? await eligibility(trx, body.email, enrollment, operator, options.mailWorkspaceIds) : { allowed: true };
+            if (body && eligible.allowed && enrollment && (options.mailWorkspaceIds || operator?.status === 'provisioning')) {
                 // An invitation can create a person. Do not create a new normalized
                 // identity when a legacy row already represents the same mailbox.
-                const existing = await sql `SELECT id FROM noticeos_identity.auth_user
-          WHERE lower(email COLLATE pg_catalog.pg_unicode_fast)=${body.email}
-            AND email COLLATE pg_catalog.pg_unicode_fast<>${body.email} LIMIT 1`.execute(trx);
-                if (existing.rows.length)
+                if (await hasConflictingLegacyMailbox(trx, body.email))
                     eligible = { allowed: false };
             }
             const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
