@@ -75,7 +75,8 @@ function composeSitePulls(pulls, assetTokens, workspaceId) {
 
 export function readComposeCustomerOperating(file, plan, bootstrap) {
   try {
-    const config = JSON.parse(privateFile(file));
+    const { towerOrigin, ...config } = JSON.parse(privateFile(file));
+    if (towerOrigin !== plan.localTowerOrigin) throw refused();
     if (config.format !== 'noticeos-compose-customer/1' || !config.database || !Array.isArray(config.workspaces)
       || config.workspaces.length !== 1 || Object.keys(config.database).length !== 2
       || 'app' in config.database || 'credentialsKey' in config) throw refused();

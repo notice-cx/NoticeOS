@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildChangeset } from "@shared/changeset";
 import type { FileOp } from "@shared/changeset";
 import type { RecurringCost } from "@shared/financials";
@@ -74,8 +74,12 @@ describe("recurring price changes", () => {
     expect(() => recurringPriceOps([original, next], 0, "15", "2026-09", "new-price")).toThrow(/overlaps/);
     expect(() => recurringPriceOps(rows, 0, "15", "2026-09", "new-price")).not.toThrow();
   });
-  it("mints distinct valid ids even for a maximum-length original id", () => {
-    const ids = Array.from({ length: 50 }, () => recurringPriceId("a".repeat(64)));
+  it("mints distinct valid ids on a home-network origin even for a maximum-length original id", () => {
+    const getRandomValues = crypto.getRandomValues.bind(crypto);
+    vi.stubGlobal("crypto", { getRandomValues });
+    let ids: string[];
+    try { ids = Array.from({ length: 50 }, () => recurringPriceId("a".repeat(64))); }
+    finally { vi.unstubAllGlobals(); }
     expect(new Set(ids).size).toBe(50);
     for (const id of ids) {
       expect(id.length).toBeLessThanOrEqual(64);

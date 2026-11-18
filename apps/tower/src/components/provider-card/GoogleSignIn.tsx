@@ -1,6 +1,6 @@
 import { BarChart3, Check, Copy, ExternalLink, Globe, KeyRound, ListTree, Loader2, LogIn, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { type GoogleOAuthCardState, type GooglePropertyDiscovery, type IntegrationProviderStatus } from "@shared/integrations-page";
+import { LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP, type GoogleOAuthCardState, type GooglePropertyDiscovery, type IntegrationProviderStatus } from "@shared/integrations-page";
 import { Button } from "@/components/ui/button";
 import { useCopyFlash } from "@/hooks/useCopyFlash";
 import { copyText } from "@/lib/clipboard";
@@ -113,7 +113,7 @@ export function GoogleSignIn({
               data-oauth-redirect-blocked
             >
               <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
-              <span>Google won't return to this address</span>
+              <span>{card.localSignInBlocked ? LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP : "Google won't return to this address"}</span>
               {card.loopbackUrl ? (
                 <Button asChild size="sm" variant="outline" className="text-foreground">
                   <a href={card.loopbackUrl} data-oauth-loopback>
@@ -189,7 +189,10 @@ function ConnectedGrant({
         </span>
         {/* The same sign-in, muted beside a working grant and the primary
             button beside a dead one. */}
-        {failing ? (
+        {card.localSignInBlocked && failing ? (
+          <p className="text-xs text-muted-foreground">{LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP}</p>
+        ) : null}
+        {!card.localSignInBlocked && (failing ? (
           <Button asChild size="sm" data-oauth-restart>
             <GoogleStartPress href={panel.startHref} onStart={panel.onStart} starting={panel.starting} rel="noreferrer">
               <LogIn className="size-3.5" aria-hidden />
@@ -208,7 +211,7 @@ function ConnectedGrant({
             <LogIn className="size-3" aria-hidden />
             Sign in again
           </GoogleStartPress>
-        )}
+        ))}
       </div>
 
       {card.scopes.length > 0 ? (

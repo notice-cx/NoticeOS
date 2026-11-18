@@ -18,7 +18,7 @@ import { testFixtureRoot } from './test-fixture-root.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
 const script = path.join(import.meta.dirname, 'standalone-owner.mjs');
-const installationOrigin = 'https://portfolio.example.test';
+const installationOrigin = 'http://fixture-tower.local:5173';
 const ownerEmail = 'owner@example.test';
 const migration = '0035_standalone_owner_handoff.sql';
 
@@ -230,7 +230,7 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.deepEqual(await evidence(), before);
 
     let signInCode;
-    const options = { connectionString: plan.identityDatabaseUrl, sessionSecret: identitySecret, trustedOrigin: installationOrigin };
+    const options = { connectionString: plan.identityDatabaseUrl, sessionSecret: identitySecret, trustedOrigin: installationOrigin, localTowerOrigin: installationOrigin };
     const loginFlow = openEmailCodeLogin({ ...options, peerAddress: '127.0.0.2', async deliver(message) {
       signInCode = message.code;
     } });

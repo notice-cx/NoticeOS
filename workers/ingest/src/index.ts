@@ -6,9 +6,10 @@ import { authenticateOperator } from './auth.js';
 import { GOOGLE_OAUTH_MAINTENANCE_CRON, runOAuthMaintenance } from './oauth-maintenance.js';
 import { readIntegrationHealth } from './integration-health-read.js';
 import { readCredentialSummaries } from './credential-summaries-read.js';
-import { configReadFiles, assetMutationArguments, storedResearchArguments, watchQueryHistoryArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, siteIconsReadArguments, googleOAuthArguments, withGoogleWorkspaceEntry, withIntegrationSummaryEntry, withLiveProviderReadEntry, workspaceEntryOrigin, withWorkspaceEntry, workspaceProfile, WorkspaceEntryRefused } from '../../../scripts/workspace-entry.mjs';
+import { configReadFiles, assetMutationArguments, storedResearchArguments, watchQueryHistoryArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, siteIconsReadArguments, googleOAuthArguments, localTowerOrigin, withGoogleWorkspaceEntry, withIntegrationSummaryEntry, withLiveProviderReadEntry, workspaceEntryOrigin, withWorkspaceEntry, workspaceProfile, WorkspaceEntryRefused } from '../../../scripts/workspace-entry.mjs';
+import { createBrowserRequestPolicy } from '../../../scripts/browser-request-policy.mjs';
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { integrationProvider } from '@noticeos/contract';
+import { googleRedirectVerdict, integrationProvider } from '@noticeos/contract';
 import { ingestOperation, localSiteReportsEnabled, siteReportGrantRequest } from '../../../scripts/workspace-operations.mjs';
 import { cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
 import { handleD1Request } from './cloudflare-d1.js';
@@ -774,11 +775,16 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
    * signed with a key derived from `CREDENTIALS_KEY`.
    */
   async beginGoogleOAuth(input: BeginGoogleOAuthInput, proof?: Request): Promise<GoogleOAuthStart> {
-    if (workspaceProfile(this.env) !== 'standalone') {
-      if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
-      await googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'start');
+    const profile = workspaceProfile(this.env);
+    if (profile !== 'standalone') {
+      if (profile !== 'hosted' || !(proof instanceof Request)) throw new WorkspaceEntryRefused();
+      const { origin, provider } = await googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'start');
+      if (!googleRedirectVerdict(origin).usable) {
+        createBrowserRequestPolicy(origin, localTowerOrigin(this.env)).assertEffect(proof);
+        return { ok: false, error: 'redirect_unusable' };
+      }
       return withGoogleWorkspaceEntry(this.env, proof, 'start', (call, state) => call.withStore(this.ctx,
-        (store) => beginStoredGoogleOAuth({ ...this.env, STORE: store }, workspaceEntryOrigin(this.env), state!, input.provider)));
+        (store) => beginStoredGoogleOAuth({ ...this.env, STORE: store }, origin, state!, provider)));
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, (env) => beginGoogleOAuth(env, input));

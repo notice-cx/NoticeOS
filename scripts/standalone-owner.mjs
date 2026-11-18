@@ -5,6 +5,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync }
 import path from 'node:path';
 import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { openPlatformProvisioning, StandaloneOwnerMigrationRequired } from '../packages/postgres/src/platform-provisioning.mjs';
+import { isPrivateTowerOrigin } from './browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS, emailEnrollmentUrl } from './identity-protocol.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { ntasksActivationVerifier } from './ntasks-activation.mjs';
@@ -44,7 +45,7 @@ function readPlan(file) {
     if (platform.host !== identity.host || platform.pathname !== identity.pathname) throw invalid();
     const tower = new URL(input.trustedOrigin);
     if (tower.origin !== input.trustedOrigin || (tower.protocol !== 'https:'
-      && (tower.protocol !== 'http:' || tower.hostname !== '127.0.0.1'))) throw invalid();
+      && (tower.protocol !== 'http:' || (tower.hostname !== '127.0.0.1' && !isPrivateTowerOrigin(input.trustedOrigin))))) throw invalid();
     const tasks = input.ntasks;
     if (!exact(tasks, ['origin', 'workspaceId', 'projectId']) || !uuid.test(tasks.workspaceId) || !uuid.test(tasks.projectId)
       || typeof tasks.origin !== 'string') throw invalid();
@@ -90,11 +91,12 @@ async function run(args, input) {
   if (!['prepare', 'send-code', 'verify-code', 'activate'].includes(action)
     || (action === 'prepare' ? args.length !== 2 : args.length !== 3 || !uuid.test(enrollmentId))) throw invalid();
   const plan = readPlan(file);
+  const localTowerOrigin = isPrivateTowerOrigin(plan.trustedOrigin) ? plan.trustedOrigin : undefined;
   const binding = { workspaceId: plan.workspaceId, ntasksWorkspaceId: plan.ntasks.workspaceId,
     ntasksOrigin: plan.ntasks.origin, projectId: plan.ntasks.projectId };
   if (action === 'send-code' || action === 'verify-code') {
     if (!plan.mail) throw new Error('Configure delivery to the intended email before requesting an enrollment code.');
-    const login = openEmailCodeLogin({ connectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin,
+    const login = openEmailCodeLogin({ connectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, localTowerOrigin,
       sessionSecret: plan.identitySecret, peerAddress: '127.0.0.1', standaloneOwnerWorkspaceId: plan.workspaceId,
       deliver: message => sendMail(plan.mail, plan.intendedEmail, message) });
     try {
@@ -112,7 +114,7 @@ async function run(args, input) {
 
   const serviceToken = action === 'activate' ? await readCredential(input, 1056, token, tokenRequired) : null;
   const provisioning = openPlatformProvisioning({ platformConnectionString: plan.platformDatabaseUrl,
-    identityConnectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, sessionSecret: plan.identitySecret,
+    identityConnectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, localTowerOrigin, sessionSecret: plan.identitySecret,
     async verifyProject(mapping, budget) {
       if (serviceToken === null || mapping.workspaceId !== plan.workspaceId || mapping.projectId !== plan.ntasks.projectId) throw invalid();
       await ntasksActivationVerifier({ ...mapping, origin: plan.ntasks.origin, ntasksWorkspaceId: plan.ntasks.workspaceId,

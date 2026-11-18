@@ -33,6 +33,8 @@ import { verifyComposeCustomerWorkspace } from '../deploy/compose/customer-entry
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER_BACKUP === '1';
 const customer = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_BACKUP === '1';
+const customerLan = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN === '1';
+const lanHost = 'fixture-tower.local';
 const archiveBucket = customer ? 'fixture-legacy-raw-signals' : 'raw-signals';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
@@ -83,6 +85,7 @@ async function until(check, timeoutMs = 90_000) {
 test('the fixed backup worker publishes private complete sets and restores every store into new own resources', { skip: !enabled, timeout: 900_000 }, async t => {
   const image = process.env.NOTICEOS_TEST_APP_IMAGE;
   assert.match(image ?? '', /^noticeos-local:backup-proof-[a-z0-9]+$/u, 'use the explicitly built local proof image');
+  assert.ok(!customerLan || customer, 'Enable the customer backup proof before selecting its private LAN origin');
   assert.ok(typeof process.getuid === 'function' && process.getuid() > 0, 'Use a nonroot operator for the real permission and restore proof');
   const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-backup-proof-')));
   // Nothing else exists yet; an early preflight refusal still owns this folder.
@@ -117,6 +120,7 @@ test('the fixed backup worker publishes private complete sets and restores every
   // The worker names its sets by the host's paths, and an offsite folder must be
   // outside the installation's: this one names the installation, not a mount.
   const appEnv = { ...env, NOTICEOS_APP_IMAGE: image, NOTICEOS_INSTALLATION: path.join(base, 'installation'), NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
+    ...(customerLan ? { TOWER_ALLOWED_HOSTS: lanHost } : {}),
     NOTICEOS_NETWORK: `${pg.project}_default`, NOTICEOS_TOWER_PORT: String(plan.port),
     NOTICEOS_APP_UID: String(process.getuid()), NOTICEOS_APP_GID: String(process.getgid()),
     NOTICEOS_POSTGRES_SECRETS: pg.secrets,
@@ -419,6 +423,7 @@ test('the fixed backup worker publishes private complete sets and restores every
         return url.href;
       };
       const declaration = { format: 'noticeos-compose-customer/1',
+        ...(customerLan ? { towerOrigin: `http://${lanHost}:${plan.port}` } : {}),
         database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
         identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }],
         ntasksOrigin: CONTAINER_BACKUP_NTASKS_ORIGIN };
@@ -441,6 +446,9 @@ test('the fixed backup worker publishes private complete sets and restores every
         await until(async () => (await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/health.mjs'])).code === 0);
       };
       await restart();
+      const expectedOrigin = declaration.towerOrigin ?? `http://127.0.0.1:${plan.port}`;
+      const customerTarget = path.join(state, '.local/compose-customer/target.json');
+      await until(() => read(customerTarget).publicOrigin === expectedOrigin);
       const outcomes = () => pgRows(`SELECT occurrence,state FROM noticeos.hosted_job_occurrences WHERE lane='backup' AND workspace_id='${workspace}'`);
       await until(async () => (await outcomes()).some(row => row.state === 'succeeded' && row.occurrence.endsWith('/workspace')));
       assert.equal((await schedule(false)).code, 0);
@@ -510,11 +518,12 @@ test('the fixed backup worker publishes private complete sets and restores every
       const recovered = read(path.join(set, 'recovery/customer-runtime.json'));
       assert.ok(recovered.database.identity !== roles.noticeos_identity.internal && recovered.database.grant !== roles.noticeos_service_grant.internal);
       recovered.database = { identity: roles.noticeos_identity.internal, grant: roles.noticeos_service_grant.internal };
+      if (customerLan) recovered.towerOrigin = `http://fixture-restored.local:${restoredPlan.port}`;
       write(path.join(restoredInstall, 'customer-runtime.json'), recovered);
       const loopback = url => { const address = new URL(url); address.hostname = '127.0.0.1'; address.port = String(restoredPG.port); return address.href; };
-      await verifyComposeCustomerWorkspace(new URL(restoredPlan.url).origin, { address: loopback(internalAddress.href),
+      await verifyComposeCustomerWorkspace(recovered.towerOrigin ?? new URL(restoredPlan.url).origin, { address: loopback(internalAddress.href),
         identityAddress: loopback(recovered.database.identity), grantAddress: loopback(recovered.database.grant),
-        identitySecret: recovered.identitySecret, workspaces: recovered.workspaces });
+        identitySecret: recovered.identitySecret, workspaces: recovered.workspaces }, recovered.towerOrigin);
       t.diagnostic(`Verified customer dump ${dumpHash}, raw object ${rawHash}, Ntasks export ${taskHash}`);
     });
     // Restore held rows without consulting any original analytical directory.

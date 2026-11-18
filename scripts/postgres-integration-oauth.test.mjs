@@ -77,11 +77,12 @@ test('transaction custody uses maintained cookies, fresh authority and committed
       for (const workspace of workspaces) await admin.query("INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at) VALUES($1,$2,$3,'owner',now())", [randomUUID(), workspace, id]);
       return { id, email };
     }
-    async function signIn(person) {
+    async function signIn(person, identityOptions = options) {
       let message;
-      const login = openEmailCodeLogin({ ...options, peerAddress: `192.0.2.${peer++}`, deliver: async value => { message = value; } });
+      const host = identityOptions.trustedOrigin;
+      const login = openEmailCodeLogin({ ...identityOptions, peerAddress: `192.0.2.${peer++}`, deliver: async value => { message = value; } });
       try {
-        const request = (action, body) => new Request(`${origin}${EMAIL_CODE_PATHS[action]}`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        const request = (action, body) => new Request(`${host}${EMAIL_CODE_PATHS[action]}`, { method: 'POST', headers: { origin: host, 'content-type': 'application/json' }, body: JSON.stringify(body) });
         assert.equal((await login.requestCode(request('request', { email: person.email }))).status, 202);
         assert.ok(message);
         const response = await login.verifyCode(request('verify', { email: person.email, otp: message.code }));
@@ -104,6 +105,22 @@ test('transaction custody uses maintained cookies, fresh authority and committed
     const claim = (state, selectedCookie = cookie, tail, work = async context => context) => gate.withGoogleCallback('fixture-callback', callback(state, selectedCookie, tail), work);
     const count = async state => (await admin.query('SELECT count(*)::int n FROM noticeos_identity.auth_verification WHERE identifier=$1', [`noticeos:integration-google:v1:${state}`])).rows[0].n;
 
+    await t.test('an authenticated private HTTP owner cannot reserve unusable Google or AdSense state', async () => {
+      const lan = 'http://tower.local:5173';
+      const identityOptions = { ...options, trustedOrigin: lan, localTowerOrigin: lan };
+      const lanCookie = await signIn(one, identityOptions);
+      const local = openIntegrationOAuthCustody(identityOptions);
+      opened.add(local);
+      const stateCount = async () => (await admin.query("SELECT count(*)::int n FROM noticeos_identity.auth_verification WHERE identifier LIKE 'noticeos:integration-google:v1:%'")).rows[0].n;
+      const before = await stateCount();
+      for (const provider of ['google', 'adsense']) {
+        const request = new Request(`${lan}/api/integrations/${provider}/oauth/start`, {
+          method: 'POST', headers: { origin: lan, cookie: lanCookie, 'x-noticeos-workspace-id': a },
+        });
+        await assert.rejects(local.issueGoogle(request, a, () => {}), IdentityRefused);
+      }
+      assert.equal(await stateCount(), before);
+    });
     await t.test('stale expected session cannot issue custody for another maintained cookie', async () => {
       const before = (await admin.query("SELECT count(*)::int n FROM noticeos_identity.auth_verification WHERE identifier LIKE 'noticeos:integration-google:v1:%'")).rows[0].n;
       for (const selectedCookie of [otherCookie, secondSession])

@@ -38,8 +38,14 @@ function binding(env: object, key: keyof typeof PRODUCT_ENV): string {
   if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) refuse();
   return value;
 }
+/** The local customer gateway supplies this binding to its private Workers. */
+export function localTowerOrigin(env: object): string | undefined {
+  const value = (env as { NOTICEOS_LOCAL_TOWER_ORIGIN?: unknown }).NOTICEOS_LOCAL_TOWER_ORIGIN;
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function workspaceEntryOrigin(env: object): string {
-  return createBrowserRequestPolicy(binding(env, 'workspaceOrigin')).origin;
+  return createBrowserRequestPolicy(binding(env, 'workspaceOrigin'), localTowerOrigin(env)).origin;
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 function uuid(value: unknown): string {
@@ -266,7 +272,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
       && !personPreferenceRequest(proof) && !task && !reportGrant)
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
-  const browser = createBrowserRequestPolicy(origin);
+  const browser = createBrowserRequestPolicy(origin, localTowerOrigin(env));
   if (new URL(proof.url).origin !== browser.origin) refuse();
   // An agent's bearer token (agent-access.mts) reaches only the MCP endpoint
   // and carries no ambient browser credential; the call still names its workspace.
@@ -283,7 +289,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const transport = Object.freeze({ kind: 'direct' as const, connectionString: database(binding(env, 'workspaceDatabase')) });
   const options: IdentityOptions = {
     connectionString: database(binding(env, 'identityDatabase')),
-    trustedOrigin: origin,
+    trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),
     sessionSecret: binding(env, 'identitySecret'),
   };
   if (options.sessionSecret.length < 32) refuse();
@@ -292,7 +298,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   let identity: Promise<Identity> | undefined;
   const reader = () => identity ??= adapters.openIdentity(options);
   const admission: WorkspaceAdmission = createWorkspaceAdmission(kind === 'hosted' ? {
-    kind, profile: Symbol('hosted-workspace'), trustedOrigin: origin,
+    kind, profile: Symbol('hosted-workspace'), trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),
     membership: async (headers, workspace) => (await reader()).admissionMembership(headers, workspace),
     agent: async (request, workspace) => new URL(request.url).pathname === AGENT_RESOURCE_PATH
       ? (await reader()).agentAuthority(request, workspace) : null,
@@ -337,11 +343,11 @@ export async function withGoogleWorkspaceEntry<T>(env: object, request: Request,
   if (phase === 'start') await googleOAuthRequest(proof, origin, 'start');
   else googleOAuthRequest(proof, origin, 'callback');
   const options: IdentityOptions = { connectionString: database(binding(env, 'identityDatabase')),
-    trustedOrigin: origin, sessionSecret: binding(env, 'identitySecret') };
+    trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env), sessionSecret: binding(env, 'identitySecret') };
   const transport = Object.freeze({ kind: 'direct' as const, connectionString: database(binding(env, 'workspaceDatabase')) });
   let custody: IntegrationOAuthCustody | undefined;
   const reader = () => custody ??= adapters.openCustody(options);
-  const admission: WorkspaceAdmission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol('hosted-google'), trustedOrigin: origin,
+  const admission: WorkspaceAdmission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol('hosted-google'), trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),
     membership: async () => refuse(),
     googleOAuth: {
       issue: (original, workspace, authorize) => reader().issueGoogle(original, workspace, authorize),

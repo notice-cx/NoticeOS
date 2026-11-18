@@ -3,7 +3,7 @@ import { request } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { containerBackupStatus } from '../../scripts/container-backup-channel.mjs';
-import { composeCustomerPlan, customerReadinessPath, runningContainerProfile } from './customer-entry.mjs';
+import { customerReadinessPath, runningContainerProfile } from './customer-entry.mjs';
 
 export function customerReadinessStatus(url, { host, signal }) {
   return new Promise((resolve, reject) => {
@@ -17,16 +17,15 @@ export function customerReadinessStatus(url, { host, signal }) {
 }
 
 export async function containerHealthy({ read = () => fs.readFile('/state/.local/runner-state.json', 'utf8'), fetchImpl = fetch, now = Date.now,
-  profile = () => 'standalone', env = process.env, customerProbe = customerReadinessStatus,
+  profile = () => 'standalone', customerProbe = customerReadinessStatus,
   backupStatus = () => containerBackupStatus('/state/backup-client.json', { now }) } = {}) {
   try {
     const active = profile();
     if (active === 'customer') {
       const backup = await backupStatus();
       if (backup.configured && !backup.available) return false;
-      const { url } = composeCustomerPlan(env);
       const status = await customerProbe(`http://127.0.0.1:5173${customerReadinessPath}`, {
-        host: new URL(url).host, signal: AbortSignal.timeout(2000),
+        host: '127.0.0.1:5173', signal: AbortSignal.timeout(2000),
       });
       return status === 204;
     }

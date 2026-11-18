@@ -23,6 +23,7 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER === '1';
 const customer = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER === '1';
+const customerLan = customer && process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN === '1';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 function fixtureSource(base) {
@@ -95,7 +96,7 @@ test('the prepared application container runs its schedules with no task service
   const databases = (args) => runCommand('docker', ['compose', '-p', pg.project,
     ...(fs.existsSync(isolatedDatabases) ? ['-f', isolatedDatabases] : ['-f', pg.compose]),
     '--env-file', os.devNull, ...args], { cwd: ROOT, env: databaseEnv, timeoutMs: 120_000 });
-  const appEnv = { ...env, NOTICEOS_APP_IMAGE: image, NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
+  const appEnv = { ...env, ...(customerLan ? { TOWER_ALLOWED_HOSTS: 'fixture-tower.local' } : {}), NOTICEOS_APP_IMAGE: image, NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
     NOTICEOS_NETWORK: `${pg.project}_default`, NOTICEOS_TOWER_PORT: String(plan.port),
     NOTICEOS_APP_UID: String(process.getuid()), NOTICEOS_APP_GID: String(process.getgid()) };
   const compose = args => runCommand('docker', ['compose', '-p', pg.project, '-f', appFile, '--env-file', os.devNull, ...args], { cwd: ROOT, env: appEnv, timeoutMs: 240_000 });
@@ -247,7 +248,9 @@ test('the prepared application container runs its schedules with no task service
         url.username = role; url.password = password;
         return url.href;
       };
+      const lanOrigin = `http://fixture-tower.local:${plan.port}`;
       write(path.join(plan.installation, 'customer-runtime.json'), { format: 'noticeos-compose-customer/1',
+        ...(customerLan ? { towerOrigin: lanOrigin, siteReports: true } : {}),
         database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
         identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }] });
       const preflight = await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', 'customer-check']);
@@ -265,23 +268,28 @@ test('the prepared application container runs its schedules with no task service
         assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), containerId.stdout.trim());
       };
       await restart();
-      const origin = `http://127.0.0.1:${plan.port}`;
-      const post = (route, body, headers) => fetch(origin + route, { method: 'POST', signal: AbortSignal.timeout(10_000),
-        headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
-      assert.equal((await fetch(origin + '/api/assets/' + osAsset)).status, 403);
-      assert.equal((await post(EMAIL_CODE_PATHS.request, { email })).status, 202);
-      const outbox = path.join(state, '.local/compose-customer/customer/mail');
-      const message = fs.readdirSync(outbox).map(file => read(path.join(outbox, file))).find(item => item.to === email);
-      const otp = message?.text.match(/\b([0-9]{6})\.$/u)?.[1];
-      assert.ok(otp, 'the fixture mailbox receives the ordinary code');
-      const verified = await post(EMAIL_CODE_PATHS.verify, { email, otp });
-      assert.equal(verified.status, 200);
-      const cookie = verified.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
-      const session = await (await fetch(origin + '/api/session', { headers: { cookie } })).json();
-      const headers = { cookie, [WORKSPACE_SELECTION_HEADER]: workspace, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
-      const mcp = await post('/api/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' }, headers);
-      assert.equal(mcp.status, 200);
-      assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
+      if (customerLan) {
+        const { useLanTower } = await import('./test-fixtures/customer-lan-browser.mjs');
+        await useLanTower({ origin: lanOrigin, state, email });
+      } else {
+        const origin = `http://127.0.0.1:${plan.port}`;
+        const post = (route, body, headers) => fetch(origin + route, { method: 'POST', signal: AbortSignal.timeout(10_000),
+          headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+        assert.equal((await fetch(origin + '/api/assets/' + osAsset)).status, 403);
+        assert.equal((await post(EMAIL_CODE_PATHS.request, { email })).status, 202);
+        const outbox = path.join(state, '.local/compose-customer/customer/mail');
+        const message = fs.readdirSync(outbox).map(file => read(path.join(outbox, file))).find(item => item.to === email);
+        const otp = message?.text.match(/\b([0-9]{6})\.$/u)?.[1];
+        assert.ok(otp, 'the fixture mailbox receives the ordinary code');
+        const verified = await post(EMAIL_CODE_PATHS.verify, { email, otp });
+        assert.equal(verified.status, 200);
+        const cookie = verified.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+        const session = await (await fetch(origin + '/api/session', { headers: { cookie } })).json();
+        const headers = { cookie, [WORKSPACE_SELECTION_HEADER]: workspace, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
+        const mcp = await post('/api/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' }, headers);
+        assert.equal(mcp.status, 200);
+        assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
+      }
       fs.unlinkSync(marker);
       await restart();
       assert.equal((await get('api/health')).ok, true);

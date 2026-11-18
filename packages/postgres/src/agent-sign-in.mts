@@ -64,12 +64,12 @@ function oauthQuery(value: unknown): string {
   return value;
 }
 export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
-  const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin,
+  const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin,
     sessionSecret: input.sessionSecret });
   const origin = validateIdentityOptions(options);
   if (typeof input.peerAddress !== 'string' || !isValidIP(input.peerAddress)) refuse();
   const peer = normalizeIP(input.peerAddress);
-  const policy = createBrowserRequestPolicy(origin);
+  const policy = createBrowserRequestPolicy(origin, options.localTowerOrigin);
   let resources: ReturnType<typeof openIdentityDatabase> | undefined;
   let validated: Promise<void> | undefined;
   let closing: Promise<void> | undefined;

@@ -29,7 +29,7 @@ function choice(value) {
  * A verified person without memberships has an empty list and no selection. */
 export async function readBrowserSession(input, headers, requestedWorkspaceId = null, afterWorkspaceId = null) {
     const options = Object.freeze({ connectionString: input.connectionString,
-        trustedOrigin: input.trustedOrigin, sessionSecret: input.sessionSecret });
+        trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin, sessionSecret: input.sessionSecret });
     validateIdentityOptions(options);
     const selected = selector(requestedWorkspaceId), after = selector(afterWorkspaceId);
     const proof = new Headers(headers);

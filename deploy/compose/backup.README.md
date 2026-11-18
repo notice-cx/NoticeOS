@@ -128,6 +128,8 @@ enables their local `CONNECT` access. Copy the protected `customer-runtime.json`
 into the new installation, preserving its identity secret and workspace mapping.
 Replace `database.identity` and `database.grant` in that copy with the new
 plan's `noticeos_identity.internal` and `noticeos_service_grant.internal` URLs.
+If the new stack uses a different home-network address, update `towerOrigin`
+in the private copy to match its declared Tower address.
 Run customer preflight before starting the customer profile.
 If present, restore `recovery/resource-names.json` to the new installation's own
 settings folder before starting the app. For older sets without this file, keep
@@ -147,7 +149,9 @@ It creates and removes only its own projects and volumes and reserves loopback p
 `NOTICEOS_NTASKS_ROOT` at the built [pinned Ntasks checkout](../demo/ntasks.json)
 to rehearse the customer schedule, manual backup and rollback on a dedicated
 Compose bridge. That fixture runs Ntasks inside the app container on a private
-loopback port. Both modes use a synthetic exporter.
+loopback port. Add `NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN=1` to run the same
+backup and recovery checks with a private home-network Tower address. Both
+modes use a synthetic exporter.
 
 This worker profile does not establish compatibility for a native exporter's
 credentials or platform dependencies.

@@ -16,7 +16,8 @@ import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
-import { localSiteReportsEnabled } from './workspace-operations.mjs';
+import { isPrivateTowerOrigin } from './browser-request-policy.mjs';
+import { SITE_REPORT_INTAKE_PATH, localSiteReportsEnabled } from './workspace-operations.mjs';
 import { CUSTOMER_BACKUP_PATH, customerBackupBearer } from './customer-backup.mjs';
 import { CLOUDFLARE_D1_BACKUP_PATH } from '../packages/contract/src/cloudflare-d1.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
@@ -128,7 +129,7 @@ async function requestBody(request) {
   return Buffer.concat(chunks);
 }
 
-function customerServer(publicOrigin, runtime, peerProof, admits, { release, bridgePeer, ready, backup }) {
+function customerServer(publicOrigin, runtime, peerProof, admits, { release, bridgePeer, ready, localTowerOrigin, backup }) {
   const server = createServer(async (request, reply) => {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 30000);
@@ -173,11 +174,18 @@ function customerServer(publicOrigin, runtime, peerProof, admits, { release, bri
         reply.end(JSON.stringify(result));
         return;
       }
-      if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
-      const url = requestTarget(publicOrigin, request);
-      if (ready && url.pathname === '/_noticeos/ready') {
-        const healthy = peer === HOST && request.method === 'GET' && !url.search && await ready();
+      if (ready && request.url === '/_noticeos/ready') {
+        const healthy = peer === HOST && request.headers.host === '127.0.0.1:5173' && request.method === 'GET' && await ready();
         reply.writeHead(healthy ? 204 : 404, { 'cache-control': 'no-store' }).end();
+        return;
+      }
+      const privatePeer = localTowerOrigin && isPrivateTowerOrigin(`http://${peer}:5173`);
+      if (peer !== HOST && peer !== bridgePeer && !privatePeer) throw new Error('Local connection required.');
+      const url = requestTarget(publicOrigin, request);
+      // A published bridge may present the same peer for a LAN client and the host.
+      // Only a socket originating inside the app container can submit a local report here.
+      if (localTowerOrigin && url.pathname === SITE_REPORT_INTAKE_PATH && peer !== HOST) {
+        reply.writeHead(404, { 'cache-control': 'no-store' }).end();
         return;
       }
       if (isAppApiPath(url.pathname)) {
@@ -294,13 +302,16 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
   startSchedules, fixtureProvider, shadowAdmission, resumeSince, backupResumeSince, operating, deployment }) {
-  const publicOrigin = `http://${HOST}:${plan.port}`;
+  const localTowerOrigin = deployment && plan.localTowerOrigin;
+  if (localTowerOrigin && !isPrivateTowerOrigin(localTowerOrigin)) throw new Error('Invalid private Tower origin.');
+  const publicOrigin = localTowerOrigin || `http://${HOST}:${plan.port}`;
   if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
   if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating || deployment)) {
     throw new Error('Customer shadow cannot start providers or schedules.');
   }
+  const localBindings = localTowerOrigin ? { NOTICEOS_LOCAL_TOWER_ORIGIN: localTowerOrigin } : {};
   const siteReports = operating?.siteReports ? { NOTICEOS_LOCAL_SITE_REPORTS: '1' } : {};
-  if (operating?.siteReports && !localSiteReportsEnabled({ ...siteReports, NOTICEOS_WORKSPACE_ORIGIN: publicOrigin })) {
+  if (operating?.siteReports && !localSiteReportsEnabled({ ...siteReports, ...localBindings, NOTICEOS_WORKSPACE_ORIGIN: publicOrigin })) {
     throw new Error('Site reports require the same explicit loopback address as the customer Tower.');
   }
   const state = deployment ? null : mkdtempSync(path.join(customer, 'build-'));
@@ -330,7 +341,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const backupProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const { Miniflare, Log } = v4Miniflare(createRequire(require.resolve('wrangler/package.json')));
-    const bindings = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
+    const bindings = { ...localBindings, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
       NOTICEOS_IDENTITY_DATABASE_URL: identityDatabase, NOTICEOS_IDENTITY_SESSION_SECRET: identitySecret,
       NOTICEOS_WORKSPACE_DATABASE_URL: connectionString };
     const denyOutbound = localCustomerOutbound();
@@ -359,7 +370,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
       telemetry: { enabled: false }, workers: [
-        { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
+        { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: localTowerOrigin ? 'local-network' : 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
           ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
           NOTICEOS_IDENTITY_EMAIL_FROM: MAIL_SENDER },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
@@ -405,7 +416,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const backupTrigger = backup ? await runtime.getWorker('customer-backup-trigger') : undefined;
     const listen = async () => {
       server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission,
-        { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready,
+        { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready, localTowerOrigin,
           backup: backup && { ...backup, manual: () => schedules?.manualBackup?.() ?? { ok: false, stage: 'preparation', cause: 'worker_unavailable' },
             cloudflare(request) {
               request.headers.set(BACKUP_HEADER, backupProof);
