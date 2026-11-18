@@ -3,12 +3,12 @@ import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MembersSection } from '@/routes/settings/MembersSection';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
-import type { BrowserAccessVerification } from '@/lib/browser-entry';
 import { createBrowserRuntime, BrowserRetiredError } from '@/lib/browser-runtime';
 import type { ApiTransport } from '@/lib/api';
 import { MembershipRefused } from '@/lib/membership-client';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { MEMBERSHIP_PATH } from '../../../scripts/identity-protocol.mjs';
+import { deferred } from './deferred';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const other = '22222222-2222-4222-8222-222222222222';
@@ -29,7 +29,7 @@ function roster(input: unknown, init?: RequestInit) {
     items: command.collection === 'members' ? [member] : [], nextCursor: null });
 }
 function mount(value: ReturnType<typeof runtime>, role: 'owner' | 'operator' | 'viewer' = 'owner', refreshSession = vi.fn(async () => {}),
-  revalidateSession?: () => Promise<BrowserAccessVerification>) {
+  revalidateSession?: () => Promise<void>) {
   return render(<BrowserRuntimeProvider value={{ runtime: value, workspaceLabel: 'Generated workspace', workspaceRole: role, refreshSession, revalidateSession }}>
     <QueryClientProvider client={value.queries}><MembersSection /></QueryClientProvider>
   </BrowserRuntimeProvider>);
@@ -68,7 +68,7 @@ it("another member's role change rechecks access without rebuilding the page", a
     return roster(input, init);
   });
   const refreshSession = vi.fn(async () => {});
-  const revalidateSession = vi.fn(async () => 'verified' as const);
+  const revalidateSession = vi.fn(async () => {});
   mount(runtime(fetch), 'owner', refreshSession, revalidateSession);
   await screen.findByText('Generated operator');
   fireEvent.change(screen.getByLabelText('Role for operator@example.test'), { target: { value: 'viewer' } });
@@ -78,46 +78,63 @@ it("another member's role change rechecks access without rebuilding the page", a
   await vi.waitFor(() => expect(revalidateSession).toHaveBeenCalledTimes(1));
   expect(refreshSession).not.toHaveBeenCalled();
 });
-it('refresh waits for verified access, excludes pagination and leaves the roster retryable offline', async () => {
+it('holds the roster action lock during an offline refresh and keeps people visible on a temporary failure', async () => {
   const colleague = { id: other, name: 'Generated viewer', email: 'viewer@example.test', role: 'viewer' };
-  let reloadFails = false;
+  const reload = deferred<Response>();
+  let refreshing = false;
   const fetch = vi.fn<ApiTransport>(async (input, init) => {
-    const command = JSON.parse(String(init?.body));
-    if (command.collection !== 'members') return roster(input, init);
-    if (command.after === other) return Response.json({ ok: true, collection: 'members', items: [colleague], nextCursor: null });
-    if (reloadFails) return Response.json({ ok: false }, { status: 503 });
+    const request = JSON.parse(String(init?.body));
+    if (request.collection !== 'members') return roster(input, init);
+    if (request.after === other) return Response.json({ ok: true, collection: 'members', items: [colleague], nextCursor: null });
+    if (refreshing) return reload.promise;
     return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
   });
-  let finishRecheck!: (access: BrowserAccessVerification) => void;
-  const revalidate = () => new Promise<BrowserAccessVerification>(resolve => { finishRecheck = resolve; });
+  const value = runtime(fetch);
+  value.queries.setDefaultOptions({ queries: { retry: false } });
+  mount(value);
+  await screen.findByText(member.name);
+  const more = screen.getByRole('button', { name: 'More people' });
+  const wasOnline = onlineManager.isOnline();
+  onlineManager.setOnline(false);
+  try {
+    refreshing = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh access' }));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+    expect(more).toBeDisabled();
+    fireEvent.click(more);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    await act(async () => reload.resolve(Response.json({ ok: false }, { status: 503 })));
+    await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
+    expect(screen.getByText(member.name)).toBeVisible();
+    expect(more).toBeEnabled();
+    fireEvent.click(more);
+    expect(await screen.findByText(colleague.name)).toBeVisible();
+  } finally {
+    reload.resolve(Response.json({ ok: false }, { status: 503 }));
+    onlineManager.setOnline(wasOnline);
+  }
+});
+it('a denied refresh hides cached people and only an authorized roster read restores editing', async () => {
+  let denied = false;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => denied ? Response.json({ ok: false }, { status: 403 }) : roster(input, init));
+  const revalidate = vi.fn(async () => {});
   const value = runtime(fetch);
   value.queries.setDefaultOptions({ queries: { retry: false } });
   mount(value, 'owner', undefined, revalidate);
   await screen.findByText(member.name);
+  fireEvent.change(screen.getByLabelText('Email *'), { target: { value: invitation.email } });
   const refresh = screen.getByRole('button', { name: 'Refresh access' });
-  const more = screen.getByRole('button', { name: 'More people' });
+  const invite = screen.getByRole('button', { name: /^Invite$/u });
+  denied = true;
   fireEvent.click(refresh);
-  await act(async () => finishRecheck('changed'));
-  expect(fetch).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+  expect(invite).toBeDisabled();
+  expect(revalidate).toHaveBeenCalledTimes(1);
+  denied = false;
   fireEvent.click(refresh);
-  await act(async () => finishRecheck('unavailable'));
-  expect(screen.getByRole('status')).toHaveTextContent(/try again/i);
-  expect(fetch).toHaveBeenCalledTimes(2);
-  const wasOnline = onlineManager.isOnline();
-  onlineManager.setOnline(false);
-  try {
-    reloadFails = true;
-    fireEvent.click(refresh);
-    expect(more).toBeDisabled();
-    fireEvent.click(more);
-    expect(fetch).toHaveBeenCalledTimes(2);
-    await act(async () => finishRecheck('verified'));
-    await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
-    expect(screen.getByText(member.name)).toBeVisible();
-    expect(more).toBeEnabled();
-  } finally { onlineManager.setOnline(wasOnline); }
-  fireEvent.click(more);
-  expect(await screen.findByText(colleague.name)).toBeVisible();
+  expect(await screen.findByText(member.name)).toBeVisible();
+  expect(invite).toBeEnabled();
+  expect(screen.getByLabelText('Email *')).toHaveValue(invitation.email);
 });
 it('saved delivery failure clears new-invite draft and Resend reuses the existing invitation ID', async () => {
   let saved = false;

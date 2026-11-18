@@ -10,6 +10,7 @@ import { MembershipRefused, type MemberCommand, type MemberRole, type Membership
 const ROLES: MemberRole[] = ['owner', 'operator', 'viewer'];
 const QUERY = ['workspace-members'];
 type Roster = { members: MembershipPage<WorkspaceMember>; invitations: MembershipPage<WorkspaceInvitation> };
+const accessDenied = (error: unknown) => error instanceof MembershipRefused && error.status === 403;
 export function MembersSection() {
   const context = useBrowserContext();
   if (context.runtime.owner.mode !== 'hosted' || context.workspaceRole !== 'owner') return null;
@@ -30,19 +31,21 @@ function OwnerMembers() {
   const issuing = useRef(false);
   // An offline refresh must settle while it holds the roster lock.
   const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster> => {
-    const [members, invitations] = await Promise.all([runtime.api.fetchMembers(undefined, signal), runtime.api.fetchInvitations(undefined, signal)]);
+    const deadline = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
+    const [members, invitations] = await Promise.all([runtime.api.fetchMembers(undefined, deadline), runtime.api.fetchInvitations(undefined, deadline)]);
     return { members, invitations };
   } });
+  const roster = accessDenied(read.error) ? undefined : read.data;
   const update = runtime.guard((callback: () => void) => callback());
   async function refreshAccess() {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      const access = await recheckAccess?.();
-      if (access === 'unavailable') update(() => setNotice({ error: true, text: 'Access could not be checked. Try again.' }));
-      if (access === 'verified' && runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
-    } catch {
-      update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
+      await read.refetch({ throwOnError: true });
+    } catch (error) {
+      if (accessDenied(error)) {
+        if (runtime.guard(() => true)() === true) void recheckAccess?.();
+      } else update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
     } finally {
       issuing.current = false; update(() => setBusy(false));
     }
@@ -67,7 +70,7 @@ function OwnerMembers() {
     }
   }
   async function more(collection: 'members' | 'invitations') {
-    const cursor = read.data?.[collection].nextCursor;
+    const cursor = roster?.[collection].nextCursor;
     if (!cursor || issuing.current) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
@@ -82,7 +85,7 @@ function OwnerMembers() {
     } catch { update(() => setNotice({ error: true, text: 'More people could not be loaded. Try again.' })); }
     finally { issuing.current = false; update(() => setBusy(false)); }
   }
-  const oneOwner = read.data?.members.nextCursor === null && read.data.members.items.filter(member => member.role === 'owner').length === 1;
+  const oneOwner = roster?.members.nextCursor === null && roster.members.items.filter(member => member.role === 'owner').length === 1;
   return <>
     <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void refreshAccess()}>Refresh access</Button>}>
       <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void execute({ kind: 'invite', email, role }); }}>
@@ -95,27 +98,27 @@ function OwnerMembers() {
           <label htmlFor="invite-role" className="block text-sm font-medium">Role</label>
           <RoleSelect id="invite-role" value={role} disabled={busy} onChange={setRole} />
         </div>
-        <Button type="submit" disabled={busy || !read.data}>Invite</Button>
+        <Button type="submit" disabled={busy || !roster}>Invite</Button>
       </form>
       {notice ? <div role="status" data-status-for="members" className={`mt-3 text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
     </SettingsPanel>
-    {!read.data ? read.isError ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void read.refetch()} />
+    {!roster ? read.isError ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
       : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
       <SettingsPanel title="People">
-        <ul className="divide-y divide-border">{read.data.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}
+        <ul className="divide-y divide-border">{roster.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}
           busy={busy} lastOwner={oneOwner && member.role === 'owner'} execute={execute} />)}</ul>
-        {read.data.members.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('members')}>More people</Button> : null}
+        {roster.members.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('members')}>More people</Button> : null}
       </SettingsPanel>
       <SettingsPanel title="Pending invitations">
-        {!read.data.invitations.items.length ? <div className="text-sm text-muted-foreground">No pending invitations</div> : <ul className="divide-y divide-border">
-          {read.data.invitations.items.map(invitation => <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-1 last:pb-0">
+        {!roster.invitations.items.length ? <div className="text-sm text-muted-foreground">No pending invitations</div> : <ul className="divide-y divide-border">
+          {roster.invitations.items.map(invitation => <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-1 last:pb-0">
               <div className="min-w-0 flex-1 basis-40"><div className="break-all text-sm font-medium">{invitation.email}</div>
                 <div className="text-xs text-muted-foreground">{invitation.role} · Expires {new Date(invitation.expiresAt).toLocaleDateString()}</div></div>
               <Button variant="outline" disabled={busy} onClick={() => void execute({ kind: 'resend', invitationId: invitation.id })}>Resend</Button>
               <Button variant="ghost" disabled={busy} onClick={() => void execute({ kind: 'cancel', invitationId: invitation.id })}>Revoke</Button>
           </li>)}
         </ul>}
-        {read.data.invitations.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('invitations')}>More invitations</Button> : null}
+        {roster.invitations.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('invitations')}>More invitations</Button> : null}
       </SettingsPanel>
     </>}
   </>;

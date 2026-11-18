@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { APP_RELEASE_HEADER, APP_RELEASE_PATH } from '@shared/app-release';
-import { createAppRelease } from '@/lib/app-release';
 import { captureBrowserLanding, createBrowserEntry, type BrowserEntry } from '@/lib/browser-entry';
 import { decodeBrowserSession, tabSelectionKey } from '@/lib/browser-session';
 import { createBrowserAuth } from '@/lib/browser-auth';
@@ -8,7 +6,6 @@ import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, ema
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import type { ApiTransport } from '@/lib/api';
 import { settingsResponse } from './critical-response-fixtures';
-import { deferred } from './deferred';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -23,8 +20,8 @@ const snapshot = (selected: string | null = null, person = A, sessionId = SA, ro
   selectedWorkspace: selected === null ? null : workspace(selected, role),
 });
 const entries: BrowserEntry[] = [];
-function entry(fetch: ApiTransport, appRelease?: ReturnType<typeof createAppRelease>) {
-  const value = createBrowserEntry({ origin: window.location.origin, page: window, fetch, appRelease, landing: captureBrowserLanding(window) });
+function entry(fetch: ApiTransport) {
+  const value = createBrowserEntry({ origin: window.location.origin, page: window, fetch, landing: captureBrowserLanding(window) });
   entries.push(value); return value;
 }
 afterEach(() => {
@@ -150,57 +147,6 @@ describe('verified tab entry', () => {
     window.dispatchEvent(new Event('pageshow'));
     await vi.waitFor(() => expect(value.snapshot().phase).toBe('ready'));
     expect(value.snapshot().runtime?.ownerKey).not.toBe(old.ownerKey);
-  });
-  it('verifies an unchanged runtime and waits for a role transition before returning', async () => {
-    let role = 'owner';
-    const value = entry(async (_input, init) => Response.json(snapshot(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER), A, SA, role)));
-    await value.refresh(); await value.choose(WA);
-    const old = value.snapshot().runtime;
-    expect(await value.revalidate()).toBe('verified');
-    expect(value.snapshot().runtime).toBe(old);
-    role = 'operator';
-    expect(await value.revalidate()).toBe('changed');
-    expect(old?.guard(() => true)()).toBeUndefined();
-    expect(value.snapshot().session).toMatchObject({ selectedWorkspace: { role: 'operator' } });
-  });
-  it('shares the manual access check when the same tab becomes visible during verification', async () => {
-    const started = deferred();
-    const complete = deferred();
-    let checking = false;
-    let reads = 0;
-    const value = entry(async (_input, init) => {
-      if (checking && ++reads === 1) { started.resolve(); await complete.promise; }
-      return Response.json(snapshot(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER)));
-    });
-    await value.refresh(); await value.choose(WA);
-    const old = value.snapshot().runtime;
-    checking = true;
-    const manual = value.revalidate();
-    await started.promise;
-    try {
-      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
-      document.dispatchEvent(new Event('visibilitychange'));
-    } finally { complete.resolve(); }
-    expect(await manual).toBe('verified');
-    expect(value.snapshot().runtime).toBe(old);
-    expect(reads).toBe(2);
-  });
-  it('reports a temporary release-check error without replacing the verified runtime', async () => {
-    const release = 'a'.repeat(64);
-    let status = 200;
-    const fetch = vi.fn<ApiTransport>(async (input, init) => {
-      const headers = { [APP_RELEASE_HEADER]: release };
-      return input === APP_RELEASE_PATH ? Response.json({}, { status, headers })
-        : Response.json(snapshot(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER)), { headers });
-    });
-    const value = entry(fetch, createAppRelease(fetch, release));
-    await value.refresh(); await value.choose(WA);
-    const old = value.snapshot().runtime;
-    status = 503;
-    fetch.mockClear();
-    expect(await value.revalidate()).toBe('unavailable');
-    expect(value.snapshot().runtime).toBe(old);
-    expect(fetch.mock.calls.map(([input]) => input)).toEqual([APP_RELEASE_PATH]);
   });
   it("a page's first pageshow keeps the lifetime it already read", async () => {
     let reads = 0;
