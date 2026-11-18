@@ -157,6 +157,8 @@ export interface PosthogDumpsOptions {
   laneRegister?: LaneRegister;
   configSources?: ConfigSourceMap;
   scope?: PosthogCollectScope;
+  /** Saved sites admitted to a scheduled customer occurrence. */
+  assets?: readonly string[];
   /** Live clock for leases and provider cooldowns. Report windows remain
    * dated from `nowMs`; provider delays start when the response arrives. */
   clock?: () => number;
@@ -286,7 +288,7 @@ export async function runPosthogDumps(
 
   // Declined on its Data sources row (Not using): not asked for.
   let candidates = (await posthogCandidates(env.STORE))
-    .filter((c) => !laneDeclined(c.asset, 'posthog', options.laneRegister));
+    .filter(c => (!options.assets || options.assets.includes(c.asset)) && !laneDeclined(c.asset, 'posthog', options.laneRegister));
   if (options.scope) candidates = candidates.filter((c) => c.asset === options.scope!.asset);
   const outcomes: SignalDumpOutcome[] = [];
   const skipped: PosthogSkip[] = [];
@@ -419,7 +421,7 @@ export async function runPosthogDumps(
   );
   const planned = new Map(plans.map(({ candidate, settings }) => [candidate.asset, settings]));
   const covers = (asset: string, part: string | null): boolean => {
-    if (options.scope !== undefined && options.scope.asset !== asset) return false;
+    if ((options.scope && options.scope.asset !== asset) || (options.assets && !options.assets.includes(asset))) return false;
     const settings = planned.get(asset);
     if (settings === undefined) return true;
     const dated = part === null ? null : parseDatedArchivePart(part);

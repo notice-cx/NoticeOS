@@ -125,6 +125,18 @@ export async function verifyComposeCustomerWorkspace(origin, operating, localTow
   finally { await identity?.close(); }
 }
 
+export async function verifyComposeCustomerCollection(operating) {
+  if (!operating.collectorProviders.includes('clarity')) return;
+  const { openWorkspaceStore } = await import('../../packages/postgres/src/store.mjs');
+  const store = openWorkspaceStore(operating.address, { workspaceId: operating.workspaces[0].workspaceId, maxConnections: 1 });
+  try {
+    const connected = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.integration_connections c
+      JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
+      WHERE c.workspace_id=$1::uuid AND c.provider='clarity' LIMIT 1`, [tx.workspaceId]));
+    if (!connected.length) throw new ContainerRefusal('Connect Microsoft Clarity in the standalone Tower before enabling its customer schedule.');
+  } finally { await store.close(); }
+}
+
 export function composeArchiveBucket(installationDir) {
   try {
     const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
@@ -246,7 +258,8 @@ if (!isMainThread && workerData?.composeCustomer === true) {
 } else if (process.argv[1] === import.meta.filename) {
   if (process.argv[2] === '--check') {
     try {
-      const { backup, plan } = await prepareCustomer();
+      const { backup, operating, plan } = await prepareCustomer();
+      await verifyComposeCustomerCollection(operating);
       const problem = await backup?.check();
       if (problem) throw new ContainerRefusal(problem);
       if (process.env.NOTICEOS_LIVE_SOURCE_ROOT) {

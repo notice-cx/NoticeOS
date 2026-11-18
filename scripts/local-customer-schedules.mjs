@@ -11,6 +11,9 @@ import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
 const privateUrl = 'https://scheduler.internal/collect';
+const POSTHOG_LIMIT_MS = 4 * MINUTE;
+const GOOGLE_ARCHIVE_LIMIT_MS = 10 * MINUTE;
+const BING_ARCHIVE_LIMIT_MS = 3 * MINUTE;
 
 function next(schedule, after) {
   return new Cron(schedule.cron, { timezone: scheduleTimezone(schedule), paused: true })
@@ -195,7 +198,10 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         return response.json();
       } }] }];
     const runner = createHostedJobRunner({ ...binding, ...scoped, definitions,
-      effectTimeoutMs: snapshot ? CUSTOMER_BACKUP_EFFECT_MS : reporting ? REPORT_EFFECT_LIMIT_MS : 90_000 });
+      effectTimeoutMs: snapshot ? CUSTOMER_BACKUP_EFFECT_MS : reporting ? REPORT_EFFECT_LIMIT_MS
+        : job === 'posthog' ? POSTHOG_LIMIT_MS
+        : archive?.provider === 'bing-webmaster' ? BING_ARCHIVE_LIMIT_MS
+        : collection?.extendedArchives && archive ? GOOGLE_ARCHIVE_LIMIT_MS : 90_000 });
     active.add(runner);
     try {
       const receipt = await runner.run(job, occurrence, { asset, scheduledAt, ...(archive ? { archive } : {}) });

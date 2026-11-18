@@ -13,6 +13,7 @@ import {
   dataForSeoCandidates,
   dataForSeoFamiliesFor,
   runDataForSeoDumps,
+  dataForSeoMonthlyCap,
   type DataForSeoDumpsOptions,
   type DataForSeoRunInFlight,
   type SerpPanelConfig,
@@ -90,8 +91,8 @@ export async function handleSignalCollect(
   // store-first, so a property declined on its Data sources row is refused
   // here by name; the run below reads the same documents.
   const configs =
-    dataForSeoOptions.laneRegister === undefined || dataForSeoOptions.serpPanelConfig === undefined
-      ? await readCollectorConfigs(env, ['config/integrations.json', 'config/serp-panel.json'])
+    dataForSeoOptions.laneRegister === undefined || dataForSeoOptions.serpPanelConfig === undefined || dataForSeoOptions.monthlyCapUsd === undefined
+      ? await readCollectorConfigs(env, ['config/integrations.json', 'config/serp-panel.json', 'config/constants.json'])
       : null;
   const laneRegister =
     dataForSeoOptions.laneRegister ??
@@ -127,6 +128,7 @@ export async function handleSignalCollect(
     laneRegister,
     serpPanelConfig,
     configSources: dataForSeoOptions.configSources ?? configs?.sources,
+    monthlyCapUsd: dataForSeoOptions.monthlyCapUsd ?? dataForSeoMonthlyCap(configs?.storedConstants),
     scope: { asset, families: collected },
   });
 

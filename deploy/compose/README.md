@@ -259,11 +259,19 @@ Use `siteReports: true` to enable scoped site report credentials at the same loo
 
 Connect or replace Google and AdSense sign-in credentials in standalone mode before switching to customer mode. For OAuth, open the standalone Tower's registered loopback address on the computer running NoticeOS, or use its existing supported HTTPS address. Customer mode reserves Google connections for scheduled collection.
 
-To continue the existing scheduled provider reads, include `mediavine`,
-`stripe` or `bing-webmaster` in `collectorProviders`. For each enabled nightly
-site report already pulled by this app, add a `sitePulls` entry with the
+To continue existing scheduled provider reads, include `mediavine`,
+`stripe`, `bing-webmaster`, `posthog` or `clarity` in `collectorProviders`.
+Set `extendedArchives: true` to include the additional archive reports for
+authorized Google and Bing connections. Configure Clarity project tokens
+in the encrypted workspace connection in standalone mode before switching
+if they are currently saved as environment bindings. The preflight checks for
+the saved Clarity connection when it is enabled in `collectorProviders`.
+
+For each enabled nightly site report or counter feed already pulled by this
+app, add a `sitePulls` entry with the
 enrolled `workspaceId`, its `asset` ID and the exact approved HTTPS `urls`
-from its saved pull settings. The preflight checks that the existing
+from its saved settings. One entry can cover a nightly report and site counter
+feed using the same asset bearer. The preflight checks that the existing
 `ASSET_TOKENS` map has a bearer for that asset. Keep the bearer in that map.
 
 From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. The check runs inside the app container. With mounted source, it builds the checkout in a temporary directory and removes that directory after verification.
