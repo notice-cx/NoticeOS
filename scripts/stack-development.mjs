@@ -226,11 +226,11 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
         await verifyPreparedImage({ root, image, currentImage: before.noticeos.image, declared, run, env, inputs });
         targetImage = image;
       }
+      await verifyPreparedSchema(run, selector, targetImage, env);
       if (baseModel.value.services.noticeos.image !== targetImage) {
         selected = await pinPreparedImage({ image: targetImage, dir, declared, baseModel: baseModel.value, run, env });
         inputHashes = { ...stackInputSeal(selectorFile, selected), ...inputHashes };
       }
-      await verifyPreparedSchema(run, selector, targetImage, env);
     } else {
       if (active && !selector.files.includes(overrideFile)) fail('This stack uses development mounts owned by another selector.');
       if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');
