@@ -9,7 +9,7 @@ import { everyTabPayload } from "./asset-detail-fixture";
 
 const read = vi.hoisted(() => ({ credential: undefined as CredentialSummary | undefined }));
 vi.mock("@/hooks/useConnections", () => ({ useConnections: () => ({
-  credentials: read.credential && new Map([["google", read.credential]]),
+  credentials: read.credential && new Map([[read.credential.provider, read.credential]]),
   items: [], providers: { data: { keyPresent: true } },
 }) }));
 
@@ -19,18 +19,22 @@ const unwired: CredentialSummary = {
 };
 const nowMs = Date.parse("2026-10-25T10:00:00Z");
 
-function view({ role = "owner", preview, mapped = false }: { role?: "owner" | "operator" | "viewer"; preview?: true; mapped?: boolean } = {}) {
+function view({ role = "owner", preview, mapped = false, tracked = false }: {
+  role?: "owner" | "operator" | "viewer"; preview?: true; mapped?: boolean; tracked?: boolean;
+} = {}) {
   const id = crypto.randomUUID();
   const runtime = createBrowserRuntime<never>({ mode: "hosted", clientGeneration: 1, workspaceId: id, principalId: id, sessionId: id },
     { origin: location.origin, fetch: globalThis.fetch, sendAnswer: async () => {} });
   const data = everyTabPayload();
   const template = data.integrations.lanes[0]!;
-  data.integrations.lanes = [{ ...template, catalog: { ...template.catalog, id: "ga4" }, cell: {
-    ...template.cell, laneId: "ga4", effective: "needs-setup", evidence: [], mapped,
+  const laneId = tracked ? "dataforseo" : "ga4";
+  data.integrations.lanes = [{ ...template, catalog: { ...template.catalog, id: laneId }, cell: {
+    ...template.cell, laneId, effective: "needs-setup", evidence: [], mapped,
   } }];
   render(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: "Example workspace", workspaceRole: role, backupPreview: preview }}>
     <MemoryRouter initialEntries={["/assets/meadow.example/growth?range=90"]}>
-      <ReportSourceNext report="audience" assetTab="growth" data={data} nowMs={nowMs} />
+      <ReportSourceNext report={tracked ? "trackedSearch" : "audience"} assetTab={tracked ? "search" : "growth"}
+        configuredHref={tracked ? "/assets/meadow.example/settings#tracked-panels" : undefined} data={data} nowMs={nowMs} />
     </MemoryRouter>
   </BrowserRuntimeProvider>);
 }
@@ -64,6 +68,17 @@ describe("empty reports use the saved connection and verified access", () => {
   it("leads a viewer from a failed connected source to its saved status", () => {
     read.credential = { ...unwired, source: "store", lastUsedAt: "2026-10-25T09:59:00Z", lastError: "Access changed" };
     view({ mapped: true, role: "viewer" });
-    expect(screen.getByRole("link", { name: "Review data sources" })).toHaveAttribute("href", "/assets/meadow.example/sources");
+    expect(screen.getByRole("link", { name: "Review data sources" })).toHaveAttribute("href", "/assets/meadow.example/sources?range=90");
+  });
+
+  it.each(["owner", "viewer"] as const)("offers permitted tracked-term guidance to the %s", role => {
+    read.credential = { ...unwired, provider: "dataforseo", source: "store" };
+    view({ role, tracked: true });
+    if (role === "viewer") {
+      expect(screen.getByText(/owner or operator can set up tracked terms/u)).toBeVisible();
+      expect(screen.queryByRole("link")).toBeNull();
+    } else {
+      expect(screen.getByRole("link", { name: "Track search terms" })).toHaveAttribute("href", "/assets/meadow.example/settings#tracked-panels");
+    }
   });
 });

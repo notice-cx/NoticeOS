@@ -2,7 +2,7 @@ import { useBrowserRuntime, useOwnerPreferences, useWorkspaceReadOnlyReason } fr
 import { AccountMenu } from '@/components/AccountMenu';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
-import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -532,8 +532,8 @@ export function AppShell({
   const { theme, toggle } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
-  const shell = useRef<HTMLDivElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteVisible, setPaletteVisible] = useState(false);
   const returnToMenu = useRef(false);
   function changePalette(open: boolean) {
     if (open && menuOpen) {
@@ -543,11 +543,11 @@ export function AppShell({
     setPaletteOpen(open);
   }
   useEffect(() => {
-    if (!paletteOpen && returnToMenu.current) {
+    if (!paletteOpen && !paletteVisible && !menuOpen && returnToMenu.current) {
       returnToMenu.current = false;
       menuButton.current?.focus();
     }
-  }, [paletteOpen]);
+  }, [menuOpen, paletteOpen, paletteVisible]);
   // The shell mounts with the first desk page under it, so this is the desk's
   // first screen drawn.
   useBootSplashRelease();
@@ -576,7 +576,7 @@ export function AppShell({
 
   return (
     <RoutePrefetch.Provider value={onPrefetch}>
-      <div ref={shell} className="flex min-h-screen" inert={menuOpen}>
+      <div className="flex min-h-screen" inert={menuOpen || paletteVisible}>
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}
@@ -595,7 +595,7 @@ export function AppShell({
                 aria-label="Open navigation"
                 aria-haspopup="dialog"
                 aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(true)}
+                onClick={() => { setPaletteOpen(false); setMenuOpen(true); }}
               >
                 <PanelLeft className="size-4" />
               </Button>
@@ -631,7 +631,7 @@ export function AppShell({
             )
           : null}
 
-        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} background={shell} />
+        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} onVisibilityChange={setPaletteVisible} />
       </div>
     </RoutePrefetch.Provider>
   );
@@ -646,11 +646,11 @@ export function AppShell({
 function PaletteLauncher({
   open,
   onOpenChange,
-  background,
+  onVisibilityChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  background: RefObject<HTMLElement | null>;
+  onVisibilityChange: (visible: boolean) => void;
 }) {
   const [wanted, setWanted] = useState(open);
   if (open && !wanted) setWanted(true);
@@ -677,19 +677,17 @@ function PaletteLauncher({
   return (
     <Suspense fallback={<RouteLoading surface="palette" />}>
       <LazyCommandPalette open={open} onOpenChange={onOpenChange} />
-      {open ? <ModalBackground background={background} /> : null}
+      {open ? <PaletteVisibility onChange={onVisibilityChange} /> : null}
     </Suspense>
   );
 }
 
 /** Keep the desk interactive until Search or its recovery panel is visible. */
-function ModalBackground({ background }: { background: RefObject<HTMLElement | null> }) {
+function PaletteVisibility({ onChange }: { onChange: (visible: boolean) => void }) {
   useLayoutEffect(() => {
-    const desk = background.current;
-    if (!desk) return;
-    desk.inert = true;
-    return () => { desk.inert = false; };
-  }, [background]);
+    onChange(true);
+    return () => onChange(false);
+  }, [onChange]);
   return null;
 }
 

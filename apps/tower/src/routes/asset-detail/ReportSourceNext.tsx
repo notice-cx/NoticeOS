@@ -47,11 +47,11 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   const { id } = data.asset;
   if (backupPreview) return <p className="text-sm text-muted-foreground">This preview shows the reports saved in the backup.</p>;
   if (demoReadonly) return null;
+  const trackedTerms = configuredHref && (canEdit
+    ? <Button asChild size="sm" variant="outline"><Link to={configuredHref}>Track search terms</Link></Button>
+    : <p className="text-sm text-muted-foreground">A workspace owner or operator can set up tracked terms for this asset.</p>);
   // Tracked terms are editable per asset even when its source catalog omits paid search.
-  if (configuredHref && !data.integrations.lanes.some(({ catalog }) => reportLanes[report].includes(catalog.id))) {
-    return canEdit ? <Button asChild size="sm" variant="outline"><Link to={configuredHref}>Track search terms</Link></Button>
-      : <p className="text-sm text-muted-foreground">A workspace owner or operator can set up tracked terms for this asset.</p>;
-  }
+  if (trackedTerms && !data.integrations.lanes.some(({ catalog }) => reportLanes[report].includes(catalog.id))) return trackedTerms;
   const sources = reportLanes[report].flatMap(laneId => {
     const lane = data.integrations.lanes.find(({ catalog }) => catalog.id === laneId);
     if (!lane) return [];
@@ -65,11 +65,11 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   const connected = sources.find(source => source.kind !== "not-connected" && source.kind !== "unknown");
   if (connected) {
     if (["working", "collecting"].includes(connected.kind)) {
-      if (configuredHref) return canEdit ? <Button asChild size="sm" variant="outline"><Link to={configuredHref}>Track search terms</Link></Button> : null;
+      if (trackedTerms) return trackedTerms;
       return <p className="text-sm text-muted-foreground">{providerName(connected.provider)} is connected for this asset.</p>;
     }
     return ["overdue", "failing", "reconnecting"].includes(connected.kind)
-      ? <Button asChild size="sm" variant="outline"><Link to={tabPath(id, "sources")}>Review data sources</Link></Button>
+      ? <Button asChild size="sm" variant="outline"><Link to={tabPath(id, "sources", search)}>Review data sources</Link></Button>
       : null;
   }
   if (sources.some(source => source.kind === "unknown" || source.reported)) return null;
@@ -80,7 +80,7 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   const credential = credentials?.get(source.provider.id);
   if (!credential) return null;
   const disconnected = connectionState(credential) === "not-connected";
-  if (configuredHref && !disconnected) return canEdit ? <Button asChild size="sm" variant="outline"><Link to={configuredHref}>Track search terms</Link></Button> : null;
+  if (trackedTerms && !disconnected) return trackedTerms;
   const name = disconnected ? providerName(source.provider) : integrationLabel(source.laneId, source.provider.label);
   if (!canEdit) return <p className="text-sm text-muted-foreground">A workspace owner or operator can {disconnected ? "connect" : "set up"} {name}.</p>;
   if (!providers?.data || connectBlockers(providers.data).length) return null;
