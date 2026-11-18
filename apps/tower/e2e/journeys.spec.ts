@@ -3537,6 +3537,15 @@ test("navigation tabs stay readable and contained while moving keyboard focus", 
     const box = tab.getBoundingClientRect();
     return box.left >= strip.left - 1 && box.right <= strip.right + 1;
   };
+  const hasUnderline = (tab: Element) => {
+    const style = getComputedStyle(tab);
+    const neighboring = getComputedStyle(tab.parentElement!.querySelector('[aria-selected="false"]')!);
+    return parseFloat(style.borderBottomWidth) >= 2 && style.borderBottomColor !== neighboring.borderBottomColor;
+  };
+  const hasFocusOutline = (tab: Element) => {
+    const style = getComputedStyle(tab);
+    return style.outlineStyle === "solid" && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) < 0;
+  };
 
   const sizes = await tabs.evaluateAll(elements => elements.map(element => ({
     height: element.getBoundingClientRect().height,
@@ -3550,10 +3559,8 @@ test("navigation tabs stay readable and contained while moving keyboard focus", 
   await expect(last).toBeFocused();
   await expect(overview).toHaveAttribute("aria-selected", "true");
   expect(await last.evaluate(insideStrip)).toBe(true);
-  expect(await last.evaluate(tab => {
-    const style = getComputedStyle(tab);
-    return style.outlineStyle === "solid" && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) < 0;
-  })).toBe(true);
+  expect(await overview.evaluate(hasUnderline)).toBe(true);
+  expect(await last.evaluate(hasFocusOutline)).toBe(true);
   expect(await page.evaluate(() => [scrollX, scrollY])).toEqual(pageScroll);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 
@@ -3566,6 +3573,16 @@ test("navigation tabs stay readable and contained while moving keyboard focus", 
   await page.goto(href);
   await expect(last).toHaveAttribute("aria-selected", "true");
   await expect.poll(() => last.evaluate(insideStrip)).toBe(true);
+
+  await page.evaluate(() => localStorage.setItem("noticeos:theme", "light"));
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/\blight\b/u);
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  await last.focus();
+  await page.keyboard.press("Home");
+  await expect(overview).toBeFocused();
+  expect(await last.evaluate(hasUnderline)).toBe(true);
+  expect(await overview.evaluate(hasFocusOutline)).toBe(true);
 });
 
 test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", { tag: DEV_SERVER }, async ({ page }) => {
