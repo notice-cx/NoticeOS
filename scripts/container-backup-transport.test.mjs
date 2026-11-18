@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import asyncFs from 'node:fs/promises';
+import { createHash, randomBytes } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { BACKUP_PATHS } from './container-backup-profile.mjs';
@@ -10,7 +11,7 @@ import { readResourceNames } from './resource-names.mjs';
 import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
 
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-backup-transport-'));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-backup-transport-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const map = file => path.join(root, file);
   const write = (file, value) => {
@@ -24,7 +25,9 @@ function fixture(t) {
   write('/state/workers/ingest/.dev.secrets.json', { DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres:5432/noticeos', CREDENTIALS_KEY: 'synthetic-key', OPERATOR_TOKEN: 'synthetic-token' });
   write('/state/installation/beads.json', { version: 1, projects: [] });
   fs.mkdirSync(map('/state/.local/backups/.backup-owned'), { recursive: true, mode: 0o700 });
-  const sync = { lstatSync: file => fs.lstatSync(map(file)), readFileSync: (file, ...args) => fs.readFileSync(map(file), ...args) };
+  const sync = { lstatSync: file => fs.lstatSync(map(file)), readFileSync: (file, ...args) => fs.readFileSync(map(file), ...args),
+    realpathSync: file => fs.realpathSync(map(file)).slice(root.length), openSync: (file, flags) => fs.openSync(map(file), flags),
+    fstatSync: fs.fstatSync, readSync: fs.readSync, closeSync: fs.closeSync };
   const io = Object.fromEntries(['mkdir', 'open', 'writeFile', 'readFile', 'readdir', 'lstat', 'chmod', 'chown'].map(name => [name, (file, ...args) => asyncFs[name](map(file), ...args)]));
   return { root, map, write, sync, io, output: '/state/.local/backups/.backup-owned/recovery' };
 }
@@ -48,6 +51,42 @@ test('recovery custody keeps the bootstrap, credentials and declarations and rej
   f.write('/state/installation/resource-names.json', names);
   f.write('/state/installation/beads.json', { version: 1, projects: [{ asset: 'changed' }] });
   await assert.rejects(verifyContainerRecovery(f.output, options), { message: 'beads.json: file changed during backup.' });
+});
+
+test('customer recovery keeps one validated relay file privately and notices changes before publication', async t => {
+  const f = fixture(t);
+  const options = { fs: f.io, fsSync: f.sync, customer: true };
+  const runtime = '/state/installation/customer-runtime.json', relay = '/state/installation/relay.json';
+  const configured = { format: 'noticeos-identity-smtp/1', url: 'smtps://relay.example.test:465',
+    from: 'tower@example.test', username: 'relay', password: randomBytes(20).toString('base64url') };
+  const bytes = JSON.stringify(configured, null, 2) + '\n';
+  f.write(runtime, { format: 'noticeos-compose-customer/1', mailDelivery: 'relay.json' });
+  f.write('/state/installation/other-relay.json', { ...configured, password: randomBytes(20).toString('base64url') });
+  f.write(relay, bytes);
+  await copyContainerRecovery(f.output, options);
+  const name = 'identity-mail/relay.json';
+  const copied = f.map(path.join(f.output, name));
+  assert.equal(fs.statSync(copied).mode & 0o777, 0o600);
+  assert.ok(fs.readFileSync(copied, 'utf8') === bytes, 'the private copy is byte-exact');
+  const manifest = JSON.parse(fs.readFileSync(f.map(path.join(f.output, 'recovery.json')), 'utf8'));
+  assert.deepEqual(manifest.files[name], { bytes: Buffer.byteLength(bytes), sha256: createHash('sha256').update(bytes).digest('hex') });
+  assert.deepEqual(fs.readdirSync(path.dirname(copied)), ['relay.json']);
+  await verifyContainerRecovery(f.output, options);
+  const afterRollback = f.output + '-standalone';
+  await copyContainerRecovery(afterRollback, { ...options, customer: false });
+  assert.ok(fs.readFileSync(f.map(path.join(afterRollback, name)), 'utf8') === bytes, 'a later backup after rollback keeps the configured relay file');
+  const foreign = { ...f.sync, fstatSync(fd) {
+    const stat = fs.fstatSync(fd);
+    stat.uid++;
+    return stat;
+  } };
+  await assert.rejects(copyContainerRecovery(f.output + '-owner', { ...options, fsSync: foreign }), /identity-mail: the declared private relay file is unavailable/u);
+  f.write(relay, { ...configured, password: randomBytes(20).toString('base64url') });
+  await assert.rejects(verifyContainerRecovery(f.output, options), /identity-mail\/relay.json: file changed/u);
+  fs.rmSync(f.map(relay));
+  await assert.rejects(copyContainerRecovery(f.output + '-missing', options), /identity-mail: the declared private relay file is unavailable/u);
+  f.write(runtime, { format: 'noticeos-compose-customer/1', mailDelivery: '../relay.json' });
+  await assert.rejects(copyContainerRecovery(f.output + '-foreign', options), /identity-mail: the declared private relay file is unavailable/u);
 });
 
 test('task projects the Tower exported readable by others are kept, and only as a private copy', async t => {
@@ -129,6 +168,7 @@ test('the offsite copy creates and owns each entry itself, leaves out recovery a
   f.write(path.join(source, 'r2/blobs/a'), 'blob-a');
   f.write(path.join(source, 'ntasks/recovery/kept'), 'nested name is not the recovery folder');
   f.write(path.join(source, 'recovery/bootstrap.json'), 'synthetic-secret');
+  f.write(path.join(source, 'recovery/identity-mail/relay.json'), 'synthetic relay configuration');
   fs.mkdirSync(f.map(output), { recursive: true, mode: 0o755 });
   const ownership = { operatorUid: process.getuid(), operatorGid: process.getgid() };
   // Drive for Desktop hard-links each new file into its upload area.

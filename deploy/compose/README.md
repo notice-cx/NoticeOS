@@ -296,7 +296,7 @@ Place `customer-mail.json` beside `customer-runtime.json`. Set its owner to the 
 }
 ```
 
-The prepared image submits messages using the validated TLS connection. Reuse this file for first-owner enrollment by setting `mailDelivery` in the owner plan beside it. Keep the private relay file with your recovery credentials. Put it back beside the runtime configuration before preflight or restore. Preflight fails if the configured file is missing or invalid. Restart the app after changing the relay settings.
+The prepared image submits messages using the validated TLS connection. Reuse this file for first-owner enrollment by setting `mailDelivery` in the owner plan beside it. The local backup keeps the private relay file in its recovery folder. Restore it beside the runtime configuration before preflight. Preflight fails if the configured file is missing or invalid. Restart the app after changing the relay settings.
 
 For a disposable offline fixture, omit `mailDelivery`. Codes appear in `state/.local/compose-customer/customer/mail/` for the addresses listed in `mailRecipients`.
 

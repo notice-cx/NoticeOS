@@ -85,7 +85,9 @@ when the installation has exported them, and the worker/exporter declarations.
 The recovery folder also keeps `resource-names.json` when the installation uses
 a saved archive bucket name.
 The local set keeps an existing private customer runtime declaration in
-`recovery/customer-runtime.json` in either profile, including after rollback. If a source credential or
+`recovery/customer-runtime.json` in either profile, including after rollback. When the declaration
+declares a mail relay, the local set includes its validated file under
+`recovery/identity-mail/` with the recorded SHA-256. If a source credential or
 declaration changes during capture, the set is not published.
 
 The offsite copy leaves out `recovery/`; only the local set has it. The copy
@@ -137,6 +139,8 @@ the original declaration or set `rawSignalsBucket` to the verified archive
 bucket before starting customer mode. If the restore contains several buckets,
 verify which physical bucket contains the indexed report objects before choosing
 the name.
+Restore the mail relay file, if configured, beside `customer-runtime.json` as
+a private file owned by the application user before running preflight.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local

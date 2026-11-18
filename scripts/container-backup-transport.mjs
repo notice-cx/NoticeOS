@@ -9,9 +9,9 @@ import { BACKUP_PATHS, readBackupWorker, privateBackupFile, backupWorkerEnvironm
 import { FILES as POSTGRES_SECRET_FILES, VERIFIERS } from './postgres-secrets.mjs';
 import { RESOURCE_NAMES_FILE } from './installation.mjs';
 import { resourceNamesRefusal } from './resource-names.mjs';
+import { readLocalIdentityMailFile } from './local-identity-mail.mjs';
 
 const refusal = () => { throw new Error('The declared container snapshot failed; no complete backup was published.'); };
-const customerDeclaration = ['customer-runtime.json', '/state/installation/customer-runtime.json', true];
 const recoverySources = [
   ['bootstrap.json', '/state/workers/ingest/.dev.secrets.json', true],
   ['worker-profile.json', BACKUP_PATHS.profile, true],
@@ -27,15 +27,40 @@ function recoveryText(name, source, privateMode, io) {
 }
 /** The recovery set: every fixed source, and the declarations an installation keeps only when it has them.
  * Installation settings may be broadly readable. Their copies are private. */
-function recoveryInputs(io, customer) {
-  const inputs = [...recoverySources];
-  if (customer) inputs.push(customerDeclaration);
+function recoveryInputs(io, customer, clientUid) {
+  const input = (name, source, privateMode) => [name, () => recoveryText(name, source, privateMode, io)];
+  const inputs = recoverySources.map(entry => input(...entry));
+  const file = '/state/installation/customer-runtime.json';
+  let prepared = customer;
+  if (!prepared) {
+    try { io.lstatSync(file); prepared = true; }
+    catch (error) { if (error.code !== 'ENOENT') throw new Error('customer-runtime.json: file could not be checked.'); }
+  }
+  if (prepared) {
+    const name = 'customer-runtime.json';
+    const readRuntime = () => {
+      const runtime = privateBackupFile(file, io, true, name);
+      if (runtime.uid !== clientUid) throw new Error(`${name}: file must belong to the application user.`);
+      return runtime.text;
+    };
+    let runtime;
+    try { runtime = JSON.parse(readRuntime()); }
+    catch { throw new Error(`${name}: private customer configuration is unavailable.`); }
+    if (runtime?.format !== 'noticeos-compose-customer/1') throw new Error(`${name}: customer configuration is invalid.`);
+    inputs.push([name, readRuntime]);
+    if (Object.hasOwn(runtime, 'mailDelivery')) {
+      const readMail = () => {
+        try { return readLocalIdentityMailFile(runtime.mailDelivery, file, { uid: clientUid, io }); }
+        catch { throw new Error('identity-mail: the declared private relay file is unavailable.'); }
+      };
+      inputs.push([`identity-mail/${readMail().name}`, () => readMail().text]);
+    }
+  }
   for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true],
-    ['beads.json', '/state/installation/beads.json', false], [RESOURCE_NAMES_FILE, `/state/installation/${RESOURCE_NAMES_FILE}`, false],
-    ...(!customer ? [customerDeclaration] : [])]) {
+    ['beads.json', '/state/installation/beads.json', false], [RESOURCE_NAMES_FILE, `/state/installation/${RESOURCE_NAMES_FILE}`, false]]) {
     try {
       io.lstatSync(source);
-      inputs.push([name, source, privateMode]);
+      inputs.push(input(name, source, privateMode));
     } catch (error) { if (error.code !== 'ENOENT') throw new Error(`${name}: file could not be checked.`); }
   }
   return inputs.sort(([a], [b]) => a.localeCompare(b));
@@ -111,15 +136,16 @@ export async function dumpContainerPostgres(output, options = {}) {
 export async function copyContainerRecovery(output, options = {}) {
   const io = options.fs ?? fs;
   const sync = options.fsSync ?? fsSync;
-  outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync, options.customer);
+  outputChecked(output);
+  const { clientUid } = readBackupWorker({ fs: sync, reportFiles: true });
+  const inputs = recoveryInputs(sync, options.customer, clientUid);
   const inventory = {};
   await io.mkdir(output, { mode: 0o700 });
-  for (const [name, source, privateMode] of inputs) {
-    const value = recoveryText(name, source, privateMode, sync);
+  for (const [name, read] of inputs) {
+    const value = read();
     await io.mkdir(path.dirname(path.join(output, name)), { recursive: true, mode: 0o700 });
     await io.writeFile(path.join(output, name), value, { flag: 'wx', mode: 0o600 });
-    if (recoveryText(name, source, privateMode, sync) !== value) throw new Error(`${name}: file changed during backup.`);
+    if (read() !== value) throw new Error(`${name}: file changed during backup.`);
     inventory[name] = { bytes: Buffer.byteLength(value), sha256: createHash('sha256').update(value).digest('hex') };
   }
   await io.writeFile(path.join(output, 'recovery.json'), JSON.stringify({ format: 'noticeos-container-recovery-v1', files: inventory }) + '\n', { flag: 'wx', mode: 0o600 });
@@ -128,8 +154,9 @@ export async function copyContainerRecovery(output, options = {}) {
 
 export async function verifyContainerRecovery(output, options = {}) {
   const sync = options.fsSync ?? fsSync;
-  outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync, options.customer);
+  outputChecked(output);
+  const { clientUid } = readBackupWorker({ fs: sync, reportFiles: true });
+  const inputs = recoveryInputs(sync, options.customer, clientUid);
   const inventory = privateBackupFile(path.join(output, 'recovery.json'), sync, true, 'recovery.json').text;
   let marker;
   try { marker = JSON.parse(inventory); }
@@ -138,11 +165,11 @@ export async function verifyContainerRecovery(output, options = {}) {
     Object.keys(marker.files ?? {}).sort().join() !== inputs.map(([name]) => name).sort().join()) {
     throw new Error('recovery.json: the inventory does not match the recovery files.');
   }
-  for (const [name, source, privateMode] of inputs) {
+  for (const [name, read] of inputs) {
     const value = privateBackupFile(path.join(output, name), sync, true, name).text;
     const expected = marker.files[name];
     if (expected?.bytes !== Buffer.byteLength(value) || expected?.sha256 !== createHash('sha256').update(value).digest('hex') ||
-      recoveryText(name, source, privateMode, sync) !== value) throw new Error(`${name}: file changed during backup.`);
+      read() !== value) throw new Error(`${name}: file changed during backup.`);
   }
 }
 

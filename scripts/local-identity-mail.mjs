@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, mkdtempSync, openSync, readSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -12,27 +12,34 @@ const failure = () => new Error('Identity mail delivery unavailable.');
 
 /** The reference names a private bootstrap file beside the operator's own plan. */
 export function readLocalIdentityMail(reference, planFile) {
+  return readLocalIdentityMailFile(reference, planFile).config;
+}
+
+/** Read and validate the exact UTF-8 bytes used by the app and its recovery set. */
+export function readLocalIdentityMailFile(reference, planFile, { uid = process.getuid(), io = fs } = {}) {
   if (typeof reference !== 'string' || !/^[a-z][a-z0-9-]{0,100}\.json$/u.test(reference) || !path.isAbsolute(planFile)) throw failure();
   const file = path.join(path.dirname(planFile), reference);
+  const { O_RDONLY, O_NOFOLLOW, O_NONBLOCK } = fs.constants;
   let fd;
   try {
-    if (realpathSync(file) !== file) throw failure();
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.uid !== process.getuid() || stat.nlink !== 1 || (stat.mode & 0o077) || stat.size > 8192) throw failure();
+    if (io.realpathSync(file) !== file) throw failure();
+    fd = io.openSync(file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    const stat = io.fstatSync(fd);
+    if (!stat.isFile() || stat.uid !== uid || stat.nlink !== 1 || (stat.mode & 0o077) || stat.size > 8192) throw failure();
     const buffer = Buffer.alloc(8193);
-    const bytes = readSync(fd, buffer, 0, buffer.length, 0);
+    const bytes = io.readSync(fd, buffer, 0, buffer.length, 0);
     if (bytes > 8192 || bytes !== stat.size) throw failure();
-    const config = JSON.parse(buffer.toString('utf8', 0, bytes));
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, bytes));
+    const config = JSON.parse(text);
     if (!config || Object.keys(config).sort().join() !== 'format,from,password,url,username' || config.format !== FORMAT
       || !mailAddress(config.from) || !clean(config.url, 2048) || !clean(config.username, 512) || config.username.includes(':')
       || !clean(config.password, 1024)) throw failure();
     const url = new URL(config.url);
     if (url.protocol !== 'smtps:' || !url.hostname || url.username || url.password || url.search || url.hash
       || !['', '/'].includes(url.pathname) || !/^smtps:\/\//u.test(config.url)) throw failure();
-    return Object.freeze({ from: config.from, url: url.href, username: config.username, password: config.password });
+    return { name: reference, text, config: Object.freeze({ from: config.from, url: url.href, username: config.username, password: config.password }) };
   } catch { throw failure(); }
-  finally { if (fd !== undefined) closeSync(fd); }
+  finally { if (fd !== undefined) io.closeSync(fd); }
 }
 
 const option = value => '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
@@ -40,18 +47,18 @@ const option = value => '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\
 /** Pass relay authentication through an unlinked file descriptor, away from
  * command arguments, environment, child diagnostics and the message stream. */
 function openCurlConfig(config, recipient) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'noticeos-smtp-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-smtp-'));
   const file = path.join(dir, 'config');
   let fd;
   try {
-    writeFileSync(file, `url = ${option(config.url)}\nuser = ${option(`${config.username}:${config.password}`)}\nmail-from = ${option(config.from)}\nmail-rcpt = ${option(recipient)}\n`,
+    fs.writeFileSync(file, `url = ${option(config.url)}\nuser = ${option(`${config.username}:${config.password}`)}\nmail-from = ${option(config.from)}\nmail-rcpt = ${option(recipient)}\n`,
       { mode: 0o600, flag: 'wx' });
-    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
-    rmSync(dir, { recursive: true });
+    fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    fs.rmSync(dir, { recursive: true });
     return fd;
   } catch {
-    if (fd !== undefined) closeSync(fd);
-    rmSync(dir, { recursive: true, force: true });
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.rmSync(dir, { recursive: true, force: true });
     throw failure();
   }
 }
@@ -75,7 +82,7 @@ export function smtpIdentityMail(config, accepts, { launch = spawn, signal } = {
         env: { PATH: '/usr/bin:/bin' }, signal: bounded, killSignal: 'SIGKILL', stdio: ['pipe', 'ignore', 'ignore', fd],
       });
     } catch { throw failure(); }
-    finally { closeSync(fd); }
+    finally { fs.closeSync(fd); }
     const finished = new Promise(resolve => {
       child.on('error', () => undefined);
       child.once('close', code => resolve(code === 0));
