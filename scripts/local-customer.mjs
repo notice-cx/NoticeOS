@@ -299,7 +299,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 }
 
 /** Runtime composition shared by the disposable fixture and its read-only shadow. */
-export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
+export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, mailFrom = MAIL_SENDER, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
   startSchedules, fixtureProvider, shadowAdmission, resumeSince, backupResumeSince, operating, deployment }) {
   const localTowerOrigin = deployment && plan.localTowerOrigin;
@@ -372,7 +372,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       telemetry: { enabled: false }, workers: [
         { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: localTowerOrigin ? 'local-network' : 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
           ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
-          NOTICEOS_IDENTITY_EMAIL_FROM: MAIL_SENDER },
+          NOTICEOS_IDENTITY_EMAIL_FROM: mailFrom },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
             routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: assets.not_found_handling } },
           serviceBindings: { INGEST: 'ingest', NOTICEOS_IDENTITY_EMAIL: 'mail',
@@ -404,7 +404,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
           serviceBindings: { BACKUP: { name: 'customer-backup-ingest', entrypoint: 'CustomerBackup' } } }] : []),
         { name: 'mail', modules: true, compatibilityDate: '2026-07-06', script: MAIL_WORKER,
           serviceBindings: { OUTBOX: async request => {
-            try { return new Response(deliver(await request.json())); }
+            try { return new Response(await deliver(await request.json())); }
             catch { return new Response(null, { status: 403 }); }
           } } },
       ] });

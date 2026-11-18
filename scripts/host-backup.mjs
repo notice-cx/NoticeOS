@@ -658,7 +658,9 @@ function restoreInstructions(startedAt, stages, retentionDays, retention, contai
   If the set includes \`recovery/customer-runtime.json\`, run \`pnpm db:prepare-customer-roles\`
   with the new stack's selector to generate and verify its logins. In a private copy of the
   runtime file, replace \`database.identity\` and \`database.grant\` with the plan's two internal URLs.
-  Keep the identity secret and workspace mapping. Run customer preflight before enabling the profile.
+  Keep the identity secret and workspace mapping. If the file declares \`mailDelivery\`, restore its relay
+  file from \`recovery/identity-mail/\` beside it. Keep both files owned by the app user with
+  mode \`0600\`. Run customer preflight before enabling the profile.
 ` : '';
   return `# NoticeOS backup — ${startedAt.slice(0, 10)}
 

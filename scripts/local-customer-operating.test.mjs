@@ -19,6 +19,7 @@ import { testFixtureRoot } from './test-fixture-root.mjs';
 import { availableCustomerPort } from './test/customer-ports.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { customerArchiveFixture } from './test-fixtures/customer-archive.mjs';
+import { identitySmtpFixture } from './test-fixtures/identity-smtp.mjs';
 
 test('the operator chooses the one loopback database and only explicit providers', async t => {
   const root = testFixtureRoot('noticeos-operating-config-');
@@ -147,6 +148,41 @@ async function exerciseSiteReports(origin, owner, db) {
   ]);
 }
 
+async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
+  const origin = app.publicOrigin;
+  const post = (route, body) => fetch(origin + route, { method: 'POST',
+    headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const foreign = await post(EMAIL_CODE_PATHS.request, { email: 'unregistered@example.test' });
+  assert.equal(foreign.status, 202);
+  assert.equal(foreign.headers.has('set-cookie'), false);
+  assert.deepEqual(relay.recipients, []);
+  const request = await post(EMAIL_CODE_PATHS.request, { email });
+  assert.equal(request.status, 202);
+  assert.equal(request.headers.has('set-cookie'), false);
+  assert.deepEqual(await request.json(), { ok: true });
+  assert.deepEqual(relay.recipients, [email]);
+  const otp = relay.inbox[0]?.wire.match(/\b(\d{6})\./u)?.[1];
+  assert.ok(otp, 'the code is addressed to the configured owner');
+  assert.equal(app.outbox, undefined);
+  const signIn = await post(EMAIL_CODE_PATHS.verify, { email, otp });
+  assert.equal(signIn.status, 200);
+  const cookie = signIn.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+  const current = await fetch(origin + '/api/session', { headers: { cookie } });
+  const { session, workspaces } = await current.json();
+  assert.ok(session?.sessionId);
+  assert.ok(workspaces.some(workspace => workspace.workspaceId === workspaceId && workspace.role === 'owner'));
+  db.cluster.run("UPDATE noticeos_identity.auth_rate_limit SET last_request=last_request-61000 WHERE key='127.0.0.1|/email-otp/send-verification-otp'");
+  const sessions = () => db.cluster.sql('SELECT count(*) AS count FROM noticeos_identity.auth_session');
+  const before = sessions();
+  relay.reject();
+  const failed = await post(EMAIL_CODE_PATHS.request, { email });
+  assert.equal(failed.status, 503);
+  assert.equal(failed.headers.has('set-cookie'), false);
+  assert.deepEqual(await failed.json(), { ok: false });
+  assert.equal(relay.inbox.length, 1);
+  assert.deepEqual(sessions(), before);
+}
+
 async function recordedGoogle(archive) {
   let calls = 0;
   const server = createServer(async (request, reply) => {
@@ -179,13 +215,14 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
   const source = startPlan({ dir: path.join(root, 'prepared-store'), port: await availableCustomerPort() });
   const operator = startPlan({ dir: path.join(root, 'runtime'), port: source.port });
   const configFile = path.join(root, 'customer.json');
-  let db, app, provider;
+  let db, app, provider, relay;
   try {
     db = await skipWithoutPostgres(t, () => openDevelopmentStart(source, { profile: 'hosted' }));
     if (!db) return;
     app = await startLocalCustomer(source, db);
     const { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(db.customer, 'settings.json'), 'utf8'));
     const workspaces = app.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }));
+    const email = app.workspaces[0].email;
     const owner = await workspaceOwner(app);
     const archive = customerArchiveFixture(app, { useServiceAccount: true });
     await archive.configure(db, credentialsKey);
@@ -193,22 +230,25 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     const config = { format: 'noticeos-customer-operating/1', database: {
       app: db.address, identity: db.identityDatabase, grant: db.grantConnectionString,
     }, identitySecret, credentialsKey, workspaces, mailRecipients: app.workspaces.map(row => row.email) };
-    const save = (googleDaily, siteReports) => writeFileSync(configFile, JSON.stringify({ ...config, googleDaily, siteReports }), { mode: 0o600 });
+    const save = (googleDaily, siteReports, mailDelivery) => writeFileSync(configFile, JSON.stringify({ ...config, googleDaily, siteReports, mailDelivery }), { mode: 0o600 });
     await app.close(); app = undefined;
+    relay = await identitySmtpFixture(root);
+    writeFileSync(path.join(root, 'mail.json'), JSON.stringify(relay.declaration), { mode: 0o600 });
 
     let resources;
-    const launch = () => startAttachedCustomer(operator, configFile, { googleTransport: provider.send, startSchedules(options) {
+    const launch = () => startAttachedCustomer(operator, configFile, { googleTransport: provider.send, smtpLaunch: relay.launch, startSchedules(options) {
       resources = options;
       const now = Date.now();
       return startLocalCustomerSchedules({ ...options, now: () => now });
     } });
-    save(false);
+    save(false, false, 'mail.json');
     app = await launch();
     await app.whenIdle();
     assert.equal(provider.calls(), 0);
     assert.deepEqual(db.cluster.sql('SELECT 1 FROM noticeos.archive_runs'), []);
     const session = await fetch(app.publicOrigin + '/api/session');
     assert.equal((await session.json()).mode, 'hosted');
+    await exerciseSignInDelivery(app, relay, email, workspaces[0].workspaceId, db);
     assert.equal((await fetch(app.publicOrigin + '/api/mcp')).status, 401);
     assert.equal((await fetch(app.publicOrigin + '/api/assets/archive-app/report-token', { method: 'POST', headers: owner })).status, 404);
     const other = startPlan({ dir: path.join(root, 'second-runtime'), port: await availableCustomerPort() });
@@ -237,7 +277,7 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     await assertNormalLauncher(operator, configFile, () => exerciseSiteReports(new URL(operator.url).origin, owner, db));
     assert.equal(provider.calls(), archived);
   } finally {
-    try { await app?.close(); } finally { db?.close(); await provider?.close(); }
+    try { await app?.close(); } finally { db?.close(); await Promise.all([provider?.close(), relay?.close()]); }
     if (!existsSync(path.join(source.home, '.local', 'customer-postgres', 'data', 'postmaster.pid'))) {
       rmSync(root, { recursive: true, force: true });
     }

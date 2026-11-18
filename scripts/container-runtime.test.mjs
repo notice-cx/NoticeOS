@@ -155,7 +155,7 @@ test('the same container explicitly selects one customer clock, exact loopback i
   fs.symlinkSync(path.join(root, '.wrangler'), path.join(alternate, '.wrangler'));
   assert.throws(() => composeArchiveState(alternate, fs, () => {}), ContainerRefusal);
 
-  const file = path.join(root, 'prepared.json');
+  const file = path.join(fs.realpathSync(root), 'prepared.json');
   const database = { identity: 'postgresql://noticeos_identity:fixture@postgres/product',
     grant: 'postgresql://noticeos_service_grant:fixture@postgres:5432/product' };
   const bootstrap = { DATABASE_URL: 'postgresql://noticeos_app:fixture@postgres:5432/product', CREDENTIALS_KEY: 'A'.repeat(43) + '=' };
@@ -183,6 +183,10 @@ test('the same container explicitly selects one customer clock, exact loopback i
   const bound = { ...bootstrap, ASSET_TOKENS: tokens };
   assert.throws(() => read({ sitePulls: [{ ...site, token: 'replacement-bearer' }] }, bound), /existing database/u);
   assert.throws(() => read({ sitePulls: [{ ...site, workspaceId: options.workspaces[0].serviceId }] }, bound), /existing database/u);
+  assert.throws(() => read({ mailDelivery: 'relay.json' }), /Restore the private SMTP mail file/u);
+  fs.writeFileSync(path.join(root, 'relay.json'), JSON.stringify({ format: 'noticeos-identity-smtp/1', url: 'smtps://relay.example.test:465',
+    from: 'tower@example.test', username: 'relay', password: 'synthetic' }), { mode: 0o600 });
+  assert.equal(read({ mailDelivery: 'relay.json' }).mailDelivery.from, 'tower@example.test');
 });
 
 test('customer readiness does not fall back to stale standalone state or ignore a declared backup', async () => {

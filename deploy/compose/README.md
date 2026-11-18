@@ -251,11 +251,11 @@ The default customer address is the published loopback port. For a Tower already
 
 Before switching, complete [Prepare existing signal archives for customer mode](#prepare-existing-signal-archives-for-customer-mode) so older reports are also available in customer mode. Follow [Prepare the Postgres logins on the existing local stack](../../scripts/README.md#prepare-the-postgres-logins-on-the-existing-local-stack) to enable the dedicated logins and add the Postgres access rule before preflight. The role tool requires confirmation of the exact Compose project when applying or rolling back changes.
 
-Prepare `state/installation/customer-runtime.json` as a regular file owned by the application UID with mode `0600`. Set `format` to `noticeos-compose-customer/1`. Its `database` object contains `identity` and `grant`, with URLs for `noticeos_identity` and `noticeos_service_grant` on the same internal `postgres:5432` database the existing app uses. `identitySecret` must match enrollment. The single entry in `workspaces` contains the enrolled `workspaceId` and `serviceId` for its `workflows.run` grant. `mailRecipients` lists addresses allowed to use the private file mailbox. The app reads the existing application role URL and encryption key from its bootstrap file.
+Prepare `state/installation/customer-runtime.json` as a regular file owned by the application UID with mode `0600`. Set `format` to `noticeos-compose-customer/1`. Its `database` object contains `identity` and `grant`, with URLs for `noticeos_identity` and `noticeos_service_grant` on the same internal `postgres:5432` database the existing app uses. `identitySecret` must match enrollment. The single entry in `workspaces` contains the enrolled `workspaceId` and `serviceId` for its `workflows.run` grant. `mailRecipients` lists addresses allowed to receive sign-in codes. The app reads the existing application role URL and encryption key from its bootstrap file.
 
 On a home-network Tower, local report senders run inside the app container and use its loopback socket on port 5173 with the configured Tower Host header. The LAN listener serves the browser.
 
-Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials, including service accounts. Both external connections stay off by default. The file mailbox captures sign-in messages under `state/.local/compose-customer/customer/mail/`. A real enrollment requires independently verified email delivery.
+Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials, including service accounts. Both external connections stay off by default.
 
 Connect or replace Google and AdSense sign-in credentials in standalone mode before switching to customer mode. For OAuth, open the standalone Tower's registered loopback address on the computer running NoticeOS, or use its existing supported HTTPS address. Customer mode reserves Google connections for scheduled collection.
 
@@ -279,6 +279,26 @@ NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_CONTAINER_CUSTOMER=1 \
   NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-example \
   node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
 ```
+
+#### Deliver sign-in codes to an inbox
+
+Choose an existing SMTP relay that supports implicit TLS and authentication. Use a From address approved by that relay. In `customer-runtime.json`, set `mailDelivery` to `customer-mail.json` and list the permitted owner and member addresses in `mailRecipients`.
+
+Place `customer-mail.json` beside `customer-runtime.json`. Set its owner to the application UID and mode to `0600`.
+
+```json
+{
+  "format": "noticeos-identity-smtp/1",
+  "url": "smtps://relay.example.test:465",
+  "from": "tower@example.test",
+  "username": "relay-login",
+  "password": "relay-password"
+}
+```
+
+The prepared image submits messages using the validated TLS connection. Reuse this file for first-owner enrollment by setting `mailDelivery` in the owner plan beside it. The local backup keeps the private relay file in its recovery folder. Restore it beside the runtime configuration before preflight. Preflight fails if the configured file is missing or invalid. Restart the app after changing the relay settings.
+
+For a disposable offline fixture, omit `mailDelivery`. Codes appear in `state/.local/compose-customer/customer/mail/` for the addresses listed in `mailRecipients`.
 
 ### Starting and stopping services
 

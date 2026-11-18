@@ -16,6 +16,8 @@ import { scramVerifier } from './postgres-scram.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
+import { runStandaloneOwner } from './standalone-owner.mjs';
+import { identitySmtpFixture } from './test-fixtures/identity-smtp.mjs';
 
 const script = path.join(import.meta.dirname, 'standalone-owner.mjs');
 const installationOrigin = 'http://fixture-tower.local:5173';
@@ -45,7 +47,7 @@ test('operator enrollment preserves a populated standalone workspace through own
   const inbox = path.join(root, 'recipient.txt');
   const transport = path.join(root, 'mail-fixture');
   const identitySecret = randomBytes(48).toString('base64url');
-  let owner, server, releaseProject, observedProject;
+  let owner, server, relay, releaseProject, observedProject;
   const calls = [];
   try {
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools));
@@ -151,8 +153,13 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.deepEqual(calls, []);
     assert.deepEqual(counts(), { members: '0', grants: '0' });
 
-    await must('send-code', pending.enrollmentId);
-    const retiredLetter = readFileSync(inbox, 'utf8');
+    relay = await identitySmtpFixture(root);
+    writeFileSync(path.join(root, 'mail.json'), JSON.stringify(relay.declaration), { mode: 0o600 });
+    writePlan({ mail: undefined, mailDelivery: 'mail.json' });
+    assert.equal((await runStandaloneOwner(['send-code', planFile, pending.enrollmentId], undefined, { smtpLaunch: relay.launch })).emailVerified, false);
+    assert.deepEqual(relay.recipients, [ownerEmail]);
+    const retiredLetter = relay.inbox[0]?.wire ?? '';
+    writePlan();
     const retiredCode = /\b(\d{6})\./u.exec(retiredLetter)?.[1];
     assert.match(retiredCode ?? '', /^\d{6}$/u);
     owner.run("UPDATE noticeos_identity.platform_enrollment SET expires_at=now()-interval '1s'");
@@ -163,10 +170,10 @@ test('operator enrollment preserves a populated standalone workspace through own
     writePlan({ mail: undefined });
     const unavailableMail = await cmd('send-code', renewed.enrollmentId);
     assert.equal(unavailableMail.status, 1);
-    assert.equal(readFileSync(inbox, 'utf8'), retiredLetter);
+    assert.equal(existsSync(inbox), false);
     writePlan({ workspaceId: randomUUID() });
     await must('send-code', renewed.enrollmentId);
-    assert.equal(readFileSync(inbox, 'utf8'), retiredLetter);
+    assert.equal(existsSync(inbox), false);
     writePlan();
     await must('send-code', renewed.enrollmentId);
     const letter = readFileSync(inbox, 'utf8');
@@ -248,8 +255,11 @@ test('operator enrollment preserves a populated standalone workspace through own
     } finally { await loginFlow.close(); await identity.close(); }
     assert.deepEqual(await evidence(), before);
   } finally {
-    if (server) await new Promise(resolve => server.close(resolve));
-    owner?.close();
-    if (!existsSync(path.join(root, 'pg/data/postmaster.pid'))) rmSync(root, { recursive: true, force: true });
+    try {
+      await Promise.all([relay?.close(), server && new Promise(resolve => server.close(resolve))]);
+    } finally {
+      owner?.close();
+      if (!existsSync(path.join(root, 'pg/data/postmaster.pid'))) rmSync(root, { recursive: true, force: true });
+    }
   }
 });

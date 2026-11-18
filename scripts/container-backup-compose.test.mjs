@@ -29,6 +29,7 @@ import { RESOURCE_NAMES_FILE } from './installation.mjs';
 import { readResourceNames } from './resource-names.mjs';
 import { customerPostgresRoles } from './customer-postgres-roles.mjs';
 import { verifyComposeCustomerWorkspace } from '../deploy/compose/customer-entry.mjs';
+import { readLocalIdentityMail } from './local-identity-mail.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER_BACKUP === '1';
@@ -426,7 +427,10 @@ test('the fixed backup worker publishes private complete sets and restores every
         ...(customerLan ? { towerOrigin: `http://${lanHost}:${plan.port}` } : {}),
         database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
         identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }],
-        ntasksOrigin: CONTAINER_BACKUP_NTASKS_ORIGIN };
+        ntasksOrigin: CONTAINER_BACKUP_NTASKS_ORIGIN, mailDelivery: 'relay.json' };
+      const relay = { format: 'noticeos-identity-smtp/1', url: 'smtps://127.0.0.1:17973',
+        from: 'tower@example.test', username: 'relay-fixture', password: randomBytes(20).toString('base64url') };
+      write(path.join(plan.installation, declaration.mailDelivery), relay);
       write(path.join(plan.installation, 'customer-runtime.json'), declaration);
       const ntasksId = randomUUID();
       const putNtasks = (token, version) => ownerSql(sealedProviderSql(workspace, read(plan.secrets).CREDENTIALS_KEY, 'ntasks', {
@@ -466,6 +470,19 @@ test('the fixed backup worker publishes private complete sets and restores every
       assert.ok(JSON.stringify(read(path.join(set, 'recovery/customer-runtime.json'))) === JSON.stringify(declaration),
         'Private customer connection and sign-in custody are preserved');
       assert.equal(fs.existsSync(path.join(handoff, 'recovery/customer-runtime.json')), false);
+      const privateRelay = path.join('identity-mail', declaration.mailDelivery);
+      const relayCopy = path.join(set, 'recovery', privateRelay);
+      const [relayHash] = hashes([path.join(plan.installation, declaration.mailDelivery)]);
+      assert.deepEqual(hashes([relayCopy]), [relayHash]);
+      assert.equal(read(path.join(set, 'recovery/recovery.json')).files[privateRelay].sha256, relayHash);
+      assert.equal(fs.statSync(relayCopy).mode & 0o777, 0o600);
+      assert.equal(fs.existsSync(path.join(handoff, 'recovery', privateRelay)), false);
+      const recoveredMail = path.join(fs.realpathSync(base), 'customer-recovered-mail');
+      fs.mkdirSync(recoveredMail, { mode: 0o700 });
+      const restoredRuntime = path.join(recoveredMail, 'customer-runtime.json');
+      fs.copyFileSync(path.join(set, 'recovery/customer-runtime.json'), restoredRuntime);
+      fs.copyFileSync(relayCopy, path.join(recoveredMail, declaration.mailDelivery));
+      assert.equal(readLocalIdentityMail(read(restoredRuntime).mailDelivery, restoredRuntime).from, relay.from);
       assert.equal((await putNtasks(ntasksFixture.token, 2)).code, 0);
       assert.equal((await containerJob('backup')).code, 1);
       assert.equal((await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/health.mjs'])).code, 1);

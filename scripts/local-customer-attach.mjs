@@ -3,16 +3,19 @@ import path from 'node:path';
 import { openCustomerOperating } from './local-customer-operating.mjs';
 import { localMailbox, privateDirectory, startCustomerRuntime } from './local-customer.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
+import { smtpIdentityMail } from './local-identity-mail.mjs';
 
 /** Start the same customer app without provisioning, rotating logins or
  * changing database ownership. This controller owns the single scheduler. */
-export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport } = {}) {
+export async function startAttachedCustomer(plan, file, {
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, smtpLaunch,
+} = {}) {
   const db = await openCustomerOperating(plan, file);
-  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport });
+  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport, smtpLaunch });
 }
 
 export async function startPreparedCustomer(plan, db, {
-  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, deployment,
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, smtpLaunch, deployment,
 } = {}) {
   const { operating, signal } = db;
   let app, closing;
@@ -30,9 +33,12 @@ export async function startPreparedCustomer(plan, db, {
   try {
     const owned = dir => privateDirectory(dir, !existsSync(dir));
     const customer = owned(db.customer);
-    const outbox = owned(path.join(customer, 'mail'));
+    const outbox = operating.mailDelivery ? undefined : owned(path.join(customer, 'mail'));
+    const accepts = email => operating.mailRecipients.includes(email.toLowerCase());
+    const deliver = operating.mailDelivery ? smtpIdentityMail(operating.mailDelivery, accepts, { launch: smtpLaunch, signal })
+      : localMailbox(outbox, accepts);
     app = await startCustomerRuntime(plan, { customer, outbox, workerState: deployment?.workerState ?? owned(path.join(customer, 'worker-state')),
-      deliver: localMailbox(outbox, email => operating.mailRecipients.includes(email.toLowerCase())),
+      deliver, mailFrom: operating.mailDelivery?.from,
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
