@@ -254,14 +254,15 @@ async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, other
   await noCode(expired, expiredId);
 
   resetCodeRate(db);
+  const [turkish] = db.cluster.sql(`SELECT 1 FROM pg_catalog.pg_collation WHERE oid=to_regcollation('pg_catalog."tr-x-icu"')`);
+  if (turkish) db.cluster.run(`ALTER TABLE noticeos_identity.auth_user ALTER COLUMN email TYPE text COLLATE pg_catalog."tr-x-icu"`);
   const legacyEmail = 'Ipek@example.test', legacyId = randomUUID();
-  db.cluster.run(`ALTER TABLE noticeos_identity.auth_user ALTER COLUMN email TYPE text COLLATE pg_catalog."tr-x-icu";
-    INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
+  db.cluster.run(`INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
     VALUES (:'user'::uuid,'Legacy member',:'email',true);
     INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at)
     VALUES (gen_random_uuid(),:'workspace'::uuid,:'user'::uuid,'viewer',now());`,
   { vars: { user: legacyId, email: legacyEmail, workspace: workspaceId } });
-  assert.deepEqual(db.cluster.sql("SELECT lower(email) AS normalized FROM noticeos_identity.auth_user WHERE email='Ipek@example.test'"),
+  if (turkish) assert.deepEqual(db.cluster.sql("SELECT lower(email) AS normalized FROM noticeos_identity.auth_user WHERE email='Ipek@example.test'"),
     [{ normalized: 'ıpek@example.test' }]);
   await noCode(legacyEmail);
   const legacyInvitation = await invite(legacyEmail.toLowerCase());
