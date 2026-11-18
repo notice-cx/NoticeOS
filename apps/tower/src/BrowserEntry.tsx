@@ -27,6 +27,8 @@ const AgentAccessRoute = lazyPart(
   { failure: () => <RouteLoadFailure /> },
 ).Component;
 
+declare const __NOTICEOS_CUSTOMER_DEVELOPMENT__: boolean | undefined;
+
 export function BrowserEntry({ createEntry }: { createEntry: () => Entry }) {
   const [entry, setEntry] = useState<Entry | null>(null);
   useEffect(() => {
@@ -39,6 +41,19 @@ export function BrowserEntry({ createEntry }: { createEntry: () => Entry }) {
   return entry ? <EntryContent entry={entry} /> : null;
 }
 function EntryContent({ entry }: { entry: Entry }) {
+  useEffect(() => {
+    if (typeof __NOTICEOS_CUSTOMER_DEVELOPMENT__ === 'undefined' || !__NOTICEOS_CUSTOMER_DEVELOPMENT__) return;
+    const release = entry.appRelease;
+    const scope = new AbortController();
+    let checking = false;
+    const timer = window.setInterval(() => {
+      if (checking || document.visibilityState !== 'visible' || release.snapshot() !== 'current') return;
+      checking = true;
+      void release.check(AbortSignal.any([scope.signal, AbortSignal.timeout(5000)]))
+        .catch(() => {}).finally(() => { checking = false; });
+    }, 5000);
+    return () => { window.clearInterval(timer); scope.abort(); };
+  }, [entry]);
   return <><AppUpdateNotice release={entry.appRelease} onReadRecovery={() => { void entry.snapshot().runtime?.queries.invalidateQueries(); }} /><EntryView entry={entry} /></>;
 }
 const reloadPage = () => window.location.reload();

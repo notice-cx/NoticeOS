@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { builtinModules, createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, realpathSync, existsSync, statfsSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, realpathSync, existsSync, statfsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { stripJsonc } from './jsonc.mjs';
@@ -27,8 +27,11 @@ export async function buildHostedDemo(options) {
   return buildHostedApp({ ...options, profile: 'demo' });
 }
 
-export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 'config'), profile }) {
+export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 'config'), profile, developmentRelease }) {
   if (!['hosted', 'demo'].includes(profile)) refuse('an explicit hosted entry profile is required');
+  if (developmentRelease !== undefined && (profile !== 'hosted' || typeof developmentRelease !== 'string' || !/^[a-f0-9]{64}$/u.test(developmentRelease))) {
+    refuse('the local checkout release is invalid');
+  }
   if (typeof out !== 'string' || !path.isAbsolute(out) || existsSync(out)
     || realpathSync(path.dirname(out)) !== path.dirname(out)
     || typeof configurationRoot !== 'string' || !path.isAbsolute(configurationRoot)
@@ -68,10 +71,18 @@ export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 
   const previous = Object.fromEntries(selectors.map(key => [key, process.env[key]]));
   if (previous.CLOUDFLARE_ENV !== undefined) refuse('CLOUDFLARE_ENV is set');
   process.env.NOTICEOS_WORKER_CONFIG_ROOT = work; process.env.NOTICEOS_WORKSPACE_PROFILE = profile;
+  const towerSource = path.join(ROOT, 'apps/tower');
+  const buildRoot = developmentRelease ? mkdtempSync(path.join(path.dirname(out), 'tower-project-')) : towerSource;
   let release, towerConfig;
   try {
+    if (developmentRelease) {
+      // Cloudflare's Vite plugin writes deployment metadata under its project root.
+      copyFileSync(path.join(towerSource, 'index.html'), path.join(buildRoot, 'index.html'));
+      symlinkSync(path.join(towerSource, 'src'), path.join(buildRoot, 'src'), 'dir');
+    }
     const config = (await import(pathToFileURL(compiled).href)).default({ command: 'build', mode: 'production' });
-    release = JSON.parse(config.define.__NOTICEOS_RELEASE__);
+    release = developmentRelease ?? JSON.parse(config.define.__NOTICEOS_RELEASE__);
+    if (developmentRelease) config.define = { ...config.define, __NOTICEOS_RELEASE__: JSON.stringify(release), __NOTICEOS_CUSTOMER_DEVELOPMENT__: 'true' };
     const { createBuilder } = await import(require.resolve('vite'));
     const defaults = { name: 'demo-build-source-defaults', enforce: 'pre', resolveId(specifier, importer) {
       if (!importer || !specifier.split('?')[0].endsWith('.json')) return;
@@ -79,13 +90,15 @@ export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 
       if (path.dirname(resolved) === path.join(ROOT, 'config')) return path.join(configurationRoot, path.basename(resolved));
     } };
     const builder = await createBuilder({ ...config, ...(profile === 'hosted' ? { logLevel: 'warn' } : {}),
-      root: path.join(ROOT, 'apps/tower'), configFile: false, envDir: false,
+      ...(developmentRelease ? { publicDir: path.join(towerSource, 'public'), cacheDir: path.join(buildRoot, '.vite') } : {}),
+      root: buildRoot, configFile: false, envDir: false,
       plugins: [defaults, ...config.plugins], build: { ...config.build, outDir: out, emptyOutDir: false, sourcemap: false } });
     await builder.buildApp();
     towerConfig = inventory(out).filter(name => name.endsWith('/wrangler.json')).map(name => ({ name, value: JSON.parse(readFileSync(path.join(out, name), 'utf8')) }))
       .find(({ value }) => value.name === 'noticeos-tower');
     if (!towerConfig) refuse('the Tower build wrote no worker configuration');
   } finally {
+    if (developmentRelease) rmSync(buildRoot, { recursive: true, force: true });
     for (const key of selectors) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
   }
   const ingestOut = path.join(out, 'ingest');
@@ -129,13 +142,15 @@ export async function buildHostedApp({ out, configurationRoot = path.join(ROOT, 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
   try {
     const args = process.argv.slice(2);
-    if (![2, 4].includes(args.length) || args[0] !== '--out'
-      || args.length === 4 && args[2] !== '--configuration-root' && !(args[2] === '--profile' && args[3] === 'hosted')) {
-      refuse('usage: --out <new folder> [--configuration-root <folder>]');
+    const hosted = args[2] === '--profile' && args[3] === 'hosted';
+    const development = hosted && args.length === 6 && args[4] === '--development-release';
+    const defaults = args.length === 4 && args[2] === '--configuration-root';
+    if (args[0] !== '--out' || !(args.length === 2 || defaults || (hosted && args.length === 4) || development)) {
+      refuse('usage: --out <new folder> [--configuration-root <folder> | --profile hosted [--development-release <digest>]]');
     }
-    const manifest = args[2] === '--profile' ? await buildHostedApp({ out: args[1], profile: args[3] })
+    const manifest = hosted ? await buildHostedApp({ out: args[1], profile: 'hosted', developmentRelease: development ? args[5] : undefined })
       : await buildHostedDemo({ out: args[1], configurationRoot: args[3] });
-    process.stdout.write(`${args[2] === '--profile' ? 'Hosted app' : 'Demo artifact'} ${manifest.release}\n`);
+    process.stdout.write(`${hosted ? 'Hosted app' : 'Demo artifact'} ${manifest.release}\n`);
   } catch (error) {
     process.stderr.write(`${error instanceof Refusal ? error.message : `Demo artifact build failed: ${error instanceof Error ? error.message : String(error)}`}\n`);
     process.exitCode = 1;

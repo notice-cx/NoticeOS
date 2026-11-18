@@ -94,7 +94,6 @@ export async function main(argv = process.argv.slice(2), { environment = contain
     // Fresh setup runs in a one-off container before the application starts.
     const profile = argv.length ? runningProfile() ?? (argv[0] === 'setup' ? selectedCustomerProfile() : null) : selectedCustomerProfile();
     if (profile === null) throw new ContainerRefusal('The running application profile is not recorded yet.');
-    if ((profile === 'customer' || argv[0] === 'customer-check') && env.NOTICEOS_IMMUTABLE_APP !== '1') throw new ContainerRefusal('Customer mode requires the prepared application image.');
     if (argv.length === 0) recordContainerProfile(profile);
     command = containerCommand(argv, profile);
     if (!command) { err.write('NoticeOS customer runtime uses the Tower and scoped agent access for supported operations. This standalone job is unavailable.\n'); return 2; }

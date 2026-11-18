@@ -245,7 +245,7 @@ documented in [Run one local job now](../../scripts/README.md#run-one-local-job-
 
 ### Customer mode on the existing app service
 
-The prepared application image supports a customer profile for a disposable, separately enrolled installation. Standalone is the default. Both profiles use the existing `noticeos` service, published Tower port and Postgres database. Customer mode uses the current `.wrangler/state/v3` archive at its original bucket name. Hosted reads require workspace-prefixed archives. Older unprefixed archives remain available in standalone mode.
+The app supports a customer profile for a separately enrolled installation, from a prepared image or a mounted development checkout. Standalone is the default. Both profiles use the existing `noticeos` service, published Tower port and Postgres database. Customer mode uses the current `.wrangler/state/v3` archive at its original bucket name. Hosted reads require workspace-prefixed archives. Older unprefixed archives remain available in standalone mode.
 
 The default customer address is the published loopback port. For a Tower already used on a home network, set `towerOrigin` in the private customer declaration to its exact address, such as `http://tower.local:5173`. Its hostname must appear in `TOWER_ALLOWED_HOSTS` and its port must match the existing published port. This opts that installation into browser sign-in over unencrypted HTTP on that network. Use it only on a network where the session can travel over HTTP. The browser cookie belongs to that one host.
 
@@ -274,7 +274,7 @@ from its saved settings. One entry can cover a nightly report and site counter
 feed using the same asset bearer. The preflight checks that the existing
 `ASSET_TOKENS` map has a bearer for that asset. Keep the bearer in that map.
 
-From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. This is a read-only check in the running app container.
+From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. The check runs inside the app container. With mounted source, it builds the checkout in a temporary directory and removes that directory after verification.
 
 The app reads `state/installation/customer-runtime.enabled` on startup. To select customer mode in an approved disposable rehearsal, write `noticeos-compose-customer/1` followed by a newline into that file with the same ownership and permissions, then run `pnpm os:restart:noticeos` or the installation launcher's `noticeos restart noticeos`. Remove the enable file and restart the app again to return to standalone. Postgres, archives and the connected Ntasks project keep writes made during the rehearsal. A second customer scheduler for the same database cannot start while the first holds its database lease.
 
@@ -308,6 +308,12 @@ NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_CONTAINER_CUSTOMER=1 \
   NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-example \
   node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
 ```
+
+To exercise source edits on the same disposable stack, use
+`NOTICEOS_TEST_CONTAINER_CUSTOMER_DEVELOPMENT=1` and set
+`NOTICEOS_TEST_DEVELOPMENT_IMAGE` to the local image's `sha256:` ID. The proof
+uses the image's Linux dependencies and Playwright Chromium on a fixture `.local`
+hostname.
 
 #### Deliver sign-in codes to an inbox
 
@@ -480,12 +486,30 @@ pnpm os:status
 ```
 
 This is an explicit development mode for that installation. The app mounts
-the checkout's source directories read-only and enables Vite live refresh on
-the existing Tower port. UI, styles, Worker and shared source edits appear
-without a build, an update or an app restart. The Wall caption shows **DEV**,
-the checkout commit and time, and **live source**. Committing refreshes its
-source stamp too. Status reports the live checkout rather than the dependency
-image's old source label.
+the checkout read-only and serves the existing Tower port. In standalone mode,
+Vite refreshes UI, styles, Workers and shared source. The Wall shows **DEV**,
+the checkout commit and time, and **live source**.
+
+In customer mode, the app builds saved Tower and Worker source changes into
+new files in its private installation state. It tracks shared modules imported
+by path. It checks the checkout every ten seconds while idle and every two and
+a half seconds after a change. A failed build leaves the previous app available.
+A successful build briefly stops the previous runtime before reopening the same
+archive and scheduler lease. The Wall refreshes when
+it sees the new version. Other open Tower pages offer the updated app in a new
+tab so drafts stay open. The dependency image and Compose app container stay in
+place. Run `pnpm os:restart:noticeos` to apply edits to the Node supervisor,
+scheduler, backup controller, or the installation's private customer settings.
+That restart also applies the Node side of scripts shared with a Worker. Run
+`pnpm os:dev` when the checkout's dependency declarations, lockfile or package
+patches change.
+
+On the development stack, first run `pnpm os:customer-check` to build
+and check the mounted checkout and verify the enrolled workspace. Enable the
+customer profile and restart the app as described above. To return to the live
+standalone Tower, remove the customer enable file and restart only the app.
+`pnpm os:prod` returns to the prepared image. Status reports which checkout the
+development container mounts.
 
 Image-scoped Docker volumes keep its Linux dependencies; those volumes hide the
 host's `node_modules`. A first switch copies the image's dependencies
@@ -506,10 +530,9 @@ The whole checkout is mounted as a directory, so atomic editor saves and Git
 checkouts are detected too. Changes to Node runner code need
 `pnpm os:restart`; UI and Worker module edits refresh live. Worker
 config and dependency changes restart Vite and recheck the dependency image.
-The [Docker bind mount contract](https://docs.docker.com/reference/compose-file/services/#volumes)
-and [Vite watcher options](https://vite.dev/config/server-options.html#server-watch)
-describe the underlying mechanisms. Native file events are used; polling is
-not enabled across the checkout.
+In standalone mode, Vite uses native file events. See the
+[Docker bind mount contract](https://docs.docker.com/reference/compose-file/services/#volumes)
+and [Vite watcher options](https://vite.dev/config/server-options.html#server-watch).
 
 Return to the prepared image it ran before with:
 
