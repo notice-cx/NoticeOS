@@ -463,9 +463,10 @@ the checkout commit and time, and **live source**.
 
 In customer mode, the app builds saved Tower and Worker source changes into
 new files in its private installation state. It tracks shared modules imported
-by path. A failed build leaves the previous app available. A successful build
-briefly stops the previous runtime
-before reopening the same archive and scheduler lease. The Wall refreshes when
+by path. It checks the checkout every ten seconds while idle and every two and
+a half seconds after a change. A failed build leaves the previous app available.
+A successful build briefly stops the previous runtime before reopening the same
+archive and scheduler lease. The Wall refreshes when
 it sees the new version. Other open Tower pages offer the updated app in a new
 tab so drafts stay open. The dependency image and Compose app container stay in
 place. Run `pnpm os:restart:noticeos` to apply edits to the Node supervisor,
@@ -500,10 +501,9 @@ The whole checkout is mounted as a directory, so atomic editor saves and Git
 checkouts are detected too. Changes to Node runner code need
 `pnpm os:restart`; UI and Worker module edits refresh live. Worker
 config and dependency changes restart Vite and recheck the dependency image.
-The [Docker bind mount contract](https://docs.docker.com/reference/compose-file/services/#volumes)
-and [Vite watcher options](https://vite.dev/config/server-options.html#server-watch)
-describe the underlying mechanisms. Native file events are used; polling is
-not enabled across the checkout.
+In standalone mode, Vite uses native file events. See the
+[Docker bind mount contract](https://docs.docker.com/reference/compose-file/services/#volumes)
+and [Vite watcher options](https://vite.dev/config/server-options.html#server-watch).
 
 Return to the prepared image it ran before with:
 

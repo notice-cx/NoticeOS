@@ -323,7 +323,9 @@ test('the application container runs its schedules with no task service, preserv
           await until(async () => (await compose(['logs', '--tail', '50', 'noticeos'])).stdout.includes('The previous app is still serving.'));
           assert.deepEqual(await page.evaluate(() => fetch('/api/app-release').then(r => r.json())), initial);
           fs.writeFileSync(template, client.replace(/<title>[^<]*<\/title>/u, '<title>Checkout edit fixture</title>'));
-          fs.writeFileSync(api, worker.replace('Response.json({ release })', "Response.json({ release, fixture: 'checkout-worker' })"));
+          fs.writeFileSync(path.join(source, 'scripts/checkout-release.ts'), "export const fixture = 'checkout-worker';\n");
+          fs.writeFileSync(api, "import { fixture } from '../../../scripts/checkout-release';\n"
+            + worker.replace('Response.json({ release })', 'Response.json({ release, fixture })'));
           await page.locator('[data-app-update]').waitFor({ timeout: 90_000 });
           const updated = await page.evaluate(() => fetch('/api/app-release').then(r => r.json()));
           assert.equal(updated.fixture, 'checkout-worker');

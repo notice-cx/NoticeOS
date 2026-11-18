@@ -14,8 +14,8 @@ test('the live build notices checkout edits and ignores installed and generated 
   const save = (name, text) => writeFileSync(path.join(root, name), text);
   const source = 'apps/tower/src/fixture.ts';
   const cache = new Map();
-  save(source, "import '../../../scripts/fixture.mjs'; export const version = 1;");
-  save('scripts/fixture.mjs', "import './shared.mjs';");
+  save(source, "import '../../../scripts/fixture'; export const version = 1;");
+  save('scripts/fixture.ts', "import './shared.mjs';");
   save('scripts/shared.mjs', 'export const shared = 1;');
   const before = customerSourceRevision(root, cache);
   save('apps/tower/node_modules/hidden.js', 'not an input');
@@ -27,7 +27,7 @@ test('the live build notices checkout edits and ignores installed and generated 
   save('scripts/shared.mjs', 'export const shared = 2;');
   const after = customerSourceRevision(root, cache);
   assert.notEqual(after, before);
-  save(source, "import '../../../scripts/fixture.mjs'; export const version = 2;");
+  save(source, "import '../../../scripts/fixture'; export const version = 2;");
   assert.notEqual(customerSourceRevision(root, cache), after);
 });
 

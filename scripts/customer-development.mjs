@@ -10,6 +10,8 @@ const sourceDirectories = ['apps/tower', 'workers/ingest', 'packages', 'config']
 const sourceFiles = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json'];
 const ignored = new Set(['node_modules', 'dist', 'coverage', 'artifacts', 'test-results', 'playwright-report', 'test', 'tests', 'e2e', 'test-fixtures']);
 const code = /\.(?:[cm]?[jt]sx?)$/u;
+const extensions = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json', '.css'];
+const sourceExtensions = { '.js': ['.ts', '.tsx'], '.mjs': ['.mts'], '.cjs': ['.cts'], '.jsx': ['.tsx'] };
 const importPath = /(?:from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)['"](\.[^'"]+)['"]/gu;
 
 // Poll because host edits on a VM mount need not emit inotify events. Metadata
@@ -19,9 +21,10 @@ export function customerSourceRevision(root, cache = new Map()) {
   const seen = new Set();
   const scripts = new Set();
   const file = relative => {
+    if (seen.has(relative)) return true;
     const absolute = path.join(root, relative);
     const stat = lstatSync(absolute, { throwIfNoEntry: false });
-    if (!stat?.isFile()) return;
+    if (!stat?.isFile()) return false;
     const signature = JSON.stringify([stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs]);
     let entry = cache.get(relative);
     if (entry?.signature !== signature) {
@@ -34,8 +37,9 @@ export function customerSourceRevision(root, cache = new Map()) {
     seen.add(relative);
     hash.update(JSON.stringify([relative, entry.digest]));
     for (const imported of entry.imports) {
-      if (imported.startsWith('scripts/') && code.test(imported)) scripts.add(imported);
+      if (imported.startsWith('scripts/')) scripts.add(imported);
     }
+    return true;
   };
   function walk(relative) {
     const entries = readdirSync(path.join(root, relative), { withFileTypes: true })
@@ -49,7 +53,16 @@ export function customerSourceRevision(root, cache = new Map()) {
   }
   for (const relative of sourceFiles) file(relative);
   for (const relative of sourceDirectories) walk(relative);
-  for (const relative of scripts) file(relative);
+  for (const relative of scripts) {
+    if (file(relative)) continue;
+    const extension = path.posix.extname(relative);
+    for (const source of sourceExtensions[extension] ?? []) file(relative.slice(0, -extension.length) + source);
+    // Vite and esbuild can select different extensions from the same import.
+    for (const suffix of extensions) {
+      file(relative + suffix);
+      file(`${relative}/index${suffix}`);
+    }
+  }
   if (lstatSync(path.join(root, 'patches'), { throwIfNoEntry: false })?.isDirectory()) walk('patches');
   for (const relative of cache.keys()) if (!seen.has(relative)) cache.delete(relative);
   return hash.digest('hex');
