@@ -155,11 +155,18 @@ async function verifyPreparedImage({ root, image, currentImage, declared, run, e
 async function pinPreparedImage({ image, dir, declared, baseModel, run, env }) {
   // Immutable overrides keep the previous selector valid through a failed switch.
   const file = path.join(dir, `prepared-${image.slice(7)}.json`);
-  const bytes = json({ services: { noticeos: { image, pull_policy: 'never' } } });
+  const preparedOverride = id => json({ services: { noticeos: { image: id, pull_policy: 'never' } } });
+  const bytes = preparedOverride(image);
   if (fs.existsSync(file)) {
     if (regular(file) !== bytes) fail('The prepared image override has changed.');
   } else fs.writeFileSync(file, bytes, { flag: 'wx', mode: 0o600 });
-  const selected = validateSelector({ ...declared, files: [...declared.files.filter(name => name !== file), file] });
+  const retained = declared.files.filter(name => {
+    const previous = path.dirname(name) === dir && /^prepared-([a-f0-9]{64})\.json$/u.exec(path.basename(name));
+    if (!previous) return true;
+    if (regular(name) !== preparedOverride('sha256:' + previous[1])) fail('The prepared image override has changed.');
+    return false;
+  });
+  const selected = validateSelector({ ...declared, files: [...retained, file] });
   const expected = structuredClone(baseModel);
   Object.assign(expected.services.noticeos, { image, pull_policy: 'never' });
   if (!equal(expected, (await stackComposition(run, selected, env)).value)) fail('The prepared image override must change only the application image.');

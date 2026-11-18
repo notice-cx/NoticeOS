@@ -106,7 +106,7 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,st
   if(step[0]==='config') return {code:0,stdout:JSON.stringify(model(args))};
   if(step[0]==='ps') return {code:0,stdout:JSON.stringify([...inventory].map(([Service,row])=>({Project:selector.project,Service,ID:row.Id,State:row.State.Status,Health:row.State.Health.Status})))};
   assert.deepEqual(step,['up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90','noticeos']);
-  ups++;const app=model(args).services.noticeos;const row=inventory.get('noticeos');row.Id='e'.repeat(63)+String(ups);row.Image=app.image;
+  ups++;const app=model(args).services.noticeos;const row=inventory.get('noticeos');row.Id=ups.toString(16).padStart(64,'e');row.Image=app.image;
   row.State={Status:'running',Health:{Status:failUps.includes(ups)?'unhealthy':'healthy'}};
   row.Mounts=app.volumes.map(m=>({Type:m.type,Source:m.type==='volume'?'/synthetic/volumes/'+m.source:m.source,Destination:m.target,RW:m.read_only!==true,...(m.type==='volume'?{Name:m.source}:{})}));
   if(drift===true && ups===1) inventory.get('postgres').Id='f'.repeat(64);
@@ -151,6 +151,23 @@ test('an older fallback leaves the live app serving until a matching release is 
   assert.equal(again.mode, 'development');
   assert.equal((await developStack({ ...options, disable:true })).image,other);
  } finally {f.close();}
+});
+test('selecting successive releases keeps a single prepared override and preserves earlier recovery files', async t => {
+ const f = fixture();
+ t.after(f.close);
+ const options = { ...f, root: f.root, selectorFile: f.file };
+ const inputs = async () => ({ source: { commit: '1'.repeat(40), schema: '2'.repeat(64) }, manifest: '3'.repeat(64) });
+ const priorFiles = new Map();
+ for (const digit of ['3', '4', '5', '6', '7', '8', '9', 'a']) {
+  await developStack(options);
+  const image = 'sha256:' + digit.repeat(64);
+  const restored = await developStack({ ...options, disable: true, image, inputs });
+  assert.equal(restored.image, image);
+  const { files } = JSON.parse(fs.readFileSync(f.file, 'utf8'));
+  assert.deepEqual(files.slice(0, -1), f.selector.files);
+  priorFiles.set(files.at(-1), fs.readFileSync(files.at(-1), 'utf8'));
+ }
+ for (const [file, content] of priorFiles) assert.equal(fs.readFileSync(file, 'utf8'), content);
 });
 test('switch and disable touch only the app, preserving the original selector and state mounts',async()=>{
  const f=fixture();try {
