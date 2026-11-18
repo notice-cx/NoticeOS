@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { customerSourceRevision, runLiveCustomer } from './customer-development.mjs';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -12,13 +12,16 @@ test('the live build notices checkout edits and ignores installed and generated 
     mkdirSync(path.join(root, name), { recursive: true });
   }
   const save = (name, text) => writeFileSync(path.join(root, name), text);
-  save('apps/tower/src/fixture.ts', 'export const version = 1;');
-  const before = customerSourceRevision(root);
+  const source = 'apps/tower/src/fixture.ts';
+  const cache = new Map();
+  save(source, 'export const version = 1;');
+  const before = customerSourceRevision(root, cache);
   save('apps/tower/node_modules/hidden.js', 'not an input');
   save('.local/private.json', '{"fixture":true}');
-  assert.equal(customerSourceRevision(root), before);
-  save('apps/tower/src/fixture.ts', 'export const version = 22;');
-  assert.notEqual(customerSourceRevision(root), before);
+  utimesSync(path.join(root, source), 1, 1);
+  assert.equal(customerSourceRevision(root, cache), before);
+  save(source, 'export const version = 2;');
+  assert.notEqual(customerSourceRevision(root, cache), before);
 });
 
 test('a source refresh keeps the last active app on broken edits and opens only one runtime at a time', async () => {
