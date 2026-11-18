@@ -19,7 +19,7 @@ export async function identitySmtpFixture(root) {
     socket.once('close', () => connections.delete(socket));
     socket.on('error', () => {});
     socket.setEncoding('utf8');
-    let buffer = '', data, authenticating = false, authenticated = false, recipient;
+    let buffer = '', data, authenticating = false, authenticated = false, sender, recipient;
     const say = line => socket.write(line + '\r\n');
     const authenticate = encoded => {
       authenticated = Buffer.from(encoded, 'base64').toString() === authentication;
@@ -29,16 +29,22 @@ export async function identitySmtpFixture(root) {
     const command = line => {
       if (data) {
         if (line === '.') {
-          inbox.push({ recipient, wire: data.join('\r\n') });
-          data = undefined;
+          const headerEnd = data.indexOf('');
+          const fromHeaders = headerEnd < 0 ? [] : data.slice(0, headerEnd).filter(header => /^from:/iu.test(header));
+          const parsed = fromHeaders.length === 1 && /^from: ([^<>]+) <([^<>]+)>$/iu.exec(fromHeaders[0]);
+          const messageFrom = parsed ? { name: parsed[1], address: parsed[2] } : null;
+          inbox.push({ sender, recipient, from: messageFrom, wire: data.join('\r\n') });
+          data = sender = recipient = undefined;
           say('250 Accepted');
         } else data.push(line.startsWith('..') ? line.slice(1) : line);
       } else if (authenticating) authenticate(line);
       else if (line.startsWith('EHLO ')) say('250-fixture\r\n250 AUTH PLAIN');
       else if (line.startsWith('AUTH PLAIN ')) authenticate(line.slice('AUTH PLAIN '.length));
       else if (line === 'AUTH PLAIN') { authenticating = true; say('334 '); }
-      else if (authenticated && line === `MAIL FROM:<${from}>`) say('250 Sender accepted');
-      else if (authenticated && /^RCPT TO:<[^<>]+>$/u.test(line)) {
+      else if (authenticated && line === `MAIL FROM:<${from}>`) {
+        sender = from;
+        say('250 Sender accepted');
+      } else if (authenticated && sender && /^RCPT TO:<[^<>]+>$/u.test(line)) {
         recipient = line.slice('RCPT TO:<'.length, -1);
         recipients.push(recipient);
         say(rejecting ? '451 Fixture temporarily unavailable' : '250 Recipient accepted');
