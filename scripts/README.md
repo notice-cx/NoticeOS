@@ -1043,12 +1043,14 @@ pnpm db:shadow-export -- --dump /absolute/backup.dump --only-workspace --out /ab
 
 The bundle contains the selected workspace's sites, dated portfolio and
 site reports, stored calculations and daily facts where available, the
-reporting time zone and operator time rate, and approved settings audit
-entries. Its manifest records row counts, file hashes, and the archive's
-recorded local creation time. Saved reports retain their dates and
-timestamps. The private files can contain business data. Raw archive objects
+reporting time zone, operator time rate, saved Wall layout versions, declared
+costs, the data cap, daily metered amounts and unknown-price counts. It also
+includes approved settings audit entries. Its manifest records row counts,
+file hashes, and the archive's recorded local creation time. Saved reports
+retain their dates and timestamps. The private files can contain business
+data. Raw archive objects
 and ambiguous legacy archive keys are counted and omitted. The export also
-omits credentials, connections, sessions, task snapshots, job history, and
+omits credentials, connections, sessions, task snapshots, workflow history, and
 other settings. Daily counts omit individual task IDs. Collection runs
 retain their status and observation window with private provider details
 removed.

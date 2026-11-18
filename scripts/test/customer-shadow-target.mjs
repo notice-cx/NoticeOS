@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS } from '../identity-protocol.mjs';
 import { applyMigrations, bootstrapWorkspace } from '../postgres-migrate.mjs';
+import { prepareShadowDisplay } from '../test-fixtures/customer-shadow-display.mjs';
+import { parseWallConfig } from '../wall-layout.mjs';
 
 function command(script, args, input) {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../' + script, import.meta.url)), ...args],
@@ -60,6 +62,14 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
     "  VALUES (:'workspace'::uuid,1,'chain.example',:'day'::date,:'day'::timestamptz,:'day'::timestamptz,'[]',",
     "    json_build_object('asset','chain.example','generatedAt',:'day' || 'T00:00:00Z','capabilities',json_build_array()));",
   ].join('\n'), { vars: { workspace: workspaceId, day: date } });
+  const current = new Date().toISOString();
+  const period = current.slice(0, 7);
+  const display = prepareShadowDisplay(source, workspaceId, 'chain.example', current);
+  source.run(`INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by)
+    VALUES (:'workspace'::uuid,'constants','{"monthly_caps":{"data_usd":81}}',2,:'at'::timestamptz,'fixture');
+    INSERT INTO noticeos.ledger_entries(workspace_id,kind,asset_id,period_month,family,amount_minor,currency,booking_state,recorded_at)
+    VALUES (:'workspace'::uuid,'cost','chain.example',(:'period' || '-01')::date,'infra',2500,'USD','estimated',:'at'::timestamptz);`,
+  { vars: { workspace: workspaceId, at: current, period } });
   const evidence = () => source.sql('SELECT (SELECT md5(json_agg(a)::text) FROM noticeos.assets a) AS assets, (SELECT md5(json_agg(p)::text) FROM noticeos.pulses p) AS pulses');
   const before = evidence();
   const dump = path.join(root, 'chain.dmp');
@@ -194,9 +204,25 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
       const selected = { cookie, [WORKSPACE_SELECTION_HEADER]: workspaceId };
       const session = await (await http('/api/session', undefined, selected)).json();
       assert.equal(session.selectedWorkspace.role, 'owner');
-      const wall = await http('/api/wall', undefined, { ...selected, [WORKSPACE_SESSION_HEADER]: session.session.sessionId });
+      const headers = { ...selected, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
+      const wall = await http('/api/wall', undefined, headers);
       assert.equal(wall.status, 200, await wall.clone().text());
-      assert.deepEqual((await wall.json()).assets.map(asset => asset.id), ['chain.example']);
+      const wallData = await wall.json();
+      assert.deepEqual(wallData.assets.map(asset => asset.id), ['chain.example']);
+      assert.deepEqual(wallData.dashboard.wall, parseWallConfig(display.wall));
+      assert.equal(wallData.system.spendTodayUsd, wallData.generatedAt.slice(0, 10) === current.slice(0, 10) ? display.spent : 0);
+      const integration = await http('/api/integrations', undefined, headers);
+      assert.equal(integration.status, 200);
+      const { dataSpend } = await integration.json();
+      assert.equal(dataSpend.capUsd, 81);
+      assert.equal(dataSpend.spentUsd, dataSpend.period === period ? display.spent : 0);
+      assert.equal(dataSpend.unknownPrices, dataSpend.period === period ? display.unknown : 0);
+      const financials = await http(`/api/financials?period=${period}`, undefined, headers);
+      assert.equal(financials.status, 200);
+      const money = await financials.json();
+      assert.deepEqual(money.recurringCosts, display.costs);
+      assert.deepEqual(money.domainOrders, display.domains);
+      assert.equal(money.domains[0].perMonth, 10);
     } finally { await stopTower(); }
   } finally { await stopDatabase(); }
   assert.equal(existsSync(path.join(prepared, 'postgres', 'data', 'postmaster.pid')), false);
