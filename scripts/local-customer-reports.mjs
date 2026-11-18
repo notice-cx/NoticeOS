@@ -58,7 +58,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
   return Object.freeze({
     async targets(store) {
       const { schedule, active } = await reportConfiguration(store);
-      return schedule.enabled && active.length ? [{ job: REPORT_JOB.id, schedule, assets: active }] : [];
+      return active.length ? [{ job: REPORT_JOB.id, schedule, assets: active }] : [];
     },
     async run({ store, workspaceId, asset, scheduledAt, signal = new AbortController().signal }) {
       if (!UUID.test(workspaceId) || await store.workspaceId() !== workspaceId) throw new Error('Customer report workspace unavailable.');

@@ -94,7 +94,14 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
     const runtime = snapshot ?? (observed ? status(JSON.parse(String(observed.payload))) : null);
     const age = observed ? now - Date.parse(String(observed.observed_at)) : NaN;
     const fresh = snapshot !== null || observed?.running === true && age >= 0 && age < 45_000;
-    const summary = { overrides: runtime?.overrides ?? null, runtime, runtimeFresh: fresh };
+    let overrides = runtime?.overrides ?? null;
+    if (localClock) {
+      const [settings] = await tx.query<{ schedules: string | null }>(`SELECT (body->'schedules')::text AS schedules
+        FROM noticeos.config_documents WHERE workspace_id=$1::uuid AND document_key='constants'`, [tx.workspaceId]);
+      const saved: unknown = settings?.schedules ? JSON.parse(settings.schedules) : null;
+      overrides = saved && !schedulesRefusal(saved) ? saved as ScheduleOverrides : null;
+    }
+    const summary = { overrides, runtime, runtimeFresh: fresh };
     if (url.pathname === '/api/scheduled-jobs') return summary;
     // A manual collection can exist before any scheduler is configured. Keep
     // that recorded work visible without inventing timer registration/health.

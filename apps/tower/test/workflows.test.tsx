@@ -68,6 +68,17 @@ describe('workflow operating surface', () => {
     expect(screen.queryByText('Backup in progress')).toBeNull();
     expect(screen.queryByText('Loading this run’s backup evidence.')).toBeNull();
   });
+  it('lists a paused customer job on the schedule and reserves unavailable collectors for history', async () => {
+    data.runtime = { ...data.runtime!, onlyListedJobs: true, registeredJobs: ['asset-zero'],
+      jobs: [{ id: 'asset-zero', enabled: false, cron: '0 3 * * *', nextRun: null }] };
+    mount('/health/operations/schedule');
+    expect(await screen.findByRole('link', { name: 'NoticeOS report' })).toBeVisible();
+    expect(screen.getByText('No upcoming run')).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Live traffic and counters' })).toBeNull();
+    cleanup();
+    mount('/health/operations');
+    expect(await screen.findByRole('link', { name: 'Live traffic and counters' })).toBeVisible();
+  });
   it('reserves Workflows for intentional operator automations and scopes the counts and categories', async () => {
     mount('/workflows');
     expect(await screen.findByRole('link', { name: 'Search review tasks' })).toBeInTheDocument();

@@ -131,9 +131,9 @@ test('discovery retries only the affected workspace and resumes its current targ
 test('restart resumes only the latest eligible free collection since activation', async () => {
   const at = Date.parse('2026-11-17T10:07:00Z');
   const selected = [
-    { job: 'counters', schedule: { cron: '0 * * * *' }, assets: ['site'] },
-    { job: 'signal-dumps', schedule: { cron: '45 9 * * *' }, assets: ['site'] },
-    { job: 'freshness', schedule: { cron: '0 * * * *' }, assets: [null] },
+    { job: 'counters', schedule: { enabled: true, cron: '0 * * * *' }, assets: ['site'] },
+    { job: 'signal-dumps', schedule: { enabled: true, cron: '45 9 * * *' }, assets: ['site'] },
+    { job: 'freshness', schedule: { enabled: true, cron: '0 * * * *' }, assets: [null] },
   ];
   async function resumed(since) {
     const calls = [];
@@ -148,4 +148,33 @@ test('restart resumes only the latest eligible free collection since activation'
   ]);
   assert.deepEqual(await resumed(at - 10 * 60_000), [['counters', '2026-11-17T10:00:00.000Z']]);
   assert.deepEqual(await resumed(undefined), []);
+});
+
+test('a paused report stays listed and resumes at its next scheduled time', async () => {
+  const workspace = { workspaceId: 'fixture' };
+  let now = Date.parse('2026-11-17T09:04:00Z'), enabled = false;
+  const cron = '5 * * * *';
+  const runs = [];
+  const clock = customerScheduleClock({ workspaces: [workspace], now: () => now,
+    read: async () => [{ job: 'panel-refresh', schedule: { enabled, cron }, assets: ['site'] }],
+    run: async call => runs.push(call.scheduledAt),
+  });
+  const tick = async at => {
+    now = Date.parse(at);
+    await clock.tick();
+    await clock.whenIdle();
+    return clock.status(workspace.workspaceId);
+  };
+  try {
+    const paused = await tick('2026-11-17T09:05:00Z');
+    assert.deepEqual(paused.registeredJobs, ['panel-refresh']);
+    assert.deepEqual(paused.jobs, [{ id: 'panel-refresh', enabled: false, cron, nextRun: null }]);
+    assert.deepEqual(runs, []);
+    enabled = true;
+    const resumed = await tick('2026-11-17T10:00:00Z');
+    assert.deepEqual(resumed.jobs, [{ id: 'panel-refresh', enabled: true, cron, nextRun: '2026-11-17T10:05:00.000Z' }]);
+    assert.deepEqual(runs, []);
+    await tick('2026-11-17T10:05:00Z');
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z']);
+  } finally { await clock.close(); }
 });

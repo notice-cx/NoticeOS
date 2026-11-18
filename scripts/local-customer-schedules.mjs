@@ -65,17 +65,19 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
         entry.retryDelay = Math.min(15 * MINUTE, entry.retryDelay * 2);
         const selected = await read(entry.binding);
         for (const [key, call] of entry.queued) {
-          if (!selected.some(item => item.job === call.job && (call.archive
+          if (!selected.some(item => item.schedule.enabled && item.job === call.job && (call.archive
             ? item.archives?.some(target => customerJobSubject(target.asset, target.archive) === customerJobSubject(call.asset, call.archive))
             : item.assets.includes(call.asset)))) entry.queued.delete(key);
         }
         entry.jobs = selected.map(item => {
-          const old = previous.find(j => j.job === item.job && j.schedule.cron === item.schedule.cron
-            && scheduleTimezone(j.schedule) === scheduleTimezone(item.schedule));
-          let due = old?.due ?? next(item.schedule, at - 1);
+          if (!item.schedule.enabled) return { ...item, due: Infinity };
+          const old = previous.find(j => j.job === item.job);
+          const matching = old?.schedule.enabled && old.schedule.cron === item.schedule.cron
+            && scheduleTimezone(old.schedule) === scheduleTimezone(item.schedule);
+          let due = matching ? old.due : next(item.schedule, at - 1);
           const resumeCollection = entry.initial && Number.isFinite(resumeSince)
             && ['counters', 'signal-dumps'].includes(item.job);
-          if (!old && (item.job === 'panel-refresh' || resumeCollection)) {
+          if (!matching && old?.schedule.enabled !== false && (item.job === 'panel-refresh' || resumeCollection)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resumeCollection ? Math.max(resumeSince, at - 24 * HOUR) : at - 24 * HOUR;
