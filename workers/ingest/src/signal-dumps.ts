@@ -492,6 +492,7 @@ interface ManifestSuccess {
   objectBytes: number;
   providerCostUsd?: number;
   dataForSeoCostAccountedUsd?: number;
+  knownZeroCost?: true;
 }
 
 interface ManifestFailure {
@@ -1235,6 +1236,7 @@ interface ArchiveInput {
   collected: CollectedDump;
   providerCostUsd?: number;
   dataForSeoCostAccountedUsd?: number;
+  knownZeroCost?: true;
 }
 
 async function storeCollectedDump(
@@ -1315,6 +1317,7 @@ async function storeCollectedDump(
       objectBytes: prior.objectBytes,
       providerCostUsd,
       dataForSeoCostAccountedUsd: input.dataForSeoCostAccountedUsd,
+      knownZeroCost: input.knownZeroCost,
     });
     return {
       asset: target.asset,
@@ -1377,6 +1380,7 @@ async function storeCollectedDump(
     objectBytes: object.size,
     providerCostUsd,
     dataForSeoCostAccountedUsd: input.dataForSeoCostAccountedUsd,
+    knownZeroCost: input.knownZeroCost,
   });
   return {
     asset: target.asset,
@@ -1709,7 +1713,9 @@ VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9::timestamptz, $10::timest
 async function recordDumpSuccess(store: WorkspaceStore, manifest: ManifestSuccess): Promise<void> {
   const id = crypto.randomUUID();
   const finishedAt = new Date().toISOString();
-  const cost = storedProviderCost(manifest.target.integration, manifest.providerCostUsd ?? 0);
+  const cost = manifest.knownZeroCost && (manifest.providerCostUsd === undefined || manifest.providerCostUsd === 0)
+    ? { usd: 0, state: 'reported' as const }
+    : storedProviderCost(manifest.target.integration, manifest.providerCostUsd ?? 0);
   const incomplete = manifest.providerTruncated && !depthBoundedReports(manifest.target.integration).includes(manifest.report);
   await persistCollectionAttempt({
     target: manifest.target,

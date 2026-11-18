@@ -3,7 +3,7 @@ import { loadMeteredDataSpend } from '@noticeos/contract';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../src/dataforseo-budget.js';
-import { runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
+import { DATAFORSEO_CHECKPOINT_PREFIX, runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { runCustomerDataForSeo } from '../src/customer-dataforseo.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
@@ -26,6 +26,11 @@ beforeEach(async () => {
   await emptyTables(['config_documents']);
   forgetConfigCache();
 });
+
+async function saveCap(dataUsd: number): Promise<void> {
+  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: dataUsd } } },
+    actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+}
 
 it('serializes competing reservations and keeps an unsettled request out of replay', async () => {
   const reserve = (key: string, nowMs = AUGUST, store = env.STORE, fenceUnsettled = false) => reserveDataForSeo(store, {
@@ -105,14 +110,18 @@ it('counts billed retries once in the month of each purchase even when the repor
   ]);
 });
 
-it('admits a retry when the next request fits beside the cost already billed', async () => {
+it.each([
+  ['envelope', 503, { status_code: 50000, cost: 0.02 }],
+  ['task', 200, { status_code: 20000, cost: 0.02, tasks: [{ status_code: 40101, result: null }] }],
+] as const)('retries a confirmed %s failure when the next request fits the budget', async (_location, status, failure) => {
+  await saveCap(0.50);
   let paid = 0;
   const fetchImpl: typeof fetch = async () => {
-    if (++paid === 1) return Response.json({ status_code: 50000, cost: 0.02 }, { status: 503 });
+    if (++paid === 1) return Response.json(failure, { status });
     return Response.json({ status_code: 20000, cost: 0.05,
       tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
   };
-  expect(await runDataForSeoDumps(env, { ...options, fetchImpl, monthlyCapUsd: 0.50 }))
+  expect(await runDataForSeoDumps(env, { ...options, fetchImpl, monthlyCapUsd: 0.50, fenceUnsettled: true }))
     .toMatchObject({ succeeded: 1, costUsd: 0.07, outcomes: [{ retries: 1 }] });
   expect(paid).toBe(2);
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.07);
@@ -121,8 +130,7 @@ it('admits a retry when the next request fits beside the cost already billed', a
 });
 
 it('blocks exact replay of an ambiguous customer purchase after return to standalone', async () => {
-  const seeded = await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } }, actor: 'config:seed' }, AUGUST);
-  expect(seeded.ok).toBe(true);
+  await saveCap(1);
   let paid = 0;
   const fetchImpl: typeof fetch = async (_input, init) => {
     if (init?.method !== 'POST') return new Response(null, { status: 204 });
@@ -143,9 +151,42 @@ it('blocks exact replay of an ambiguous customer purchase after return to standa
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBe(0);
 });
 
+it('settles a provider-confirmed charge even if the completed result is malformed', async () => {
+  await saveCap(1);
+  let paid = 0;
+  const fetchImpl: typeof fetch = async () => {
+    paid += 1;
+    return Response.json({ status_code: 20000, cost: 0.03,
+      tasks: [{ status_code: 20000, result: [{ items_count: 2, items: [{ fixture: true }] }] }] });
+  };
+  const run = () => runDataForSeoDumps(env, { ...options, fetchImpl, fenceUnsettled: true,
+    scope: { asset: options.scope.asset, families: ['ranked-keywords'] } });
+  expect(await run()).toMatchObject({ failed: 1, costUsd: 0.03, outcomes: [{ errorCode: 'dataforseo_invalid_response' }] });
+  expect(await run()).toMatchObject({ failed: 1, costUsd: 0, outcomes: [{ errorCode: 'dataforseo_already_purchased' }] });
+  expect(paid).toBe(1);
+  expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.03);
+});
+
+it.each([
+  ['missing task status', 503, { status_code: 20000, cost: 0.03, tasks: [{ result: null }] }],
+  ['conflicting prices', 200, { status_code: 20000, cost: 0, tasks: [{ status_code: 20000, cost: 0.03, result: [] }] }],
+] as const)('holds the reservation for %s instead of repeating the purchase', async (_cause, status, reply) => {
+  await saveCap(1);
+  let paid = 0;
+  const fetchImpl: typeof fetch = async () => {
+    paid += 1;
+    return Response.json(reply, { status });
+  };
+  const run = () => runDataForSeoDumps(env, { ...options, fetchImpl, fenceUnsettled: true });
+  expect(await run()).toMatchObject({ failed: 1, outcomes: [{ errorCode: 'dataforseo_uncertain', retries: 0, unconfirmedCost: true }] });
+  expect(await run()).toMatchObject({ failed: 1, outcomes: [{ errorCode: 'dataforseo_uncertain' }] });
+  expect(paid).toBe(1);
+  expect(await pgFirst(`SELECT provider_cost_usd AS cost FROM noticeos.dataforseo_request_charges`)).toEqual({ cost: null });
+  expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.000001, 0.25)).toBe(false);
+});
+
 it('does not repurchase an answered report when its archive is missing', async () => {
-  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } },
-    actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+  await saveCap(1);
   let paid = 0;
   const fetchImpl: typeof fetch = async () => {
     paid += 1;
@@ -163,6 +204,43 @@ it('does not repurchase an answered report when its archive is missing', async (
   });
   expect(paid).toBe(1);
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.03);
+});
+
+it('promotes a staged ordinary report with no available purchase budget, then removes the staging object', async () => {
+  await saveCap(0.25);
+  let paid = 0, checkpointKey = '';
+  const fetchImpl: typeof fetch = async () => {
+    paid += 1;
+    return Response.json({ status_code: 20000, cost: 0.03,
+      tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
+  };
+  const put = env.RAW_SIGNALS.put.bind(env.RAW_SIGNALS);
+  const brokenArchive = vi.spyOn(env.RAW_SIGNALS, 'put').mockImplementation((key, value, settings) => {
+    if (!key.includes(DATAFORSEO_CHECKPOINT_PREFIX + '/')) throw new Error('Synthetic final archive write failure');
+    checkpointKey = key;
+    return put(key, value, settings);
+  });
+  const run = () => runDataForSeoDumps(env, { ...options, fetchImpl, monthlyCapUsd: 0.25, fenceUnsettled: true });
+  try {
+    expect(await run()).toMatchObject({ failed: 1, costUsd: 0.03, outcomes: [{ errorCode: 'local_store_failed' }] });
+  } finally { brokenArchive.mockRestore(); }
+  expect(checkpointKey).not.toBe('');
+  expect(await env.RAW_SIGNALS.head(checkpointKey)).not.toBeNull();
+  expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.25, 0.25)).toBe(false);
+  const repaired = await run();
+  expect(repaired).toMatchObject({ succeeded: 1, failed: 0, costUsd: 0 });
+  expect(await env.RAW_SIGNALS.head(repaired.outcomes[0]!.objectKey!)).not.toBeNull();
+  expect(await env.RAW_SIGNALS.head(checkpointKey)).toBeNull();
+  expect(paid).toBe(1);
+  expect(await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).toMatchObject({ spentUsd: 0.03, unknownPrices: 0 });
+});
+
+it('reports a confirmed zero-priced customer report as a known amount', async () => {
+  await saveCap(1);
+  const fetchImpl: typeof fetch = async () => Response.json({ status_code: 20000, cost: 0,
+    tasks: [{ status_code: 20000, cost: 0, result: [] }] });
+  expect(await runDataForSeoDumps(env, { ...options, fetchImpl, fenceUnsettled: true })).toMatchObject({ succeeded: 1, costUsd: 0 });
+  expect(await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).toMatchObject({ spentUsd: 0, unknownPrices: 0 });
 });
 
 it('collects only an approved customer property and requires a saved budget', async () => {
@@ -185,7 +263,7 @@ it('collects only an approved customer property and requires a saved budget', as
     { approval, job, signal: new AbortController().signal, authorizePurchase: async () => undefined }, { fetchImpl, nowMs: AUGUST });
   await expect(run('dataforseo')).rejects.toThrow(/monthly data cap/u);
   expect(paidTargets).toEqual([]);
-  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 0.26 } } }, actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+  await saveCap(0.26);
   expect(await run('dataforseo-recovery')).toMatchObject({ attempted: 0 });
   expect(paidTargets).toEqual([]);
   const weekly = await run('dataforseo');
@@ -201,8 +279,7 @@ it('collects only an approved customer property and requires a saved budget', as
 
 it('allows recovery on its own for approved outage gaps only', async () => {
   const customer = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'hosted' };
-  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } },
-    actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+  await saveCap(1);
   expect(await putCredential(customer, { provider: 'dataforseo', fields: { DATAFORSEO_LOGIN: 'fixture-login', DATAFORSEO_PASSWORD: 'fixture-password' } }))
     .toMatchObject({ ok: true });
   const { connectionId, secretVersion } = await resolveCredential(customer, 'dataforseo', 'store-only');

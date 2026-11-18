@@ -276,9 +276,9 @@ recovery of reports missed during an internet outage. The same
 `approvedMonthlyCapUsd` covers all approved assets and both jobs. Each
 request is subject to the lower of that ceiling and the monthly data cap in
 Settings, using the UTC calendar month. An unconfirmed charge reserves its
-amount for that month. A valid result with a confirmed cost blocks another
-purchase of the same request for that report date, even before the archive
-is written. The preflight checks the workspace, saved connection,
+amount for that month. Provider-confirmed completion and cost block another
+purchase of the same request for that report date, even when the result
+cannot be archived. The preflight checks the workspace, saved connection,
 eligible assets and cap without contacting DataForSEO. After replacing or
 rotating the credential, review the saved connection and update the private
 approval before resuming paid collection. Keep this app release when returning

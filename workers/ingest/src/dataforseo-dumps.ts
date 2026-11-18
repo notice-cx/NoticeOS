@@ -135,7 +135,7 @@ interface PlannedRequest {
   label?: string;
 }
 
-/** One paid independent request, durable before the next one starts. These
+/** One paid response, durable before the report is archived. These
  * objects are resumable working evidence, not complete family manifests; every
  * read model continues to trust only signal_dump_runs. */
 interface DataForSeoRequestCheckpoint {
@@ -149,6 +149,8 @@ interface DataForSeoRequestCheckpoint {
   costUsd: number;
   taskError: { code: string; message: string } | null;
   costAccounted?: true;
+  priceConfirmed?: true;
+  rankedKeywordsTruncated?: true;
 }
 
 export const DATAFORSEO_CHECKPOINT_PREFIX = 'checkpoints/dataforseo';
@@ -895,7 +897,7 @@ async function collectDueReports(
   const requestClock = options.requestClock ?? (options.nowMs === undefined ? Date.now : () => nowMs);
   for (const { target, report } of plan) {
     options.signal?.throwIfAborted();
-    if (!await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd, options.fenceUnsettled)) {
+    if (!options.fenceUnsettled && !await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd)) {
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -903,10 +905,7 @@ async function collectDueReports(
         reportDate,
         requestedAt,
         dataState: 'provider-snapshot',
-        error: new SignalError(
-          'budget_exhausted',
-          `DataForSEO paused before the portfolio ${monthlyCapUsd.toFixed(2)} USD monthly data cap.`,
-        ),
+        error: dataForSeoBudgetExhausted(monthlyCapUsd),
         knownZeroCost: true,
       });
       outcomes.push({ ...outcome, costUsd: 0, retries: 0 });
@@ -1169,18 +1168,22 @@ async function collectReport(
   let failedAttempts = 0;
   let resumedRequests = 0;
   let lastTaskError: SignalError | null = null;
+  let priceConfirmed = budget.fenceUnsettled;
+  const temporaryCheckpoints = budget.fenceUnsettled && spec.independentRequests !== true;
+  const resumeCheckpoints = temporaryCheckpoints || spec.independentRequests === true;
+  const temporaryKeys: string[] = [];
+  let needsPanelAllowance = budget.fenceUnsettled && spec.name === 'serp-panel';
   try {
     const objects = await signalObjectScope(env);
     // Built inside the boundary so a malformed panel is archived as this
     // property's `config_invalid` attempt rather than aborting the sweep.
     const requests = spec.requests(target, reportDate, panel);
-    const priorAttempt = spec.independentRequests
+    const priorAttempt = resumeCheckpoints
       ? await latestDataForSeoAttempt(env.STORE, target.asset, spec.name, reportDate)
       : null;
     // One report date has one coherent panel. Re-firing it is always a repair,
     // never permission to rebuy its successful query/device pages. A new report
     // date naturally has different keys and starts fresh.
-    const resumeCheckpoints = spec.independentRequests === true;
     // With no manifest, a killed request's spend has nowhere else to be counted;
     // a prior error manifest already recorded what that attempt paid.
     const checkpointCostsUnaccounted = priorAttempt === null;
@@ -1198,6 +1201,9 @@ async function collectReport(
       if (checkpoint && checkpoint.taskError === null) {
         pages.push(checkpoint.page);
         providerRows += checkpoint.providerRows;
+        rankedKeywordsTruncated ||= checkpoint.rankedKeywordsTruncated === true;
+        priceConfirmed &&= checkpoint.priceConfirmed === true;
+        if (temporaryCheckpoints && checkpointKey) temporaryKeys.push(checkpointKey);
         if (checkpointCostsUnaccounted) {
           carriedCostUsd += checkpoint.costUsd;
           if (checkpoint.costAccounted) carriedAccountedUsd += checkpoint.costUsd;
@@ -1206,6 +1212,14 @@ async function collectReport(
         continue;
       }
 
+      // A cached repair needs no headroom. The panel allowance only applies
+      // when at least one remaining request would go to the provider.
+      if (needsPanelAllowance) {
+        needsPanelAllowance = false;
+        if (!await canReserveDataForSeo(budget.store, budget.requestClock(), MAX_REPORT_COST_USD, budget.monthlyCapUsd, true)) {
+          throw dataForSeoBudgetExhausted(budget.monthlyCapUsd);
+        }
+      }
       const call = await callProvider(
         spec,
         body,
@@ -1227,24 +1241,24 @@ async function collectReport(
       };
       providerRows += parsed.providerRows;
       rankedKeywordsTruncated ||= parsed.rankedKeywordsTruncated === true;
-      if (spec.independentRequests === true) {
-        const key =
-          checkpointKey ??
-          (await dataForSeoCheckpointKey(env, target, spec, reportDate, body, label));
-        await writeDataForSeoCheckpoint(env.RAW_SIGNALS, key, {
+      if (checkpointKey && (spec.independentRequests === true || parsed.taskError === null)) {
+        await writeDataForSeoCheckpoint(env.RAW_SIGNALS, checkpointKey, {
           schemaVersion: 1,
           asset: target.asset,
           report: spec.name,
           reportDate,
-          requestHash: key.slice(key.lastIndexOf('/') + 1, -5),
+          requestHash: checkpointKey.slice(checkpointKey.lastIndexOf('/') + 1, -5),
           page,
           providerRows: parsed.providerRows,
           costUsd: call.costUsd,
           costAccounted: true,
+          ...(budget.fenceUnsettled ? { priceConfirmed: true } : {}),
+          ...(parsed.rankedKeywordsTruncated ? { rankedKeywordsTruncated: true } : {}),
           taskError: parsed.taskError
             ? { code: parsed.taskError.code, message: parsed.taskError.message }
             : null,
         }, objects);
+        if (temporaryCheckpoints) temporaryKeys.push(checkpointKey);
       }
       // Archived verbatim either way: a task the provider could not answer is
       // evidence too, and it was billed.
@@ -1289,7 +1303,13 @@ async function collectReport(
       },
       providerCostUsd: carriedCostUsd + budget.confirmedUsd,
       dataForSeoCostAccountedUsd: carriedAccountedUsd + budget.confirmedUsd,
+      knownZeroCost: priceConfirmed && !budget.costUnconfirmed && carriedCostUsd + budget.confirmedUsd === 0 ? true : undefined,
     });
+    // The committed manifest now points to the durable raw object.
+    if (temporaryKeys.length) {
+      try { await env.RAW_SIGNALS.delete(temporaryKeys); }
+      catch { console.warn('dataforseo_checkpoint_cleanup_failed'); }
+    }
     if (lastTaskError && failedRequests > 0) {
       // Partial panels are useful and reviewable, but never silently healthy.
       // The success row keeps the archive/read path intact; a zero-cost error
@@ -1498,6 +1518,10 @@ function retriedFailure(error: SignalError, retries: number): SignalError {
   );
 }
 
+function dataForSeoBudgetExhausted(capUsd: number): SignalError {
+  return new SignalError('budget_exhausted', `DataForSEO paused before the portfolio ${capUsd.toFixed(2)} USD monthly data cap.`);
+}
+
 /** One provider call, repeated while the failure is about the call rather than
  * what we asked for. `budget` is shared by every request in the family, so the
  * ceiling is per family. Once the budget is gone a transient response is
@@ -1522,12 +1546,11 @@ async function callProvider(
       requestClock: budget.requestClock, fenceUnsettled: budget.fenceUnsettled, requireSavedCap: budget.fenceUnsettled,
       approvedCredential: budget.approvedCredential });
     if (reservation.kind !== 'reserved') {
+      if (reservation.kind === 'budget_exhausted') throw dataForSeoBudgetExhausted(budget.monthlyCapUsd);
       if (reservation.kind === 'dataforseo_uncertain') budget.costUnconfirmed = true;
-      const message = reservation.kind === 'budget_exhausted'
-        ? `DataForSEO paused before the portfolio ${budget.monthlyCapUsd.toFixed(2)} USD monthly data cap.`
-        : reservation.kind === 'dataforseo_uncertain' ? 'DataForSEO may have already billed this request.'
-          : reservation.kind === 'dataforseo_already_purchased' ? 'DataForSEO already returned a paid result for this request.'
-            : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
+      const message = reservation.kind === 'dataforseo_uncertain' ? 'DataForSEO may have already billed this request.'
+        : reservation.kind === 'dataforseo_already_purchased' ? 'DataForSEO already returned a paid result for this request.'
+          : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
       throw new SignalError(reservation.kind, message);
     }
     try {
@@ -1582,16 +1605,21 @@ async function callProvider(
     let parsed: ParsedProviderResponse | SignalError;
     try { parsed = parseProviderResponse(answer.status, answer.body, spec.name, spec.independentRequests === true); }
     catch (error) { parsed = normalizeSignalError(error, `DataForSEO ${spec.name} request failed.`); }
+    const providerStatus = dataForSeoProviderStatus(answer.body);
     const billed = billedDataForSeoCost(answer.body);
-    if (billed !== null) {
-      await settleDataForSeo(budget.store, reservation.attemptId, billed, !(parsed instanceof SignalError) && parsed.taskError === null);
+    if (billed !== null && providerStatus !== 'ambiguous') {
+      await settleDataForSeo(budget.store, reservation.attemptId, billed, providerStatus === 'completed');
       costUsd += billed;
       budget.confirmedUsd += billed;
     } else {
       budget.costUnconfirmed = true;
-      if (budget.fenceUnsettled) throw new SignalError('dataforseo_uncertain', 'DataForSEO did not confirm this request’s cost.');
+      if (budget.fenceUnsettled) {
+        throw new SignalError('dataforseo_uncertain', providerStatus === 'ambiguous'
+          ? 'DataForSEO did not confirm whether this request completed.'
+          : 'DataForSEO did not confirm this request’s cost.');
+      }
     }
-    const delayMs = isTransientResponse(answer.status, answer.body) && (billed !== null || !budget.fenceUnsettled)
+    const delayMs = providerStatus !== 'completed' && isTransientResponse(answer.status, answer.body)
       ? await nextRetryDelay(budget, reserveUsd, answer.askedForMs) : null;
     if (delayMs === null) {
       if (parsed instanceof SignalError) throw parsed;
@@ -1602,10 +1630,37 @@ async function callProvider(
   }
 }
 
+function providerErrorCode(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 40000 && value < 60000;
+}
+
+/** One live POST submits one task. Provider status establishes whether it
+ * completed, even when its result cannot be used locally. */
+function dataForSeoProviderStatus(value: unknown): 'completed' | 'failed' | 'ambiguous' {
+  const body = asRecord(value);
+  const tasks = arrayField(body, 'tasks');
+  if (tasks.length > 1 || (body?.tasks != null && !Array.isArray(body.tasks))) return 'ambiguous';
+  const task = asRecord(tasks[0]);
+  const envelopeStatus = body?.status_code;
+  const taskStatus = task?.status_code;
+  if (envelopeStatus === 20000 && taskStatus === 20000) return 'completed';
+  const failedTask = providerErrorCode(taskStatus) && (task?.result == null || (Array.isArray(task.result) && task.result.length === 0));
+  if ((providerErrorCode(envelopeStatus) && tasks.length === 0)
+    || (failedTask && (envelopeStatus === 20000 || providerErrorCode(envelopeStatus)))) return 'failed';
+  return 'ambiguous';
+}
+
 function billedDataForSeoCost(value: unknown): number | null {
   const body = asRecord(value);
   if (!Number.isInteger(body?.status_code)) return null;
-  const raw = body?.cost ?? asRecord(arrayField(body, 'tasks')[0])?.cost;
+  const total = body?.cost;
+  const task = asRecord(arrayField(body, 'tasks')[0])?.cost;
+  if (total == null) return dataForSeoBillAmount(task);
+  const amount = dataForSeoBillAmount(total);
+  return task == null || dataForSeoBillAmount(task) === amount ? amount : null;
+}
+
+function dataForSeoBillAmount(raw: unknown): number | null {
   if (typeof raw !== 'number' && !(typeof raw === 'string' && raw.trim())) return null;
   const amount = finiteNumber(raw);
   if (amount === null) return null;
