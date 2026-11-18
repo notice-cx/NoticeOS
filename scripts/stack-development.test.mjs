@@ -67,12 +67,14 @@ test('generated Worker configs point to live code and follow atomic secret-file 
   assert.equal(prepareDevelopmentWorkerConfigs({source:f.root,home}),root);
  }finally{f.close();}
 });
-function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,stale=[],failUps=[]}={}) {
+const firstMigration = '1'.repeat(64) + '  migrations/0001_baseline.sql';
+const secondMigration = '2'.repeat(64) + '  migrations/0002_next.sql';
+function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,stale=[],failUps=[],applied=firstMigration,declaredImage=image}={}) {
  const f=source();const local=path.join(f.root,'.local');fs.mkdirSync(local);
  const file=path.join(local,'stack.json');const base=path.join(local,'compose.json');const envFile=path.join(local,'env');fs.writeFileSync(base,'{}');fs.writeFileSync(envFile,'');
  const selector={project:'synthetic-dev',files:[base],envFile,dockerHost:'unix:///synthetic.sock'};fs.writeFileSync(file,JSON.stringify(selector));
  const mounts=[{Type:'bind',Source:'/synthetic/state',Destination:'/state',RW:true}];
- const baseline={name:selector.project,networks:{installation:{name:'synthetic-network'}},services:{noticeos:{image,read_only:true,user:'1000:1000',environment:{},labels:{},networks:{installation:null},volumes:[{type:'bind',source:'/synthetic/state',target:'/state',bind:{create_host_path:false}}]},postgres:{image:other},dolt:{image:other},backup:{image:other}}};
+ const baseline={name:selector.project,networks:{installation:{name:'synthetic-network'}},services:{noticeos:{image:declaredImage,read_only:true,user:'1000:1000',environment:{},labels:{},networks:{installation:null},volumes:[{type:'bind',source:'/synthetic/state',target:'/state',bind:{create_host_path:false}}]},postgres:{image:other},dolt:{image:other},backup:{image:other}}};
  const inventory=new Map(['noticeos','postgres','dolt','backup'].map((s,i)=>[s,{Id:String(i+1).repeat(64),Image:s==='noticeos'?image:other,State:{Status:'running',Health:{Status:'healthy'}},Mounts:structuredClone(mounts),Config:{Labels:{'com.docker.compose.project':selector.project,'com.docker.compose.service':s,'org.opencontainers.image.revision':'a'.repeat(40)}}}]));
  const calls=[];let ups=0;
  const model=args=>{
@@ -86,16 +88,21 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,st
   if(network) value.networks.installation.name=network;
   for(let i=0;i<args.length;i++) if(args[i]==='-f' && args[i+1]!==base) {
    const all=JSON.parse(fs.readFileSync(args[i+1],'utf8'));const overlay=all.services.noticeos;const app=value.services.noticeos;
+   if (!overlay.volumes) { Object.assign(app, overlay); continue; }
    Object.assign(app,{...overlay,environment:{...app.environment,...overlay.environment},labels:{...app.labels,...overlay.labels},volumes:[...app.volumes.filter(m=>!overlay.volumes.some(next=>next.target===m.target)),...overlay.volumes]});value.volumes={...value.volumes,...all.volumes};
   }return value;
  };
  const run=async(command,args,opts)=>{
   calls.push({command,args});assert.equal(command,'docker');assert.ok(opts.timeoutMs<=130000);
+  if(args[2]==='run' && args.includes('/bin/cat')) {
+   return {code:0,stdout:args.at(-2)===other ? firstMigration+'\n'+secondMigration : firstMigration};
+  }
   if(args[2]==='run') return {code:probeFailure || stale.includes(args.at(-3))?1:0,stdout:JSON.stringify({dependencies:dependencyDescription(f.root),freeBytes:1024**4}),stderr:'PRIVATE'};
-  if(args[2]==='image') {assert.equal(args[3],'inspect');return {code:0,stdout:JSON.stringify([{Id:args[4],Os:'linux',Architecture:'arm64',Config:{Labels:{}}}])};}
+  if(args[2]==='image') {assert.equal(args[3],'inspect');return {code:0,stdout:JSON.stringify([{Id:args[4],Os:'linux',Architecture:'arm64',Config:{Labels:{'org.opencontainers.image.revision':'1'.repeat(40),'cx.noticeos.schema':'2'.repeat(64),'cx.noticeos.source':'3'.repeat(64)}}}])};}
   if(args[2]==='volume') {assert.equal(args[3],'ls');return {code:0,stdout:''};}
   if(args[2]==='inspect') return {code:0,stdout:JSON.stringify([...inventory.values()].filter(row=>row.Id===args[3]))};
   const start=args.indexOf('--env-file')+2;const step=args.slice(start);
+  if(step[0]==='exec' && step.includes('psql')) return {code:0,stdout:applied+'\n'};
   if(step[0]==='config') return {code:0,stdout:JSON.stringify(model(args))};
   if(step[0]==='ps') return {code:0,stdout:JSON.stringify([...inventory].map(([Service,row])=>({Project:selector.project,Service,ID:row.Id,State:row.State.Status,Health:row.State.Health.Status})))};
   assert.deepEqual(step,['up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90','noticeos']);
@@ -114,6 +121,37 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,st
   },
   breakApp:()=>{inventory.get('noticeos').State.Health.Status='unhealthy';}};
 }
+test('a fallback declared by tag starts the exact image recorded before development', async () => {
+ const f = fixture({ declaredImage: 'noticeos-local:fixture-release' });
+ const options = { ...f, root:f.root, selectorFile:f.file };
+ try {
+  await developStack(options);
+  const receipt = await developStack({ ...options, disable:true });
+  assert.equal(receipt.after.noticeos.image,image);
+  const selected = JSON.parse(fs.readFileSync(f.file,'utf8'));
+  assert.equal(JSON.parse(fs.readFileSync(selected.files.at(-1),'utf8')).services.noticeos.image,image);
+ } finally {f.close();}
+});
+test('an older fallback leaves the live app serving until a matching release is selected', async () => {
+ const f = fixture({ applied: firstMigration+'\n'+secondMigration });
+ const options = { ...f, root: f.root, selectorFile: f.file };
+ const inputs = async () => ({ source: { commit:'1'.repeat(40),schema:'2'.repeat(64) }, manifest:'3'.repeat(64) });
+ try {
+  await developStack(options);
+  const mounted = fs.readFileSync(f.file, 'utf8');
+  await assert.rejects(developStack({ ...options, disable:true }), /database migrations differ/u);
+  await assert.rejects(developStack({ ...options, disable:true, image:other, inputs:async () => ({...(await inputs()),manifest:'4'.repeat(64)}) }), /must match/u);
+  assert.equal(f.upCount(),1);
+  assert.equal(fs.readFileSync(f.file, 'utf8'),mounted);
+  const ready = await developStack({ ...options, disable:true, image:other, inputs });
+  assert.equal(ready.image, other);
+  assert.deepEqual(ready.after.postgres,ready.before.postgres);
+  assert.deepEqual(ready.after.backup,ready.before.backup);
+  const again = await developStack(options);
+  assert.equal(again.mode, 'development');
+  assert.equal((await developStack({ ...options, disable:true })).image,other);
+ } finally {f.close();}
+});
 test('switch and disable touch only the app, preserving the original selector and state mounts',async()=>{
  const f=fixture();try {
   const first=await developStack({root:f.root,selectorFile:f.file,...f});assert.equal(first.mode,'development');assert.equal(first.appOnly,true);

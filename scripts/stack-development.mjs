@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readSelector, validateSelector } from './stack-control.mjs';
 import { runCommand } from './run-command.mjs';
+import { DATABASE } from './postgres-secrets.mjs';
 import { DEPENDENCY_PATHS } from '../deploy/compose/development.mjs';
-import { buildDevelopmentImage, stackImageMetadata, stackSnapshot, stackRecoverySnapshot, stackComposition, stackCompose,
+import { buildDevelopmentImage, stackCommittedInputs, stackImageMetadata, stackSnapshot, stackRecoverySnapshot, stackComposition, stackCompose,
   stackAtomic, stackInputSeal, stackSameInputs } from './stack-deploy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGE = /^sha256:[a-f0-9]{64}$/u;
-const HELP = 'Usage: pnpm os:dev [-- --config ABSOLUTE_SELECTOR] [-- --image sha256:ID]\n       pnpm os:prod [-- --config ABSOLUTE_SELECTOR]';
+const HELP = 'Usage: pnpm os:dev [-- --config ABSOLUTE_SELECTOR] [-- --image sha256:ID]\n       pnpm os:prod [-- --config ABSOLUTE_SELECTOR] [-- --image sha256:ID]';
 const json = value => JSON.stringify(value, null, 2) + '\n';
 const fail = message => { throw new Error(message); };
 
@@ -123,8 +124,50 @@ function appSeal(model) {
   return createHash('sha256').update(ordered).digest('hex');
 }
 
+/** Compare the frozen image migrations with the database before removing any source mounts. */
+async function verifyPreparedSchema(run, selector, image, env) {
+  const dockerEnv = Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'XDG_CONFIG_HOME'].filter(key => env[key] !== undefined).map(key => [key, env[key]]));
+  const manifest = await run('docker', ['--host', selector.dockerHost, 'run', '--rm', '--pull', 'never', '--network', 'none',
+    '--read-only', '--cap-drop', 'ALL', '--entrypoint', '/bin/cat', image, '/opt/noticeos/db/postgres/frozen-migrations.sha256'],
+    { env: dockerEnv, timeoutMs: 20000 });
+  if (manifest.code !== 0 || !manifest.stdout || manifest.stdout.length > 1024 * 1024) fail('Cannot read the prepared image’s frozen migrations.');
+  const entries = manifest.stdout.trimEnd().split('\n');
+  if (!entries.every((line, i) => {
+    const match = /^([a-f0-9]{64})  migrations\/(\d{4})_[a-z0-9_]+\.sql$/u.exec(line);
+    return match && Number(match[2]) === i + 1;
+  })) fail('The prepared image’s frozen migration list is invalid.');
+  const applied = await stackCompose(run, selector, ['exec', '-T', '--user', 'postgres', 'postgres', 'psql', '--host=/var/run/postgresql', '-U', 'postgres', '-d', DATABASE, '-XqAt',
+    '-v', 'ON_ERROR_STOP=1', '-c', 'SET default_transaction_read_only=on', '-c',
+    "SELECT CASE WHEN split_part(name, '_', 1)::integer = version THEN sha256 || '  migrations/' || name || '.sql' ELSE 'invalid migration version' END FROM noticeos_migrations.applied ORDER BY version"],
+    env, 'Applied migration check', 20000);
+  if (applied.trimEnd() !== entries.join('\n')) fail('The prepared image and database migrations differ. Use a verified release matching this database with pnpm os:prod -- --image sha256:ID.');
+}
+
+async function verifyPreparedImage({ root, image, currentImage, declared, run, env, inputs }) {
+  const { source, manifest } = await inputs(run, root);
+  const target = await stackImageMetadata(run, declared, image, env);
+  const current = await stackImageMetadata(run, declared, currentImage, env);
+  if (target.revision !== source.commit || target.schema !== source.schema || target.source !== manifest || target.platform !== current.platform) {
+    fail('The selected prepared image must match this clean main checkout and the installation platform.');
+  }
+}
+
+async function pinPreparedImage({ image, dir, declared, baseModel, run, env }) {
+  // Immutable overrides keep the previous selector valid through a failed switch.
+  const file = path.join(dir, `prepared-${image.slice(7)}.json`);
+  const bytes = json({ services: { noticeos: { image, pull_policy: 'never' } } });
+  if (fs.existsSync(file)) {
+    if (regular(file) !== bytes) fail('The prepared image override has changed.');
+  } else fs.writeFileSync(file, bytes, { flag: 'wx', mode: 0o600 });
+  const selected = validateSelector({ ...declared, files: [...declared.files.filter(name => name !== file), file] });
+  const expected = structuredClone(baseModel);
+  Object.assign(expected.services.noticeos, { image, pull_policy: 'never' });
+  if (!equal(expected, (await stackComposition(run, selected, env)).value)) fail('The prepared image override must change only the application image.');
+  return selected;
+}
+
 export async function developStack({ root = ROOT, selectorFile, disable = false, image = null,
-  run = runCommand, env = process.env, out = process.stdout, build = buildDevelopmentImage } = {}) {
+  run = runCommand, env = process.env, out = process.stdout, build = buildDevelopmentImage, inputs = stackCommittedInputs } = {}) {
   root = fs.realpathSync(root);
   const selector = readSelector(selectorFile);
   const dir = path.join(path.dirname(selectorFile), 'stack-development');
@@ -169,6 +212,7 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       if (!equal(selected,declared) || (prior.appSeal === undefined
         ? !stackSameInputs(prior.inputs)
         : prior.appSeal !== appSeal(baseModel.value))) fail('The prepared stack declarations changed; restore refused.');
+      inputHashes = { ...stackInputSeal(selectorFile, selector), ...inputHashes };
       targetImage = prior.image;
       targetBefore = prior.before;
       // Applying backup settings can recreate that worker during development.
@@ -177,6 +221,16 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
         targetBefore = { ...prior.before, backup: before.backup };
       }
       assertPreserved(targetBefore,before,{ image:before.noticeos.image, added:JSON.parse(regular(overrideFile)).services.noticeos.volumes });
+      if (image !== null) {
+        if (!IMAGE.test(image)) fail('Use an immutable local release image ID.');
+        await verifyPreparedImage({ root, image, currentImage: before.noticeos.image, declared, run, env, inputs });
+        targetImage = image;
+      }
+      if (baseModel.value.services.noticeos.image !== targetImage) {
+        selected = await pinPreparedImage({ image: targetImage, dir, declared, baseModel: baseModel.value, run, env });
+        inputHashes = { ...stackInputSeal(selectorFile, selected), ...inputHashes };
+      }
+      await verifyPreparedSchema(run, selector, targetImage, env);
     } else {
       if (active && !selector.files.includes(overrideFile)) fail('This stack uses development mounts owned by another selector.');
       if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');
@@ -321,7 +375,7 @@ export async function main(args = process.argv.slice(2), options = {}) {
       else if(key==='--image' && argv[i+1]) image=argv[++i];
       else fail(HELP);
     }
-    if(!path.isAbsolute(selectorFile) || image && (!IMAGE.test(image)||disable)) fail(HELP);
+    if(!path.isAbsolute(selectorFile) || image && !IMAGE.test(image)) fail(HELP);
     await developStack({ ...options,selectorFile,disable,image,out }); return 0;
   } catch(error) {err.write(error.message+'\n');return 1;}
 }
