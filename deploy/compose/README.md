@@ -251,7 +251,7 @@ The default customer address is the published loopback port. For a Tower already
 
 Before switching, complete [Prepare existing signal archives for customer mode](#prepare-existing-signal-archives-for-customer-mode) so older reports are also available in customer mode. Follow [Prepare the Postgres logins on the existing local stack](../../scripts/README.md#prepare-the-postgres-logins-on-the-existing-local-stack) to enable the dedicated logins and add the Postgres access rule before preflight. The role tool requires confirmation of the exact Compose project when applying or rolling back changes.
 
-Prepare `state/installation/customer-runtime.json` as a regular file owned by the application UID with mode `0600`. Set `format` to `noticeos-compose-customer/1`. Its `database` object contains `identity` and `grant`, with URLs for `noticeos_identity` and `noticeos_service_grant` on the same internal `postgres:5432` database the existing app uses. `identitySecret` must match enrollment. The single entry in `workspaces` contains the enrolled `workspaceId` and `serviceId` for its `workflows.run` grant. `mailRecipients` lists addresses allowed to receive sign-in codes. The app reads the existing application role URL and encryption key from its bootstrap file.
+Prepare `state/installation/customer-runtime.json` as a regular file owned by the application UID with mode `0600`. Set `format` to `noticeos-compose-customer/1`. Its `database` object contains `identity` and `grant`, with URLs for `noticeos_identity` and `noticeos_service_grant` on the same internal `postgres:5432` database the existing app uses. `identitySecret` must match enrollment. The single entry in `workspaces` contains the enrolled `workspaceId` and `serviceId` for its `workflows.run` grant. Configure SMTP delivery or list mailbox recipients as described below. The app reads the existing application role URL and encryption key from its bootstrap file.
 
 On a home-network Tower, local report senders run inside the app container and use its loopback socket on port 5173 with the configured Tower Host header. The LAN listener serves the browser.
 
@@ -335,7 +335,9 @@ hostname.
 
 #### Deliver sign-in codes to an inbox
 
-Choose an existing SMTP relay that supports implicit TLS and authentication. Use a From address approved by that relay. In `customer-runtime.json`, set `mailDelivery` to `customer-mail.json` and list the permitted owner and member addresses in `mailRecipients`.
+Choose an SMTP relay that supports implicit TLS and authentication. Use a From address approved by that relay. In `customer-runtime.json`, set `mailDelivery` to `customer-mail.json`. Omit `mailRecipients` to use the workspace membership and invitation records for delivery. Owners can invite people from **Settings → Members** without changing files or restarting the app. Returning users receive codes while they have access to a configured workspace. Invitees use the emailed link until they accept. Keep `mailRecipients` in the file if you want to restrict delivery to those addresses.
+
+Invitation links use the Tower address. With the default loopback address, they open only on the computer running the Tower. Set `towerOrigin` before inviting people who use another device. [Configure the home-network Tower address](#customer-mode-on-the-existing-app-service)
 
 Place `customer-mail.json` beside `customer-runtime.json`. Set its owner to the application UID and mode to `0600`.
 
@@ -348,6 +350,8 @@ Place `customer-mail.json` beside `customer-runtime.json`. Set its owner to the 
   "password": "relay-password"
 }
 ```
+
+For Resend, use `smtps://smtp.resend.com:465` for `url`, `resend` for `username`, an API key authorized to send mail for `password`, and a From address on your verified sending domain. [Resend SMTP settings](https://resend.com/docs/send-with-smtp)
 
 The prepared image submits messages using the validated TLS connection. Reuse this file for first-owner enrollment by setting `mailDelivery` in the owner plan beside it. The local backup keeps the private relay file in its recovery folder. Restore it beside the runtime configuration before preflight. Preflight fails if the configured file is missing or invalid. Restart the app after changing the relay settings.
 

@@ -314,7 +314,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 }
 
 /** Runtime composition shared by the disposable fixture and its read-only shadow. */
-export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, mailFrom = MAIL_SENDER, connectionString,
+export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, mailFrom = MAIL_SENDER, membershipMail = false, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
   startSchedules, fixtureProvider, shadowAdmission, resumeSince, backupResumeSince, operating, deployment }) {
   const localTowerOrigin = deployment && plan.localTowerOrigin;
@@ -398,6 +398,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       telemetry: { enabled: false }, workers: [
         { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: localTowerOrigin ? 'local-network' : 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
           ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
+          ...(membershipMail ? { NOTICEOS_IDENTITY_MAIL_WORKSPACES: workspaces.map(workspace => workspace.workspaceId) } : {}),
           NOTICEOS_IDENTITY_EMAIL_FROM: mailFrom },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
             routerConfig: { has_user_worker: true }, assetConfig: { not_found_handling: assets.not_found_handling } },
