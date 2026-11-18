@@ -129,7 +129,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           const env = { ...this.env, STORE: store };
           const authorization = archive && archive.provider !== 'bing-webmaster' && policy?.extendedArchives ? archiveAuthorization(workspaceId) : undefined;
           const fetchImpl: typeof fetch = async (input, init) => {
-            const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
+            const upstream = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+            const signals = [signal, upstream].filter((s): s is AbortSignal => Boolean(s));
             const response = await fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });
             if (response.status === 401) authorization?.reject();
             return response;
