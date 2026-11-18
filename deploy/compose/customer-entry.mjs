@@ -125,6 +125,31 @@ export async function verifyComposeCustomerWorkspace(origin, operating, localTow
   finally { await identity?.close(); }
 }
 
+/** Check the selected effects without contacting a site, Discord or the task service. */
+export async function verifyComposeCustomerFollowups(operating) {
+  const { workspaceId } = operating.workspaces[0];
+  const notice = operating.revenueNotices?.find(entry => entry.workspaceId === workspaceId);
+  const filing = operating.taskFollowups?.find(entry => entry.workspaceId === workspaceId);
+  if (notice) {
+    try {
+      const { readCustomerConnection, customerCredentialFields } = await import('../../scripts/customer-stored-connection.mjs');
+      const { revenueWebhookId } = await import('../../scripts/customer-collection-policy.mjs');
+      const row = await readCustomerConnection({ address: operating.address, workspaceId }, 'discord');
+      const fields = await customerCredentialFields(row, operating.credentialsKey);
+      if (revenueWebhookId(new URL(fields.DISCORD_WEBHOOK_URL)) !== notice.webhookId) throw new Error();
+    } catch { throw new ContainerRefusal('Connect the selected revenue webhook in Integrations before enabling Discord revenue notices.'); }
+  }
+  if (filing) {
+    const { openWorkspaceServiceGrant } = await import('../../packages/postgres/src/service-grant.mjs');
+    const grant = openWorkspaceServiceGrant({ connectionString: operating.grantAddress, workspaceId, principalId: filing.serviceId });
+    try {
+      const facts = await grant.facts();
+      if (facts?.workspaceStatus !== 'active' || !['workflows.run', 'tasks.write'].every(action => facts.actions.includes(action))) throw new Error();
+    } catch { throw new ContainerRefusal('Prepare the dedicated automatic task grant with workflows.run and tasks.write.'); }
+    finally { await grant.close(); }
+  }
+}
+
 export function composeArchiveBucket(installationDir) {
   try {
     const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
@@ -237,7 +262,8 @@ if (!isMainThread && workerData?.composeCustomer === true) {
 } else if (process.argv[1] === import.meta.filename) {
   if (process.argv[2] === '--check') {
     try {
-      const { backup } = await prepareCustomer();
+      const { backup, operating } = await prepareCustomer();
+      await verifyComposeCustomerFollowups(operating);
       const problem = await backup?.check();
       if (problem) throw new ContainerRefusal(problem);
       const { readDemoArtifact } = await import('../../scripts/hosted-demo-server.mjs');

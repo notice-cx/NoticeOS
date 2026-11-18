@@ -13,6 +13,7 @@ import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtif
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerOutbound, localD1BackupOutbound } from './local-customer-egress.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
+import { localCustomerTaskFollowups } from './local-customer-task-followups.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
@@ -355,7 +356,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       outboundService });
     const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest, ingestOutbound);
     const collection = operating ? customerCollectionPolicy(operating) : undefined;
-    const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length);
+    const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length
+      || collection.siteChecks.length || collection.revenueNotices.length || collection.taskFollowups.length);
     const scheduleName = isolated ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
       ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
@@ -436,10 +438,13 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         headers: { [SCHEDULE_HEADER]: scheduleProof }, signal });
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
+      const reportRoot = privateDirectory(reports, !existsSync(reports));
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
         resumeSince, backupResumeSince, collection, backup,
+        taskFollowups: collection?.taskFollowups.length ? localCustomerTaskFollowups({ sourceRoot: plan.root,
+          root: reportRoot, credentialsKey, ntasksOrigin, transport: operating.collectorTransport }) : undefined,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
-          root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
+          root: reportRoot, bucket }), worker: {
           fetch(input, init) {
             const proof = new Request(input, init);
             proof.headers.set(SCHEDULE_HEADER, scheduleProof);

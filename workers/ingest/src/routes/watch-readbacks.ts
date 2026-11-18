@@ -29,6 +29,11 @@ export async function handleWatchReadbacks(
     return json({ error: 'unauthorized' }, 401);
   }
 
+  return workspaceWatchReadbacks(request, env, nowMs);
+}
+
+/** Used by the authenticated route and the admitted workspace scheduler. */
+export async function workspaceWatchReadbacks(request: Request, env: IngestEnv, nowMs: number): Promise<Response> {
   if (request.method === 'GET') {
     const after = new URL(request.url).searchParams.get('reviewsAfter') ?? '0';
     if (!/^\d{1,10}$/.test(after) || !Number.isSafeInteger(Number(after))) {

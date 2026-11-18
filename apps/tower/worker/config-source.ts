@@ -102,6 +102,68 @@ function list(doc: unknown, key: string): unknown[] | null {
   return Array.isArray(held) ? held : null;
 }
 
+type MatrixSettings = Pick<TowerConfigFallbacks, "monthlyCaps" | "pullConfig" | "integrations" | "serpPanel" | "noNightlyReport">;
+
+/** The history recorder and the live matrix use the same store-first mapping. */
+export function resolveMatrixSettings(stored: ReadonlyMap<string, unknown>, fallbacks: MatrixSettings) {
+  const constants = stored.get(TOWER_CONFIG_FILES.constants);
+  const caps = container(constants, "monthly_caps");
+  // An unknown key (an older document's `inference_usd`) is ignored, never a
+  // reason to fall back.
+  const monthlyCaps =
+    caps !== null && typeof caps.data_usd === "number"
+      ? { dataUsd: caps.data_usd }
+      : fallbacks.monthlyCaps;
+  // A saved constants document answers for itself, key absent included; only
+  // an unseeded store falls back to the compiled copy. The ingest's own rule.
+  const noNightlyReport =
+    constants === undefined ? (fallbacks.noNightlyReport ?? null) : noNightlyReportAssets(constants);
+  const pullDoc = stored.get(TOWER_CONFIG_FILES.pull);
+  const pullConfig = Array.isArray(pullDoc)
+    ? (pullDoc as PullConfigEntry[])
+    : fallbacks.pullConfig;
+
+  const integrationsDoc = stored.get(TOWER_CONFIG_FILES.integrations);
+  const storedAssets = container(integrationsDoc, "assets");
+  const stripeProducts = isObject(integrationsDoc) ? readStripeProductMapping(integrationsDoc.stripeProducts) : null;
+  const integrationsCatalog = list(integrationsDoc, "catalog");
+  // A Stripe assignment in an older installation needs a row to manage it.
+  const stripe = (stripeProducts !== null || stripeRevenueAssignments(integrationsDoc).length > 0)
+    ? fallbacks.integrations.catalog.find((row) => row.id === STRIPE_REVENUE_LANE)
+    : undefined;
+  const addedCatalog = [
+    stripe,
+    fallbacks.integrations.catalog.find((row) => row.id === "adsense"),
+  ].filter(row => row && !integrationsCatalog?.some(held => isObject(held) && held.id === row.id));
+  let integrationsAssets = storedAssets as IntegrationsConfig["assets"] | null;
+  if (integrationsAssets !== null && stripeProducts !== null) {
+    integrationsAssets = Object.fromEntries(Object.entries(integrationsAssets).map(([asset, lanes]) => {
+      const cells = { ...lanes };
+      delete cells[STRIPE_REVENUE_LANE];
+      return [asset, cells];
+    }));
+    for (const { asset, account } of stripeProductTargets(stripeProducts)) {
+      integrationsAssets[asset] = {
+        ...integrationsAssets[asset],
+        // This is a derived source card. Only the integration writes the mapping.
+        [STRIPE_REVENUE_LANE]: { status: "needs-setup", since: "", stripeAccountId: account },
+      };
+    }
+  }
+  const integrations =
+    integrationsAssets !== null && integrationsCatalog !== null
+      ? ({ catalog: [...integrationsCatalog, ...addedCatalog], assets: integrationsAssets, ...(stripeProducts ? { stripeProducts } : {}) } as IntegrationsConfig)
+      : fallbacks.integrations;
+
+  const serpAssets = container(stored.get(TOWER_CONFIG_FILES.serpPanel), "assets");
+  const serpPanel =
+    serpAssets === null
+      ? fallbacks.serpPanel
+      : ({ assets: serpAssets } as unknown as SerpPanelConfig);
+
+  return { monthlyCaps, noNightlyReport, pullConfig, integrations, serpPanel };
+}
+
 /**
  * Resolve every setting the Tower reads, once.
  *
@@ -144,13 +206,7 @@ export async function resolveTowerConfig(
   }
 
   const constants = stored.get(TOWER_CONFIG_FILES.constants);
-  const caps = container(constants, "monthly_caps");
-  // An unknown key (an older document's `inference_usd`) is ignored, never a
-  // reason to fall back.
-  const monthlyCaps =
-    caps !== null && typeof caps.data_usd === "number"
-      ? { dataUsd: caps.data_usd }
-      : fallbacks.monthlyCaps;
+  const { monthlyCaps, noNightlyReport, pullConfig, integrations, serpPanel } = resolveMatrixSettings(stored, fallbacks);
   // Per key, like the ingest's own detector (`ruleConfigFromConstants`): a
   // saved rule set that lacks a key shows and runs on the compiled one, and
   // its Save creates the key.
@@ -163,10 +219,6 @@ export async function resolveTowerConfig(
   // A stored zone `Intl` cannot resolve falls back to the compiled copy rather
   // than quietly moving every boundary to UTC.
   const osTimeZone = savedOsTimeZone(constants, fallbacks.osTimeZone);
-  // A saved constants document answers for itself, key absent included; only
-  // an unseeded store falls back to the compiled copy. The ingest's own rule.
-  const noNightlyReport =
-    constants === undefined ? (fallbacks.noNightlyReport ?? null) : noNightlyReportAssets(constants);
   // The same rule for the saved schedules, passed through verbatim because a
   // schedule save is guarded by exactly this object; what each entry may hold
   // is the write door's `schedulesRefusal`.
@@ -174,43 +226,6 @@ export async function resolveTowerConfig(
     constants === undefined
       ? (fallbacks.schedules ?? null)
       : (container(constants, "schedules") as ScheduleOverrides | null);
-
-  const pullDoc = stored.get(TOWER_CONFIG_FILES.pull);
-  const pullConfig = Array.isArray(pullDoc)
-    ? (pullDoc as PullConfigEntry[])
-    : fallbacks.pullConfig;
-
-  const integrationsDoc = stored.get(TOWER_CONFIG_FILES.integrations);
-  const storedAssets = container(integrationsDoc, "assets");
-  const stripeProducts = isObject(integrationsDoc) ? readStripeProductMapping(integrationsDoc.stripeProducts) : null;
-  const integrationsCatalog = list(integrationsDoc, "catalog");
-  // A Stripe assignment in an older installation needs a row to manage it.
-  const stripe = (stripeProducts !== null || stripeRevenueAssignments(integrationsDoc).length > 0)
-    ? fallbacks.integrations.catalog.find((row) => row.id === STRIPE_REVENUE_LANE)
-    : undefined;
-  const addedCatalog = [
-    stripe,
-    fallbacks.integrations.catalog.find((row) => row.id === "adsense"),
-  ].filter(row => row && !integrationsCatalog?.some(held => isObject(held) && held.id === row.id));
-  let integrationsAssets = storedAssets as IntegrationsConfig["assets"] | null;
-  if (integrationsAssets !== null && stripeProducts !== null) {
-    integrationsAssets = Object.fromEntries(Object.entries(integrationsAssets).map(([asset, lanes]) => {
-      const cells = { ...lanes };
-      delete cells[STRIPE_REVENUE_LANE];
-      return [asset, cells];
-    }));
-    for (const { asset, account } of stripeProductTargets(stripeProducts)) {
-      integrationsAssets[asset] = {
-        ...integrationsAssets[asset],
-        // This is a derived source card. Only the integration writes the mapping.
-        [STRIPE_REVENUE_LANE]: { status: "needs-setup", since: "", stripeAccountId: account },
-      };
-    }
-  }
-  const integrations =
-    integrationsAssets !== null && integrationsCatalog !== null
-      ? ({ catalog: [...integrationsCatalog, ...addedCatalog], assets: integrationsAssets, ...(stripeProducts ? { stripeProducts } : {}) } as IntegrationsConfig)
-      : fallbacks.integrations;
 
   const countersDoc = stored.get(TOWER_CONFIG_FILES.counters);
   const counterAssets = container(countersDoc, "assets");
@@ -232,12 +247,6 @@ export async function resolveTowerConfig(
       dashboard = fallbacks.dashboard;
     }
   }
-
-  const serpAssets = container(stored.get(TOWER_CONFIG_FILES.serpPanel), "assets");
-  const serpPanel =
-    serpAssets === null
-      ? fallbacks.serpPanel
-      : ({ assets: serpAssets } as unknown as SerpPanelConfig);
 
   const panelsDoc = stored.get(TOWER_CONFIG_FILES.signalPanels);
   const panelAssets = container(panelsDoc, "assets");

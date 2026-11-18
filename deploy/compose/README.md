@@ -270,6 +270,27 @@ From a checkout, run `pnpm os:customer-check` to check the prepared config, work
 
 The app reads `state/installation/customer-runtime.enabled` on startup. To select customer mode in an approved disposable rehearsal, write `noticeos-compose-customer/1` followed by a newline into that file with the same ownership and permissions, then run `pnpm os:restart:noticeos` or the installation launcher's `noticeos restart noticeos`. Remove the enable file and restart the app again to return to standalone. Postgres, archives and the connected Ntasks project keep writes made during the rehearsal. A second customer scheduler for the same database cannot start while the first holds its database lease.
 
+#### Site checks, revenue notices and automatic tasks
+
+The hourly freshness job records the Tower’s daily source and connection history from the workspace’s stored evidence. For website uptime, search accessibility and icon checks, add an entry to `siteChecks` with `workspaceId`, `asset` and `origins`. List the site’s full HTTPS origin and each canonical host its redirects or sitemap need. The same entry authorizes the two public connectivity checks the collector uses when a site cannot be reached.
+
+To deliver daily revenue notices, connect Discord in **Integrations**, enable the revenue notice in Settings, then add `{ "workspaceId": "...", "webhookId": "..." }` to `revenueNotices`. The numeric webhook ID is the first path segment after `/api/webhooks/`. The encrypted connection holds the complete URL. Check the pending revenue notices before enabling delivery after downtime. The sender applies the existing queue age limit.
+
+To enable automatic Ntasks search reviews and outcome updates, set `ntasksOrigin`, connect a writable project-scoped service credential and map each asset to its Ntasks project. Add `{ "workspaceId": "...", "serviceId": "..." }` to `taskFollowups`. Use a separate scheduler identity for task writes. A database administrator can create its expiring grant with the following statement after owner enrollment. In a `psql` session for the installation database, set `workspace_id` and `scheduler_id` to the ordinary scheduler’s IDs from the declaration, and `expires_at` to the approved expiration. Save the returned `service_id` with the matching workspace in `taskFollowups`.
+
+```sql
+INSERT INTO noticeos_platform.workspace_service_grants (service_id, workspace_id, actions, expires_at)
+SELECT gen_random_uuid(), workspace_id, ARRAY['workflows.run', 'tasks.write'],
+       least(expires_at, :'expires_at'::timestamptz)
+FROM noticeos_platform.workspace_service_grants
+WHERE workspace_id = :'workspace_id'::uuid AND service_id = :'scheduler_id'::uuid
+  AND revoked_at IS NULL AND expires_at > now() AND :'expires_at'::timestamptz > now()
+  AND actions = ARRAY['workflows.run']::text[]
+RETURNING service_id, workspace_id, expires_at;
+```
+
+Preflight checks that the selected webhook matches the saved Discord connection and that the automatic task grant is active. These two checks run against the local database. The search review job checks the published version against the collected reports before it creates a task. Outcome updates use saved measurements. The separate service grant and the selected Ntasks project's write access must both be active. To stop automatic filings, pause **Search review tasks** and **Outcome task updates** in the schedule editor, or revoke the dedicated service grant. Manual task editing uses the existing Tower connection.
+
 With a configured backup worker, the preflight checks the private backup request channel and verifies access to the saved Ntasks workspace's backup route. In **Integrations → Ntasks**, connect the project-scoped **Service credential**, the **Ntasks workspace ID**, and a separate **Backup credential** with only backup access. The readiness check requires the customer schedule, compiled Tower and ingest Workers, and a ready backup worker. `noticeos backup` runs a manual backup alongside the nightly schedule. Other standalone manual jobs remain in the standalone profile. See the [backup and restore procedure](backup.README.md).
 
 Run the isolated full-image test with a prepared local proof image tagged `noticeos-local:compose-proof-<id>`.

@@ -251,7 +251,9 @@ export async function readHostedNtasksProjects(env: IngestEnv, fields: Record<st
     || new Set(projects.map(project => project.prefix)).size !== projects.length) {
     throw new TaskServiceError({ kind: 'access' });
   }
-  return { origin, workspaceId, projects, writable: grants.projects.some(grant => grant.access === 'write') };
+  const writableProjectIds = new Set(grants.projects.flatMap(grant =>
+    grant.access === 'write' && typeof grant.projectId === 'string' ? [grant.projectId] : []));
+  return { origin, workspaceId, projects, writable: writableProjectIds.size > 0, writableProjectIds };
 }
 
 export async function checkHostedNtasks(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<ProbeResult> {

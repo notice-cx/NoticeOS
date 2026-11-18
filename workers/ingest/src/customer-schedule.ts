@@ -14,6 +14,12 @@ import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { eligibleAssets, runUptimeChecks } from './hygiene.js';
 import { runGoogleSignals } from './google-signals.js';
 import { runSignalDumps } from './signal-dumps.js';
+import { recordCustomerHealthHistory, runCustomerSiteCheck } from './customer-site-health.js';
+import { runNotifier } from './notifier.js';
+import { resolveCredential } from './credentials.js';
+import { DISCORD_WEBHOOK_FIELD } from './discord-webhook.js';
+import { revenueWebhookId } from '../../../scripts/customer-collection-policy.mjs';
+import { runWatchWindows } from './watch-windows.js';
 import type { LaneRegister } from './lane-mapping.js';
 import { runBingSignals } from './bing-signals.js';
 import { runMediavine } from './mediavine.js';
@@ -88,6 +94,31 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
             return fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });
           };
+          if ((job === 'hygiene' || job === 'freshness') && policy && asset !== null) {
+            return Response.json(await runCustomerSiteCheck(env, policy, workspaceId, asset, job, time, fetchImpl));
+          }
+          if (job === 'notifications') {
+            const approved = policy?.revenueNotices?.find(notice => notice.workspaceId === workspaceId);
+            if (!approved) return denied();
+            const destination = async () => {
+              const current = await resolveCredential(env, 'discord', 'store-only');
+              const url = current.fields[DISCORD_WEBHOOK_FIELD];
+              if (current.source !== 'store' || !url) return null;
+              return revenueWebhookId(new URL(url)) === approved.webhookId ? url : null;
+            };
+            if (!await destination()) return denied();
+            const notice = await runNotifier(env, { revenueOnly: true, fetchImpl: async (input, init) => {
+              const request = new Request(input, init);
+              if (request.url !== await destination()) throw new Error('Revenue notification destination is unavailable.');
+              return fetchImpl(request);
+            } });
+            const failed = notice.skipped === 'delivery-failed' || notice.skipped === 'store-unavailable';
+            return Response.json(notice, { status: failed ? 503 : 200 });
+          }
+          if (job === 'watch-windows') {
+            const result = await runWatchWindows(env, time);
+            return Response.json({ evaluated: result.evaluated, readings: result.readings, failed: result.failed.length });
+          }
           if (job === 'freshness' && asset !== null) {
             const entries = (await eligibleAssets(env)).filter(site => site.asset === asset);
             const result = await runUptimeChecks(env, { assets: entries, fetchImpl });
@@ -99,6 +130,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           if (job === 'freshness') {
             await runFreshnessCheck(env);
             await checkSearchTraffic(env, ruleConfigFromConstants(constants));
+            if (policy) return Response.json({ outcome: 'ran', history: await recordCustomerHealthHistory(env, time) });
             return Response.json({ outcome: 'ran' });
           }
           const options = { fetchImpl, scheduled: true,

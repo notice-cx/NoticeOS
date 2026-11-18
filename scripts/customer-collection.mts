@@ -1,8 +1,8 @@
 import { scheduleFor, schedulesRefusal, SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
-import { selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
+import { selectedCustomerSite, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
-const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero'] as const;
+const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'hygiene', 'notifications', 'watch-windows', 'panel-review', 'watch-readbacks'] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
 export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : 'collect';
@@ -45,7 +45,7 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
       COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
       ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster') AND g.workspace_id=a.workspace_id) AS connected
+        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks') AND g.workspace_id=a.workspace_id) AS connected
     FROM noticeos.assets a
     JOIN noticeos.config_documents c ON c.workspace_id=a.workspace_id AND c.document_key='constants'
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
@@ -67,11 +67,22 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   }
   const rows = enrolled.filter(row => !row.isOs);
   if (!rows.length) return planned;
+  const { workspace } = rows[0]!;
   const connected = new Set(rows[0]!.connected);
+  const sites = rows.filter(row => policy ? selectedCustomerSite(policy, workspace, row.asset, row.domain) : row.domain).map(row => row.asset);
+  if (policy && sites.length) planned.push({ job: 'hygiene', schedule: settings('hygiene'), assets: sites });
+  if (asset === null && policy?.revenueNotices?.some(n => n.workspaceId === workspace) && connected.has('discord')) {
+    planned.push({ job: 'notifications', schedule: settings('notifications'), assets: [null] });
+  }
+  if (asset === null && policy?.taskFollowups?.some(binding => binding.workspaceId === workspace)) {
+    for (const job of ['watch-windows', 'panel-review', 'watch-readbacks'] as const) {
+      if (job === 'watch-windows' || connected.has('ntasks')) planned.push({ job, schedule: settings(job), assets: [null] });
+    }
+  }
   for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
     if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false)) continue;
     const schedule = settings(job);
-    const assets = job === 'freshness' ? [null, ...(policy ? [] : rows.filter(row => row.domain).map(row => row.asset))] : rows.map(row => row.asset);
+    const assets = job === 'freshness' ? [null, ...sites] : rows.map(row => row.asset);
     if (job !== 'signal-dumps') {
       planned.push({ job, schedule, assets });
       continue;
