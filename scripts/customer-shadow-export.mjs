@@ -8,6 +8,7 @@ import path from 'node:path';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { findPsql } from './postgres-tools.mjs';
+import { projectShadowJourneys } from './customer-shadow-journeys.mjs';
 
 export const SHADOW_EVIDENCE_FORMAT = 'noticeos-shadow-evidence-v1';
 export const SHADOW_RUN_REFERENCE = 'offline-shadow';
@@ -210,6 +211,7 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
   const seen = new Set(), knownWorkspaces = new Set(), recordWorkspaces = new Set();
   const assets = new Set(), assetReferences = new Set();
   const settings = { values: {}, document: null, audit: [] };
+  const journeyDocuments = new Map();
   const omitted = { credentialAndIdentityState: true, jobState: true, providerDiagnostics: true, closedTaskIdentifiers: true, rawArchiveObjects: 0,
     legacyArchiveObjects: 0, unlistedSettings: 0, unlistedAudit: 0, unavailableTables: [] };
   let active = null;
@@ -247,6 +249,12 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
       if (owner !== workspaceId || name === 'workspaces') return;
       const row = Object.fromEntries(columns.map((column, index) => [column, copyField(values[index])]));
       if (name === 'config_documents') {
+        if (['value-events', 'integrations'].includes(row.document_key)) {
+          if (journeyDocuments.has(row.document_key)) refuse('The backup contains duplicate journey settings.');
+          const body = jsonRecord(row.body);
+          if (body === null) refuse('The backup has invalid journey settings.');
+          journeyDocuments.set(row.document_key, body);
+        }
         if (row.document_key !== 'constants') { omitted.unlistedSettings++; return; }
         if (settings.document !== null || !/^[1-9][0-9]*$/u.test(row.version ?? '')) refuse('The backup contains invalid workspace settings metadata.');
         const body = jsonRecord(row.body);
@@ -288,6 +296,7 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
       refuse('The selected workspace or evidence ownership is missing from the backup.');
     }
     if ([...assetReferences].some(asset => !assets.has(asset))) refuse('The backup contains evidence without its owning asset.');
+    settings.journeys = projectShadowJourneys(journeyDocuments.get('value-events'), journeyDocuments.get('integrations'), assets);
     omitted.unavailableTables = SHADOW_EVIDENCE_TABLES.filter(name => !seen.has(name));
     const settingsText = JSON.stringify(settings, null, 2) + '\n';
     if (root !== null) {

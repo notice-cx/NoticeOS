@@ -12,6 +12,7 @@ import { openPrivateShadowFile as privateFile, privateShadowDirectory as private
 import { invokedDirectly } from './invoked-directly.mjs';
 import { findPsql } from './postgres-tools.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
+import { validShadowJourneys } from './customer-shadow-journeys.mjs';
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -60,7 +61,9 @@ function safeText(value) {
   return typeof value === 'string' && !value.includes('\0');
 }
 function checkSettings(value) {
-  if (!exact(value, ['values', 'document', 'audit']) || !record(value.values) || !Array.isArray(value.audit)
+  const hasJourneys = record(value) && Object.hasOwn(value, 'journeys');
+  if (!exact(value, ['values', 'document', 'audit', ...(hasJourneys ? ['journeys'] : [])])
+    || (hasJourneys && !validShadowJourneys(value.journeys)) || !record(value.values) || !Array.isArray(value.audit)
     || !Object.entries(value.values).every(([key, data]) => validShadowSetting(key, data))) refuse('The bundle has invalid saved settings.');
   const settings = value.document;
   if (settings === null) {
@@ -195,11 +198,24 @@ function transferSql(manifest, settings, manifestHash) {
   const version = change ? Math.max(2, Number(saved.version)) : 1;
   const audit = change ? settings.audit.filter(row => Number(row.versionBefore) > 0) : [];
   const settingsBody = literal(JSON.stringify(settings.values));
+  const journeys = settings.journeys ?? [];
+  const byDocument = new Map([
+    ['value-events', Object.fromEntries(journeys.map(({ asset, definitions }) => [asset, { journeys: definitions }]))],
+    ['integrations', Object.fromEntries(journeys.filter(entry => entry.ga4).map(({ asset, ga4 }) => [asset, { ga4 }]))],
+  ]);
+  const journeyBodies = new Map();
+  for (const [key, assets] of byDocument) {
+    if (Object.keys(assets).length) {
+      const baseline = defaults.find(row => row.key === key);
+      journeyBodies.set(key, JSON.stringify({ ...JSON.parse(baseline.body), assets }));
+    }
+  }
   const registers = includeChanges => {
     const bodies = defaults.map(row => {
       const changed = includeChanges && change && row.key === 'constants';
-      return `(${literal(row.key)}::text,${literal(row.body)}::jsonb${changed ? ' || ' + settingsBody + '::jsonb' : ''},
-        ${changed ? version : 1},${literal(changed ? saved.updatedBy : 'platform-provisioning')}::text)`;
+      const journeyBody = includeChanges ? journeyBodies.get(row.key) : undefined;
+      return `(${literal(row.key)}::text,${literal(journeyBody ?? row.body)}::jsonb${changed ? ' || ' + settingsBody + '::jsonb' : ''},
+        ${changed ? version : journeyBody ? 2 : 1},${literal(changed ? saved.updatedBy : journeyBody ? 'offline-shadow' : 'platform-provisioning')}::text)`;
     }).join(',');
     return `(SELECT count(*) FROM noticeos.config_documents)=${defaults.length}
       AND NOT EXISTS(SELECT 1 FROM (VALUES ${bodies}) expected(key,body,version,actor)
@@ -207,7 +223,11 @@ function transferSql(manifest, settings, manifestHash) {
       WHERE saved.version IS DISTINCT FROM expected.version OR saved.updated_by IS DISTINCT FROM expected.actor
       OR saved.body::jsonb IS DISTINCT FROM expected.body)`;
   };
-  let sql = "SELECT to_regclass('noticeos_shadow.evidence_import') IS NOT NULL AS shadow_replay \\gset\n\\if :shadow_replay\n";
+  let sql = journeys.length ? verifySql(`NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(${literal(JSON.stringify(journeys.map(entry => entry.asset)))}::jsonb) selected(asset)
+    WHERE NOT EXISTS (SELECT 1 FROM pg_temp.shadow_assets a WHERE a.asset_id=selected.asset))`,
+  'Saved journeys do not belong to an imported asset') : '';
+  sql += "SELECT to_regclass('noticeos_shadow.evidence_import') IS NOT NULL AS shadow_replay \\gset\n\\if :shadow_replay\n";
   sql += verifySql(`(SELECT count(*) FROM noticeos_shadow.evidence_import)=1
     AND EXISTS (SELECT 1 FROM noticeos_shadow.evidence_import WHERE workspace_id=${workspace}::uuid AND manifest_sha256=${literal(manifestHash)})`,
   'A different bundle was already imported');
@@ -260,6 +280,10 @@ function transferSql(manifest, settings, manifestHash) {
       (workspace_id,document_key,ops,reason,actor,version_before,version_after,changed_at)
       VALUES (${workspace}::uuid,'constants',${literal(JSON.stringify(row.ops))}::jsonb,${literal(row.reason)},${literal(row.actor)},
       ${Number(row.versionBefore)},${Number(row.versionAfter)},${literal(row.changedAt)}::timestamptz);\n`;
+  }
+  for (const [key, body] of journeyBodies) {
+    sql += `UPDATE noticeos.config_documents SET body=${literal(body)}::json, version=2, updated_at=clock_timestamp(),
+      updated_by='offline-shadow' WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
   }
   sql += `CREATE SCHEMA noticeos_shadow AUTHORIZATION postgres;
 REVOKE ALL ON SCHEMA noticeos_shadow FROM PUBLIC;

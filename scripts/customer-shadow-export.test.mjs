@@ -193,6 +193,17 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     await assert.rejects(importBundle, /Stop the shadow before importing/u);
     assert.equal(readFileSync(lock, 'utf8'), 'fixture reader');
     rmSync(lock);
+    const settingsPath = path.join(out, 'settings.json'), manifestPath = path.join(out, 'manifest.json');
+    const priorSettings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    assert.deepEqual(priorSettings.journeys, []);
+    delete priorSettings.journeys;
+    const legacyBytes = JSON.stringify(priorSettings) + '\n';
+    const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    Object.assign(legacyManifest.files.find(entry => entry.name === 'settings'), {
+      bytes: Buffer.byteLength(legacyBytes), sha256: digest(legacyBytes),
+    });
+    writeFileSync(settingsPath, legacyBytes);
+    writeFileSync(manifestPath, JSON.stringify(legacyManifest) + '\n');
     const reportFile = path.join(out, 'tables/asset_insight_snapshots.jsonl'), pristine = readFileSync(reportFile);
     writeFileSync(reportFile, Buffer.concat([pristine, Buffer.from('x')]));
     await assert.rejects(importBundle, /bundle file changed after export/u);
