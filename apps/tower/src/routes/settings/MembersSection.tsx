@@ -1,16 +1,18 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { ReadFailed } from '@/components/ReadFailed';
 import { useBrowserContext } from '@/lib/browser-context';
 import { SettingsPanel } from '@/routes/settings/SettingsPanel';
+import { ApiError } from '@/lib/api';
 import { MembershipRefused, type MemberCommand, type MemberRole, type MembershipPage, type WorkspaceMember, type WorkspaceInvitation } from '@/lib/membership-client';
 
 const ROLES: MemberRole[] = ['owner', 'operator', 'viewer'];
 const QUERY = ['workspace-members'];
 type Roster = { members: MembershipPage<WorkspaceMember>; invitations: MembershipPage<WorkspaceInvitation> };
 const accessDenied = (error: unknown) => error instanceof MembershipRefused && error.status === 403;
+const rosterRefused = new ApiError('Could not verify access to members.', 403);
 export function MembersSection() {
   const context = useBrowserContext();
   if (context.runtime.owner.mode !== 'hosted' || context.workspaceRole !== 'owner') return null;
@@ -31,22 +33,36 @@ function OwnerMembers() {
   const issuing = useRef(false);
   // An offline refresh must settle while it holds the roster lock.
   const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster | null> => {
-    const deadline = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
-    const [members, invitations] = await Promise.allSettled([runtime.api.fetchMembers(undefined, deadline), runtime.api.fetchInvitations(undefined, deadline)]);
-    // A refused read drops cached people until a complete roster is authorized again.
-    if ([members, invitations].some(result => result.status === 'rejected' && accessDenied(result.reason))) return null;
-    if (members.status === 'rejected') throw members.reason;
-    if (invitations.status === 'rejected') throw invitations.reason;
-    return { members: members.value, invitations: invitations.value };
+    const pending = new AbortController();
+    const deadline = AbortSignal.any([signal, pending.signal, AbortSignal.timeout(10_000)]);
+    // Keep waiting after a temporary error so a refusal in the other read can take precedence.
+    const readOne = <Value,>(request: Promise<Value>) => request.then(value => ({ value }), (error: unknown) => {
+      if (accessDenied(error)) throw error;
+      return { error };
+    });
+    try {
+      const [members, invitations] = await Promise.all([readOne(runtime.api.fetchMembers(undefined, deadline)), readOne(runtime.api.fetchInvitations(undefined, deadline))]);
+      if ('error' in members) throw members.error;
+      if ('error' in invitations) throw invitations.error;
+      return { members: members.value, invitations: invitations.value };
+    } catch (error) {
+      if (!accessDenied(error)) throw error;
+      pending.abort();
+      return null;
+    }
   } });
   const roster = read.data;
+  const refused = roster === null;
+  const readError = read.error instanceof MembershipRefused ? new ApiError(read.error.message, read.error.status) : read.error;
+  useEffect(() => {
+    if (refused && runtime.guard(() => true)() === true) void recheckAccess?.();
+  }, [refused, read.dataUpdatedAt, recheckAccess, runtime]);
   const update = runtime.guard((callback: () => void) => callback());
   async function refreshAccess() {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      const result = await read.refetch({ throwOnError: true });
-      if (result.data === null && runtime.guard(() => true)() === true) void recheckAccess?.();
+      await read.refetch({ throwOnError: true });
     } catch {
       if (runtime.queries.getQueryData(QUERY) != null) update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
     } finally {
@@ -78,13 +94,14 @@ function OwnerMembers() {
     issuing.current = true; setBusy(true); setNotice(null);
     try {
       const next = collection === 'members' ? await runtime.api.fetchMembers(cursor) : await runtime.api.fetchInvitations(cursor);
-      update(() => runtime.queries.setQueryData<Roster>(QUERY, previous => {
-        if (!previous) return previous;
+      update(() => {
+        const previous = runtime.queries.getQueryData<Roster | null>(QUERY);
+        if (!previous) return;
         const old = previous[collection];
         // De-duplicate a concurrent roster change across cursor pages.
         const items = [...old.items, ...next.items.filter(item => !old.items.some(existing => existing.id === item.id))];
-        return { ...previous, [collection]: { items, nextCursor: next.nextCursor } };
-      }));
+        runtime.queries.setQueryData(QUERY, { ...previous, [collection]: { items, nextCursor: next.nextCursor } });
+      });
     } catch { update(() => setNotice({ error: true, text: 'More people could not be loaded. Try again.' })); }
     finally { issuing.current = false; update(() => setBusy(false)); }
   }
@@ -105,7 +122,8 @@ function OwnerMembers() {
       </form>
       {notice ? <div role="status" data-status-for="members" className={`mt-3 text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
     </SettingsPanel>
-    {!roster ? read.isError || roster === null ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
+    {!roster ? read.isError || refused ? <ReadFailed title={refused ? "Couldn't verify access to members" : "Couldn't load members"}
+        subject="read:members" error={refused ? readError ?? rosterRefused : readError} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
       : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
       <SettingsPanel title="People">
         <ul className="divide-y divide-border">{roster.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}

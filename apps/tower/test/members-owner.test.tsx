@@ -153,6 +153,33 @@ it('a refusal from either read hides cached people until a complete authorized r
   expect(invite).toBeEnabled();
   expect(screen.getByLabelText('Email *')).toHaveValue(invitation.email);
 });
+it('a background refusal hides the roster, cancels the pending read and rechecks access', async () => {
+  const stalled = deferred<Response>();
+  let deny = false;
+  let invitationsSignal: AbortSignal | null | undefined;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    if (!deny) return roster(input, init);
+    if (JSON.parse(String(init?.body)).collection === 'members') return Response.json({ ok: false }, { status: 403 });
+    invitationsSignal = init?.signal;
+    return stalled.promise;
+  });
+  const revalidate = vi.fn(async () => {});
+  const value = runtime(fetch);
+  mount(value, 'owner', undefined, revalidate);
+  await screen.findByText(member.name);
+  deny = true;
+  const read = value.queries.refetchQueries();
+  try {
+    await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+    expect(invitationsSignal?.aborted).toBe(true);
+    expect(revalidate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status')).toHaveTextContent('HTTP 403');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  } finally {
+    stalled.resolve(Response.json({ ok: false }, { status: 503 }));
+    await read;
+  }
+});
 it('saved delivery failure clears new-invite draft and Resend reuses the existing invitation ID', async () => {
   let saved = false;
   const fetch = vi.fn<ApiTransport>(async (input, init) => {
