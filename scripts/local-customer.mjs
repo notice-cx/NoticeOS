@@ -11,17 +11,22 @@ import { fileURLToPath } from 'node:url';
 import { APP_RELEASE_HEADER, isAppApiPath, releaseMismatch } from '../apps/tower/shared/app-release.ts';
 import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtifact } from './hosted-demo-server.mjs';
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
-import { localCustomerOutbound } from './local-customer-egress.mjs';
+import { localCustomerOutbound, localD1BackupOutbound } from './local-customer-egress.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
 import { localSiteReportsEnabled } from './workspace-operations.mjs';
+import { CUSTOMER_BACKUP_PATH, customerBackupBearer } from './customer-backup.mjs';
+import { CLOUDFLARE_D1_BACKUP_PATH } from '../packages/contract/src/cloudflare-d1.mjs';
+import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
+import { activeCustomerBackupRequest } from './container-backup-channel.mjs';
 
 const HOST = '127.0.0.1';
 const MAIL_SENDER = 'noticeos@example.test';
 const LOCAL_PEER_HEADER = 'x-noticeos-local-peer-proof';
 const SCHEDULE_HEADER = 'x-noticeos-local-schedule-proof';
+const BACKUP_HEADER = 'x-noticeos-local-backup-proof';
 const FIRST_WORKSPACES = [
   { slug: 'east', displayName: 'East workspace', email: 'owner-east@example.test' },
   { slug: 'west', displayName: 'West workspace', email: 'owner-west@example.test' },
@@ -123,7 +128,7 @@ async function requestBody(request) {
   return Buffer.concat(chunks);
 }
 
-function customerServer(publicOrigin, runtime, peerProof, admits, { release, bridgePeer, ready }) {
+function customerServer(publicOrigin, runtime, peerProof, admits, { release, bridgePeer, ready, backup }) {
   const server = createServer(async (request, reply) => {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 30000);
@@ -131,8 +136,45 @@ function customerServer(publicOrigin, runtime, peerProof, admits, { release, bri
     reply.once('close', stop);
     try {
       const peer = request.socket.remoteAddress;
+      const serviceHost = new URL(BACKUP_APP_ORIGIN).host;
+      if (backup && request.headers.host === serviceHost) {
+        const url = requestTarget(BACKUP_APP_ORIGIN, request);
+        const authorized = url.pathname === CLOUDFLARE_D1_BACKUP_PATH && request.headers.origin === undefined
+          && customerBackupBearer(request.headers.authorization, backup.operatorToken)
+          && await activeCustomerBackupRequest(backup.client, request.headers['x-noticeos-backup-request']);
+        if (!authorized || !['GET', 'POST'].includes(request.method)) {
+          reply.writeHead(403, { 'cache-control': 'no-store', connection: 'close' }).end();
+          return;
+        }
+        if (request.method === 'GET' && !url.search && !await backup.sameTaskRevision()) {
+          reply.writeHead(409, { 'cache-control': 'no-store', 'content-type': 'application/json', connection: 'close' });
+          reply.end(JSON.stringify({ error: 'connection_changed' }));
+          return;
+        }
+        clearTimeout(timeout);
+        const bounds = AbortSignal.any([abort.signal, AbortSignal.timeout(240_000)]);
+        const headers = { ...(request.method === 'POST' ? { 'content-type': request.headers['content-type'] ?? '' } : {}) };
+        const response = await backup.cloudflare(new Request('https://backup.internal' + url.pathname + url.search,
+          { method: request.method, headers, body: await requestBody(request), signal: bounds }));
+        const output = Object.fromEntries([...response.headers].filter(([name]) => !['connection', 'transfer-encoding', 'set-cookie'].includes(name)));
+        reply.writeHead(response.status, output);
+        if (response.body) await pipeline(Readable.fromWeb(response.body), reply, { signal: bounds });
+        else reply.end();
+        return;
+      }
       if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
       const url = requestTarget(publicOrigin, request);
+      if (backup && url.pathname === CUSTOMER_BACKUP_PATH) {
+        if (peer !== HOST || request.method !== 'POST' || url.search || request.headers.origin !== undefined || request.headers['transfer-encoding']
+          || Number(request.headers['content-length'] ?? '0') !== 0 || !customerBackupBearer(request.headers.authorization, backup.operatorToken)) {
+          reply.writeHead(403, { 'cache-control': 'no-store' }).end();
+          return;
+        }
+        const result = await backup.manual();
+        reply.writeHead(result.ok ? 200 : 503, { 'cache-control': 'no-store', 'content-type': 'application/json' });
+        reply.end(JSON.stringify(result));
+        return;
+      }
       if (ready && url.pathname === '/_noticeos/ready') {
         const healthy = peer === HOST && request.method === 'GET' && !url.search && await ready();
         reply.writeHead(healthy ? 204 : 404, { 'cache-control': 'no-store' }).end();
@@ -251,7 +293,7 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 /** Runtime composition shared by the disposable fixture and its read-only shadow. */
 export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
-  startSchedules, fixtureProvider, shadowAdmission, resumeSince, operating, deployment }) {
+  startSchedules, fixtureProvider, shadowAdmission, resumeSince, backupResumeSince, operating, deployment }) {
   const publicOrigin = `http://${HOST}:${plan.port}`;
   if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
   if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating || deployment)) {
@@ -285,6 +327,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
     const peerProof = randomBytes(32).toString('base64url');
     const scheduleProof = randomBytes(32).toString('base64url');
+    const backupProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const { Miniflare, Log } = v4Miniflare(createRequire(require.resolve('wrangler/package.json')));
     const bindings = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
@@ -305,6 +348,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const scheduleName = isolated ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
       ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
+    const backup = deployment?.backup;
+    if (backup && (!startSchedules || serviceWorkspaces.length !== 1)) throw new Error('Customer backup requires one declared workspace.');
     const scheduleBindings = grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces),
       ...(collection ? { NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify(collection) } : {}) } : {};
     const scheduleTransport = grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {};
@@ -339,6 +384,13 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
             return e.SCHEDULE.fetch(r);
           }}`, bindings: { PROOF: scheduleProof },
           serviceBindings: { SCHEDULE: { name: scheduleName, entrypoint: 'CustomerSchedule' } } }] : []),
+        ...(backup ? [{ ...worker('customer-backup-ingest', artifact.ingest, localD1BackupOutbound({ signal: operating.signal,
+          transport: deployment.backupD1Transport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings,
+          NOTICEOS_BACKUP_WORKSPACE: serviceWorkspaces[0].workspaceId, NOTICEOS_BACKUP_SERVICE: serviceWorkspaces[0].serviceId } },
+        { name: 'customer-backup-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
+          script: `export default {fetch(r,e){return r.headers.get('${BACKUP_HEADER}') === e.PROOF
+            ? e.BACKUP.fetch(r) : new Response(null,{status:403})}}`, bindings: { PROOF: backupProof },
+          serviceBindings: { BACKUP: { name: 'customer-backup-ingest', entrypoint: 'CustomerBackup' } } }] : []),
         { name: 'mail', modules: true, compatibilityDate: '2026-07-06', script: MAIL_WORKER,
           serviceBindings: { OUTBOX: async request => {
             try { return new Response(deliver(await request.json())); }
@@ -346,6 +398,26 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
           } } },
       ] });
     await Promise.all([runtime.getWorker('tower'), runtime.getWorker('ingest')]);
+    const schedulerReady = () => !closing && !operating.signal.aborted && serviceWorkspaces.length > 0
+      && serviceWorkspaces.every(({ workspaceId }) => schedules?.status(workspaceId)?.error === null);
+    // The private trigger runs in the same Workerd process as both Workers.
+    const ready = deployment && (() => customerWorkerdReady(() => schedulerReady() && (!backup || backup.healthy()), probe));
+    const backupTrigger = backup ? await runtime.getWorker('customer-backup-trigger') : undefined;
+    const listen = async () => {
+      server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission,
+        { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready,
+          backup: backup && { ...backup, manual: () => schedules?.manualBackup?.() ?? { ok: false, stage: 'preparation', cause: 'worker_unavailable' },
+            cloudflare(request) {
+              request.headers.set(BACKUP_HEADER, backupProof);
+              return backupTrigger.fetch(request);
+            } } });
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(deployment?.listenPort ?? plan.port, deployment ? '0.0.0.0' : HOST,
+          () => { server.off('error', reject); resolve(); });
+      });
+    };
+    if (backup) await listen(); // A backup due at startup may need the sidecar's gateway immediately.
     if (startSchedules) {
       operating?.signal.throwIfAborted();
       const trigger = await runtime.getWorker('customer-schedule-trigger');
@@ -354,7 +426,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
-        resumeSince, collection,
+        resumeSince, backupResumeSince, collection, backup,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
           root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
           fetch(input, init) {
@@ -365,19 +437,10 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         }, bucket });
     }
     operating?.signal.throwIfAborted();
-    const schedulerReady = () => !closing && !operating.signal.aborted && serviceWorkspaces.length > 0
-      && serviceWorkspaces.every(({ workspaceId }) => schedules?.status(workspaceId)?.error === null);
-    // Both compiled Workers run in the same Workerd process as this private
-    // proof. Sampling it detects a disappeared Worker without provider calls.
-    const ready = deployment && (() => customerWorkerdReady(schedulerReady, probe));
-    if (ready && !await ready()) throw new Error('The configured customer schedule or Worker runtime is unavailable.');
-    server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission,
-      { release: artifact.release, bridgePeer: deployment?.bridgePeer, ready });
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(deployment?.listenPort ?? plan.port, deployment ? '0.0.0.0' : HOST,
-        () => { server.off('error', reject); resolve(); });
-    });
+    if (deployment && ((backup && !schedules?.manualBackup) || !await customerWorkerdReady(schedulerReady, probe))) {
+      throw new Error('The configured customer schedule or Worker runtime is unavailable.');
+    }
+    if (!backup) await listen();
     return Object.freeze({ publicOrigin, workspaces, outbox, whenIdle: () => schedules?.whenIdle(), close });
   } catch (error) {
     await close();

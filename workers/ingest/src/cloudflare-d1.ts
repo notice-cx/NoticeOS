@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { D1_MAX_BYTES, cloudflareAccountId, d1DatabaseId, d1Record, d1Receipt, d1Selection, storedD1Selection, type D1Failure, type D1Receipt, type D1Request, type D1Selection, type D1Status } from '@noticeos/contract/cloudflare-d1';
-import { resolveCredential, assertCredentialOwner, publishCurrentIntegration, saveCloudflareSelection, type ResolvedCredential } from './credentials.js';
+import { D1_MAX_BYTES, cloudflareAccountId, cloudflareD1DownloadAddress, d1DatabaseId, d1Record, d1Receipt, d1Selection, storedD1Selection, type D1Failure, type D1Receipt, type D1Request, type D1Selection, type D1Status } from '@noticeos/contract/cloudflare-d1';
+import { resolveCredential, assertCredentialOwner, hasSavedCredentialConnection, publishCurrentIntegration, saveCloudflareSelection, type ResolvedCredential } from './credentials.js';
 import { CloudflareD1Error, d1Api, d1Bounded, listD1Databases } from './cloudflare-d1-client.js';
 import { tryHealthConnection, observeIntegration } from './integration-health-context.js';
 import { knownAssetIds } from './asset-registry.js';
@@ -20,7 +20,7 @@ const safeFailure = (error: unknown): D1Failure => error instanceof D1BackupErro
 async function connection(env: IngestEnv): Promise<ResolvedCredential> {
   const held = await resolveCredential(env, 'cloudflare', 'store-only');
   await assertCredentialOwner(env, held, 'cloudflare');
-  if (held.source !== 'store') fail(held.connectionId ? 'unreadable_connection' : 'not_connected');
+  if (held.source !== 'store') fail(held.connectionId || await hasSavedCredentialConnection(env, 'cloudflare') ? 'unreadable_connection' : 'not_connected');
   if (!cloudflareAccountId(held.fields.CLOUDFLARE_ACCOUNT_ID) || !held.fields.CLOUDFLARE_API_TOKEN) fail('unreadable_connection');
   return held;
 }
@@ -89,12 +89,7 @@ export async function selectD1Databases(env: IngestEnv, selection: D1Selection, 
 /** Downloads are confined to Cloudflare's R2 HTTPS endpoints. This is a fail-closed
  * boundary, not a claim that an unobserved provider response will use that host. */
 export function d1DownloadUrl(value: unknown): string {
-  if (typeof value !== 'string' || value.length > 8192) fail('unsafe_download');
-  let url: URL;
-  try { url = new URL(value); } catch { return fail('unsafe_download'); }
-  if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash
-    || !/^(?:[a-z0-9][a-z0-9-]*\.)?[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/u.test(url.hostname)) fail('unsafe_download');
-  return url.href;
+  return cloudflareD1DownloadAddress(value) ?? fail('unsafe_download');
 }
 async function exportUrl(held: ResolvedCredential, database: string, signal: AbortSignal, options: D1Options): Promise<string> {
   let bookmark: string | undefined;

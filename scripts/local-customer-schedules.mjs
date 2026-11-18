@@ -5,8 +5,9 @@ import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-gran
 import { customerJobSubject, customerSchedules } from './customer-collection.mjs';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { scheduleTimezone } from './scheduled-jobs.mjs';
+import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
 import { REPORT_EFFECT_LIMIT_MS } from './local-customer-reports.mjs';
+import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
 const privateUrl = 'https://scheduler.internal/collect';
@@ -18,7 +19,7 @@ function next(schedule, after) {
 
 /** One clock for the deployment. The hourly discovery reads active bindings in
  * pairs. Between discovery windows only due work touches the store. */
-export function customerScheduleClock({ workspaces, read, run, now = Date.now, resumeSince,
+export function customerScheduleClock({ workspaces, read, run, now = Date.now, resumeSince, backupResumeSince,
   warn = () => console.warn('Customer collection could not finish. See workflow history.') }) {
   const entries = workspaces.map(binding => ({ binding, jobs: [], planned: false, queued: new Map(),
     running: false, discovery: -Infinity, retryDelay: MINUTE, initial: true }));
@@ -73,12 +74,12 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           const old = previous.find(j => j.job === item.job && j.schedule.cron === item.schedule.cron
             && scheduleTimezone(j.schedule) === scheduleTimezone(item.schedule));
           let due = old?.due ?? next(item.schedule, at - 1);
-          const resumeCollection = entry.initial && Number.isFinite(resumeSince)
-            && ['counters', 'signal-dumps'].includes(item.job);
-          if (!old && (item.job === 'panel-refresh' || resumeCollection)) {
+          const since = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
+          const resuming = entry.initial && Number.isFinite(since);
+          if (!old && (item.job === 'panel-refresh' || resuming)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
-            const earliest = resumeCollection ? Math.max(resumeSince, at - 24 * HOUR) : at - 24 * HOUR;
+            const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;
             if (previous >= earliest) due = previous;
           }
           return { ...item, due };
@@ -126,7 +127,7 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
 }
 
 export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now,
-  resumeSince, collection }) {
+  resumeSince, backupResumeSince, collection, backup }) {
   const ids = new Set();
   for (const binding of workspaces) {
     if (!binding.workspaceId || !binding.serviceId || ids.has(binding.workspaceId)) throw new Error('Invalid customer schedule binding.');
@@ -137,7 +138,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     grant: openWorkspaceServiceGrant({ connectionString: grantConnectionString, workspaceId, principalId: serviceId }),
   });
   const active = new Set();
-  const clock = customerScheduleClock({ workspaces, now, resumeSince,
+  const clock = customerScheduleClock({ workspaces, now, resumeSince, backupResumeSince,
     async read(binding) {
       const { store, grant } = resources(binding);
       try {
@@ -146,6 +147,14 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         return await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
           new Request(privateUrl, { method: 'POST' }), async () => {
             const scheduled = await customerSchedules(store, null, collection);
+            if (backup) {
+              const rows = await store.read(tx => tx.query(`SELECT COALESCE(body->'schedules','{}'::json)::text AS overrides
+                FROM noticeos.config_documents WHERE document_key='constants'`));
+              const overrides = JSON.parse(rows[0]?.overrides ?? '{}');
+              if (schedulesRefusal(overrides)) throw new Error('Invalid saved backup schedule.');
+              const schedule = scheduleFor(manualScheduledJob('backup'), overrides);
+              if (schedule.enabled) scheduled.push({ job: 'backup', schedule, assets: [null] });
+            }
             if (!reports) return scheduled;
             try { return [...scheduled, ...await reports.targets(store)]; }
             catch {
@@ -155,33 +164,51 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
           });
       } finally { await Promise.all([store.close(), grant.close()]); }
     },
-    async run({ binding, job, asset, archive, scheduledAt }) {
-      const occurrence = scheduledAt + '/' + (asset === null ? 'workspace' : createHash('sha256').update(customerJobSubject(asset, archive)).digest('hex'));
-      const scoped = resources(binding);
-      const reporting = job === 'panel-refresh';
-      const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
-        steps: [{ key: reporting ? 'report' : 'collect', kind: 'effect', action: 'workflows.run',
-          ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
-          if (reporting) return await reports.run({ store: scoped.store, workspaceId: context.workspaceId, asset, scheduledAt, signal })
-            ?? { state: 'skipped', summary: 'No eligible reports were archived.' };
-          const response = await worker.fetch(new Request(privateUrl, { method: 'POST', signal,
-            headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: binding.workspaceId, job, asset, archive, occurrence }) }));
-          if (!response.ok) throw new Error('Customer collection was refused.');
-          return response.json();
-        } }] }];
-      const runner = createHostedJobRunner({ ...binding, ...scoped, definitions, effectTimeoutMs: reporting ? REPORT_EFFECT_LIMIT_MS : 90_000 });
-      active.add(runner);
-      try {
-        const receipt = await runner.run(job, occurrence, { asset, scheduledAt, ...(archive ? { archive } : {}) });
-        if (!['busy', 'succeeded'].includes(receipt.state)) throw new Error('Customer collection did not complete.');
-      } finally { active.delete(runner); await runner.close(); }
-    },
+    run,
   });
+  async function run({ binding, job, asset, archive, scheduledAt, manual }) {
+    const occurrence = manual ? `manual/${randomUUID()}`
+      : scheduledAt + '/' + (asset === null ? 'workspace' : createHash('sha256').update(customerJobSubject(asset, archive)).digest('hex'));
+    const scoped = resources(binding);
+    const reporting = job === 'panel-refresh';
+    const snapshot = job === 'backup';
+    let backupResult;
+    const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
+      steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : 'collect', kind: 'effect', action: 'workflows.run',
+        ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
+        if (snapshot) {
+          backupResult = await backup.run(signal);
+          if (backupResult.unconfirmed) throw new Error('The backup worker did not confirm completion.');
+          return backupResult;
+        }
+        if (reporting) return await reports.run({ store: scoped.store, workspaceId: context.workspaceId, asset, scheduledAt, signal })
+          ?? { state: 'skipped', summary: 'No eligible reports were archived.' };
+        const response = await worker.fetch(new Request(privateUrl, { method: 'POST', signal,
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: binding.workspaceId, job, asset, archive, occurrence }) }));
+        if (!response.ok) throw new Error('Customer collection was refused.');
+        return response.json();
+      } }] }];
+    const runner = createHostedJobRunner({ ...binding, ...scoped, definitions,
+      effectTimeoutMs: snapshot ? CUSTOMER_BACKUP_EFFECT_MS : reporting ? REPORT_EFFECT_LIMIT_MS : 90_000 });
+    active.add(runner);
+    try {
+      const receipt = await runner.run(job, occurrence, { asset, scheduledAt, ...(archive ? { archive } : {}) });
+      if (manual) {
+        if (receipt.state === 'succeeded' && backupResult?.ok || receipt.state === 'exhausted' && backupResult?.ok === false) return backupResult;
+        if (receipt.state === 'uncertain' && backupResult?.unconfirmed) return { ok: false, stage: backupResult.stage, cause: backupResult.cause };
+        return { ok: false, stage: 'preparation', cause: 'stage_failed' };
+      }
+      if (!['busy', 'succeeded'].includes(receipt.state)) throw new Error('Customer scheduled job did not complete.');
+    } finally { active.delete(runner); await runner.close(); }
+  }
   await clock.tick();
   const timer = setInterval(() => { void clock.tick().catch(() => console.warn('Customer schedule unavailable.')); }, MINUTE);
   timer.unref();
-  return { status: clock.status, whenIdle: clock.whenIdle, async close() {
-    clearInterval(timer);
-    await Promise.all([clock.close(), ...Array.from(active, runner => runner.close())]);
-  } };
+  return { status: clock.status, whenIdle: clock.whenIdle,
+    manualBackup: backup && workspaces.length === 1 ? () => run({ binding: workspaces[0], job: 'backup',
+      asset: null, scheduledAt: new Date(now()).toISOString(), manual: true }) : undefined,
+    async close() {
+      clearInterval(timer);
+      await Promise.all([clock.close(), ...Array.from(active, runner => runner.close())]);
+    } };
 }

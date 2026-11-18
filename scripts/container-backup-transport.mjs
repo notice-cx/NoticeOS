@@ -16,8 +16,9 @@ const recoverySources = [
 ];
 /** The recovery set: every fixed source, and the declarations an installation keeps only when it has them.
  * The saved task projects are a settings export the Tower writes with any mode; their copy is private. */
-function recoveryInputs(io) {
+function recoveryInputs(io, customer) {
   const inputs = [...recoverySources];
+  if (customer) inputs.push(['customer-runtime.json', '/state/installation/customer-runtime.json', true]);
   for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true], ['beads.json', '/state/installation/beads.json', false]]) {
     try {
       io.lstatSync(source);
@@ -98,7 +99,7 @@ export async function copyContainerRecovery(output, options = {}) {
   const io = options.fs ?? fs;
   const sync = options.fsSync ?? fsSync;
   outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync);
+  const inputs = recoveryInputs(sync, options.customer);
   const inventory = {};
   await io.mkdir(output, { mode: 0o700 });
   for (const [name, source, privateMode] of inputs) {
@@ -115,7 +116,7 @@ export async function copyContainerRecovery(output, options = {}) {
 export async function verifyContainerRecovery(output, options = {}) {
   const sync = options.fsSync ?? fsSync;
   outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync);
+  const inputs = recoveryInputs(sync, options.customer);
   const inventory = privateBackupFile(path.join(output, 'recovery.json'), sync, true, 'recovery.json').text;
   let marker;
   try { marker = JSON.parse(inventory); }

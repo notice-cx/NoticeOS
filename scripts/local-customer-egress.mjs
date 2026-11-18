@@ -1,4 +1,5 @@
 import { hostedTaskProviderOperation } from './hosted-task-request.mjs';
+import { cloudflareD1DownloadAddress } from '../packages/contract/src/cloudflare-d1.mjs';
 
 function googleDailyQuery(url, method) {
   if (method !== 'POST' || url.search || url.hash || url.username || url.password) return false;
@@ -41,6 +42,37 @@ export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, colle
     headers.set('accept-encoding', 'identity');
     const response = await transport(url.href, { method: request.method, headers: Object.fromEntries(headers),
       body: request.body ? await request.arrayBuffer() : undefined, redirect: 'manual', signal: bounded });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      return new Response(null, { status: 502 });
+    }
+    return response;
+  };
+}
+
+/** The private D1 backup Worker may export and download saved targets only. */
+export function localD1BackupOutbound({ signal, transport = fetch } = {}) {
+  return async request => {
+    const url = new URL(request.url);
+    const exporting = request.method === 'POST' && url.origin === 'https://api.cloudflare.com'
+      && !url.search && !url.hash && !url.username && !url.password
+      && /^\/client\/v4\/accounts\/[a-f0-9]{32}\/d1\/database\/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\/export$/u.test(url.pathname);
+    const downloading = request.method === 'GET' && cloudflareD1DownloadAddress(request.url);
+    if (!exporting && !downloading) return new Response(null, { status: 403 });
+    const bounded = AbortSignal.any([AbortSignal.timeout(exporting ? 10_000 : 180_000),
+      ...(signal ? [signal] : []), ...(request.signal ? [request.signal] : [])]);
+    bounded.throwIfAborted();
+    const headers = { 'accept-encoding': 'identity' };
+    let body;
+    if (exporting) {
+      const token = request.headers.get('authorization');
+      if (!token || !/^Bearer [!-~]{1,8192}$/u.test(token)) return new Response(null, { status: 403 });
+      body = await request.arrayBuffer();
+      if (body.byteLength > 4096) return new Response(null, { status: 403 });
+      headers.authorization = token;
+      headers['content-type'] = 'application/json';
+    }
+    const response = await transport(url.href, { method: request.method, headers, body, redirect: 'manual', signal: bounded });
     if (response.status >= 300 && response.status < 400) {
       await response.body?.cancel();
       return new Response(null, { status: 502 });

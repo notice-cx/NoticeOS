@@ -168,7 +168,7 @@ export async function assertOffsiteBackupDestination({ repoRoot, directory, tran
  * Otherwise no task service is connected, and there are no tasks to keep.
  */
 export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, taskHub, transport,
-  tasksExport, tasksExportError }, adapters = {}) {
+  tasksExport, tasksExportError, customer = false }, adapters = {}) {
   const io = adapters.fs ?? fs;
   const launch = adapters.spawn ?? spawn;
   const now = adapters.now ?? Date.now;
@@ -439,7 +439,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, tas
     });
     if (working) {
       if (containerMode) await attempt('recovery', async result => {
-        const copied = await copyContainerRecovery(path.join(working, RECOVERY_DIR));
+        const copied = await copyContainerRecovery(path.join(working, RECOVERY_DIR), { customer });
         result.expected = copied.files; result.copied = copied.files;
       });
       await attempt('postgres', async (result) => {
@@ -536,7 +536,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, tas
       }
 
       if (containerMode && stages.recovery.status === 'completed') {
-        try { await verifyContainerRecovery(path.join(working, RECOVERY_DIR)); }
+        try { await verifyContainerRecovery(path.join(working, RECOVERY_DIR), { customer }); }
         catch (error) { fail(stages.recovery, 'Credential generation', error); }
       }
 

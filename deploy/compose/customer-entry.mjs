@@ -2,8 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import path from 'node:path';
+import { request } from 'node:http';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 import { ContainerRefusal } from './development.mjs';
+import { CUSTOMER_BACKUP_CLIENT, CUSTOMER_BACKUP_EFFECT_MS, CUSTOMER_BACKUP_PATH } from '../../scripts/customer-backup.mjs';
+import { D1_FAILURE_LABELS } from '../../packages/contract/src/cloudflare-d1.mjs';
 
 const marker = '/state/installation/customer-runtime.enabled';
 const selected = '/tmp/noticeos-running-profile';
@@ -111,16 +114,21 @@ export async function verifyComposeCustomerWorkspace(origin, operating) {
 
 async function prepareCustomer() {
   const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
+  const { createCustomerBackup } = await import('../../scripts/customer-backup.mjs');
   const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
   const plan = composeCustomerPlan(process.env);
-  const backup = await containerBackupStatus('/state/backup-client.json');
-  if (backup.configured) throw new ContainerRefusal('Customer mode needs the existing backup request and export path before it can run with this backup declaration.');
+  const backupStatus = await containerBackupStatus(CUSTOMER_BACKUP_CLIENT);
   const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
   const io = { lstatSync, readFileSync };
   const bootstrap = JSON.parse(privateText(io, '/state/workers/ingest/.dev.secrets.json', 16384));
   const operating = readComposeCustomerOperating('/state/installation/customer-runtime.json', plan, bootstrap);
   await verifyComposeCustomerWorkspace(plan.url, operating);
-  return { plan, operating, bridgePeer };
+  const backup = backupStatus.configured ? {
+    ...createCustomerBackup({ ...operating, workspaceId: operating.workspaces[0].workspaceId, client: CUSTOMER_BACKUP_CLIENT,
+      staging: '/state/.local/compose-customer/backup-staging' }),
+    client: CUSTOMER_BACKUP_CLIENT, operatorToken: bootstrap.OPERATOR_TOKEN,
+  } : undefined;
+  return { plan, operating, bridgePeer, backup };
 }
 
 async function runCustomer(stop) {
@@ -131,19 +139,49 @@ async function runCustomer(stop) {
   if (selectedCustomerProfile() !== 'customer') throw new ContainerRefusal('The customer profile was not selected.');
   const selection = lstatSync(marker);
   const activation = `${selection.ino}/${selection.mtimeMs}`;
-  const { plan, operating, bridgePeer } = await prepareCustomer();
+  const { plan, operating, bridgePeer, backup } = await prepareCustomer();
   const state = '/state/.local/compose-customer';
   privateDirectory(state, !existsSync(state));
   const workerState = composeArchiveState('/state', { lstatSync }, folder => { if (!existsSync(folder)) mkdirSync(folder, { mode: 0o700 }); });
-  const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation });
+  const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation, backup: Boolean(backup) });
+  const backupProblem = await backup?.check(db.signal);
+  if (backupProblem) process.stderr.write(`NoticeOS backup unavailable. ${backupProblem}\n`);
+  // A backed-up store remains accessible so its owner can replace a revoked credential.
   const app = await startPreparedCustomer(plan, db, { deployment: {
-    artifactRoot, archiveBucket: 'noticeos-raw-signals', workerState, listenPort: 5173, bridgePeer,
+    artifactRoot, archiveBucket: 'noticeos-raw-signals', workerState, listenPort: 5173, bridgePeer, backup,
   } });
   try {
     const status = await Promise.race([stop.then(() => 0), app.whenLost.then(() => 1)]);
     if (status === 1) process.stderr.write('NoticeOS customer runtime lost its scheduler lease.\n');
     return status;
   } finally { await app.close(); }
+}
+
+export async function runCustomerBackupCommand({ env = process.env, operatorToken, send = request } = {}) {
+  const { url, doorPort } = composeCustomerPlan(env);
+  const token = operatorToken ?? JSON.parse(privateText({ lstatSync, readFileSync }, '/state/workers/ingest/.dev.secrets.json', 16384)).OPERATOR_TOKEN;
+  if (typeof token !== 'string' || !token.trim() || /[\r\n]/u.test(token)) throw new ContainerRefusal('The prepared backup access token is missing.');
+  const signal = AbortSignal.timeout(CUSTOMER_BACKUP_EFFECT_MS + 5000);
+  return new Promise((resolve, reject) => {
+    const call = send(`http://127.0.0.1:${doorPort}${CUSTOMER_BACKUP_PATH}`, { method: 'POST', signal,
+      headers: { host: new URL(url).host, authorization: `Bearer ${token.trim()}`, 'content-length': '0' } }, async response => {
+      try {
+        if (![200, 503].includes(response.statusCode) || response.headers['content-type'] !== 'application/json') throw new Error();
+        const chunks = [];
+        let bytes = 0;
+        for await (const chunk of response) {
+          bytes += chunk.length;
+          if (bytes > 65536) throw new Error();
+          chunks.push(chunk);
+        }
+        const result = JSON.parse(Buffer.concat(chunks));
+        if (result?.ok === (response.statusCode === 200)) resolve(result);
+        else reject(new Error());
+      } catch (error) { response.destroy(); reject(error); }
+    });
+    call.once('error', reject);
+    call.end();
+  });
 }
 
 function reportRefusal(error) {
@@ -176,10 +214,24 @@ if (!isMainThread && workerData?.composeCustomer === true) {
 } else if (process.argv[1] === import.meta.filename) {
   if (process.argv[2] === '--check') {
     try {
-      await prepareCustomer();
+      const { backup } = await prepareCustomer();
+      const problem = await backup?.check();
+      if (problem) throw new ContainerRefusal(problem);
       const { readDemoArtifact } = await import('../../scripts/hosted-demo-server.mjs');
       readDemoArtifact(artifactRoot);
       process.stdout.write('The prepared customer target passed preflight.\n');
     } catch (error) { reportRefusal(error); process.exitCode = 1; }
+  } else if (process.argv[2] === '--backup') {
+    try {
+      const result = await runCustomerBackupCommand();
+      process.stdout.write(JSON.stringify(result) + '\n');
+      if (!result.ok) {
+        const d1 = result.stage === 'assets' && result.cause?.startsWith('d1_') ? D1_FAILURE_LABELS[result.cause.slice(3)] : undefined;
+        const action = result.stage === 'taskHub' ? 'Check the saved Ntasks workspace and its backup-only credential.'
+          : d1 ? `${d1}.` : 'Check the backup worker and its latest report.';
+        process.stderr.write(`Customer backup incomplete. ${action}\n`);
+      }
+      process.exitCode = result.ok ? 0 : 1;
+    } catch { process.stderr.write('Customer backup unavailable. Check the configured worker and the running customer app.\n'); process.exitCode = 1; }
   } else process.exitCode = await launchWorker();
 }

@@ -23,9 +23,12 @@ import { heldHistory, heldRows } from './test-fixtures/analytical-history.mjs';
 import { verifyAnalyticalHistoryBackup } from './analytical-history-backup.mjs';
 import { readCurrentGeneration } from './history-files.mjs';
 import { containerProofCleanup } from './container-proof-cleanup.mjs';
+import { CONTAINER_BACKUP_NTASKS_ORIGIN, openBackupNtasks, sealedProviderSql } from './test-fixtures/customer-backup.mjs';
+import { demoNtasks } from './demo-ntasks.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER_BACKUP === '1';
+const customer = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_BACKUP === '1';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 function fixtureSource(base) {
@@ -72,7 +75,7 @@ async function until(check, timeoutMs = 90_000) {
   });
 }
 
-test('the fixed backup worker publishes private complete sets and restores every store into new own resources', { skip: !enabled, timeout: 720_000 }, async t => {
+test('the fixed backup worker publishes private complete sets and restores every store into new own resources', { skip: !enabled, timeout: 900_000 }, async t => {
   const image = process.env.NOTICEOS_TEST_APP_IMAGE;
   assert.match(image ?? '', /^noticeos-local:backup-proof-[a-z0-9]+$/u, 'use the explicitly built local proof image');
   assert.ok(typeof process.getuid === 'function' && process.getuid() > 0, 'Use a nonroot operator for the real permission and restore proof');
@@ -86,6 +89,8 @@ test('the fixed backup worker publishes private complete sets and restores every
   const state = path.join(base, 'state');
   const spokes = path.join(base, 'spokes');
   const plan = startPlan({ root: fixtureSource(base), dir: state, port: await freePortBlock() });
+  if (customer) fs.appendFileSync(path.join(plan.root, 'db/postgres/host/pg_hba.conf'),
+    'host noticeos noticeos_identity all scram-sha-256\nhost noticeos noticeos_service_grant all scram-sha-256\n');
   const pg = startPostgresPlan(plan);
   const toolEnv = Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'TMPDIR', 'LANG'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
   const endpoint = await localDockerEndpoint(runCommand, { cwd: ROOT, env: toolEnv });
@@ -113,7 +118,9 @@ test('the fixed backup worker publishes private complete sets and restores every
     NOTICEOS_BACKUP_PROFILE_DIR: privateDirs['worker-profile'], NOTICEOS_BACKUP_TRANSPORT_DIR: privateDirs.transport,
     NOTICEOS_BACKUP_STAGING_DIR: privateDirs.staging, NOTICEOS_BACKUP_ASSETS_DIR: privateDirs.assets,
     NOTICEOS_BACKUP_OFFSITE_PARENT: privateDirs.offsite };
-  const compose = args => runCommand('docker', ['compose', '-p', pg.project, '-f', isolatedDatabases, '-f', appFile, '-f', backupFile, '--env-file', os.devNull, ...args], { cwd: ROOT, env: appEnv, timeoutMs: 240_000 });
+  const fixtureApp = path.join(base, 'fixture-app.json');
+  const compose = args => runCommand('docker', ['compose', '-p', pg.project, '-f', isolatedDatabases, '-f', appFile, '-f', backupFile,
+    ...(fs.existsSync(fixtureApp) ? ['-f', fixtureApp] : []), '--env-file', os.devNull, ...args], { cwd: ROOT, env: appEnv, timeoutMs: 240_000 });
   let ownsDatabaseResources = false;
   const run = (command, args, options) => {
     // Fresh preparation requests its first up only after checking the exact
@@ -147,6 +154,14 @@ test('the fixed backup worker publishes private complete sets and restores every
   assert.equal(prepared.ok, true, prepared.line);
   assert.equal(prepared.created, true);
   await prepareFolder(plan);
+  let ntasksFixture;
+  if (customer) {
+    const ntasks = path.join(state, 'ntasks-fixture');
+    ntasksFixture = await openBackupNtasks(ntasks, process.env.NOTICEOS_NTASKS_ROOT);
+    await ntasksFixture.close();
+    fs.copyFileSync(new URL('./test-fixtures/container-backup-ntasks.mjs', import.meta.url), path.join(ntasks, 'entrypoint.mjs'));
+    write(fixtureApp, { services: { noticeos: { entrypoint: ['node', '/state/ntasks-fixture/entrypoint.mjs'] } } });
+  }
   const hostAddress = fs.readFileSync(path.join(pg.secrets, 'database.url'), 'utf8').trim();
   const osAsset = await createFreshOsAsset(hostAddress);
   fs.mkdirSync(plan.installation, { recursive: true, mode: 0o700 });
@@ -174,13 +189,13 @@ test('the fixed backup worker publishes private complete sets and restores every
     });
     await store.close();
     // Preparation needs the disposable loopback ports. Before starting the
-    // app, recreate only its owned network with external routing disabled;
-    // the prepared database volumes remain untouched.
+    // app, recreate only its owned network. Customer mode needs the ordinary
+    // bridge gateway, while its test providers are fixture-owned loopback services.
     const config = await runCommand('docker', ['compose', '-p', pg.project, '-f', pg.compose, '--env-file', os.devNull, 'config', '--format', 'json'], { cwd: ROOT, env: databaseEnv });
     assert.equal(config.code, 0);
     const definition = JSON.parse(config.stdout);
     const combined = { name: pg.project, services: definition.services, volumes: definition.volumes ?? {}, secrets: definition.secrets ?? {},
-      networks: { default: { name: `${pg.project}_default`, internal: true } } };
+      networks: { default: { name: `${pg.project}_default`, internal: !customer } } };
     combined.volumes['pg-backup-socket'] = {};
     combined.services.postgres.volumes.push({ type: 'volume', source: 'pg-backup-socket', target: '/var/run/postgresql' });
     write(isolatedDatabases, combined);
@@ -188,7 +203,7 @@ test('the fixed backup worker publishes private complete sets and restores every
     const isolated = await databases(['up', '--detach', '--wait', '--wait-timeout', '90', 'postgres'], true);
     if (isolated.code !== 0) assert.fail(isolated.stderr);
     const network = await runCommand('docker', ['network', 'inspect', `${pg.project}_default`, '--format', '{{.Internal}}'], { env });
-    assert.equal(network.code, 0); assert.equal(network.stdout.trim(), 'true');
+    assert.equal(network.code, 0); assert.equal(network.stdout.trim(), String(!customer));
     write(path.join(state, 'backup-client.json'), { format: 'noticeos-backup-client-v1', transportDir: '/backup-transport' });
     write(path.join(privateDirs['worker-profile'], 'profile.json'), { format: 'noticeos-backup-worker-v1', retentionDays: 30 });
     const assetRoot = path.join(privateDirs.assets, 'synthetic'); fs.mkdirSync(assetRoot, { mode: 0o755 });
@@ -362,6 +377,102 @@ test('the fixed backup worker publishes private complete sets and restores every
     assert.equal((await compose(['restart', 'noticeos'])).code, 0);
     await until(async () => (await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/health.mjs'])).code === 0);
     assert.equal(createHash('sha256').update(fs.readFileSync(path.join(set, 'postgres/noticeos.dump'))).digest('hex'), preserved);
+    if (customer) await t.test('normal customer backup, restore and rollback preserve Postgres, raw evidence and the pinned Ntasks task', async () => {
+      fs.writeFileSync(path.join(assetRoot, 'export.mjs'), `import fs from 'node:fs';import path from 'node:path';fs.writeFileSync(path.join(process.env.BACKUP_OUTPUT_DIR,'synthetic.sql'),${JSON.stringify(exportedSql)},{mode:0o600});`);
+      const identity = randomBytes(32).toString('base64url'), grant = randomBytes(32).toString('base64url');
+      const user = randomUUID(), serviceId = randomUUID(), email = 'fixture-owner@example.test';
+      const prepared = await ownerSql(`ALTER ROLE noticeos_identity LOGIN PASSWORD '${identity}';
+        ALTER ROLE noticeos_service_grant LOGIN PASSWORD '${grant}';
+        GRANT CONNECT ON DATABASE noticeos TO noticeos_identity, noticeos_service_grant;
+        INSERT INTO noticeos_identity.auth_organization(id,name,slug,created_at) VALUES ('${workspace}','Fixture','container-fixture',now()) ON CONFLICT (id) DO NOTHING;
+        INSERT INTO noticeos_identity.auth_user(id,email,name,email_verified) VALUES ('${user}','${email}','Fixture owner',true);
+        INSERT INTO noticeos_identity.auth_member(organization_id,user_id,role,created_at) VALUES ('${workspace}','${user}','owner',now());
+        INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
+          VALUES ('${serviceId}','${workspace}',ARRAY['workflows.run'],now()+interval '1 hour');`);
+      assert.equal(prepared.code, 0, 'prepare only this disposable identity and schedule grant');
+      const address = (role, password) => {
+        const url = new URL(internalAddress);
+        url.username = role; url.password = password;
+        return url.href;
+      };
+      const declaration = { format: 'noticeos-compose-customer/1',
+        database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
+        identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }],
+        ntasksOrigin: CONTAINER_BACKUP_NTASKS_ORIGIN };
+      write(path.join(plan.installation, 'customer-runtime.json'), declaration);
+      const ntasksId = randomUUID();
+      const putNtasks = (token, version) => ownerSql(sealedProviderSql(workspace, read(plan.secrets).CREDENTIALS_KEY, 'ntasks', {
+        NTASKS_URL: declaration.ntasksOrigin, NTASKS_WORKSPACE_ID: ntasksFixture.workspaceId,
+        NTASKS_TOKEN: ntasksFixture.token, NTASKS_BACKUP_TOKEN: token }, ntasksId, version));
+      assert.equal((await putNtasks(ntasksFixture.backupToken, 1)).code, 0, 'only the disposable Ntasks workspace is connected');
+      const schedule = enabled => ownerSql(`UPDATE noticeos.config_documents SET body=jsonb_set(body::jsonb,'{schedules,backup}',
+        jsonb_build_object('enabled',${enabled},'cron','* * * * *'))::json WHERE document_key='constants' AND workspace_id='${workspace}';`);
+      assert.equal((await schedule(true)).code, 0);
+      const containerJob = job => compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', job]);
+      const preflight = await containerJob('customer-check');
+      assert.equal(preflight.code, 0, preflight.stderr);
+      const marker = path.join(plan.installation, 'customer-runtime.enabled');
+      fs.writeFileSync(marker, 'noticeos-compose-customer/1\n', { mode: 0o600, flag: 'wx' });
+      const restart = async () => {
+        assert.equal((await compose(['restart', 'noticeos'])).code, 0);
+        await until(async () => (await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/health.mjs'])).code === 0);
+      };
+      await restart();
+      const outcomes = () => pgRows(`SELECT occurrence,state FROM noticeos.hosted_job_occurrences WHERE lane='backup' AND workspace_id='${workspace}'`);
+      await until(async () => (await outcomes()).some(row => row.state === 'succeeded' && row.occurrence.endsWith('/workspace')));
+      assert.equal((await schedule(false)).code, 0);
+      await restart();
+      const manual = await containerJob('backup');
+      assert.equal(manual.code, 0, `${manual.stdout}\n${manual.stderr}`);
+      assert.ok((await outcomes()).some(row => row.state === 'succeeded' && row.occurrence.startsWith('manual/')));
+      const taskExport = path.join(set, 'ntasks/backup.json');
+      assert.ok(read(taskExport).tables.tasks.some(task => task.id === ntasksFixture.task.id && task.title === ntasksFixture.task.title));
+      const archive = path.join(set, 'r2/raw-signals/blobs', archiveHash);
+      const hashes = files => files.map(file => createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+      const dump = path.join(set, 'postgres/noticeos.dump');
+      const [dumpHash, rawHash, taskHash] = hashes([dump, archive, taskExport]);
+      assert.equal(rawHash, archiveHash);
+      assert.ok(JSON.stringify(read(path.join(set, 'recovery/customer-runtime.json'))) === JSON.stringify(declaration),
+        'Private customer connection and sign-in custody are preserved');
+      assert.equal(fs.existsSync(path.join(handoff, 'recovery/customer-runtime.json')), false);
+      assert.equal((await putNtasks(ntasksFixture.token, 2)).code, 0);
+      assert.equal((await containerJob('backup')).code, 1);
+      assert.equal((await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/health.mjs'])).code, 1);
+      assert.deepEqual(hashes([dump, archive, taskExport]), [dumpHash, rawHash, taskHash]);
+      assert.equal((await putNtasks(ntasksFixture.backupToken, 3)).code, 0);
+      fs.unlinkSync(marker);
+      await restart();
+      assert.equal((await compose(['exec', '-T', 'noticeos', 'node', '--input-type=module', '-e',
+        'import {runningContainerProfile} from "./deploy/compose/customer-entry.mjs"; if(runningContainerProfile()!=="standalone")process.exit(1);'])).code, 0);
+      assert.deepEqual(hashes([dump, archive, taskExport]), [dumpHash, rawHash, taskHash]);
+      assert.equal((await ownerSql(`SELECT 1 FROM noticeos.assets WHERE asset_id='backup.example'`)).stdout.trim(), '1');
+      const localTask = await compose(['exec', '-T', 'noticeos', 'node', '--input-type=module', '-e', `import {demoNtasks} from "./scripts/demo-ntasks.mjs";
+        import fs from "node:fs"; const ids=JSON.parse(fs.readFileSync('/state/ntasks-fixture/settings.json'));
+        const t=JSON.parse(fs.readFileSync('/state/ntasks-fixture/provision.json')).tokens.tower;
+        const got=await demoNtasks({workspaceId:ids.workspaceId,token:t,origin:'${CONTAINER_BACKUP_NTASKS_ORIGIN}'}).tool('get_task',{task:'${ntasksFixture.task.id}'});
+        console.log(got.task.title);`]);
+      assert.equal(localTask.stdout.trim(), ntasksFixture.task.title);
+      const restoredTasks = await openBackupNtasks(path.join(base, 'customer-restored-ntasks'), process.env.NOTICEOS_NTASKS_ROOT, { restore: taskExport });
+      try {
+        const client = demoNtasks({ origin: restoredTasks.origin, workspaceId: restoredTasks.workspaceId, token: restoredTasks.token });
+        assert.equal((await client.tool('get_task', { task: ntasksFixture.task.id })).task.title, ntasksFixture.task.title);
+      } finally { await restoredTasks.close(); }
+      const rawTarget = path.join(base, 'customer-restored-raw');
+      fs.cpSync(path.join(set, 'r2'), rawTarget, { recursive: true });
+      assert.deepEqual(hashes([path.join(rawTarget, 'raw-signals/blobs', archiveHash)]), [rawHash]);
+      const pgTarget = 'noticeos_customer_restore';
+      assert.equal((await restoreDatabases(['exec', '-T', '--user', 'postgres', 'postgres', 'createdb', '--host=/var/run/postgresql', pgTarget])).code, 0);
+      assert.equal((await restoreDatabases(['cp', dump, 'postgres:/tmp/noticeos-customer.dump'])).code, 0);
+      assert.equal((await restoreDatabases(['exec', '-T', '--user', 'root', 'postgres', 'chown', 'postgres:postgres', '--', '/tmp/noticeos-customer.dump'])).code, 0);
+      const imported = await restoreDatabases(['exec', '-T', '--user', 'postgres', 'postgres', 'pg_restore', '--host=/var/run/postgresql',
+        '--username=postgres', `--dbname=${pgTarget}`, '--no-password', '--exit-on-error', '/tmp/noticeos-customer.dump']);
+      assert.equal(imported.code, 0, imported.stderr);
+      const restoredCustomerSql = sql => restoreDatabases(['exec', '-T', '--user', 'postgres', 'postgres', 'psql', '-X', '-q', '-A', '-t',
+        '-v', 'ON_ERROR_STOP=1', '--host=/var/run/postgresql', '--username=postgres', `--dbname=${pgTarget}`, '--command', sql]);
+      assert.deepEqual(await pgRows('SELECT object_key,object_bytes,content_sha256 FROM noticeos.archive_objects ORDER BY object_key', restoredCustomerSql), objects);
+      assert.deepEqual(await pgRows(`SELECT email,email_verified FROM noticeos_identity.auth_user WHERE id='${user}'`, restoredCustomerSql), [{ email, email_verified: true }]);
+      t.diagnostic(`Verified customer dump ${dumpHash}, raw object ${rawHash}, Ntasks export ${taskHash}`);
+    });
     // Restore held rows without consulting any original analytical directory.
     fs.rmSync(analyticalHistory.output, { recursive: true });
     for (const destination of [set, handoff]) {

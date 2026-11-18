@@ -6,6 +6,14 @@ export const D1_MAX_TARGETS = 100;
 export const D1_MAX_BYTES = 4 * 1024 ** 3;
 export const cloudflareAccountId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/u.test(value);
 export const d1DatabaseId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value);
+export function cloudflareD1DownloadAddress(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 8192) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port && !url.hash
+      && /^(?:[a-z0-9][a-z0-9-]*\.)?[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/u.test(url.hostname) ? url.href : null;
+  } catch { return null; }
+}
 export const d1Record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 export interface D1Database { id: string; name: string }
 export interface D1Target { databaseId: string; asset: string }

@@ -118,7 +118,8 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.deepEqual(actionArgs('customer-check', []), { job: ['customer-check'] });
   assert.deepEqual(containerCommand(['customer-check']), ['deploy/compose/customer-entry.mjs', '--check']);
   assert.throws(() => actionArgs('customer-check', ['--apply']));
-  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
+  assert.deepEqual(containerCommand(['backup'], 'customer'), ['deploy/compose/customer-entry.mjs', '--backup']);
+  for (const command of [['backup', '--unknown'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
     assert.equal(containerCommand(command, 'customer'), null);
   }
 
@@ -184,8 +185,10 @@ test('customer readiness does not fall back to stale standalone state or ignore 
   assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:25173']]);
   assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
   for (const available of [true, false]) {
-    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);
+    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), available);
   }
+  assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404,
+    backupStatus: async () => ({ configured: true, available: true }) }), false);
   assert.equal(await containerHealthy({ ...health, profile: () => null }), false);
 });
 

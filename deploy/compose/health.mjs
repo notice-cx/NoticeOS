@@ -22,7 +22,8 @@ export async function containerHealthy({ read = () => fs.readFile('/state/.local
   try {
     const active = profile();
     if (active === 'customer') {
-      if ((await backupStatus()).configured) return false;
+      const backup = await backupStatus();
+      if (backup.configured && !backup.available) return false;
       const { url } = composeCustomerPlan(env);
       const status = await customerProbe(`http://127.0.0.1:5173${customerReadinessPath}`, {
         host: new URL(url).host, signal: AbortSignal.timeout(2000),

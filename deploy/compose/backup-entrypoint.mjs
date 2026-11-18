@@ -7,6 +7,7 @@ import { readBackupClient, tasksExportFile } from '../../scripts/container-backu
 import { serviceBackupRequest } from '../../scripts/container-backup-worker.mjs';
 import { backupNamespace } from '../../scripts/backup-claim.mjs';
 import { runBackup } from '../../scripts/host-backup.mjs';
+import { createCloudflareD1BackupClient } from '../../scripts/cloudflare-d1-backup.mjs';
 
 export async function main() {
   let worker, client, namespace;
@@ -37,8 +38,9 @@ export async function main() {
   try {
     await publish(true);
     while (!stopping) {
-      await serviceBackupRequest(client, request => runBackup({ repoRoot: '/state', retentionDays: worker.retentionDays, transport: 'container',
-        ...(request.tasks === 'ntasks' ? { taskHub: 'ntasks', tasksExport: tasksExportFile(client) } : {}) }));
+      await serviceBackupRequest(client, request => runBackup({ repoRoot: '/state', retentionDays: worker.retentionDays, transport: 'container', customer: request.customer === true,
+        ...(request.tasks === 'ntasks' ? { taskHub: 'ntasks', tasksExport: tasksExportFile(client) } : {}) }, request.customer
+        ? { cloudflareD1: createCloudflareD1BackupClient({ repoRoot: '/state', transport: 'container', requestId: request.id }) } : {}));
       if (!stopping) await new Promise(resolve => setTimeout(resolve, 250));
     }
     return 0;
