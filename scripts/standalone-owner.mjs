@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
-import { openPlatformProvisioning, StandaloneOwnerMigrationRequired } from '../packages/postgres/src/platform-provisioning.mjs';
+import { openPlatformProvisioning, PlatformProjectReserved, StandaloneOwnerMigrationRequired } from '../packages/postgres/src/platform-provisioning.mjs';
 import { isPrivateTowerOrigin } from './browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS, emailEnrollmentUrl } from './identity-protocol.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
@@ -203,7 +203,7 @@ export async function ownerEnrollmentMain(args, { newWorkspace = false } = {}) {
   } catch (error) {
     const safe = new Set([invalid().message, newWorkspaceInvalid().message, 'Configure delivery to the intended email before requesting an enrollment code.',
       'Email enrollment did not complete.', 'No enrollment code was sent. Check the enrollment ID, address and expiry.', mailRequired, codeRequired, tokenRequired]);
-    const message = error instanceof StandaloneOwnerMigrationRequired || safe.has(error?.message) ? error.message
+    const message = error instanceof StandaloneOwnerMigrationRequired || error instanceof PlatformProjectReserved || safe.has(error?.message) ? error.message
       : newWorkspace ? 'Local workspace owner enrollment refused. Check the workspace ID, verified email and project binding.'
         : 'Standalone owner enrollment refused. Check the selected workspace, verified email and project binding.';
     process.stderr.write(message + '\n');

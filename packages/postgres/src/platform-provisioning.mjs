@@ -16,6 +16,10 @@ export class StandaloneOwnerMigrationRequired extends Error {
     name = 'StandaloneOwnerMigrationRequired';
     constructor() { super('Apply the standalone owner handoff migration with the operator migration command first.'); }
 }
+export class PlatformProjectReserved extends Error {
+    name = 'PlatformProjectReserved';
+    constructor() { super('That Ntasks project is already reserved for another workspace.'); }
+}
 function refuse() { throw new PlatformProvisioningRefused(); }
 function record(input, keys) {
     if (!input || typeof input !== 'object' || Array.isArray(input))
@@ -97,7 +101,7 @@ async function lockAvailableProject(trx, workspaceId, projectId) {
     const existing = await sql `SELECT 1 FROM noticeos_platform.task_project_directory
     WHERE project_id=${projectId}::uuid AND workspace_id<>${workspaceId}::uuid LIMIT 1`.execute(trx);
     if (existing.rows.length)
-        refuse();
+        throw new PlatformProjectReserved();
 }
 function standaloneBinding(row) {
     if (typeof row.ntasksOrigin !== 'string' || row.ntasksOrigin.length > 512)
@@ -211,7 +215,7 @@ export function openPlatformProvisioning(input) {
             return await work(db, controller.signal, deadline);
         }
         catch (error) {
-            if (error instanceof StandaloneOwnerMigrationRequired)
+            if (error instanceof StandaloneOwnerMigrationRequired || error instanceof PlatformProjectReserved)
                 throw error;
             refuse();
         }

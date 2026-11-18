@@ -876,6 +876,10 @@ Use `db:provision-workspace` with the
 This command adds a new workspace to the prepared database. The ordinary
 Compose customer profile supports one workspace.
 
+Finish any standalone owner adoption started with an older release before
+running this command. Use the same current checkout for both owner commands
+when they target the same database.
+
 1. Check the attached declaration before preparing a workspace. It can list
    up to 64 `workspaces` and, when used, up to 64 `mailRecipients`. Make sure
    both lists have room for the entries you will add. This command uses a

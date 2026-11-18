@@ -40,6 +40,10 @@ export declare class StandaloneOwnerMigrationRequired extends Error {
     name: string;
     constructor();
 }
+export declare class PlatformProjectReserved extends Error {
+    name: string;
+    constructor();
+}
 /** Lazy server composition. All command fields/defaults are captured before I/O.
  * Caller transport and platform-operator authorization are separate entry work.
  */
