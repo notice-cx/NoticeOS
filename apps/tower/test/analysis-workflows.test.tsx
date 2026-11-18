@@ -15,6 +15,7 @@ const WORKFLOW = '11111111-1111-4111-8111-111111111111';
 const RUN = '22222222-2222-4222-8222-222222222222';
 const PROJECT = '33333333-3333-4333-8333-333333333333';
 const ASSET = 'meadow.example';
+const OTHER_ASSET = 'grove.example';
 const DATE = '2026-11-15T23:00:00Z';
 const PATH = '/api/analysis-workflows';
 const ZERO_MONEY = { revenue: 0, cost: 0, net: 0, currency: 'USD' };
@@ -37,6 +38,7 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
     traffic.push({ path, method, key: init?.headers && new Headers(init.headers).get('Idempotency-Key'), body });
     if (path === '/api/wall') return Response.json(wallMoneyResponse({ osTimeZone: 'Etc/UTC', assets: [
       { id: ASSET, displayName: 'Meadow', status: 'live', ...assetMoney },
+      { id: OTHER_ASSET, displayName: 'Grove', status: 'live', ...assetMoney },
       { id: 'retired.example', displayName: 'Retired', status: 'retired', ...assetMoney },
     ] }));
     if (path === '/api/workflows') return Response.json(legacy);
@@ -50,9 +52,9 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
       run ??= {
         id: RUN, workflowId: WORKFLOW, source: 'manual', retryOf: null, createdAt: DATE, scheduledAt: null, completedAt: null, result: null, outcome: null,
         workflow, runbook: ANALYSIS_RUNBOOKS.find(book => book.id === workflow!.template)!,
-        evidence: { asOf: DATE, coverage: [{ assetId: ASSET, source: 'Search Console', status: 'available', detail: 'Seven complete dates' }], citations: [
-          { id: 'gsc-1', assetId: ASSET, label: 'Search clicks', source: 'Search Console', observedAt: DATE, href: `/assets/${ASSET}/search`, note: '', readings: [{ label: 'Clicks', value: 0 }] },
-        ] },
+        evidence: { asOf: DATE, coverage: [{ assetId: ASSET, source: 'Search Console', status: 'available', detail: 'Seven complete dates' }],
+          citations: workflow.assetIds.map((assetId, index) => ({ id: `gsc-${index + 1}`, assetId, label: 'Search clicks', source: 'Search Console',
+            observedAt: DATE, href: `/assets/${assetId}/search`, note: '', readings: [{ label: 'Clicks', value: 0 }] })) },
       };
       if (loseFirstStartResponse) {
         loseFirstStartResponse = false;
@@ -124,7 +126,7 @@ function mount(traffic: ReturnType<typeof fixture>, path = '/workflows', role: '
 afterEach(() => { cleanup(); for (const runtime of runtimes.splice(0)) runtime.retire(); });
 
 describe('customer analysis workflows', () => {
-  it('creates a template with an explicit asset and weekly trigger, then keeps the cited result', async () => {
+  it('creates a template with selected assets and a weekly trigger, then keeps each finding’s cited asset', async () => {
     const requests = fixture(false, true);
     const { container } = mount(requests);
     fireEvent.click(await screen.findByRole('button', { name: 'Create workflow' }));
@@ -133,6 +135,7 @@ describe('customer analysis workflows', () => {
     const asset = await within(form).findByRole('checkbox', { name: 'Meadow' });
     expect(within(form).queryByRole('checkbox', { name: 'Retired' })).toBeNull();
     fireEvent.click(asset);
+    fireEvent.click(within(form).getByRole('checkbox', { name: 'Grove' }));
     fireEvent.change(within(form).getByLabelText('Template'), { target: { value: 'seo-ai-visibility' } });
     fireEvent.change(within(form).getByLabelText('Workflow name *'), { target: { value: 'Discovery review' } });
     fireEvent.change(within(form).getByLabelText('Trigger'), { target: { value: 'weekly' } });
@@ -141,7 +144,7 @@ describe('customer analysis workflows', () => {
     fireEvent.click(within(form).getByRole('button', { name: 'Save workflow' }));
     expect(await screen.findByRole('heading', { name: 'Discovery review' })).toBeVisible();
     expect(requests.traffic.find(event => event.path === PATH && event.method === 'POST')).toMatchObject({ key: expect.any(String), body: {
-      name: 'Discovery review', template: 'seo-ai-visibility', assetIds: [ASSET], trigger: { kind: 'weekly', weekday: 4, hour: 15, minute: 30, timeZone: 'Etc/UTC' },
+      name: 'Discovery review', template: 'seo-ai-visibility', assetIds: [ASSET, OTHER_ASSET], trigger: { kind: 'weekly', weekday: 4, hour: 15, minute: 30, timeZone: 'Etc/UTC' },
     } });
     fireEvent.click(screen.getByRole('button', { name: 'Start run' }));
     await screen.findByRole('alert');
@@ -167,9 +170,12 @@ describe('customer analysis workflows', () => {
     fireEvent.change(within(result).getByLabelText('Title *'), { target: { value: 'Compare the empty first week' } });
     fireEvent.change(within(result).getByLabelText('Finding and next step *'), { target: { value: 'Check impressions for the same dates.' } });
     expect(within(result).getByRole('button', { name: 'Save result' })).toBeDisabled();
-    fireEvent.click(within(result).getByRole('checkbox', { name: /Search clicks/u }));
+    fireEvent.click(within(result).getByRole('checkbox', { name: `Search clicks · ${ASSET}`, exact: true }));
     fireEvent.click(within(result).getByRole('button', { name: 'Save result' }));
-    expect(await screen.findByRole('region', { name: 'Recorded result' })).toHaveTextContent('Compare the empty first week');
+    const recorded = await screen.findByRole('region', { name: 'Recorded result' });
+    expect(recorded).toHaveTextContent('Compare the empty first week');
+    expect(recorded).toHaveTextContent(`Search clicks · ${ASSET}`);
+    expect(recorded).not.toHaveTextContent(OTHER_ASSET);
     expect(within(assignment).getByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example?project=search-review');
     expect(requests.traffic.find(event => event.path.endsWith('/complete'))?.body).toMatchObject({ outcome: 'findings', findings: [{ citationIds: ['gsc-1'] }] });
     expect(screen.queryByRole('form', { name: 'Record result' })).toBeNull();

@@ -147,7 +147,7 @@ function RunEvidence({ run }: { run: AnalysisRun }) {
 }
 
 function RecordedResult({ run, result }: { run: AnalysisRun; result: AnalysisResult }) {
-  const citations = new Map(run.evidence.citations.map(citation => [citation.id, citation.label]));
+  const citations = new Map(run.evidence.citations.map(citation => [citation.id, `${citation.label} · ${citation.assetId}`]));
   return <section aria-label="Recorded result" className="space-y-2 rounded-lg border border-border bg-card p-4">
     <h3 className="font-semibold">{OUTCOME[result.outcome]}</h3>
     <p className="whitespace-pre-wrap text-sm">{result.summary}</p>
