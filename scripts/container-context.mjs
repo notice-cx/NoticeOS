@@ -60,7 +60,7 @@ export function prepareContainerContext({ root, destination, files } = {}) {
     files = result.stdout.split('\0').filter(Boolean);
   }
   const selected = [...new Set(files.filter(publicContainerPath))].sort();
-  for (const required of [...ROOT_FILES, ...TOOL_NOTICES, ...IMAGE_INSTALLATION, 'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs', 'deploy/compose/customer-entry.mjs']) {
+  for (const required of [...ROOT_FILES, ...TOOL_NOTICES, ...IMAGE_INSTALLATION, 'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs']) {
     if (!selected.includes(required)) throw new Error('A required public build input is missing.');
   }
   const sources = selected.map(file => ({ file, source: regularSource(root, file) }));
