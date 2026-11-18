@@ -236,7 +236,9 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     const grant = openWorkspaceServiceGrant({ connectionString: grantDatabase.connectionString, workspaceId, principalId });
     try {
       const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer collection'), authority: () => grant.facts() });
-      return await admission.withAdmission('workflows.run', { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() }, request, async () => {
+      // Admission snapshots the headers. The bounded JSON body has already been consumed.
+      const proof = new Request(request.url, { method: request.method, headers: request.headers, signal: request.signal });
+      return await admission.withAdmission('workflows.run', { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() }, proof, async () => {
         const store = openWorkspaceStore(connectionString, { workspaceId, maxConnections: 1 });
         try { return await work(store, principalId); }
         finally { await store.close(); }

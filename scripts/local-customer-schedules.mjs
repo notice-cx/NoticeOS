@@ -79,7 +79,12 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
         const previous = entry.jobs;
         entry.discovery = at + entry.retryDelay;
         entry.retryDelay = Math.min(15 * MINUTE, entry.retryDelay * 2);
-        const selected = await read(entry.binding);
+        const result = await read(entry.binding);
+        const { jobs: selected, googleScopePending = false } = Array.isArray(result) ? { jobs: result } : result;
+        const recoveringGoogleSince = googleScopePending ? undefined : entry.googleScopeUnavailableSince;
+        if (googleScopePending) {
+          entry.googleScopeUnavailableSince ??= entry.initial && Number.isFinite(resumeSince) ? Math.min(at, resumeSince) : at;
+        } else entry.googleScopeUnavailableSince = undefined;
         for (const [key, call] of entry.queued) {
           if (!selected.some(item => item.schedule.enabled && item.job === call.job && (call.archive
             ? item.archives?.some(target => customerJobSubject(target.asset, target.archive) === customerJobSubject(call.asset, call.archive))
@@ -91,9 +96,11 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           const matching = old?.schedule.enabled && old.schedule.cron === item.schedule.cron
             && scheduleTimezone(old.schedule) === scheduleTimezone(item.schedule);
           let due = matching ? old.due : next(item.schedule, at - 1);
-          const since = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
+          const recoverGoogle = item.job === 'signal-dumps' && (!old || matching) ? recoveringGoogleSince : undefined;
+          const restartSince = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
+          const since = recoverGoogle ?? (entry.initial ? restartSince : undefined);
           const resuming = Number.isFinite(since);
-          if (entry.initial && (item.job === 'panel-refresh' || resuming)) {
+          if (resuming || entry.initial && item.job === 'panel-refresh') {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;
@@ -103,8 +110,10 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
         });
         entry.planned = true;
         entry.initial = false;
-        entry.retryDelay = MINUTE;
-        entry.discovery = Math.floor(at / HOUR) * HOUR + HOUR;
+        if (!googleScopePending) {
+          entry.retryDelay = MINUTE;
+          entry.discovery = Math.floor(at / HOUR) * HOUR + HOUR;
+        }
       });
     }
     for (const { binding, jobs, queued, planned } of entries) {
@@ -162,6 +171,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     store: openWorkspaceStore(connectionString, { workspaceId, maxConnections: 1 }),
     grant: openWorkspaceServiceGrant({ connectionString: grantConnectionString, workspaceId, principalId: serviceId }),
   });
+  const googleScopes = new Map();
   const active = new Set();
   const clock = customerScheduleClock({ workspaces, now, resumeSince, backupResumeSince,
     async read(binding) {
@@ -171,21 +181,26 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
           authority: () => grant.facts() });
         return await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
           new Request(privateUrl, { method: 'POST' }), async () => {
-            const googleScope = collection?.extendedArchives && collection.googleDaily
-              ? await readCustomerGoogleArchiveScope(worker, binding.workspaceId).catch(() => {
+            let googleScope, googleScopePending = false;
+            if (collection?.extendedArchives && collection.googleDaily) {
+              try {
+                googleScope = await readCustomerGoogleArchiveScope(worker, binding.workspaceId);
+                googleScopes.set(binding.workspaceId, googleScope);
+              } catch {
                 console.warn('Saved Google archive targets could not be read.');
-                return undefined;
-              }) : undefined;
+                googleScope = googleScopes.get(binding.workspaceId) ?? [];
+                googleScopePending = true;
+              }
+            }
             const scheduled = await customerSchedules(store, null, collection, googleScope);
             if (backup) {
               scheduled.push({ job: 'backup', schedule: await readBackupSchedule(store), assets: [null] });
             }
-            if (!reports) return scheduled;
-            try { return [...scheduled, ...await reports.targets(store)]; }
-            catch {
-              console.warn('Customer report settings could not be read. Check the report configuration.');
-              return scheduled;
+            if (reports) {
+              try { scheduled.push(...await reports.targets(store)); }
+              catch { console.warn('Customer report settings could not be read. Check the report configuration.'); }
             }
+            return { jobs: scheduled, googleScopePending };
           });
       } finally { await Promise.all([store.close(), grant.close()]); }
     },
