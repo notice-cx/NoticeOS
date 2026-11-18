@@ -162,10 +162,8 @@ function customerServer(publicOrigin, runtime, peerProof, admits, { release, bri
         else reply.end();
         return;
       }
-      if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
-      const url = requestTarget(publicOrigin, request);
-      if (backup && url.pathname === CUSTOMER_BACKUP_PATH) {
-        if (peer !== HOST || request.method !== 'POST' || url.search || request.headers.origin !== undefined || request.headers['transfer-encoding']
+      if (backup && request.url === CUSTOMER_BACKUP_PATH) {
+        if (peer !== HOST || request.headers.host !== '127.0.0.1:5173' || request.method !== 'POST' || request.headers.origin !== undefined || request.headers['transfer-encoding']
           || Number(request.headers['content-length'] ?? '0') !== 0 || !customerBackupBearer(request.headers.authorization, backup.operatorToken)) {
           reply.writeHead(403, { 'cache-control': 'no-store' }).end();
           return;
@@ -175,6 +173,8 @@ function customerServer(publicOrigin, runtime, peerProof, admits, { release, bri
         reply.end(JSON.stringify(result));
         return;
       }
+      if (peer !== HOST && (!bridgePeer || peer !== bridgePeer)) throw new Error('Local connection required.');
+      const url = requestTarget(publicOrigin, request);
       if (ready && url.pathname === '/_noticeos/ready') {
         const healthy = peer === HOST && request.method === 'GET' && !url.search && await ready();
         reply.writeHead(healthy ? 204 : 404, { 'cache-control': 'no-store' }).end();

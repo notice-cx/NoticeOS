@@ -157,14 +157,13 @@ async function runCustomer(stop) {
   } finally { await app.close(); }
 }
 
-export async function runCustomerBackupCommand({ env = process.env, operatorToken, send = request } = {}) {
-  const { url, doorPort } = composeCustomerPlan(env);
+export async function runCustomerBackupCommand({ operatorToken, send = request } = {}) {
   const token = operatorToken ?? JSON.parse(privateText({ lstatSync, readFileSync }, '/state/workers/ingest/.dev.secrets.json', 16384)).OPERATOR_TOKEN;
   if (typeof token !== 'string' || !token.trim() || /[\r\n]/u.test(token)) throw new ContainerRefusal('The prepared backup access token is missing.');
   const signal = AbortSignal.timeout(CUSTOMER_BACKUP_EFFECT_MS + 5000);
   return new Promise((resolve, reject) => {
-    const call = send(`http://127.0.0.1:${doorPort}${CUSTOMER_BACKUP_PATH}`, { method: 'POST', signal,
-      headers: { host: new URL(url).host, authorization: `Bearer ${token.trim()}`, 'content-length': '0' } }, async response => {
+    const call = send(`http://127.0.0.1:5173${CUSTOMER_BACKUP_PATH}`, { method: 'POST', signal,
+      headers: { host: '127.0.0.1:5173', authorization: `Bearer ${token.trim()}`, 'content-length': '0' } }, async response => {
       try {
         if (![200, 503].includes(response.statusCode) || response.headers['content-type'] !== 'application/json') throw new Error();
         const chunks = [];

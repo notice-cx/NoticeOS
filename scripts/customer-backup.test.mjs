@@ -177,7 +177,7 @@ test('the native customer gateway backs up only selected D1 and streams the veri
     const publicOrigin = new URL(plan.url).origin;
     const throughGateway = (input, init = {}) => {
       const url = new URL(input);
-      assert.equal(url.origin, 'http://noticeos:5173');
+      assert.ok(['http://noticeos:5173', 'http://127.0.0.1:5173'].includes(url.origin));
       return new Promise((resolve, reject) => {
         const request = httpRequest(publicOrigin + url.pathname + url.search, { method: init.method, signal: init.signal,
           headers: { ...init.headers, host: url.host }, agent: false }, response => resolve(new Response(Readable.toWeb(response),
@@ -190,7 +190,9 @@ test('the native customer gateway backs up only selected D1 and streams the veri
     assert.equal(direct.status, 403);
     const profile = await readBackupClient(client);
     const target = path.join(root, 'exported');
-    const run = fetch(`${publicOrigin}/_noticeos/backup`, { method: 'POST', signal: AbortSignal.timeout(15_000),
+    const publicBackup = await fetch(`${publicOrigin}/_noticeos/backup`, { method: 'POST', headers: { authorization: `Bearer ${operatorToken}` } });
+    assert.equal(publicBackup.status, 403);
+    const run = throughGateway('http://127.0.0.1:5173/_noticeos/backup', { method: 'POST', signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${operatorToken}` } });
     const errors = [];
     sidecar = (async () => {
