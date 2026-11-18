@@ -15,7 +15,9 @@ test('only a valid, private local relay declaration can select the sign-in sende
     writeFileSync(file, JSON.stringify({ ...base, ...update }), { mode: 0o600 });
     return readLocalIdentityMail('mail.json', plan);
   };
-  assert.equal(read().url, base.url);
+  const config = read();
+  assert.equal(config.url, base.url);
+  assert.equal(config.from, base.from);
   for (const update of [{ url: 'smtp://relay.example.test' }, { url: base.url + '/other' }, { url: base.url + '?extra=1' },
     { url: 'smtps://private@relay.example.test' }, { from: 'tower@example.test\nBcc: other@example.test' }, { password: '\n--other' }]) {
     assert.throws(() => read(update), /delivery unavailable/u);
@@ -49,6 +51,8 @@ test('SMTP delivery authenticates over TLS, limits the recipient and reports ref
   const id = await delivery(message);
   assert.deepEqual(relay.recipients, [recipient]);
   assert.equal(relay.inbox.length, 1);
+  assert.equal(relay.inbox[0].sender, from);
+  assert.deepEqual(relay.inbox[0].from, { name: 'NoticeOS', address: from });
   assert.ok(relay.inbox[0].wire.includes(`Message-ID: <${id}@example.test>`));
   assert.equal(relay.inbox[0].wire.split('\r\n\r\n')[1], message.text);
   relay.reject();

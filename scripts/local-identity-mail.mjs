@@ -71,7 +71,7 @@ export function smtpIdentityMail(config, accepts, { launch = spawn, signal } = {
     const bounded = AbortSignal.any([AbortSignal.timeout(10_000), ...(signal ? [signal] : [])]);
     bounded.throwIfAborted();
     const id = randomUUID();
-    const wire = [`From: ${config.from}`, `To: ${message.to}`, `Subject: ${message.subject}`, `Date: ${new Date().toUTCString()}`,
+    const wire = [`From: NoticeOS <${config.from}>`, `To: ${message.to}`, `Subject: ${message.subject}`, `Date: ${new Date().toUTCString()}`,
       `Message-ID: <${id}@${config.from.split('@')[1]}>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', '',
       message.text.replace(/\r?\n/gu, '\r\n'), ''].join('\r\n');
     const fd = openCurlConfig(config, message.to);

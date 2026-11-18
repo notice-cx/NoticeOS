@@ -168,6 +168,8 @@ async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
   assert.equal(request.headers.has('set-cookie'), false);
   assert.deepEqual(await request.json(), { ok: true });
   assert.deepEqual(relay.recipients, [email]);
+  assert.equal(relay.inbox[0]?.sender, relay.declaration.from);
+  assert.deepEqual(relay.inbox[0]?.from, { name: 'NoticeOS', address: relay.declaration.from });
   const otp = relay.inbox[0]?.wire.match(/\b(\d{6})\./u)?.[1];
   assert.ok(otp, 'the code is addressed to the configured owner');
   assert.equal(app.outbox, undefined);
@@ -211,8 +213,11 @@ async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, other
     const response = await members({ kind: 'invite', email, role: 'viewer' });
     assert.equal(response.status, 200);
     const { invitationId } = await response.json();
-    assert.equal(relay.inbox.at(-1)?.recipient, email);
-    assert.ok(relay.inbox.at(-1)?.wire.includes(`${origin}/sign-in#invitation=${invitationId}`));
+    const invitation = relay.inbox.at(-1);
+    assert.equal(invitation?.recipient, email);
+    assert.equal(invitation.sender, relay.declaration.from);
+    assert.deepEqual(invitation.from, { name: 'NoticeOS', address: relay.declaration.from });
+    assert.ok(invitation.wire.includes(`${origin}/sign-in#invitation=${invitationId}`));
     return invitationId;
   };
 
