@@ -1,6 +1,9 @@
 import { openIdentity, type IdentityOptions, type WorkspaceSummary } from '@noticeos/postgres/identity';
-import { readBrowserSession, type BrowserSessionSnapshot } from '@noticeos/postgres/browser-session';
+import { personalProfile, readBrowserSession, type BrowserSessionSnapshot } from '@noticeos/postgres/browser-session';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
+import { PERSONAL_PROFILE_PATH, normalizedDisplayName } from '../../../scripts/identity-protocol.mjs';
+import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
+import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, WORKSPACE_SELECTION_HEADER,
   type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 
@@ -10,6 +13,48 @@ const RESPONSE_HEADERS = { 'cache-control': 'no-store', vary: 'Cookie' };
 export interface BrowserSessionReaders {
   session(options: IdentityOptions, headers: Headers, selected: string | null, after: string | null): Promise<BrowserSessionSnapshot | null>;
   demo(options: IdentityOptions, workspaceId: string): Promise<WorkspaceSummary | null>;
+}
+
+export async function handlePersonalProfileRequest(request: Request,
+  env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean },
+  read = personalProfile): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const editable = env.NOTICEOS_CUSTOMER_SHADOW !== true;
+    if (workspaceProfile(env) !== 'hosted' || url.pathname !== PERSONAL_PROFILE_PATH
+      || url.search || url.hash || url.username || url.password || request.headers.has('authorization')
+      || (request.method !== 'GET' && !(request.method === 'PATCH' && editable))) refuse();
+    const origin = workspaceEntryOrigin(env);
+    createBrowserRequestPolicy(origin, localTowerOrigin(env)).assertEffect(request);
+    const session = uuid(request.headers.get(WORKSPACE_SESSION_HEADER));
+    const workspace = uuid(request.headers.get(WORKSPACE_SELECTION_HEADER));
+    if (!workspace || !session) refuse();
+    let name: string | undefined;
+    if (request.method === 'PATCH') {
+      let value: unknown;
+      try {
+        value = JSON.parse(await readBoundedJsonText(request, 1024));
+      } catch {
+        return Response.json({ error: 'invalid_profile_request' }, { status: 400, headers: RESPONSE_HEADERS });
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)
+        || !('displayName' in value) || Object.keys(value).length !== 1) {
+        return Response.json({ error: 'invalid_profile_request' }, { status: 400, headers: RESPONSE_HEADERS });
+      }
+      const normalized = normalizedDisplayName(value.displayName);
+      if (normalized === null) return Response.json({ error: 'invalid_display_name' }, { status: 400, headers: RESPONSE_HEADERS });
+      name = normalized;
+    }
+    try {
+      const profile = await read(identityOptions(env, origin), new Headers(request.headers), workspace, session, editable, name);
+      if (profile) return Response.json(profile, { headers: RESPONSE_HEADERS });
+    } catch {
+      return Response.json({ error: 'profile_unavailable' }, { status: 503, headers: RESPONSE_HEADERS });
+    }
+  } catch {
+    // The request could not establish its browser context.
+  }
+  return Response.json({ error: 'profile_unavailable' }, { status: 403, headers: RESPONSE_HEADERS });
 }
 const readers: BrowserSessionReaders = {
   session: readBrowserSession,

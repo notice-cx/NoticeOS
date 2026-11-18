@@ -56,6 +56,8 @@ The other pages in this section each describe one screen in the same three parts
 
 A standalone installation has no sign-in: anyone who can reach the Tower's address can read and change everything in it. Keep it on a private network, behind a VPN, or behind an access proxy of your own.
 
+In a customer workspace, open **Account** in the sidebar or the phone header. **Profile** shows your verified email, display name and current workspace role. Change **Display name** and select **Save name** to update it. The private backup preview displays your profile read-only. **Account** also contains **Switch workspace** and **Sign out**.
+
 ## Related
 
 - [What is NoticeOS](/start/what-is-noticeos)

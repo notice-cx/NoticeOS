@@ -1097,6 +1097,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     ],
   },
   {
+    name: "AccountMenu",
+    file: "components/AccountMenu.tsx",
+    purpose: "Customer account navigation in the desktop sidebar and phone header. Uses the shared Button and Popover to open Profile, switch workspaces, and sign out.",
+    variants: ["desktop", "phone", "open"],
+  },
+  {
     name: "CommandPalette",
     file: "components/CommandPalette.tsx",
     purpose:

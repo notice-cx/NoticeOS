@@ -10,6 +10,18 @@ export const EMAIL_ENROLLMENT_HEADERS = Object.freeze({
 });
 export const MEMBERSHIP_PATH = '/api/memberships';
 export const ACCEPT_INVITATION_PATH = '/api/invitations/accept';
+export const PERSONAL_PROFILE_PATH = '/api/profile';
+export const DISPLAY_NAME_LIMIT = 120;
+export interface PersonalProfile {
+  readonly displayName: string;
+  readonly email: string;
+  readonly editable: boolean;
+}
+export function normalizedDisplayName(value: unknown): string | null {
+  if (typeof value !== 'string' || /\p{Cc}/u.test(value)) return null;
+  const name = value.trim();
+  return name && name.length <= DISPLAY_NAME_LIMIT ? name : null;
+}
 export interface EmailEnrollment {
   readonly kind: 'platform' | 'invitation';
   readonly id: string;

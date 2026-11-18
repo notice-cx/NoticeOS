@@ -18,7 +18,11 @@ const enabled = process.env.NOTICEOS_TEST_CUSTOMER_PEOPLE === '1';
 const asset = 'shared-site';
 const assetPath = `/api/assets/${asset}`;
 const chooser = page => page.getByRole('heading', { name: 'Choose a workspace', exact: true });
-const switcher = (page, label) => page.getByRole('button', { name: `Switch workspace: ${label}`, exact: true });
+const account = page => page.getByRole('button', { name: 'Account menu', exact: true });
+async function switchWorkspace(page) {
+  await account(page).click();
+  await page.getByRole('button', { name: 'Switch workspace', exact: true }).click();
+}
 
 function received(outbox, email, pattern, before = new Set()) {
   const matches = readdirSync(outbox).filter(file => !before.has(file)).flatMap(file => {
@@ -52,7 +56,8 @@ async function select(page, workspace, role) {
   const selected = await response.json();
   assert.equal(selected.selectedWorkspace.workspaceId, workspace.workspaceId);
   assert.equal(selected.selectedWorkspace.role, role);
-  await switcher(page, workspace.label).waitFor();
+  await account(page).waitFor();
+  assert.equal(await account(page).getAttribute('title'), workspace.label);
   return { [WORKSPACE_SELECTION_HEADER]: workspace.workspaceId, [WORKSPACE_SESSION_HEADER]: selected.session.sessionId };
 }
 
@@ -141,7 +146,7 @@ test('customers can invite, change access, remove and switch workspaces in the T
   await teammate.goto(`${origin}/settings/members`);
   await expect(teammate).toHaveURL(`${origin}/settings`);
   await expect(teammate.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0);
-  await switcher(teammate, west.label).click();
+  await switchWorkspace(teammate);
   const eastAgain = await select(teammate, east, 'owner');
   assert.deepEqual(eastAgain, eastSession);
   await expect(teammate.getByRole('link', { name: east.assetName, exact: true }).first()).toBeVisible();
@@ -160,7 +165,7 @@ test('customers can invite, change access, remove and switch workspaces in the T
     member.getByRole('button', { name: 'Save role', exact: true }).click(),
   ]);
   assert.equal(saved.status(), 200);
-  await switcher(teammate, east.label).click();
+  await switchWorkspace(teammate);
   const operator = await select(teammate, west, 'operator');
   assert.equal(operator[WORKSPACE_SESSION_HEADER], eastSession[WORKSPACE_SESSION_HEADER]);
   assert.equal(await assetRequest(teammate, operator, rename), 200);
@@ -172,7 +177,7 @@ test('customers can invite, change access, remove and switch workspaces in the T
   await member.getByRole('button', { name: 'Confirm removal', exact: true }).click();
   await expect(role).toHaveCount(0);
   assert.deepEqual(await assetRequest(teammate, operator), { status: 403, name: null });
-  await switcher(teammate, west.label).click();
+  await switchWorkspace(teammate);
   await chooser(teammate).waitFor();
   await expect(teammate.getByRole('button', { name: /West workspace/u })).toHaveCount(0);
   const remaining = await select(teammate, east, 'owner');

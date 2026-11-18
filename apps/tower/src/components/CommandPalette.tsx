@@ -1,4 +1,4 @@
-import { useCanManageMembers, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
+import { useBrowserRuntime, useCanManageMembers, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
 import { MEMBERS_ITEM, PAGE_ITEMS, TV_EDIT_ITEM, SITES_ARRANGE_ITEM } from "@/components/nav-items";
+import { ACCOUNT_PROFILE_PAGE } from "@/components/AccountMenu";
 import {
   Command,
   CommandDialog,
@@ -153,13 +154,14 @@ function PaletteBody({
   const assets = useMemo(() => allAssets.filter((asset) => !isRetired(asset.status)), [allAssets]);
   const navigate = useNavigate();
   const preferences = useOwnerPreferences();
+  const hosted = useBrowserRuntime().owner.mode === 'hosted';
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
   const managesMembers = useCanManageMembers();
   const readOnly = useWorkspaceReadOnlyReason();
   const pages = useMemo(() => {
     const items = readOnly ? PAGE_ITEMS.filter(item => item !== TV_EDIT_ITEM && item !== SITES_ARRANGE_ITEM) : PAGE_ITEMS;
-    return managesMembers ? [...items, MEMBERS_ITEM] : items;
-  }, [managesMembers, readOnly]);
+    return [...items, ...(managesMembers ? [MEMBERS_ITEM] : []), ...(hosted ? [ACCOUNT_PROFILE_PAGE] : [])];
+  }, [hosted, managesMembers, readOnly]);
   const destinations = useMemo(() => {
     const map = new Map<string, { to: string; label: string }>();
     for (const page of pages) {

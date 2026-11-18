@@ -98,6 +98,13 @@ afterEach(() => {
 });
 
 describe("opening and closing", () => {
+  it("keeps personal account destinations out of a standalone search", () => {
+    renderShell();
+    openWithShortcut();
+    fireEvent.change(paletteInput(), { target: { value: "personal details" } });
+    expect(screen.queryByRole("option", { name: "Profile" })).toBeNull();
+  });
+
   it("opens on ⌘K and on Ctrl+K, from anywhere in the shell", () => {
     renderShell("/financials");
 

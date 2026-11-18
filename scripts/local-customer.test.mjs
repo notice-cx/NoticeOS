@@ -4,7 +4,7 @@ import { availableCustomerPort as availablePort } from './test/customer-ports.mj
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH } from './identity-protocol.mjs';
+import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH, PERSONAL_PROFILE_PATH } from './identity-protocol.mjs';
 import { PROTECTED_RESOURCE_METADATA_PATH } from './agent-access.mjs';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { localNtasksOrigin, startLocalCustomer } from './local-customer.mjs';
@@ -15,6 +15,7 @@ import { openDevelopmentStart } from './start-development.mjs';
 import { assertCustomerSchedule, prepareCustomerSchedule } from './test-fixtures/customer-schedule.mjs';
 import { prepareCustomerReports, prepareReportObjects, verifyCustomerReports } from './test-fixtures/customer-report.mjs';
 import { customerArchiveFixture } from './test-fixtures/customer-archive.mjs';
+import { useCustomerProfileBrowser } from './test-fixtures/customer-profile-browser.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
 
@@ -88,8 +89,8 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     if (!db) return;
     app = await startLocalCustomer(plan, db);
     const origin = app.publicOrigin;
-    const http = (route, { body, headers = {} } = {}) => fetch(origin + route, {
-      ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
+    const http = (route, { body, headers = {}, method = body === undefined ? 'GET' : 'POST' } = {}) => fetch(origin + route, {
+      method, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       headers: { origin, ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
       redirect: 'manual', signal: AbortSignal.timeout(30000),
     });
@@ -138,6 +139,27 @@ test('local customer Tower uses real invitations, workspace selection and durabl
 
     const [east, west] = app.workspaces;
     const ownEast = await signUp(east), ownWest = await signUp(west);
+    const profileHeaders = (session, workspaceId) => ({ cookie: session.cookie,
+      [WORKSPACE_SESSION_HEADER]: session.sessionId, [WORKSPACE_SELECTION_HEADER]: workspaceId });
+    const profile = (headers, body) => http(PERSONAL_PROFILE_PATH, body === undefined
+      ? { headers } : { headers, method: 'PATCH', body });
+    const reader = profileHeaders(ownEast, west.workspaceId);
+    const westOwner = profileHeaders(ownWest, west.workspaceId);
+    const eastOwner = profileHeaders(ownEast, east.workspaceId);
+    const displayName = 'Cora Example';
+    const renamedPerson = { displayName, email: east.email, editable: true };
+    const ownBefore = await profile(eastOwner);
+    assert.equal(ownBefore.status, 200, await ownBefore.clone().text());
+    assert.equal(ownBefore.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await ownBefore.json(), { displayName: '', email: east.email, editable: true });
+    assert.equal((await profile(reader, { displayName })).status, 403);
+    assert.equal((await profile({ ...eastOwner, [WORKSPACE_SESSION_HEADER]: ownWest.sessionId })).status, 403);
+    assert.equal((await profile({ ...eastOwner, origin: 'https://other.example.test' }, { displayName })).status, 403);
+    assert.equal((await http(PERSONAL_PROFILE_PATH + '?userId=' + ownWest.principalId, { headers: eastOwner })).status, 403);
+    assert.equal((await profile(eastOwner, { displayName, email: west.email })).status, 400);
+    assert.equal((await profile(eastOwner, { displayName: ' ' })).status, 400);
+    assert.equal((await profile(eastOwner, { displayName: 'X'.repeat(121) })).status, 400);
+    assert.equal((await http('/api/auth/update-user', { headers: eastOwner, body: { name: displayName } })).status, 403);
     assert.equal((await readSession(ownEast.cookie, west.workspaceId)).status, 403);
     const invitation = await member(ownWest, west.workspaceId, { kind: 'invite', email: east.email, role: 'viewer' });
     assert.equal(invitation.status, 200);
@@ -148,6 +170,11 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     assert.equal(switched.selectedWorkspace.role, 'viewer');
     assert.equal((await (await readSession(ownEast.cookie, east.workspaceId)).json()).selectedWorkspace.role, 'owner');
     assert.equal((await member(ownEast, west.workspaceId, { kind: 'list', collection: 'members' })).status, 403);
+    const saved = await profile(reader, { displayName: ` ${displayName} ` });
+    assert.equal(saved.status, 200, await saved.clone().text());
+    assert.deepEqual(await saved.json(), renamedPerson);
+    assert.deepEqual(await (await profile(eastOwner)).json(), renamedPerson);
+    assert.deepEqual(await (await profile(westOwner)).json(), { displayName: '', email: west.email, editable: true });
     const headers = { cookie: ownEast.cookie, [WORKSPACE_SESSION_HEADER]: ownEast.sessionId,
       [WORKSPACE_SELECTION_HEADER]: west.workspaceId };
     const wall = await http('/api/wall', { headers });
@@ -205,10 +232,19 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     const resumed = await (await readSession(ownEast.cookie, west.workspaceId)).json();
     assert.equal(resumed.session.sessionId, ownEast.sessionId);
     assert.equal(resumed.selectedWorkspace.role, 'viewer');
+    assert.deepEqual(await (await profile(reader)).json(), renamedPerson);
+    if (process.env.NOTICEOS_TEST_CUSTOMER_PROFILE === '1') {
+      const newName = 'Cora Browser';
+      await useCustomerProfileBrowser({ origin, outbox: app.outbox, email: east.email, workspaceLabel: 'West workspace',
+        role: 'viewer', initialName: displayName, newName, otherWorkspace: { label: 'East workspace', role: 'owner' } });
+      renamedPerson.displayName = newName;
+    }
     const members = await (await member(ownWest, west.workspaceId, { kind: 'list', collection: 'members' })).json();
     const memberId = members.items.find(item => item.email === east.email).id;
     assert.equal((await member(ownWest, west.workspaceId, { kind: 'remove', memberId })).status, 200);
     assert.equal((await readSession(ownEast.cookie, west.workspaceId)).status, 403);
+    assert.equal((await profile(reader, { displayName: 'Stale browser' })).status, 403);
+    assert.deepEqual(await (await profile(eastOwner)).json(), renamedPerson);
     assert.equal((await readSession(ownEast.cookie, east.workspaceId)).status, 200);
   } finally {
     try { await app?.close(); } finally { db?.close(); }
