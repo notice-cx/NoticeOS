@@ -112,6 +112,7 @@ export function createCustomerBackup({ address, workspaceId, credentialsKey, nta
   return {
     healthy: () => healthy,
     async check(signal = AbortSignal.timeout(WAKE_MS)) {
+      healthy = false;
       try {
         if (!(await backupStatus(client)).available) return 'The configured backup worker is unavailable.';
         const source = await taskSource(signal);

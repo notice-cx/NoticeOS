@@ -5,9 +5,10 @@ import path from 'node:path';
 
 const requireTower = createRequire(new URL('../../apps/tower/package.json', import.meta.url));
 
-export async function useLanTower({ origin, state, email }) {
+export async function useLanTower({ origin, state, email, liveEdit }) {
   const { chromium } = requireTower('@playwright/test');
-  const browser = await chromium.launch({ args: ['--no-proxy-server', '--host-resolver-rules=MAP fixture-tower.local 127.0.0.1'] });
+  const browser = await chromium.launch({ executablePath: process.env.NOTICEOS_TEST_CHROMIUM_EXECUTABLE,
+    args: ['--no-proxy-server', '--host-resolver-rules=MAP fixture-tower.local 127.0.0.1'] });
   try {
     const context = await browser.newContext({ serviceWorkers: 'block' });
     await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
@@ -32,6 +33,7 @@ export async function useLanTower({ origin, state, email }) {
     assert.equal(session?.domain, new URL(origin).hostname);
     assert.equal(await page.evaluate(() => fetch('/_noticeos/ready').then(r => r.status)), 404);
     assert.equal(await page.evaluate(() => fetch('/api/pulse', { method: 'POST' }).then(r => r.status)), 404);
+    await liveEdit?.(page);
     await Promise.all([page.waitForResponse(readWall), page.goto(origin + '/wall')]);
     await page.locator('[data-wall-screen]').waitFor();
   } finally {

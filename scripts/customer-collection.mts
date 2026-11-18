@@ -2,6 +2,7 @@ import { scheduleFor, schedulesRefusal, ALL_SCHEDULED_JOBS, type JobSchedule, ty
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { CUSTOMER_DATAFORSEO_JOBS, customerDataForSeoFacts, isCustomerDataForSeoJob, selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
+export const CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL = 'https://scheduler.internal/google-archive-targets';
 const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity', ...CUSTOMER_DATAFORSEO_JOBS] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
@@ -16,6 +17,7 @@ const EXTENDED_ARCHIVE_REPORTS = {
   gsc: [...ARCHIVE_REPORTS.gsc, 'country', 'device', 'page-country', 'page-device', 'search-appearance-pages', 'image-page-query', 'discover-page'],
 } as const;
 type GoogleProvider = keyof typeof ARCHIVE_REPORTS;
+export interface CustomerGoogleArchiveTarget { asset: string; provider: GoogleProvider }
 export type CustomerArchive = { provider: GoogleProvider; report: string } | { provider: 'bing-webmaster'; report?: never };
 export interface CustomerSchedule {
   job: CustomerJob;
@@ -41,7 +43,8 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
 
 /** Return eligible jobs, including paused jobs. The caller must already hold
  * a fresh service grant for this store. */
-export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]> {
+export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy,
+  googleScope?: readonly CustomerGoogleArchiveTarget[]): Promise<CustomerSchedule[]> {
   const enrolled = await store.read(tx => tx.query<{
     workspace: string; overrides: string; asset: string; isOs: boolean; domain: string | null; status: string;
     connected: string[]; sources: string; pulls: string; counter: string | null; journeys: string | null;
@@ -79,8 +82,9 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   const connected = new Set(rows[0]!.connected);
   const portfolioAssets = rows.map(row => row.asset);
   const allowed = new Set(policy?.collectorProviders);
-  const providerSites = rows.filter(row => row.domain && ['baselining', 'live'].includes(row.status));
-  const bingAssets = providerSites.filter(row => {
+  const domainRows = rows.filter(row => row.domain);
+  const providerSites = domainRows.filter(row => row.status !== 'pre-launch');
+  const bingAssets = domainRows.filter(row => {
     const source = JSON.parse(row.sources)?.['bing-webmaster'];
     return source?.status !== 'skipped' && source?.status !== 'not-applicable';
   }).map(row => row.asset);
@@ -94,7 +98,9 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
       return (['ga4', 'gsc'] as const).flatMap<{ asset: string; archive: CustomerArchive }>(provider => {
         const selected = source?.[provider];
         const ref = provider === 'ga4' ? selected?.propertyId : selected?.siteUrl;
-        if (typeof ref !== 'string' || !ref.trim() || selected?.status === 'skipped' || selected?.status === 'not-applicable') return [];
+        const mapped = googleScope?.some(target => target.asset === asset && target.provider === provider)
+          ?? (typeof ref === 'string' && Boolean(ref.trim()));
+        if (!mapped || selected?.status === 'skipped' || selected?.status === 'not-applicable') return [];
         const reports: string[] = [...(policy?.extendedArchives ? EXTENDED_ARCHIVE_REPORTS : ARCHIVE_REPORTS)[provider]];
         if (policy?.extendedArchives && provider === 'ga4') {
           const definitions: unknown = JSON.parse(journeys ?? 'null');

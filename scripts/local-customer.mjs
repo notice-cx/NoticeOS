@@ -260,7 +260,8 @@ function readSettings(file, publicOrigin, requestedNtasks) {
   return settings;
 }
 
-function buildCustomer(state, artifactRoot) {
+export function buildCustomer(state, artifactRoot, { signal, developmentRelease } = {}) {
+  signal?.throwIfAborted();
   const script = fileURLToPath(new URL('./hosted-demo-build.mjs', import.meta.url));
   const home = path.join(state, 'build-home');
   mkdirSync(home, { mode: 0o700 });
@@ -268,9 +269,21 @@ function buildCustomer(state, artifactRoot) {
     XDG_CACHE_HOME: path.join(home, 'cache'), XDG_STATE_HOME: path.join(home, 'state'),
     GIT_CONFIG_NOSYSTEM: '1', DO_NOT_TRACK: '1', WRANGLER_SEND_METRICS: 'false', CLOUDFLARE_CF_FETCH_ENABLED: 'false' };
   return new Promise((resolve, reject) => {
-    const build = spawn(process.execPath, [script, '--out', artifactRoot, '--profile', 'hosted'], { env, stdio: ['ignore', 'ignore', 'inherit'] });
+    const args = [script, '--out', artifactRoot, '--profile', 'hosted'];
+    if (developmentRelease) args.push('--development-release', developmentRelease);
+    const build = spawn(process.execPath, args, { env, detached: Boolean(signal), stdio: ['ignore', 'ignore', 'inherit'] });
+    const stop = () => {
+      if (build.pid === undefined) return;
+      try { process.kill(-build.pid, 'SIGKILL'); }
+      catch (error) { if (error.code !== 'ESRCH') build.kill('SIGKILL'); }
+    };
+    signal?.addEventListener('abort', stop, { once: true });
     build.once('error', reject);
-    build.once('close', code => code === 0 ? resolve() : reject(new Error('Could not build the local customer app.')));
+    build.once('close', code => {
+      signal?.removeEventListener('abort', stop);
+      if (code === 0 && !signal?.aborted) resolve();
+      else reject(new Error('Could not build the local customer app.'));
+    });
   });
 }
 

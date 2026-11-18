@@ -153,6 +153,37 @@ test('restart resumes only the latest eligible collection or backup since that s
   assert.deepEqual(await resumed(undefined, at - 3_600_000), []);
 });
 
+test('a missing Google scope retries and recovers the daily window without delaying other work', async () => {
+  const minute = 60_000;
+  const due = Date.parse('2026-11-17T10:00:00Z');
+  const workspace = { workspaceId: 'fixture' };
+  let now = due, reads = 0;
+  const runs = [];
+  const counters = { job: 'site-counters', schedule: { enabled: true, cron: '*/15 * * * *' }, assets: ['site'] };
+  const archives = { job: 'signal-dumps', schedule: { enabled: true, cron: '0 10 * * *' },
+    archives: [{ asset: 'site', archive: { provider: 'ga4', report: 'events' } }] };
+  const clock = customerScheduleClock({ workspaces: [workspace], now: () => now,
+    async read() {
+      reads++;
+      if (reads === 1) return { jobs: [counters], googleScopePending: true };
+      return { jobs: reads === 2 ? [counters, archives] : [counters], googleScopePending: false };
+    },
+    async run(call) { runs.push([call.job, call.scheduledAt]); },
+  });
+  const tick = async at => { now = at; await clock.tick(); await clock.whenIdle(); };
+  try {
+    await tick(due);
+    assert.deepEqual(runs, [['site-counters', new Date(due).toISOString()]]);
+    await tick(due + minute);
+    assert.deepEqual(runs.at(-1), ['signal-dumps', new Date(due).toISOString()]);
+    await tick(due + 2 * minute);
+    assert.equal(reads, 2);
+    await tick(due + 60 * minute);
+    assert.deepEqual(clock.status(workspace.workspaceId).registeredJobs, ['site-counters']);
+    assert.equal(runs.filter(([job]) => job === 'signal-dumps').length, 1);
+  } finally { await clock.close(); }
+});
+
 test('a paused report stays listed and schedule edits only affect future runs', async () => {
   const workspace = { workspaceId: 'fixture' };
   let now = Date.parse('2026-11-17T09:04:00Z'), enabled = false, cron = '5 * * * *';

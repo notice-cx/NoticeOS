@@ -22,7 +22,12 @@ export function dependencyDescription(root, io = fs) {
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size>4*1024*1024) throw new Error('Dependencies need regular bounded checkout files.');
     return io.readFileSync(full);
   };
+  const patchFolder = path.join(root, 'patches');
+  const patchDirectory = io.lstatSync(patchFolder, { throwIfNoEntry: false });
+  if (patchDirectory && !patchDirectory.isDirectory()) throw new Error('Dependency patches need a regular checkout directory.');
+  const patchFiles = patchDirectory ? io.readdirSync(patchFolder).filter(name => name.endsWith('.patch')).sort() : [];
   return { schema:'noticeos-development-dependencies/1',lock:hash(read('pnpm-lock.yaml')),workspace:hash(read('pnpm-workspace.yaml')),
+    ...(patchFiles.length ? { patches: Object.fromEntries(patchFiles.map(name => [name, hash(read(path.join('patches', name)))])) } : {}),
     manifests:Object.fromEntries(MANIFESTS.map(file=>{
       const value=JSON.parse(read(file));
       return [file,Object.fromEntries(DEPENDENCY_FIELDS.filter(key=>value[key]!==undefined).map(key=>[key,value[key]]))];

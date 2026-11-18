@@ -2,6 +2,7 @@
 import { type JobSchedule } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
+export declare const CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL = "https://scheduler.internal/google-archive-targets";
 declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity", "dataforseo", "dataforseo-recovery"];
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export declare const isCustomerJob: (value: unknown) => value is CustomerJob;
@@ -11,6 +12,10 @@ declare const ARCHIVE_REPORTS: {
     readonly gsc: readonly ["query", "page", "page-query"];
 };
 type GoogleProvider = keyof typeof ARCHIVE_REPORTS;
+export interface CustomerGoogleArchiveTarget {
+    asset: string;
+    provider: GoogleProvider;
+}
 export type CustomerArchive = {
     provider: GoogleProvider;
     report: string;
@@ -32,5 +37,5 @@ export declare function customerArchive(value: unknown): CustomerArchive | null;
 export declare function customerJobSubject(asset: string, archive?: CustomerArchive): string;
 /** Return eligible jobs, including paused jobs. The caller must already hold
  * a fresh service grant for this store. */
-export declare function customerSchedules(store: WorkspaceStore, asset?: string | null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]>;
+export declare function customerSchedules(store: WorkspaceStore, asset?: string | null, policy?: CustomerCollectionPolicy, googleScope?: readonly CustomerGoogleArchiveTarget[]): Promise<CustomerSchedule[]>;
 export {};

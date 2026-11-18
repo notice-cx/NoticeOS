@@ -40,6 +40,21 @@ test('dependency changes refuse, but script-only package edits do not require re
   fs.writeFileSync(path.join(f.root,'pnpm-lock.yaml'),'changed');assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/packages changed since this image was built; pnpm os:dev builds a matching one/);
  }finally{f.close();}
 });
+test('mounted dependency patches are verified by their bytes', t => {
+  const fixture = source();
+  t.after(fixture.close);
+  const patches = path.join(fixture.root, 'patches');
+  fs.mkdirSync(patches);
+  const patch = path.join(patches, 'fixture.patch');
+  fs.writeFileSync(patch, 'original patch');
+  const metadataFile = path.join(fixture.root, 'dependency.json');
+  fs.writeFileSync(metadataFile, JSON.stringify(dependencyDescription(fixture.root)));
+  fs.utimesSync(patch, 1, 1);
+  assert.ok(developmentDependencies({ source: fixture.root, metadataFile }));
+  fs.writeFileSync(patch, 'modified patch');
+  fs.utimesSync(patch, 1, 1);
+  assert.throws(() => developmentDependencies({ source: fixture.root, metadataFile }));
+});
 test('generated Worker configs point to live code and follow atomic secret-file replacement by a link',()=>{
  const f=source();try {
   for(const dir of ['apps/tower','workers/ingest']) fs.writeFileSync(path.join(f.root,dir,'wrangler.jsonc'),JSON.stringify({main:'src/index.ts',hyperdrive:[{binding:'POSTGRES'}]}));
@@ -107,6 +122,21 @@ test('switch and disable touch only the app, preserving the original selector an
   assert.deepEqual(JSON.parse(fs.readFileSync(f.file)),f.selector);assert.equal(f.upCount(),2);
   const probe=f.calls.find(c=>c.args[2]==='run');assert.ok(probe.args.includes('none'));assert.ok(!probe.args.includes('/state'));
  }finally{f.close();}
+});
+test('a running checkout can bind verified patch metadata for the same dependency image', async t => {
+ const f=fixture();t.after(f.close);
+ const before=await developStack({root:f.root,selectorFile:f.file,...f});
+ const record=before.after.noticeos.mounts.find(mount=>mount.target==='/dependency-image.json').source;
+ const oldBytes=fs.readFileSync(record);
+ fs.mkdirSync(path.join(f.root,'patches'));
+ fs.writeFileSync(path.join(f.root,'patches','fixture.patch'),'approved fixture bytes');
+ const refreshed=await developStack({root:f.root,selectorFile:f.file,...f});
+ const updated=refreshed.after.noticeos.mounts.find(mount=>mount.target==='/dependency-image.json').source;
+ assert.notEqual(updated,record);
+ assert.deepEqual(JSON.parse(fs.readFileSync(updated)),dependencyDescription(f.root));
+ assert.deepEqual(fs.readFileSync(record),oldBytes);
+ assert.equal(refreshed.image,before.image);
+ assert.deepEqual(refreshed.after.postgres,before.after.postgres);
 });
 test('returning to the prepared image keeps backup settings but refuses changed app settings', async () => {
  const f=fixture();try {

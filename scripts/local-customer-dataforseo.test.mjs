@@ -6,7 +6,7 @@ import test from 'node:test';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { verifyComposeCustomerCollection } from '../deploy/compose/customer-entry.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
-import { customerSchedules } from './customer-collection.mjs';
+import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerSchedules } from './customer-collection.mjs';
 import { DATAFORSEO_ACCOUNT_PATH, DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from './customer-dataforseo-egress.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
@@ -129,6 +129,8 @@ test('an attached customer buys only approved due DataForSEO reports using a sep
     const repeat = new Request('https://scheduler.internal/collect', { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ workspaceId: east, asset: null, job: 'dataforseo', occurrence }) });
     assert.equal((await workers.paidWorker.fetch(repeat)).status, 403);
+    assert.equal((await workers.paidWorker.fetch(CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: east }) })).status, 403);
     assert.equal(paidCalls.length, 2);
   } finally {
     try { await app?.close(); }
