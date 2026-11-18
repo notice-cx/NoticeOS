@@ -25,18 +25,16 @@ import {
   INTEGRATIONS_ROUTE,
   TV_EDIT_ITEM,
   TV_ITEM,
-  sidebarItems,
+  NAV_ITEMS,
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { WorkspaceDataStatus } from '@/components/DemoViewerStatus';
-import { ViewBar } from "@/components/ViewBar";
 import { SeverityDot } from "@/components/SeverityDot";
 import { openAlertsLabel } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
 import { useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useTheme, type Theme } from "@/hooks/useTheme";
-import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
 import { storageKey } from "@/lib/browser-storage";
@@ -158,7 +156,6 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const intent = useLinkIntent();
-  const { view } = useView();
   return (
     <div
       className={cn("flex w-sidebar shrink-0 flex-col border-r border-border bg-sidebar", className)}
@@ -174,7 +171,7 @@ export function Sidebar({
 
       <WorkspaceButton className="mx-2 mb-2" />
       <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-        {sidebarItems(view.nav).map((item) =>
+        {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
           item.to === ASSETS_ROUTE ? (
             assets === undefined ? (
@@ -527,7 +524,6 @@ export function AppShell({
   onPrefetch?: (to: string) => void;
 } = {}) {
   const { theme, toggle } = useTheme();
-  const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // The shell mounts with the first desk page under it, so this is the desk's
@@ -585,7 +581,6 @@ export function AppShell({
           </div>
 
           <WorkspaceDataStatus />
-          {!pathname.startsWith("/wall") ? <ViewBar /> : null}
           {/* `page-arrive`: each page fades in as it replaces the last. */}
           <main className="page-arrive min-w-0 flex-1">
             <Outlet />

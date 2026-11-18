@@ -155,7 +155,6 @@ import { scoreTaskCard } from "@noticeos/contract/task-card";
 import { PriorityBar } from "@/components/PriorityBar";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { DemoViewerStatus } from "@/components/DemoViewerStatus";
-import { ViewBar } from "@/components/ViewBar";
 import { validateDemoViewer } from "@shared/demo-viewer";
 import { ReportFreshness } from "@/components/ReportFreshness";
 import { QueryVisibilityRankings } from "@/components/QueryVisibilityRankings";
@@ -3258,11 +3257,6 @@ export function KitchenSinkRoute() {
             <Labeled name="completed generation aging">
               <DemoViewerStatus nowMs={Date.parse("2026-09-16T12:00:00.000Z")} viewer={validateDemoViewer({ version: 1, synthetic: true, release: "1".repeat(40), scenarioHash: "2".repeat(64), workspaceId: "11111111-1111-4111-8111-111111111111", cutoff: "2026-09-15T12:00:00.000Z", generatedAt: "2026-09-16T11:55:00.000Z" })} />
             </Labeled>
-          </Section>
-
-          <Section title="ViewBar">
-            <Labeled name="desktop bar and mobile picker"><ViewBar /></Labeled>
-            <Labeled name="Revenue selected"><ViewBar value="revenue" /></Labeled>
           </Section>
 
           <Section title="AgeBadge (amber past 2× cadence; absence says which absence)">

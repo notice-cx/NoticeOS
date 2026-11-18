@@ -24,7 +24,6 @@ vi.mock("@/hooks/useConnections", () => ({
   useConnections: () => ({ credentials: undefined, items: null }),
 }));
 
-import { ViewBar } from "@/components/ViewBar";
 import { AssetsRoute } from "@/routes/AssetsRoute";
 
 function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
@@ -163,7 +162,7 @@ function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, sites?: Sit
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
         <Routes>
-          <Route path="/assets" element={<>{controls ? <><ViewBar /><PathProbe /></> : null}<AssetsRoute /></>} />
+          <Route path="/assets" element={<>{controls ? <PathProbe /> : null}<AssetsRoute /></>} />
           <Route path="/assets/*" element={<p>Asset page</p>} />
         </Routes>
       </MemoryRouter>
@@ -499,34 +498,27 @@ function PathProbe() {
   return <output data-testid="portfolio-path">{location.pathname}{location.search}{location.hash}</output>;
 }
 
-function pickView(name: string) {
-  fireEvent.click(within(screen.getByRole("group", { name: "View" })).getByRole("button", { name }));
-}
-
 function comparisonColumns(container: HTMLElement): string[] {
   return [...container.querySelectorAll('[role="columnheader"][data-portfolio-column]')].map((cell) => cell.getAttribute("data-portfolio-column")!);
 }
 
-describe("Portfolio purpose views", () => {
-  it("compares actual people, money and source evidence in different priorities", () => {
-    const { container } = renderAssets("/assets", [ASSETS[2]!, ASSETS[1]!, ASSETS[0]!], undefined, true);
-    pickView("Growth");
-    expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example"]);
-    expect(comparisonColumns(container)).toEqual(["people", "revenue", "share", "sources"]);
-    pickView("Revenue");
-    expect(pressed("Order")).toEqual(["Money"]);
-    expect(comparisonColumns(container)).toEqual(["revenue", "share", "people", "sources"]);
-    pickView("Reliability");
-    expect(pressed("Order")).toEqual(["Needs attention"]);
-    expect(comparisonColumns(container)).toEqual(["sources", "people", "revenue", "share"]);
-    expect(screen.getByTestId("portfolio-path")).toHaveTextContent("/assets");
+describe("Portfolio reports", () => {
+  it("combines measured channel shares and keeps an opportunity actionable", () => {
+    const channel = (sessions: number, direct: number) => ({ windowStart: "2026-07-04", windowEnd: "2026-07-31", rows: [
+      { channel: "Organic Search", sessions, share: sessions / (sessions + direct) },
+      { channel: "Direct", sessions: direct, share: direct / (sessions + direct) },
+    ] });
+    const { container } = renderAssets("/assets", [
+      { ...ASSETS[0]!, channels: channel(30, 10), findings: [{ key: "concentration-risk", title: "Diversify search referrals", kind: "opportunity" }] },
+      { ...ASSETS[1]!, channels: channel(45, 15) },
+    ]);
+    expect(container.querySelector('[data-channel="Organic Search"]')).toHaveAttribute("data-channel-share", "0.7500");
+    expect(container.querySelector('[data-channel="Direct"]')).toHaveAttribute("data-channel-share", "0.2500");
+    expect(screen.getByRole("button", { name: "Make a task for Diversify search referrals" })).toBeInTheDocument();
   });
 
-  it("retains filters, unrelated query state, and an explicit saved order across view changes", () => {
+  it("retains filters, unrelated query state, and an explicit saved order when clearing filters", () => {
     const { container } = renderAssets("/assets?status=live&health=at-risk&sort=seed&range=7#comparison", ASSETS, undefined, true);
-    pickView("Growth");
-    pickView("Revenue");
-    pickView("Reliability");
     expect(shown(container)).toEqual(["northwind.example"]);
     expect(pressed("Order")).toEqual(["Your order"]);
     expect(screen.getByRole("combobox", { name: "Stage" })).toHaveValue("live");
@@ -536,21 +528,18 @@ describe("Portfolio purpose views", () => {
     expect(shown(container)).toEqual(ASSETS.map((asset) => asset.id));
   });
 
-  it("records an explicit Your order press so a later purpose cannot replace it", () => {
+  it("records an explicit Your order press in the address", () => {
     const { container } = renderAssets("/assets", [ASSETS[2]!, ASSETS[0]!, ASSETS[1]!], undefined, true);
-    pickView("Growth");
     fireEvent.click(within(screen.getByRole("group", { name: "Order" })).getByRole("button", { name: "Your order" }));
     expect(screen.getByTestId("portfolio-path")).toHaveTextContent("sort=seed");
-    pickView("Reliability");
     expect(shown(container)).toEqual(["acorn.example", "meadow.example", "northwind.example"]);
   });
 
   it("compares measured delivery counts and leaves unmeasured work unknown", () => {
     const work = { open: 4, highPriority: null, inProgress: 2, blocked: 3, closedRecent: 5, priorities: null, capturedAt: "2026-08-01T11:00:00Z" };
     const { container } = renderAssets("/assets", [ASSETS[2]!, { ...ASSETS[0]!, work }], undefined, true);
-    pickView("Delivery");
-    expect(shown(container)).toEqual(["meadow.example", "acorn.example"]);
-    expect(comparisonColumns(container)[0]).toBe("work");
+    expect(shown(container)).toEqual(["acorn.example", "meadow.example"]);
+    expect(comparisonColumns(container)).toEqual(["people", "revenue", "share", "sources", "work"]);
     expect(row(container, "meadow.example")).toHaveTextContent("2 in progress");
     expect(row(container, "meadow.example")).toHaveTextContent("3 blocked · 5 done this week");
     expect(row(container, "acorn.example")).toHaveTextContent("not measured");

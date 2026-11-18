@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { sitePath } from "@shared/first-run";
+import { tabPath } from "@/routes/asset-detail/AssetTabs";
 import type { AssetCard } from "@shared/wall";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -91,7 +91,7 @@ export function HealthModule({ cards, issues, nowMs = null }: { cards: readonly 
             const problem = health.key === "trouble" || health.key === "watch";
             return (
               <li key={card.id} className={cn(ROW, "gap-y-1 border-t border-border/60 py-2")} data-site-health-row={card.id} data-tech-health={health.key}>
-                <Link to={sitePath(card)} className={cn(NAME_CELL, "flex min-w-0 items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline")}>
+                <Link to={tabPath(card.id, "health")} className={cn(NAME_CELL, "flex min-w-0 items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline")}>
                   <PropertyFavicon domain={card.id} icons={card.icons} displayName={card.displayName} />
                   <span className="min-w-0 break-words">{card.displayName}</span>
                 </Link>

@@ -8,7 +8,6 @@ import {
   type FinancialsPayload,
   type RecurringCost,
 } from "@shared/financials";
-import { OperatingViewChoice } from "./operating-view-choice";
 
 // The month is a URL, the page opens on the latest one holding rows, and the
 // header says so when that is not this month.
@@ -130,14 +129,13 @@ function renderRefusal(error: unknown, entry: string) {
  * watch the financials read being thrown away after a save. */
 let client: QueryClient;
 
-function renderPage(data: FinancialsPayload | undefined, entry = "/financials", chooseView = false) {
+function renderPage(data: FinancialsPayload | undefined, entry = "/financials") {
   state.data = data;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[entry]}>
         <FinancialsRoute />
-        {chooseView ? <OperatingViewChoice /> : null}
         <Location />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -853,6 +851,7 @@ describe("/financials — the first screen answers the whole question", () => {
 
     const panels = [...container.querySelectorAll("[data-panel]")];
     expect(panels.map((panel) => panel.getAttribute("data-panel"))).toEqual([
+      "coverage",
       "months",
       "costs",
     ]);
@@ -1912,25 +1911,19 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
 });
 
 describe("/financials — New price", () => {
-  it("retains the accounting month, totals, open cost panel and price draft across purposes", async () => {
+  it("keeps the month’s reporting coverage alongside the existing price editor", async () => {
     stubLane();
-    const { container } = renderPage(withCosts(), "/financials?period=2026-08", true);
+    const { container } = renderPage(withCosts(), "/financials?period=2026-08");
+    const net = container.querySelector("[data-money-net]")?.textContent;
+    const coverage = container.querySelector<HTMLElement>('[data-panel="coverage"]')!;
+    fireEvent.click(within(coverage).getByRole("button"));
+    expect(coverage).toHaveTextContent("Revenue reports");
+    expect(coverage).toHaveTextContent("missing");
     const form = await openPrice();
     fillPrice(form);
-    const net = container.querySelector("[data-money-net]")?.textContent;
-    for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
-      fireEvent.click(screen.getByRole("button", { name: `Choose ${view}` }));
-      expect(picker()).toHaveValue("2026-08");
-      expect(screen.getByTestId("search")).toHaveTextContent("?period=2026-08");
-      expect(container.querySelector("[data-money-net]")?.textContent).toBe(net);
-      expect(screen.getByRole("dialog", { name: "New price · Claude Code (Max)" })).toBe(form);
-      expect(within(form).getByLabelText("USD / month")).toHaveValue(250);
-      expect(within(form).getByLabelText("First month")).toHaveValue("2026-10");
-      if (view === "growth") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Revenue increasing");
-      if (view === "revenue") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Positive asset net");
-      if (view === "delivery") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Metered cost groups");
-      if (view === "reliability") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Missing revenue reports");
-    }
+    expect(picker()).toHaveValue("2026-08");
+    expect(container.querySelector("[data-money-net]")?.textContent).toBe(net);
+    expect(within(form).getByLabelText("USD / month")).toHaveValue(250);
   });
   async function openPrice() {
     const table = editor("recurring-costs");

@@ -1,6 +1,6 @@
 ---
 title: "Settings"
-description: "The portfolio-wide settings: your view, the time zone, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
+description: "The portfolio-wide settings: the time zone, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
 ---
 
 # Settings
@@ -12,14 +12,6 @@ The Settings page shows the settings that apply to the whole installation, and w
 Tabs across the top, the same as on an asset's page, open on **General**. Each tab has its own address (`/settings/alert-rules`, `/settings/task-projects`), so a link opens it; an older link such as `/settings#task-hub` still opens its tab. Assets have their own Settings tab; this page holds the settings that apply to all of them.
 
 ### General
-
-The shortcuts above the settings tabs follow the current purpose: Growth links to collection and alert rules; Revenue to budget, ownership and clock; Delivery to task projects and budget; Reliability to alert rules, collection and available installation settings. Switching purpose preserves the current tab and any draft fields.
-
-**Your view** offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**, matching the global **View** bar. It changes each page's emphasis and context while keeping navigation, asset tabs and feature access stable. The choice changes nothing another person sees. A hosted workspace keeps it per person across signed-in devices; a standalone installation and the demo keep it in this browser.
-
-**At the top of Home** lists optional saved Home picks in order, such as **Money · Costs**, or **Nothing picked**. Each pick promotes a matching module when your view includes it. These advanced preferences are separate from the purpose choice.
-
-**Workspace default · for new people** shows the initial view for someone who has not chosen one: the saved purpose, or **Overview** when none is saved. It is stored in `config/tower.json` at `/view` and changes only through an explicit workspace save. The Wall uses its own layout, independent of this setting.
 
 **Time zone.** Every daily figure is calculated in one zone, including which date is yesterday's revenue and which month is current. Your device's zone is first in the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.
 
@@ -67,9 +59,6 @@ Shown only when this installation manages members: where people are invited to t
 
 ## What you can do
 
-- **Your view**: choosing a view saves it at once, with **Saved · Undo** beside the choices. **Undo** puts back your previous view; when you had not chosen one before, it removes your choice and the workspace default applies again.
-- **At the top of Home**: **Change** shows the five picks, **Money**, **Visitors**, **Asset health**, **The agents' work** and **Costs**. Each press adds or removes one pick and saves it, with **Saved · Undo**. **Done** hides the picks.
-- **Workspace default**: **Change** shows the five purpose views. Pressing one saves it for the whole workspace, with **Saved · Undo** beside the row. **Cancel** hides the views.
 - **Time zone**: picking a zone saves it, with **Saved · Undo** beside the field.
 - **Monthly data cap** and **Value of your time** have an explicit **Save**; they are never saved automatically.
 - **Alert rules**: change the three thresholds after reading the replay.
@@ -94,7 +83,6 @@ Shown only when this installation manages members: where people are invited to t
 - **Last good backup** shows **never** before the first completed backup. **Failed** is amber after one scheduled backup fails and red after two, and clears when a backup completes.
 - **Folder** shows the apply command, with **Apply the current settings to show the folder and ports here.**, while the app runs without the current stack settings.
 - When saves are paused the page shows a notice once at the top and every field shows a lock.
-- When saves are paused, **Workspace default** shows a lock and no **Change**. **Your view** and **At the top of Home** still save, because they are stored in this browser.
 
 ## Related guides
 

@@ -1,5 +1,5 @@
 import { Activity, Cable, Check, Plus } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRunStepKey } from "@shared/first-run";
@@ -8,7 +8,6 @@ import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { actorKey, actorName } from "@shared/tasks";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { HomeModuleId, ViewId } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -19,7 +18,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
-import { TaskComposer, type TaskComposerPrefill } from "@/components/TaskComposer";
 import { SeverityDot } from "@/components/SeverityDot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,7 +39,6 @@ import { ExecutiveBrief } from '@/routes/home/ExecutiveBrief';
 import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useTasksLive } from "@/hooks/useTasks";
-import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { formatInt, formatSeriesDate, formatUsd } from "@/lib/format";
 import { AGENTS_ROUTE } from "@/components/nav-items";
@@ -57,20 +54,13 @@ import { completeDays } from "@/lib/wall-sites";
 import { type WallIssue } from "@/lib/wall-issues";
 import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
-import { OverviewNumbers, overviewMeasuresForView } from "@/routes/asset-detail/OverviewNumbers";
+import { OverviewNumbers, overviewMeasuresForSite } from "@/routes/asset-detail/OverviewNumbers";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { ClockProposal } from "@/routes/home/ClockProposal";
-import { ChannelsModule } from "@/routes/home/ChannelsModule";
-import { FactoryModule } from "@/routes/home/FactoryModule";
-import { GapsModule } from "@/routes/home/GapsModule";
-import { HealthModule } from "@/routes/home/HealthModule";
-import { HomeModules } from "@/routes/home/modules";
-import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
 
-/** Home draws the selected purpose's observed summary and ordered modules.
- * A fresh installation shows the steps to its first collected reading. */
+/** A fresh workspace shows setup until a site reports its first measurement. */
 export function HomeRoute() {
   const watch = useBrowserRuntime().owner.mode !== "hosted";
   const wall = useWall();
@@ -129,24 +119,15 @@ function Board({ data, feed, connections, work, nowMs, watch }: {
   data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads;
   work: Pick<ReturnType<typeof useWork>, "data" | "isError">; nowMs: number; watch: boolean;
 }) {
-  const { modules, view } = useView();
   const brief = usePortfolioBrief();
-  // A task draft belongs to Home, so changing its purpose keeps the form open.
-  const [taskDraft, setTaskDraft] = useState<TaskComposerPrefill | null>(null);
   const location = useLocation();
   const linkedModule = location.hash === "#home-problems" ? "problems" : location.hash === "#home-timeline" ? "timeline" : null;
-  // A summary link can reveal a section omitted by the saved view without
-  // changing the person's preferences.
-  const shownModules: HomeModuleId[] = linkedModule && !modules.includes(linkedModule) ? [...modules, linkedModule] : modules;
   useEffect(() => {
     if (!linkedModule) return;
     const target = document.getElementById(location.hash.slice(1));
     target?.scrollIntoView({ block: "start" });
     target?.focus({ preventScroll: true });
   }, [linkedModule, location.hash, location.key]);
-  // Overview keeps its twelve-column grid; every other view stacks its
-  // modules in columns, each at its own content's height.
-  const stacks = view.id !== "overview";
   const issues = portfolioIssues({ assets: data.assets, attention: data.attention, connections, system: data.system, nowMs });
   const money = homeMoney(data.portfolio, data.assets);
   // The site rows (the sites compared and the day's lanes)
@@ -172,59 +153,6 @@ function Board({ data, feed, connections, work, nowMs, watch }: {
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
   for (const issue of issues) for (const condition of issue.conditions) conditions.add(condition);
 
-  const visitorsInOverview = modules.includes("yesterday");
-  const draw: Record<HomeModuleId, () => ReactNode> = {
-    money: () => money || !visitorsInOverview ? (
-      <div className={cn("@3xl:col-span-2", stacks ? "@6xl:col-span-8" : "@6xl:col-span-12")} data-surface-hero="">
-        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs, data.osTimeZone)} wordLevel={view.wordLevel} assetSharesInTable={shownModules.includes("sites") && money.bySite.every(site => listed.some(asset => asset.id === site.id))} /> : <PeopleLead assets={data.assets} />}
-      </div>
-    ) : null,
-    yesterday: () => (
-      <div className="min-w-0" data-home-visitors="">
-        <VisitorsLast28Days assets={data.assets} />
-      </div>
-    ),
-    problems: () => (
-      <IncidentList
-        id="home-problems"
-        tabIndex={-1}
-        className="scroll-mt-6 outline-none"
-        items={incidentsFromIssues(issues, { to: (issue) => issueDestination(issue, data.assets) })}
-        nowMs={nowMs}
-        marker={since}
-        compact={linkedModule !== "problems"}
-        action={{ label: "All alerts →", to: "/alerts" }}
-        empty="Nothing is broken."
-      />
-    ),
-    decide: () => <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />,
-    agents: () => <AgentsLine work={work.data} failed={work.isError} nowMs={nowMs} />,
-    sites: () => (
-      <div className="@3xl:col-span-2 @6xl:col-span-12" data-home-sites="">
-        {oneSite ? <OneSiteLead site={oneSite} connections={connections} view={view.id} nowMs={nowMs} watch={watch} />
-          : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
-      </div>
-    ),
-    health: () => <HealthModule cards={listed} issues={issues} nowMs={nowMs} />,
-    factory: () => <FactoryModule cards={listed} work={work.data ?? null} nowMs={nowMs} />,
-    channels: () => <ChannelsModule cards={listed} />,
-    gaps: () => <GapsModule cards={listed} onFileTask={setTaskDraft} />,
-    timeline: () => (
-      <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-inset ring-border @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
-        <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
-        <EventTimeline
-          lanes={timeline.lanes}
-          spans={timeline.spans}
-          events={timeline.events}
-          window={{ from: new Date(nowMs - DAY_MS).toISOString(), to: new Date(nowMs).toISOString() }}
-          nowMs={nowMs}
-          marker={since ? { at: since, label: `Since ${sinceClock(since, nowMs)}` } : undefined}
-          ariaLabel="What happened in the last 24 hours"
-        />
-      </section>
-    ),
-  };
-
   return (
     // Laid out by its own width, not the window's: the sidebar, a portrait
     // monitor or a narrow window all leave Home less than the viewport, and
@@ -232,13 +160,51 @@ function Board({ data, feed, connections, work, nowMs, watch }: {
     <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
       <ExecutiveBrief read={brief.data} readFailed={brief.isError} assets={data.assets}
         refresh={{ run: () => brief.refresh(), pending: brief.isRefreshing, error: brief.refreshError, notice: brief.refreshNotice }} />
-      <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
-      {taskDraft ? <TaskComposer open prefill={taskDraft} onClose={() => setTaskDraft(null)} /> : null}
+      <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0" data-home-layout="grid">
+        {money ? (
+          <div className="@3xl:col-span-2 @6xl:col-span-12" data-surface-hero="">
+            <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs, data.osTimeZone)}
+              assetSharesInTable={money.bySite.every(site => listed.some(asset => asset.id === site.id))} />
+          </div>
+        ) : null}
+        <div className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-12 [&>*]:min-w-0" data-home-overview="">
+          <div className="min-w-0" data-home-visitors=""><VisitorsLast28Days assets={data.assets} /></div>
+          <AgentsLine work={work.data} failed={work.isError} nowMs={nowMs} />
+          <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />
+          <IncidentList
+            id="home-problems"
+            tabIndex={-1}
+            className="scroll-mt-6 outline-none"
+            items={incidentsFromIssues(issues, { to: (issue) => issueDestination(issue, data.assets) })}
+            nowMs={nowMs}
+            marker={since}
+            compact={linkedModule !== "problems"}
+            action={{ label: "All alerts →", to: "/alerts" }}
+            empty="Nothing is broken."
+          />
+        </div>
+        <div className="@3xl:col-span-2 @6xl:col-span-12" data-home-sites="">
+          {oneSite ? <OneSiteLead site={oneSite} connections={connections} nowMs={nowMs} watch={watch} />
+            : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
+        </div>
+        <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-inset ring-border @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+          <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
+          <EventTimeline
+            lanes={timeline.lanes}
+            spans={timeline.spans}
+            events={timeline.events}
+            window={{ from: new Date(nowMs - DAY_MS).toISOString(), to: new Date(nowMs).toISOString() }}
+            nowMs={nowMs}
+            marker={since ? { at: since, label: `Since ${sinceClock(since, nowMs)}` } : undefined}
+            ariaLabel="What happened in the last 24 hours"
+          />
+        </section>
+      </div>
     </div>
   );
 }
 
-function VisitorsLast28Days({ assets, display = false }: { assets: readonly AssetCard[]; display?: boolean }) {
+function VisitorsLast28Days({ assets }: { assets: readonly AssetCard[] }) {
   const people = peopleInLast28Days(assets);
   const reported = people?.series.filter((point) => point.v !== null) ?? [];
   const usual = reported.length >= 3 ? reported.reduce((sum, day) => sum + (day.v ?? 0), 0) / reported.length : null;
@@ -249,7 +215,7 @@ function VisitorsLast28Days({ assets, display = false }: { assets: readonly Asse
       absent="nothing reported yet"
       format={formatInt}
       role="people"
-      size={display ? "display" : "figure"}
+      size="figure"
       to="/assets"
       history={people && people.series.length >= 3 ? (
         <BarStrip contributors={people.contributors} partial={people.partial} data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last 28 days" className="h-20" />
@@ -257,11 +223,6 @@ function VisitorsLast28Days({ assets, display = false }: { assets: readonly Asse
       context={people ? <>as of <b>{formatSeriesDate(people.date)}</b>{reported.length < DEFAULT_RANGE_DAYS ? ` · ${reported.length} of ${DEFAULT_RANGE_DAYS} days reported` : people.partial.length > 0 ? " · some assets have missing days" : null}</> : null}
     />
   );
-}
-
-/** With no revenue source anywhere, people lead: no money figure nobody counted. */
-function PeopleLead({ assets }: { assets: readonly AssetCard[] }) {
-  return <VisitorsLast28Days assets={assets} display />;
 }
 
 /** The sites compared: health, people a day, yesterday's money and its
@@ -457,8 +418,8 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
  * through the same view the Overview reads (so opening the site is instant),
  * over the default 28 days.
  */
-function OneSiteLead({ site, connections, view, nowMs, watch }: {
-  site: AssetCard; connections: ConnectionReads; view: ViewId; nowMs: number; watch: boolean;
+function OneSiteLead({ site, connections, nowMs, watch }: {
+  site: AssetCard; connections: ConnectionReads; nowMs: number; watch: boolean;
 }) {
   const { data } = useAssetDetail(site.id, "overview", { watch });
   const to = `/assets/${encodeURIComponent(site.id)}`;
@@ -479,7 +440,7 @@ function OneSiteLead({ site, connections, view, nowMs, watch }: {
       {data && viewCovers(data, "overview") ? (
         <>
           <div className="mb-3 flex flex-wrap items-center justify-end gap-2">{aside}</div>
-          <OneSiteNumbers data={data} connections={connections} view={view} nowMs={nowMs} />
+          <OneSiteNumbers data={data} connections={connections} nowMs={nowMs} />
         </>
       ) : (
         // Until the site's read arrives: the site itself, in the place its
@@ -492,10 +453,10 @@ function OneSiteLead({ site, connections, view, nowMs, watch }: {
   );
 }
 
-function OneSiteNumbers({ data, connections, view, nowMs }: {
-  data: AssetDetailFor<"overview">; connections: ConnectionReads; view: ViewId; nowMs: number;
+function OneSiteNumbers({ data, connections, nowMs }: {
+  data: AssetDetailFor<"overview">; connections: ConnectionReads; nowMs: number;
 }) {
-  const measures = overviewMeasuresForView(data, DEFAULT_RANGE_DAYS, nowMs, connections, view);
+  const measures = overviewMeasuresForSite(data, DEFAULT_RANGE_DAYS, nowMs, connections);
   const report = siteLead(data, DEFAULT_RANGE_DAYS, nowMs);
   const usesStandaloneChart = report.kind === "clarity" || report.kind === "rankings";
   return <>
@@ -525,9 +486,7 @@ const FIRST_RUN_ICON: Record<FirstRunStepKey, typeof Plus> = {
   number: Activity,
 };
 
-/** What a stranger sees on a fresh install: one sentence saying what this
- * thing does, the purpose choice until the person answers it, and the
- * three steps to a first site. */
+/** The current setup step follows the newest site until it reports a measurement. */
 export function FirstRun({
   steps = firstRunSteps(null, []),
   footer,
@@ -543,7 +502,6 @@ export function FirstRun({
         <h2 className="m-0 text-base font-semibold text-foreground">
           Your assets’ traffic, money and open work, in one place
         </h2>
-        <ViewQuestions />
         <ol className="grid gap-3 md:grid-cols-3">
           {steps.map((step, index) => {
             const Icon = step.state === "done" ? Check : FIRST_RUN_ICON[step.key];

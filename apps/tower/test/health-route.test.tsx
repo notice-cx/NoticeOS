@@ -10,10 +10,10 @@ import type {
   IntegrationsMatrix,
 } from "@shared/integrations";
 import { emptyIntegrationsHistory, summarize } from "@shared/integrations";
+import type { AssetCard } from '@shared/wall';
 import { integrationProvider } from "@noticeos/contract";
-import { OperatingViewChoice } from "./operating-view-choice";
 
-afterEach(() => window.localStorage.clear());
+afterEach(() => { window.localStorage.clear(); state.assets = []; });
 
 // /health opens on what to unblock next; the matrix is the audit view
 // underneath, and it reads in layers: the OS's own connection, then provider
@@ -22,6 +22,7 @@ afterEach(() => window.localStorage.clear());
 
 const state = vi.hoisted(() => ({
   data: null as IntegrationsMatrix | null,
+  assets: [] as AssetCard[],
   /** The credential summaries this page also reads, so it can say which
    * providers are still on the environment file. */
   providers: null as { providers: { provider: unknown; credential: Record<string, unknown> }[] } | null,
@@ -30,7 +31,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => ({ data: undefined, isError: false }) }));
 // System health names the OS's own problems from the Wall's read; these cases
 // are about the workflow and connection reads, so the Wall has none.
-vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: undefined, isError: false }) }));
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: { assets: state.assets, attention: [] }, isError: false }) }));
 vi.mock('@/hooks/useGa4Realtime', () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useIntegrations", () => ({
   useIntegrations: () => ({ data: state.data, isPending: false, isError: false }),
@@ -143,7 +144,6 @@ function renderHealth(over: Partial<IntegrationsMatrix>) {
 function renderRoute(
   data: IntegrationsMatrix,
   providers: [string, string][] | null = null,
-  chooseView = false,
 ) {
   state.data = data;
   state.providers =
@@ -161,32 +161,22 @@ function renderRoute(
   return render(
     <MemoryRouter>
       <HealthRoute />
-      {chooseView ? <OperatingViewChoice /> : null}
     </MemoryRouter>,
   );
 }
 
-it("changes applicable source coverage without losing critical wiring or the open audit matrix", () => {
-  const data = matrix({
+it("links measured asset health from System health while keeping source evidence accessible", () => {
+  state.assets = [{ id: "meadow.example", displayName: "Meadow Board", status: "live", dataSources: [], pulseReceivedAt: null,
+    searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
+  } as unknown as AssetCard];
+  const { container } = renderRoute(matrix({
     "meadow.example": [cell("meadow.example", "gsc", "needs-setup"), cell("meadow.example", "uptime", "degraded")],
-    "northwind.example": [cell("northwind.example", "gsc", "not-applicable"), cell("northwind.example", "uptime", "not-applicable")],
-  }, [], [lane("uptime", "Uptime", "per-property", "property")]);
-  const { container } = renderRoute(data, null, true);
+  }, [], [lane("uptime", "Uptime", "per-property", "property")]));
+  expect(screen.getByRole("link", { name: "Meadow Board" })).toHaveAttribute("href", "/assets/meadow.example/health");
   const audit = openPanel("audit");
-  const allSources = audit.textContent;
-  fireEvent.click(screen.getByRole("button", { name: "Choose growth" }));
-  const growth = container.querySelector("[data-health-view]")!;
-  expect(growth).toHaveTextContent("Acquisition and conversion inputs");
-  expect(growth).toHaveTextContent("Search Console");
-  expect(growth).not.toHaveTextContent("Uptime");
-  fireEvent.click(screen.getByRole("button", { name: "Choose reliability" }));
-  const reliability = container.querySelector("[data-health-view]")!;
-  expect(reliability).toHaveTextContent("Availability and freshness inputs");
-  expect(reliability).toHaveTextContent("Uptime");
-  expect(audit).toHaveAttribute("data-panel-open");
-  expect(audit.textContent).toBe(allSources);
-  expect(container.querySelector('[data-panel="audit"]')).toBe(audit);
-  window.localStorage.clear();
+  expect(audit).toHaveTextContent("Uptime");
+  expect(audit).toHaveTextContent("Search Console");
+  expect(container.querySelector("[data-site-health-row='meadow.example']")).toHaveAttribute("data-tech-health", "unknown");
 });
 
 /**

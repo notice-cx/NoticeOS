@@ -478,63 +478,13 @@ FLOWS["file-task-from-finding"] = {
   },
 };
 
-/** The persistent purpose control uses a compact picker on a phone. */
-async function chooseGlobalView(w, label) {
-  const bar = w.page.locator("[data-view-bar]");
-  if (w.mobile) {
-    await w.click(bar.getByRole("button", { name: /^View:/ }), "View", { role: "choose" });
-    await w.click(w.page.getByRole("group", { name: "Views", exact: true }).getByRole("button", { name: new RegExp(`^${label}`) }), label, { role: "choose" });
-  } else {
-    await w.click(bar.getByRole("button", { name: label, exact: true }), label, { role: "choose" });
-  }
-}
-
-/** The optional first-run prompt saves one personal purpose choice. */
-FLOWS["choose-view"] = {
-  title: "Choose a view on the first run",
-  kind: "flow",
-  countStart: true,
-  async setup(page) { await page.goto("/"); },
-  async run(w) {
-    await w.click(w.page.locator('[data-view-choice="reliability"]'), "Reliability", { role: "choose" });
-    await w.waitFor("Reliability → prompt dismissed", () => w.page.locator("[data-view-choice]").first().waitFor({ state: "detached", timeout: 15_000 }));
-    await w.end("view chosen");
-  },
-};
-
-FLOWS["switch-view"] = {
-  title: "Switch the view on the current page",
-  kind: "flow",
-  countStart: false,
-  async setup(page) { await seedAsset(page); await page.goto("/assets"); },
-  async run(w) {
-    await chooseGlobalView(w, "Growth");
-    await w.waitFor("Growth → current page updated", () => settle(w.page));
-    await chooseGlobalView(w, "Overview");
-    await w.end("Overview restored");
-  },
-};
-
-async function chooseViewInSettings(w, view, label) {
-  await nav(w, "Settings");
-  const panel = w.page.locator("[data-settings-view]");
-  await w.click(panel.locator(`[data-view-option="${view}"]`), label, { role: "choose" });
-  await w.waitFor(`${label} → saved`, () => settle(w.page));
-}
-
-/** Reliability Home's asset rows open the asset. Each Health card expands
- * its readings in place. */
 FLOWS["read-site-health"] = {
-  title: "Read an asset's health, in Reliability",
+  title: "Read the checks behind an asset’s health",
   kind: "flow",
   countStart: false,
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
   async run(w) {
-    await chooseViewInSettings(w, "reliability", "Reliability");
-    await nav(w, "Home");
-    const row = w.page.locator(`[data-site-health-row="${ASSET}"]`);
-    await w.click(row.getByRole("link").first(), "Asset health · Journey Example", { role: "nav" });
-    await settle(w.page);
+    await openAsset(w);
     await assetTab(w, "Health");
     await w.click(w.page.locator('[data-health-fact="code"]'), "Code readings", { role: "choose" });
     await w.waitFor("Code → readings", () => w.page.locator('[data-health-evidence="code"]').waitFor({ timeout: 10_000 }));
@@ -542,11 +492,8 @@ FLOWS["read-site-health"] = {
   },
 };
 
-/** Growth Home: the month's money split by site, visitors by
- * channel beside the largest funnel drop, and "Worth a look", whose rows
- * each file a task through the same composer a finding uses. */
-FLOWS["see-money-sources"] = {
-  title: "See where the money comes from, in Growth",
+FLOWS["file-portfolio-opportunity"] = {
+  title: "File a task from a portfolio opportunity",
   kind: "flow",
   countStart: false,
   async setup(page, fixture) {
@@ -556,9 +503,7 @@ FLOWS["see-money-sources"] = {
     await page.goto("/");
   },
   async run(w) {
-    await chooseViewInSettings(w, "growth", "Growth");
-    await nav(w, "Home");
-    await w.page.locator("[data-home-channels]").waitFor({ timeout: 15_000 });
+    await nav(w, "Portfolio");
     const gaps = w.page.locator("[data-home-gaps]");
     await w.click(gaps.locator("[data-file-task]").first(), "Make a task", { role: "choose" });
     const form = w.page.locator("[data-task-composer]");

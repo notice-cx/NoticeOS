@@ -3784,73 +3784,14 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   expect(await live.locator('[data-live-count]').boundingBox()).toEqual(before);
 });
 
-// The shared fixture supplies every read; changing purpose stays a personal
-// presentation preference and never changes the stored TV document.
-test("global purpose switching preserves routes, filters and asset tabs while the Wall stays separate", { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
+test("an asset bookmark opens its selected report with legacy workspace preferences", { tag: PR_SMOKE }, async ({ page }) => {
   await addAssetByApi(page);
-  expect((await request.post("/__journey/task-source")).ok()).toBe(true);
-  expect((await request.post("/__journey/tasks-snapshot")).ok()).toBe(true);
-  // The Agents page reads its statistics from the installation's Ntasks.
-  expect((await request.post("/__journey/ntasks")).ok()).toBe(true);
-  const documentsBefore = (await (await request.get("/__journey/status")).json()).documents;
-  const wallBefore = documentsBefore["config/tower.json"]?.wall ?? null;
-  const workspaceBefore = documentsBefore["config/tower.json"]?.view ?? null;
-  const phone = testInfo.project.name === "mobile";
-  async function choose(label: string) {
-    const bar = page.locator("[data-view-bar]");
-    await expect(bar).toBeVisible();
-    if (phone) {
-      await bar.getByRole("button", { name: /^View:/ }).click();
-      await page.getByRole("group", { name: "Views", exact: true }).getByRole("button", { name: new RegExp(`^${label}`) }).click();
-      await expect(bar.getByRole("button", { name: `View: ${label}`, exact: true })).toBeVisible();
-    } else {
-      await bar.getByRole("button", { name: label, exact: true }).click();
-      await expect(bar.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
-    }
-  }
-
-  // The Tasks pages keep their address, filters and all, under every purpose.
-  for (const taskUrl of [`/tasks?view=active&project=${JOURNEY_ASSET}`, "/tasks/jt-review"]) {
-    await page.goto(taskUrl);
-    for (const purpose of ["Growth", "Delivery", "Overview"]) {
-      await choose(purpose);
-      expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(taskUrl);
-      await assertNoPageOverflow(page);
-    }
-  }
-
+  await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   const tabs = page.locator('main [role="tablist"]').first();
   await expect(tabs.getByRole("tab", { name: "Search", exact: true })).toHaveAttribute("aria-selected", "true");
-  const tabPaths = () => tabs.getByRole("tab").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
-  const pathsBefore = await tabPaths();
-  await choose("Reliability");
-  await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replaceAll(".", "\\.")}/search$`));
-  expect(await tabPaths()).toEqual(pathsBefore);
-  await choose("Growth");
-  expect(await tabPaths()).toEqual(pathsBefore);
-
-  await page.goto('/agents');
-  const agents = page.locator('[data-agents-page]');
-  await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
-  for (const purpose of ['Revenue', 'Delivery', 'Reliability']) {
-    await choose(purpose);
-    await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
-    await assertNoPageOverflow(page);
-  }
-  await page.evaluate(() => document.fonts.ready);
-  await testInfo.attach('agents-reliability', { body: await page.screenshot({ fullPage: true, animations: 'disabled' }), contentType: 'image/png' });
-
-  await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
-  await page.goto("/wall?view=business");
-  await expect(page.locator("[data-wall-canvas]")).toBeVisible();
-  await expect(page.locator("[data-view-bar], [data-demo-view-switch]")).toHaveCount(0);
-  await expect(page.locator('[data-wall-slot="channels"]')).toHaveCount(1);
-  await expect(page.locator('[data-wall-slot="health"]')).toHaveCount(0);
-  await page.goto("/wall/edit");
-  await expect(page.getByRole("heading", { name: /TV layout|Wall layout/ })).toBeVisible();
-  await expect(page.locator("[data-view-bar]")).toHaveCount(0);
-  const after = (await (await request.get("/__journey/status")).json()).documents["config/tower.json"];
-  expect(after?.wall ?? null).toEqual(wallBefore);
-  expect(after?.view ?? null).toEqual(workspaceBefore);
+  await tabs.getByRole("tab", { name: "Journeys", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp("/journeys$"));
+  await expect(tabs.getByRole("tab", { name: "Journeys", exact: true })).toHaveAttribute("aria-selected", "true");
+  await assertNoPageOverflow(page);
 });

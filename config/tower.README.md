@@ -76,31 +76,9 @@ refused by every door that could write one — `pnpm config:apply`, the Worker's
 the validator's own sentence, and fails the build if it lands by any other
 route.
 
-## Default view — `null` until explicitly saved
+## Legacy view preference
 
-`view` holds the initial purpose for a person with no personal choice:
-`{ "default": "overview" | "growth" | "revenue" | "delivery" | "reliability" }`.
-The registry and reader are
-[`packages/contract/src/views.mts`](../packages/contract/src/views.mts), with
-[`apps/tower/shared/views.ts`](../apps/tower/shared/views.ts) as the typed
-re-export. Legacy `business`, `product` and `everything` values remain readable
-and normalize to Overview without changing the stored value until an explicit save.
-
-**`null` or no key means no default has been saved**, so the Tower starts in
-Overview. The shipped file holds `"view": null`; a stored `null` reads as
-absent (`readsAsUnsaved`). The Wall uses its own saved layout or
-`DEFAULT_WALL_LAYOUT`, independently of this setting.
-
-Only **Settings** → **General** → **Workspace default · for new people** writes
-this document. Home onboarding and the global View bar save the person's
-preference without changing it. The explicit workspace save replaces the
-whole value at `/view`, declared in `ADDABLE_DOCUMENTS`
-(`scripts/config-documents.mts`). Every write path checks it with
-`parseWorkspaceView`, which rejects extra keys and unrecognized IDs.
-
-Views change page emphasis, context and supporting details. Navigation,
-asset tabs, collection and measurements stay stable, and each person's
-choice remains independent.
+Existing exports and backups may contain `view.default`. The configuration reader accepts previously saved values. The Tower opens each report at its own address.
 
 ## Where each asset shows — `sites`
 

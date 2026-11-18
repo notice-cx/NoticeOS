@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AlertHistoryRow } from "@shared/alert-history";
 import type { AttentionItem, SnoozedItem, WallPayload } from "@shared/wall";
-import { OperatingViewChoice } from "./operating-view-choice";
 
 const state = vi.hoisted(() => ({
   data: null as WallPayload | null,
@@ -176,14 +175,12 @@ function renderAlerts(
   attention: AttentionItem[],
   url = "/alerts",
   snoozed: SnoozedItem[] = [],
-  chooseView = false,
 ) {
   state.data = payload(attention, snoozed);
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
         <AlertsRoute />
-        {chooseView ? <OperatingViewChoice /> : null}
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -197,28 +194,18 @@ afterEach(() => {
   history.isError = false;
 });
 
-it("changes per-alert evidence while keeping severity, filters and the expanded row", () => {
+it("keeps the alert reading and actions available with explicit filters", () => {
   const { container } = renderAlerts([
     alert({ id: 1, metric: "signups", ruleId: "flow-pct-drop", ruleInputs: { observed: 12, baselinePerDay: 30, minDropFraction: 0.2 } }),
     alert({ id: 2, severity: "error", asset: "acorn.example", assetDisplayName: "Areas" }),
-  ], "/alerts?asset=meadow.example&severity=warn&kind=anomaly", [], true);
-  const headline = answer(container);
+  ], "/alerts?asset=meadow.example&severity=warn&kind=anomaly");
   const row = container.querySelector<HTMLElement>('[data-alert-row="1"]')!;
   fireEvent.click(row.querySelector("button[aria-expanded]")!);
-  for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
-    fireEvent.click(screen.getByRole("button", { name: `Choose ${view}` }));
-    expect(answer(container)).toBe(headline);
-    expect(screen.getByRole("combobox", { name: "Asset" })).toHaveValue("meadow.example");
-    expect(screen.getByRole("combobox", { name: "Severity" })).toHaveValue("warn");
-    expect(screen.getByRole("combobox", { name: "Kind" })).toHaveValue("anomaly");
-    expect(container.querySelector('[data-alert-row="1"]')).toBe(row);
-    expect(row).toHaveAttribute("data-open", "true");
-    expect(container.querySelectorAll("[data-alert-row]")).toHaveLength(1);
-    if (view === "growth") expect(row).toHaveTextContent("Signups in 24 hours: 12");
-    if (view === "revenue") expect(row).toHaveTextContent("Financial impact is unmeasured");
-    if (view === "delivery") expect(row).toHaveTextContent("0 changes recorded before onset");
-    if (view === "reliability") expect(row).toHaveTextContent("Last recorded firing");
-  }
+  expect(screen.getByRole("combobox", { name: "Asset" })).toHaveValue("meadow.example");
+  expect(screen.getByRole("combobox", { name: "Severity" })).toHaveValue("warn");
+  expect(container.querySelectorAll("[data-alert-row]")).toHaveLength(1);
+  expect(row).toHaveTextContent("12");
+  expect(within(row).getByRole("link", { name: "Open Meadow Board" })).toHaveAttribute("href", "/assets/meadow.example");
 });
 
 /** The page's one sentence: how many are open and how bad. */

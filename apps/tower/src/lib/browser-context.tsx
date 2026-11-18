@@ -41,6 +41,12 @@ export function useBackupPreview() { return useContext(BrowserContext)?.backupPr
 /** The existing immutable viewer and hosted synthetic workspace share only
  * presentation restrictions. Server admission remains the write authority. */
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
+export function useCanEditWorkspace() {
+  const { runtime, workspaceRole, backupPreview } = useBrowserContext();
+  const demoReadonly = useDemoReadonly();
+  return !demoReadonly && !backupPreview && (runtime.owner.mode === 'standalone'
+    || (runtime.owner.mode === 'hosted' && (workspaceRole === 'owner' || workspaceRole === 'operator')));
+}
 export function useTowerApi(): TowerApi { return useBrowserRuntime().api; }
 /** Whether the change stream is delivering this page's pushed reads now
  * (`shared/change-topics.ts`); their polling stops while it is. */

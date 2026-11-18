@@ -44,7 +44,7 @@ const connections = vi.hoisted(() => ({
   items: null as unknown[] | null,
 }));
 vi.mock("@/hooks/useConnections", () => ({
-  useConnections: () => ({ credentials: connections.credentials, items: connections.items }),
+  useConnections: () => ({ credentials: connections.credentials, items: connections.items, providers: { data: { keyPresent: true } } }),
 }));
 /** The reads answered: `google` connected and these monitoring items. */
 function googleAnswers(items: { capability: string; state: string }[]) {
@@ -6514,12 +6514,22 @@ describe("the Search tab before any tracked term", () => {
       webSearchImpressions: { google: emptyTrend(), bing: search ? bing(400) : emptyTrend() },
     };
     data.executive = { ...data.executive!, searchQueries: null, searchPages: null, searchIntelligence: null, serpPanel: null };
-    data.integrations = { ...data.integrations, sources: [
+    const template = everyTabPayload().integrations.lanes[0]!;
+    const sources = [
       { id: "gsc", label: "Google Search Console", state: "needs-setup" },
       { id: "bing-webmaster", label: "Bing Webmaster Tools", state: "needs-setup" },
       { id: "dataforseo", label: "DataForSEO search intelligence", state: "needs-setup" },
-    ] };
+    ] as const;
+    data.integrations = { ...data.integrations, sources: [...sources], lanes: sources.map(source => ({
+      ...template, catalog: { ...template.catalog, id: source.id, label: source.label },
+      cell: { ...template.cell, laneId: source.id, effective: source.state, evidence: [], mapped: false },
+    })) };
     return data;
+  }
+
+  function noSearchCredentials() {
+    connections.credentials = new Map(["google", "bing-webmaster", "dataforseo"].map(provider => [provider, { provider, source: "none" }]));
+    connections.items = [];
   }
 
   /** The tab panel's own buttons and links: its actions. */
@@ -6527,8 +6537,7 @@ describe("the Search tab before any tracked term", () => {
     [...panel.querySelectorAll<HTMLElement>("a, button")].filter((node) => !node.closest("[data-hero-chart]") && !node.closest("[role='tooltip']"));
 
   it("shows the asset's clicks and impressions and one step to tracking terms", async () => {
-    connections.credentials = new Map();
-    connections.items = [];
+    noSearchCredentials();
     stubFetch(200, untracked(true));
     const { container } = renderRoute("meadow.example", "", "search");
     await waitFor(() => expect(container.querySelector('[data-search-start="numbers"]')).not.toBeNull());
@@ -6538,23 +6547,33 @@ describe("the Search tab before any tracked term", () => {
     const next = start.querySelector<HTMLElement>("[data-search-next]")!;
     expect(next).toHaveTextContent("Tracked terms");
     expect(within(next).getByRole("link", { name: "Connect DataForSEO" }))
-      .toHaveAttribute("href", "/integrations?connect=dataforseo&asset=meadow.example");
+      .toHaveAttribute("href", "/integrations?connect=dataforseo&asset=meadow.example&fromReport=search");
     expect(within(next).getAllByRole("link")).toHaveLength(1);
     expect(container.textContent).not.toContain("Not rechecked");
   });
 
   it("is one empty state leading to Connect when the asset has no search numbers", async () => {
-    connections.credentials = new Map();
-    connections.items = [];
+    noSearchCredentials();
     stubFetch(200, untracked(false));
     const { container } = renderRoute("meadow.example", "", "search");
     await waitFor(() => expect(container.querySelector('[data-search-start="none"]')).not.toBeNull());
     const start = container.querySelector<HTMLElement>('[data-search-start="none"]')!;
     expect(start).toHaveTextContent("No search numbers yet");
     const connect = within(start).getByRole("link", { name: "Connect Bing Webmaster Tools" });
-    expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meadow.example");
+    expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meadow.example&fromReport=search");
     expect(actions(start)).toEqual([connect]);
     expect(container.querySelector("[data-hero-chart]")).toBeNull();
+  });
+
+  it("keeps a measured zero visible instead of asking to connect search", async () => {
+    noSearchCredentials();
+    const data = untracked(false);
+    data.performance.webSearchClicks.bing = bing(0);
+    stubFetch(200, data);
+    const { container } = renderRoute("meadow.example", "", "search");
+    await waitFor(() => expect(container.querySelector('[data-search-start="numbers"]')).not.toBeNull());
+    expect(container.querySelector('[data-growth-chart="Clicks"]')).toHaveTextContent("0 from search");
+    expect(screen.queryByRole("link", { name: "Connect Bing Webmaster Tools" })).toBeNull();
   });
 });
 

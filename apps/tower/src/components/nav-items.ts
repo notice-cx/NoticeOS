@@ -63,12 +63,12 @@ export const AGENTS_ROUTE = "/agents";
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
-  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs"] },
+  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs", "delivery"] },
   {
     to: ASSETS_ROUTE,
     label: "Portfolio",
     icon: Globe,
-    keywords: ["assets", "sites", "properties", "domains"],
+    keywords: ["assets", "sites", "properties", "domains", "growth", "traffic", "journeys"],
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
@@ -85,7 +85,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "System health",
     icon: HeartPulse,
     // Not "integrations": that word belongs to its own page.
-    keywords: ["sources", "connections", "unblock"],
+    keywords: ["sources", "connections", "unblock", "reliability"],
   },
   {
     to: INTEGRATIONS_ROUTE,
@@ -136,13 +136,7 @@ export const SITES_ARRANGE_ITEM: NavItem = {
 /** Every page the palette can jump to, in the sidebar's order. */
 export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
 
-/** Every core page remains reachable even when its service is unavailable,
- * and in every view. */
+/** Every core page remains reachable even when its service is unavailable. */
 export function shownPages(items: readonly NavItem[]): NavItem[] {
   return [...items];
-}
-
-/** Stable navigation order shared by every purpose view. */
-export function sidebarItems(nav: readonly string[]): NavItem[] {
-  return NAV_ITEMS.filter((item) => nav.includes(item.to));
 }

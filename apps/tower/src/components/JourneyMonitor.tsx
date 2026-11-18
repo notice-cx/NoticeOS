@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowDown, Plus, Users } from "lucide-react";
 import { type JourneyDefinition, type JourneyFunnelResult, type JourneyPeriod, type JourneySnapshot } from "@noticeos/contract/journeys";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export interface JourneyMonitorProps {
     sessionExploration?: readonly SessionExplorationSnapshot[];
     /** Results for funnels the asset counts itself. */
     firstPartyFunnels?: readonly JourneyFunnelResult[];
+    emptyGoogleReport?: ReactNode;
     onSave?: (next: JourneyDefinition[]) => Promise<JourneySaveOutcome>;
     readOnlyReason?: string | null;
     eventNames?: readonly string[];
@@ -113,7 +114,7 @@ function JourneySummary({ definition, reading, delta, prior, compare, available,
     return <div className="journey-summary" data-surface-hero>{(order ?? ["visitors", "completion", "loss", "change"]).map((key) => metrics[key])}</div>;
 }
 /** Ordered users and same-session exploration retain separate measurement states. */
-export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [], firstPartyFunnels = [], summaryOrder }: JourneyMonitorProps) {
+export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [], firstPartyFunnels = [], emptyGoogleReport, summaryOrder }: JourneyMonitorProps) {
     const [selectedId, setSelectedId] = useState(definitions[0]?.id ?? "");
     const [days, setDays] = useState<7 | 28>(28);
     const [compare, setCompare] = useState(true);
@@ -158,14 +159,16 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     }, [selectedIndex, definition?.id, days, weekKey, reading?.counts.length]);
     function choose(id: string) { setSelectedId(id); setWeekKey(null); setSelectedStep(null); setEditing(null); }
     const canRead = definition?.status === "active" && definition.kind === "funnel";
+    const hasCollectedPeriod = [result?.current7, result?.prior7, result?.current28, result?.prior28, ...weeks]
+        .some(item => item != null && item.quality !== "unavailable");
     const qualityReason = definition?.kind === "exploration" ? snapshot?.exploration.reason ?? "Session paths require separate collection. Ordered user funnels do not measure session destinations." : definition?.status === "planned" ? "This journey is planned. Activate its definition when collection is ready." : period === null && latestReadableWeek ? `No current ${days}-day report is available. Weekly reports are collected separately.` : reading.reason;
     return <div className="journey-monitor" data-journey-monitor data-ready={ready} data-kind={definition?.kind}>
     <aside className="journey-goals" aria-label="Journey goals">
     <div className="journey-eyebrow">BUSINESS GOALS</div>
     <div className="journey-goal-list">{definitions.map((item) => <button type="button" key={item.id} className="journey-goal" aria-pressed={definition?.id === item.id} onClick={() => choose(item.id)}>
         <span>{item.goal || item.label}</span>{item.status === "planned" ? <small>Planned</small> : <span aria-hidden>›</span>}</button>)}</div>
-    <Button variant="ghost" size="sm" onClick={() => setEditing("new")} disabled={!onSave || definitions.length >= 8}>
-    <Plus aria-hidden/>New journey</Button>
+    {onSave && definitions.length > 0 && definitions.length < 8 ? <Button variant="ghost" size="sm" onClick={() => setEditing("new")}>
+    <Plus aria-hidden/>New journey</Button> : null}
     <details className="journey-coverage">
     <summary>Data coverage</summary>
     <p>Conversions use ordered users from one GA4 property and reporting time zone. Independent event totals are not conversion counts.</p>
@@ -179,15 +182,14 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
       <div className="journey-heading">
     <div>
     <div className="journey-eyebrow">{definition?.goal ?? "JOURNEYS"}</div>
-    <h2>{definition?.label ?? "Measure a journey"}</h2>
-    <p>{definition?.kind === "exploration" ? "Session paths · visits across sections" : assetReported ? "Reported by the asset · ordered steps" : "Google Analytics 4 · ordered users"}</p>
+    <h2>{definition?.label ?? "No journeys defined"}</h2>
+    {definition ? <p>{definition.kind === "exploration" ? "Session paths · visits across sections" : assetReported ? "Reported by the asset · ordered steps" : "Google Analytics 4 · ordered users"}</p> : null}
     </div>
     <div className="journey-heading-actions">{illustrative ? <span className="journey-sample">Illustrative design data</span> : null}{definition ? <Button size="sm" variant="outline" onClick={() => setEditing(definition)}>Definition</Button> : null}</div>
     </div>
       {!definition ? <div className="journey-empty" data-surface-hero>
-        <h3>Define the steps that matter</h3>
-        <p>Create an account, activation or another outcome journey. Its ordered report will appear after collection.</p>
-        <Button onClick={() => setEditing("new")} disabled={!onSave}>Create journey</Button>
+        {onSave ? <><p>Define the steps people take to reach an outcome.</p><Button onClick={() => setEditing("new")}>Create journey</Button></>
+            : readOnlyReason ? <p>{readOnlyReason}</p> : null}
         </div> : <>
         <div className="journey-toolbar">{weeklyPeriod && definition.kind === "funnel" ? <div className="journey-week-scope">
             <strong>Viewing week · {scope}</strong>
@@ -208,6 +210,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             <strong>{definition.kind === "exploration" ? "Session paths are not collected" : definition.status === "planned" ? "Planned journey" : "Ordered conversion is unavailable"}</strong>
             <p>{qualityReason}</p>
             {canRead && period === null && latestReadableWeek ? <Button size="sm" variant="outline" onClick={() => setWeekKey(latestReadableWeek.startDate)}>View week · {formatCalendarRange(latestReadableWeek.startDate, latestReadableWeek.endDate)}</Button> : null}
+            {canRead && !assetReported && !hasCollectedPeriod ? emptyGoogleReport : null}
             <ol>{definition.steps.map((step) => <li key={step.id}>{step.label}</li>)}</ol>
             </div> : <>
             {assetReported ? null : <div className="journey-baseline" data-available={reading.visitors !== null}>

@@ -12,9 +12,10 @@ import { formatInt } from "@/lib/format";
  */
 export function GapsModule({ cards, onFileTask }: { cards: readonly AssetCard[]; onFileTask?: (prefill: TaskComposerPrefill) => void }) {
   const gaps = businessGaps(cards);
+  if (gaps.length === 0) return null;
   return (
     <div data-home-gaps={gaps.length}>
-      <ListPanel title="Worth a look" count={formatInt(gaps.length)} empty="Nothing is missing.">
+      <ListPanel title="Worth a look" count={formatInt(gaps.length)}>
         {gaps.map((gap) => (
           <ListRow
             key={gap.key}

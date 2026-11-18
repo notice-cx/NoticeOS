@@ -43,7 +43,7 @@ export interface PortfolioRow {
   work?: WorkSummary | null;
 }
 
-export type PortfolioColumn = "people" | "revenue" | "share" | "sources" | "work";
+type PortfolioColumn = "people" | "revenue" | "share" | "sources" | "work";
 
 export interface PortfolioRowsProps {
   rows: PortfolioRow[];
@@ -53,13 +53,13 @@ export interface PortfolioRowsProps {
   /** Off where a health grid on the same screen already draws each source. */
   showSources?: boolean;
   className?: string;
-  /** Explicit comparison priority; omitted by Home to keep its established layout. */
-  columnOrder?: readonly PortfolioColumn[];
+  showWork?: boolean;
 }
 
 /** The ruled columns, with and without the sources column; literal so the
  * stylesheet generator sees every one. */
 const COLUMNS = {
+  work: "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1.2fr)_7rem] @4xl:grid-cols-[minmax(9rem,1.2fr)_minmax(10rem,1.4fr)_7rem_6rem_5rem_9rem]",
   sources: "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1.2fr)_7rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_minmax(11rem,1.4fr)_7rem_6rem_5rem]",
   plain: "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1.2fr)_7rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_minmax(11rem,1.4fr)_7rem_7rem]",
 } as const;
@@ -104,7 +104,9 @@ export function sourcesLive(sources: readonly PortfolioSource[]): { live: number
   };
 }
 
-export function PortfolioRows({ rows, formatMoney, title = "Portfolio", action, showSources = true, className, columnOrder }: PortfolioRowsProps) {
+export function PortfolioRows({ rows, formatMoney, title = "Portfolio", action, showSources = true, className, showWork = false }: PortfolioRowsProps) {
+  const columns: PortfolioColumn[] = ["people", "revenue", "share", ...(showSources ? ["sources" as const] : []), ...(showWork ? ["work" as const] : [])];
+  const layout = COLUMNS[showWork ? "work" : showSources ? "sources" : "plain"];
   return (
     <section aria-label={title} data-portfolio-rows="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
       <header className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-4">
@@ -119,23 +121,23 @@ export function PortfolioRows({ rows, formatMoney, title = "Portfolio", action, 
         ) : null}
       </header>
       <div role="table" aria-label={title} className="flex flex-col">
-        <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", columnLayout(columnOrder, showSources))}>
+        <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", layout)}>
           <span role="columnheader">Asset</span>
-          {(columnOrder ?? ["people", "revenue", "share", "sources"] as const).filter((key) => showSources || key !== "sources").map((key) => (
-            <span key={key} role="columnheader" data-portfolio-column={key} className={columnVisibility(key, columnOrder, true)}>
+          {columns.map((key) => (
+            <span key={key} role="columnheader" data-portfolio-column={key} className={columnVisibility(key, showWork, true)}>
               {key === "people" ? <><span>People a day</span><span className="w-14 text-end">Yesterday</span></> : key === "revenue" ? "Revenue yesterday" : key === "share" ? "Share of month" : key === "work" ? "Delivery" : "Sources"}
             </span>
           ))}
         </div>
         {rows.map((row, index) => (
-          <SiteRow key={row.id} row={row} formatMoney={formatMoney} index={index} showSources={showSources} columnOrder={columnOrder} />
+          <SiteRow key={row.id} row={row} formatMoney={formatMoney} index={index} columns={columns} layout={layout} showSources={showSources} showWork={showWork} />
         ))}
       </div>
     </section>
   );
 }
 
-function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: PortfolioRow; formatMoney: (value: number) => string; index: number; showSources: boolean; columnOrder?: readonly PortfolioColumn[] }) {
+function SiteRow({ row, formatMoney, index, columns, layout, showSources, showWork }: { row: PortfolioRow; formatMoney: (value: number) => string; index: number; columns: readonly PortfolioColumn[]; layout: string; showSources: boolean; showWork: boolean }) {
   const { live, owed, failing } = sourcesLive(row.sources);
   const sentence = sourcesSentence(row.sources);
   const name = (
@@ -200,11 +202,14 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
   ) : (
     <span className="text-xs text-muted-foreground">no visitors reported</span>
   );
+  const work = row.work
+    ? <><span>{formatInt(row.work.inProgress)} in progress</span><span className={cn("text-micro", row.work.blocked > 0 ? "text-warn" : "text-muted-foreground")}>{formatInt(row.work.blocked)} blocked · {formatInt(row.work.closedRecent)} done this week</span></>
+    : <span className="text-muted-foreground">not measured</span>;
   const cells: Record<PortfolioColumn, ReactNode> = {
-        people: (<span role="cell" key="people" data-portfolio-column="people" className={columnVisibility("people", columnOrder)}>
+        people: (<span role="cell" key="people" data-portfolio-column="people" className={columnVisibility("people", showWork)}>
         {people}
       </span>),
-        revenue: (<span role="cell" key="revenue" data-portfolio-column="revenue" className={columnVisibility("revenue", columnOrder)}>
+        revenue: (<span role="cell" key="revenue" data-portfolio-column="revenue" className={columnVisibility("revenue", showWork)}>
         {row.revenue === null ? (
           <span className="text-xs text-muted-foreground">no revenue</span>
         ) : (
@@ -222,7 +227,7 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
           </>
         )}
       </span>),
-        share: (<span role="cell" key="share" data-portfolio-column="share" className={columnVisibility("share", columnOrder)}>
+        share: (<span role="cell" key="share" data-portfolio-column="share" className={columnVisibility("share", showWork)}>
         {row.share === null ? (
           <span className="sr-only">no revenue</span>
         ) : (
@@ -234,10 +239,10 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
           </>
         )}
       </span>),
-        work: (<span role="cell" key="work" data-portfolio-column="work" className={cn(columnVisibility("work", columnOrder), "flex-col text-xs")}>
-          {row.work ? <><span>{formatInt(row.work.inProgress)} in progress</span><span className={cn("text-micro", row.work.blocked > 0 ? "text-warn" : "text-muted-foreground")}>{formatInt(row.work.blocked)} blocked · {formatInt(row.work.closedRecent)} done this week</span></> : <span className="text-muted-foreground">not measured</span>}
+        work: (<span role="cell" key="work" data-portfolio-column="work" className={cn(columnVisibility("work", showWork), "flex-col text-xs")}>
+          {work}
         </span>),
-        sources: (<span role="cell" key="sources" data-portfolio-column="sources" className={columnVisibility("sources", columnOrder)} title={sentence}>
+        sources: (<span role="cell" key="sources" data-portfolio-column="sources" className={columnVisibility("sources", showWork)} title={sentence}>
         <span aria-hidden className="flex gap-0.5">
           {row.sources.map((source) => (
             <span key={source.label} title={`${source.label}: ${SOURCE_WORD[source.state]}`} className={cn("h-3 w-1.5 rounded-xs", SOURCE_FILL[source.state])} />
@@ -252,7 +257,7 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
     <div
       role="row"
       data-portfolio-row={row.id}
-      className={cn("viz-arrive grid items-center gap-x-4 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30", columnLayout(columnOrder, showSources))}
+      className={cn("viz-arrive grid items-center gap-x-4 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30", layout)}
       style={{ ["--viz-i" as string]: index }}
     >
       <span role="cell" className="min-w-0">
@@ -261,45 +266,25 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
         ) : name}
         {/* Too narrow for its own column, the people line rides under the name
             rather than leaving the row with no time in it at all. */}
-        {columnOrder?.[0] !== "people" ? <span aria-hidden className="mt-1.5 flex min-w-0 items-center gap-2 @lg:hidden">{people}</span> : null}
-        {row.share !== null && (columnOrder === undefined || columnOrder.includes('share')) ? <span className={cn('mt-1 block text-micro tabular-nums text-muted-foreground', columnOrder?.[0] === 'share' ? 'hidden' : columnOrder?.[1] === 'share' ? '@lg:hidden' : '@3xl:hidden')}>
+        <span aria-hidden className="mt-1.5 flex min-w-0 items-center gap-2 @lg:hidden">{people}</span>
+        {showWork && row.work ? <span className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs @4xl:hidden">{work}</span> : null}
+        {row.share !== null ? <span className={cn("mt-1 block text-micro tabular-nums text-muted-foreground", showWork ? "@4xl:hidden" : "@3xl:hidden")}>
           {formatPercent(row.share * 100)}% of month’s revenue
         </span> : null}
         {showSources ? <span className="sr-only">{sentence}</span> : null}
       </span>
-      {(columnOrder ?? ["people", "revenue", "share", "sources"] as const).filter((key) => showSources || key !== "sources").map((key) => cells[key])}
+      {columns.map((key) => cells[key])}
     </div>
   );
 }
 
-/** Keep the lead comparison visible on small screens; all columns remain in the wide table. */
-function columnVisibility(key: PortfolioColumn, order: readonly PortfolioColumn[] | undefined, header = false): string {
-  if (order === undefined) {
-    const original = header ? {
-      people: "hidden justify-between gap-2 whitespace-nowrap @lg:flex",
-      revenue: "text-end @lg:whitespace-nowrap",
-      share: "hidden whitespace-nowrap @3xl:block",
-      sources: "hidden whitespace-nowrap text-end @3xl:block",
-      work: "hidden",
-    } : {
-      people: "hidden min-w-0 items-center gap-2 @lg:flex",
-      revenue: "flex flex-col items-end tabular-nums",
-      share: "hidden items-center gap-2 @3xl:flex",
-      sources: "hidden items-center justify-end gap-1.5 @3xl:flex",
-      work: "hidden",
-    };
-    return original[key];
+function columnVisibility(key: PortfolioColumn, showWork: boolean, header = false): string {
+  const wide = showWork ? (header ? "@4xl:block" : "@4xl:flex") : (header ? "@3xl:block" : "@3xl:flex");
+  switch (key) {
+    case "people": return header ? "hidden justify-between gap-2 whitespace-nowrap @lg:flex" : "hidden min-w-0 items-center gap-2 @lg:flex";
+    case "revenue": return header ? "text-end @lg:whitespace-nowrap" : "flex flex-col items-end tabular-nums";
+    case "share": return cn("hidden items-center gap-2 whitespace-nowrap", wide);
+    case "sources": return cn("hidden items-center justify-end gap-1.5 whitespace-nowrap text-end", wide);
+    case "work": return cn("hidden items-end text-end", wide);
   }
-  const primary = order?.[0] ?? "revenue";
-  const secondary = order?.[1] ?? "people";
-  const visibility = key === primary ? "flex" : key === secondary ? "hidden @lg:flex" : "hidden @3xl:flex";
-  return cn(visibility, key === "people" ? "min-w-0 items-center justify-between gap-2" : key === "share" ? "items-center gap-2" : "items-end justify-end gap-1.5 text-end tabular-nums", key === "revenue" && !header && "flex-col", header && "whitespace-nowrap");
-}
-
-/** Column widths follow the kind of evidence: a traffic line needs more room than a count. */
-function columnLayout(order: readonly PortfolioColumn[] | undefined, showSources: boolean): string {
-  if (order?.includes("work")) return "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_7rem_5rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_9rem_5rem_minmax(10rem,1.4fr)_7rem_6rem]";
-  if (order?.[0] === "revenue") return "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_7rem_6rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_7rem_6rem_minmax(11rem,1.4fr)_5rem]";
-  if (order?.[0] === "sources") return "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_5rem_minmax(10rem,1.2fr)] @3xl:grid-cols-[minmax(9rem,1.2fr)_5rem_minmax(11rem,1.4fr)_7rem_6rem]";
-  return COLUMNS[showSources ? "sources" : "plain"];
 }

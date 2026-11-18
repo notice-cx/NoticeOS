@@ -1,5 +1,4 @@
 import { backupEvidenceFromReport } from '../../../packages/contract/src/backup-evidence.mjs';
-import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, within, waitFor } from './render';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -43,7 +42,7 @@ const trace: WorkflowRun = { id: 'counters@2026-09-09T16:15:00.000Z', workflowId
 let client: QueryClient;
 let data: WorkflowsPayload;
 function mount(url = '/health/operations') {
-  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[url]}><ExecutionViewSwitch /><Routes><Route path="/health/operations/:id?" element={<WorkflowsRoute surface="system" />} /><Route path="/workflows/:id?" element={<WorkflowsRoute />} /></Routes></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[url]}><Routes><Route path="/health/operations/:id?" element={<WorkflowsRoute surface="system" />} /><Route path="/workflows/:id?" element={<WorkflowsRoute />} /></Routes></MemoryRouter></QueryClientProvider>);
 }
 beforeEach(() => {
   connections.connected = [];
@@ -713,38 +712,11 @@ describe('run a scheduled job from its detail page', () => {
   });
 });
 
-it('uses purpose defaults for workflow order and preserves explicit sorting, filters and tabs', async () => {
-  mount('/health/operations/schedule?q=backup&state=all&sort=name&view=flat');
+it('defaults the schedule to the next run and preserves explicit address options', async () => {
+  mount('/health/operations/schedule?q=backup&view=flat');
   await screen.findByRole('link', { name: 'Backups' });
-  for (const view of ['delivery', 'reliability', 'growth', 'revenue', 'overview']) {
-    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
-    expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('name');
-    expect(screen.getByRole('tab', { name: 'Schedule' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('current-route')).toHaveTextContent('/health/operations/schedule?q=backup&state=all&sort=name&view=flat');
-  }
-});
-
-it('applies reliability and delivery default ordering without writing URL filters', async () => {
-  mount('/health/operations');
-  await screen.findByRole('link', { name: 'Backups' });
-  fireEvent.click(screen.getByRole('button', { name: 'Use reliability' }));
-  expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('attention');
-  expect(screen.getAllByRole('link', { name: /Backups|Live traffic and counters/ })[0]).toHaveTextContent('Backups');
-  fireEvent.click(screen.getByRole('button', { name: 'Use delivery' }));
   expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('next');
-  expect(screen.getByTestId('current-route')).toHaveTextContent(/^\/health\/operations$/);
-});
-
-it('keeps the requested run and unsaved schedule while changing purpose evidence', async () => {
-  mount('/health/operations/backup?run=not-retained');
-  fireEvent.click(await screen.findByRole('button', { name: 'Edit schedule' }));
-  const frequency = screen.getByRole('combobox', { name: 'Frequency' });
-  fireEvent.change(frequency, { target: { value: 'weekly' } });
-  for (const view of ['reliability', 'delivery', 'growth', 'revenue', 'overview']) {
-    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
-    expect(screen.getByRole('combobox', { name: 'Frequency' })).toBe(frequency);
-    expect(frequency).toHaveValue('weekly');
-    expect(screen.getByRole('combobox', { name: 'Run' })).toHaveValue('not-retained');
-    expect(screen.getByTestId('current-route')).toHaveTextContent('/health/operations/backup?run=not-retained');
-  }
+  expect(screen.getByRole('tab', { name: 'Schedule' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('combobox', { name: 'Group operations' })).toHaveValue('flat');
+  expect(screen.queryByRole('link', { name: 'Live traffic and counters' })).toBeNull();
 });

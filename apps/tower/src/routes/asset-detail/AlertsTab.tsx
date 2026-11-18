@@ -1,4 +1,3 @@
-import { useView } from "@/hooks/useView";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { AssetDetailPayload, FlagRecord } from "@shared/asset-detail";
 import { translateAlert } from "@shared/alert-language";
@@ -39,16 +38,7 @@ export function AlertsTab({
   nowMs: number;
 }) {
   const { flags } = data;
-  const { view } = useView();
-  const relevant = (flag: FlagRecord) => {
-    const subject = `${flag.ruleId} ${flag.metric ?? ""}`;
-    return view.id === "growth" ? /flow|search|click|user|session/.test(subject)
-      : view.id === "revenue" ? /revenue|ledger|money/.test(subject)
-      : view.id === "delivery" ? /task|review|codebase/.test(subject)
-      : view.id === "reliability" ? /hygiene|freshness|failed|uptime|error/.test(subject) : false;
-  };
-  // Errors always lead; purpose only changes the order within one severity.
-  const open = [...flags.open].sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error") || Number(relevant(b)) - Number(relevant(a)));
+  const open = [...flags.open].sort((a, b) => Number(b.severity === "error") - Number(a.severity === "error"));
   const assetId = data.asset.id;
   const timeline = siteAlertTimeline(flags, nowMs);
   return (

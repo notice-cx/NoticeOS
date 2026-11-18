@@ -29,7 +29,6 @@ import type {
 import { localTimezone, localTimezoneLabel, settingsCollections } from "@shared/scheduled-jobs";
 import { installationCommand, updateState, type InstallationFacts } from "@shared/installation";
 import type { AssetCard } from "@shared/wall";
-import type { ViewId } from "@shared/views";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { CountdownEditor, CountdownWidget } from "@/components/DashboardWidgets";
 import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
@@ -63,7 +62,6 @@ import { useNow } from "@/hooks/useNow";
 import { useSettings } from "@/hooks/useSettings";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
-import { useView } from "@/hooks/useView";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { backupStatus, lastGoodCopy } from "@/lib/backups";
 import { cn } from "@/lib/utils";
@@ -72,7 +70,6 @@ import { MembersSection } from "@/routes/settings/MembersSection";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 import { NtasksConnection, ntasksProjectColumn } from "@/routes/settings/TaskServicePanel";
 import { useTaskService } from "@/hooks/useTaskService";
-import { ViewPanel } from "@/routes/settings/ViewPanel";
 import { NotificationsPanel } from "@/routes/settings/NotificationsPanel";
 import {
   SETTINGS_TABS,
@@ -82,7 +79,6 @@ import {
   settingsHashDestination,
   settingsPath,
   settingsTabFromParam,
-  type SettingsTab,
 } from "@/routes/settings/SettingsTabs";
 import {
   formatCalendarDate,
@@ -98,15 +94,6 @@ import {
   type Validated,
 } from "@/lib/knob-validators";
 
-/** Shortcuts emphasize the settings related to the person's current purpose. */
-const PURPOSE_SETTINGS: Record<ViewId, readonly { label: string; tab: SettingsTab; anchor?: string }[]> = {
-  overview: [{ label: "Your view", tab: "general", anchor: "view" }, { label: "Clock", tab: "general", anchor: "clock" }, { label: "Budget", tab: "general", anchor: "budget" }],
-  growth: [{ label: "Data collection", tab: "data-collection" }, { label: "Alert rules", tab: "alert-rules" }],
-  revenue: [{ label: "Budget", tab: "general", anchor: "budget" }, { label: "Ownership", tab: "ownership" }, { label: "Clock", tab: "general", anchor: "clock" }],
-  delivery: [{ label: "Task projects", tab: "task-projects" }, { label: "Budget", tab: "general", anchor: "budget" }],
-  reliability: [{ label: "Alert rules", tab: "alert-rules" }, { label: "Data collection", tab: "data-collection" }, { label: "Installation", tab: "installation" }],
-};
-
 /**
  * /settings: every portfolio-wide setting, one tab per group, with General
  * first. The tab is the URL (`/settings/<tab>`, General the bare
@@ -116,7 +103,6 @@ const PURPOSE_SETTINGS: Record<ViewId, readonly { label: string; tab: SettingsTa
  * needs a paragraph.
  */
 export function SettingsRoute() {
-  const { view } = useView();
   const { runtime, workspaceRole } = useBrowserContext();
   const managesMembers = runtime.owner.mode === 'hosted' && workspaceRole === 'owner';
   // Only a standalone installation has a folder, ports and versions of its own to show.
@@ -179,14 +165,6 @@ export function SettingsRoute() {
       {/* When saves are paused the page says so once: every editor below shows
           only its lock (`statesReadOnly={false}`). */}
       <SavesPaused />
-      <nav aria-label={`${view.label} settings`} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm" data-settings-purpose={view.id}>
-        <span className="text-xs text-muted-foreground">For {view.label.toLowerCase()}</span>
-        {PURPOSE_SETTINGS[view.id].filter((link) => shown.includes(link.tab)).map((link) => (
-          <Link key={`${link.tab}:${link.anchor ?? ""}`} to={`${settingsPath(link.tab)}${link.anchor ? `#${link.anchor}` : ""}`} className={cn("text-foreground underline underline-offset-4 decoration-border hover:decoration-current", pillControlClass)}>
-            {link.label}
-          </Link>
-        ))}
-      </nav>
       <SettingsTabs shown={shown} />
       {/* A form reads down one column of a readable width, so a field and the
           value beside it stay one glance apart on a wide screen. */}
@@ -234,9 +212,7 @@ function fileOp(file: EditableFile, pointer: string, expect: JsonValue) {
 }
 
 // --- 1. General -----------------------------------------------------------
-/** What a new installation sets, on the tab Settings opens on: the person's
- * view, the clock the OS reads in, and what it may spend. `#view`, `#clock`
- * and `#budget` land on their panels. */
+/** Old Clock and Budget bookmarks scroll to the same settings. */
 function GeneralSection({
   settings,
   anchor,
@@ -246,13 +222,12 @@ function GeneralSection({
   anchor: string;
 }) {
   useEffect(() => {
-    if (anchor !== "view" && anchor !== "clock" && anchor !== "budget") return;
+    if (anchor !== "clock" && anchor !== "budget") return;
     // Optional-called: jsdom has no layout to scroll.
     document.getElementById(anchor)?.scrollIntoView?.({ block: "start" });
   }, [anchor]);
   return (
     <>
-      <ViewPanel dashboard={settings.dashboard} />
       <SettingsPanel id="clock" title="Clock">
         <ClockField settings={settings} />
       </SettingsPanel>

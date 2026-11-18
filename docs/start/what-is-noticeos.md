@@ -51,7 +51,7 @@ It is **not** a public hosted service. A standalone installation has no user log
 - A **public demo package** with synthetic assets and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 - A **Tasks** page shared by people and agents, usable before you add your first asset.
-- Five purpose **views** of the Tower: **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. The global view bar changes each page's emphasis and context while keeping navigation and asset tabs stable. The Wall uses a separate layout. See [Choose your view](/guides/choose-your-view).
+- **Portfolio** lists each asset and its reports. **Money**, **Tasks**, **Workflows**, **Agents**, **Alerts** and **System health** cover the whole portfolio. See [Find a report](/guides/choose-your-view).
 - An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads asset reports. See [Connect an agent](/guides/connect-an-agent).
 
 ## What is not available yet

@@ -199,21 +199,9 @@ const BUSINESS_SURFACES = [
   // revenue-only site's Overview lead) is a business surface.
   'apps/tower/src/routes/FinancialsRoute.tsx',
   'apps/tower/src/components/DailyRevenuePanel.tsx',
-  // The view choice is asked in business words wherever it is drawn: Home's
-  // first-run steps and Settings → General. The labels themselves live in
-  // packages/contract/src/views.mts, outside the scanned directories, and
-  // reach the Tower through the re-export below.
-  'apps/tower/src/routes/home/ViewSteps.tsx',
-  'apps/tower/src/routes/settings/ViewPanel.tsx',
-  'apps/tower/shared/views.ts',
   'apps/tower/src/lib/tech-health.ts', 'apps/tower/src/lib/business-gaps.ts', 'apps/tower/src/lib/agents-week.ts',
   'apps/tower/src/routes/home/HealthModule.tsx', 'apps/tower/src/routes/home/FactoryModule.tsx', 'apps/tower/src/routes/home/ChannelsModule.tsx', 'apps/tower/src/routes/home/GapsModule.tsx', 'apps/tower/src/routes/asset-detail/HealthTab.tsx',
 ];
-
-/** Desk copy written outside the scanned directories, read by the business
- * level rule and the coinage rule all the same: the view and focus labels the
- * view choice shows. */
-const BUSINESS_COPY_OUTSIDE_SCAN = ['packages/contract/src/views.mts'];
 
 const BANNED_ON_BUSINESS = [
   { pattern: /\bprovisional\b/gi, word: 'still counting' },
@@ -325,17 +313,12 @@ test('every business surface is in the scan, and exists', () => {
   for (const name of BUSINESS_SURFACES) {
     assert.ok(FILES.includes(name), `${name} is a business surface but not in the lexicon scan`);
   }
-  for (const name of BUSINESS_COPY_OUTSIDE_SCAN) {
-    assert.doesNotThrow(
-      () => readFileSync(path.join(REPO_ROOT, name), 'utf8'),
-      `${name} is listed as business copy but no longer exists — prune BUSINESS_COPY_OUTSIDE_SCAN`,
-    );
-  }
+
 });
 
 test('no business surface shows a more technical level\'s word', () => {
   const offenders = [];
-  for (const name of [...BUSINESS_SURFACES, ...BUSINESS_COPY_OUTSIDE_SCAN]) {
+  for (const name of BUSINESS_SURFACES) {
     const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
     const spans = shippedSpans(text);
     for (const { pattern, word } of BANNED_ON_BUSINESS) {
@@ -366,7 +349,7 @@ test('no business surface shows a more technical level\'s word', () => {
 test('no shipped desk string uses an internal coinage (doc 14)', () => {
   const offenders = [];
 
-  for (const name of [...FILES, ...BUSINESS_COPY_OUTSIDE_SCAN]) {
+  for (const name of FILES) {
     const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
     const spans = shippedSpans(text);
 

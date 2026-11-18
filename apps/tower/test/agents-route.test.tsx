@@ -3,11 +3,13 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readAgentStats, type ModelStats } from '@noticeos/contract/agent-stats';
 import { AgentsRoute } from '@/routes/AgentsRoute';
+import type { AssetCard } from '@shared/wall';
 import { WorkerRows } from '@/routes/agents/agent-panels';
 
-const state = vi.hoisted(() => ({ read: vi.fn(), view: 'overview' as import('@shared/views').ViewId, needsNtasks: false }));
-vi.mock('@/hooks/useView', () => ({ useView: () => ({ view: { id: state.view } }) }));
-beforeEach(() => { state.view = 'overview'; state.needsNtasks = false; });
+const state = vi.hoisted(() => ({ read: vi.fn(), assets: [] as AssetCard[], needsNtasks: false }));
+beforeEach(() => { state.assets = []; state.needsNtasks = false; });
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: { assets: state.assets } }) }));
+vi.mock('@/hooks/useWork', () => ({ useWork: () => ({ data: undefined }) }));
 vi.mock('@/hooks/useAgentWork', () => ({ useAgentWork: state.read }));
 vi.mock('@/hooks/useTaskService', () => ({ useNeedsNtasks: () => state.needsNtasks }));
 afterEach(cleanup);
@@ -50,7 +52,7 @@ it('renders one compact statistics row per model without task or agent details',
 
 it("shows each model's changes shipped only where merges are recorded", () => {
   const { shipped: _shipped, ...older } = row();
-  const page = render(<WorkerRows workers={[row(), older as ModelStats]} />);
+  const page = render(<WorkerRows workers={[row(), { ...older, id: "o3 mini", name: "o3 mini" } as ModelStats]} />);
   expect(screen.getAllByRole('columnheader')).toHaveLength(5);
   page.rerender(<WorkerRows workers={[row({ shipped: 4 }), row({ id: 'GPT-6.1 Sol', name: 'GPT-6.1 Sol', shipped: 0 }), row({ id: 'o3 mini', name: 'o3 mini' })]} />);
   const [, first, second, third] = screen.getAllByRole('row');
@@ -69,22 +71,15 @@ it('leads with changes shipped against the 7 days before, and falls back to task
   const answer = () => page.container.querySelector('[data-agents-answer]')!;
   expect(answer()).toHaveTextContent(/^3 /u);
   expect(answer()).toHaveTextContent('(1)');
-  state.view = 'delivery';
-  page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  expect(answer().querySelector('[data-agents-shipped]')).toHaveTextContent('3');
   // An Ntasks older than the shipped counts answers none of them.
   const { shipped: _shipped, shippedLastWeek: _before, ...older } = stats.work;
   state.read.mockReturnValue({ ...stats, work: older });
-  page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  expect(answer().querySelector('[data-agents-shipped]')).toBeNull();
-  expect(answer().querySelector('[data-agents-closed]')).toHaveTextContent('12');
-  state.view = 'overview';
   page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
   expect(answer()).toHaveTextContent(/^12 /u);
   expect(answer()).toHaveTextContent('(4)');
 });
 
-it('prioritizes blocked work and keeps every chart and outcome evidence accessible', () => {
+it('places model activity and measured work outcomes on the Agents report', () => {
   const stats = empty();
   stats.work.blocked = 3;
   stats.work.inHand = 2;
@@ -94,15 +89,12 @@ it('prioritizes blocked work and keeps every chart and outcome evidence accessib
   stats.work.velocity.keys = ['Other'];
   stats.work.velocity.names = { Other: 'Other' };
   state.read.mockReturnValue(stats);
+  state.assets = [{ id: 'example.com', displayName: 'Example', work: null,
+    watches: { open: 2, latest: { outcome: 'ship_confirmed', nextCheckDate: null, closedAt: '2026-10-14T10:00:00Z' } },
+  } as unknown as AssetCard];
   const page = render(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  state.view = 'reliability';
-  page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  const panels = page.container.querySelector('[data-agent-section-order]')!;
-  expect(panels.firstElementChild).toHaveAttribute('data-agent-rows');
-  // Rows keep name order, Other last, whatever each has blocked.
-  expect([...panels.querySelectorAll('[data-agent-row]')].map(row => row.getAttribute('data-agent-row'))).toEqual(['Claude Opus 5.5', 'Other']);
+  expect(page.container.querySelector('[data-agents-blocked]')).toHaveTextContent('3');
+  expect([...page.container.querySelectorAll('[data-agent-row]')].map(row => row.getAttribute('data-agent-row'))).toEqual(['Claude Opus 5.5', 'Other']);
   expect(screen.getByRole('region', { name: 'Velocity' })).toBeInTheDocument();
-  state.view = 'revenue';
-  page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  expect(screen.getByRole('link', { name: 'View recorded financials →' })).toHaveAttribute('href', '/financials');
+  expect(screen.getByRole('region', { name: 'Work outcomes' })).toHaveTextContent('1 confirmed · 2 being watched');
 });

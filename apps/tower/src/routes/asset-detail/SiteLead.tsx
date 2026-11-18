@@ -113,7 +113,6 @@ export function SiteLead({
           history={lead.history}
           range={days}
           aside={aside}
-          setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`}
         />
       </div>
     );

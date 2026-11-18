@@ -54,6 +54,8 @@ export interface ProviderConnectPanelProps {
   /** The site the panel was opened for: it leads the site list. */
   asset: string | null;
   googleSetup?: boolean;
+  googleServiceAccountHref?: string;
+  onOpenGoogleServiceAccount?: () => void;
   /** False while this install cannot store a credential yet. */
   canConnect: boolean;
   /** Why not, said in the panel; passed only where the page behind has no
@@ -77,7 +79,7 @@ export interface ProviderConnectPanelProps {
  * is one. Route wiring, not a component: it binds the registered pieces to
  * the API.
  */
-export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
+export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, googleServiceAccountHref, onOpenGoogleServiceAccount, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
   const queryClient = useQueryClient();
   const googleStart = useGoogleOAuthStart(status.provider.id === 'adsense' ? 'adsense' : 'google');
@@ -154,6 +156,8 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
       setup={signIn ? (
         <GoogleSignInSetup
           provider={provider.id === 'adsense' ? 'adsense' : 'google'}
+          serviceAccountHref={googleServiceAccountHref}
+          onOpenServiceAccount={onOpenGoogleServiceAccount}
           card={googleOAuthCardState(status, app, window.location.origin, offerLoopback)}
           // The host's own verified client arrives from the environment; one
           // this installation stores is its own, set up once, in Testing.

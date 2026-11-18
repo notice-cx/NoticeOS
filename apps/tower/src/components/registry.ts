@@ -1498,11 +1498,4 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The TV's Visitors by channel widget: each asset's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every asset that loses the most people (largestFunnelDrop).",
     variants: ["channels and the largest drop", "no channel split yet"],
   },
-  {
-    name: "ViewBar",
-    file: "components/ViewBar.tsx",
-    purpose:
-      "Five purpose choices above desk pages, with the active choice pressed. Mobile uses a labeled popover with purpose descriptions. A choice preserves the current page and focus preferences.",
-    variants: ["desktop view bar", "mobile compact picker", "active selection"],
-  },
 ];

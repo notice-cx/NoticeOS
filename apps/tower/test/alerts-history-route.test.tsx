@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AlertHistoryPayload, AlertHistoryRow } from "@shared/alert-history";
 import type { FlagRecord } from "@shared/asset-detail";
 import type { WallPayload } from "@shared/wall";
-import { OperatingViewChoice } from "./operating-view-choice";
 
 // `/alerts`' Open | History switch. The wall read and the history read are
 // both stubbed: what is under test is the page. The read itself is asserted
@@ -182,7 +181,7 @@ function settledList(): HTMLElement {
 
 /** Rendered through the real `/alerts/:tab?` shape, so the tab genuinely
  * comes off the URL. */
-function renderAlerts(url: string, chooseView = false) {
+function renderAlerts(url: string) {
   state.wall = wall();
   return render(
     <QueryClientProvider client={new QueryClient()}>
@@ -190,7 +189,6 @@ function renderAlerts(url: string, chooseView = false) {
         <Routes>
           <Route path="/alerts/:tab?" element={<AlertsRoute />} />
         </Routes>
-        {chooseView ? <OperatingViewChoice /> : null}
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -205,22 +203,14 @@ afterEach(() => {
   state.lastQuery = null;
 });
 
-it("changes historical impact evidence while preserving the explicit tab, page range and filters", () => {
-  state.history = history([row({ id: 26, severity: "info", kind: "milestone" })], { total: 51, offset: 25, hasMore: true });
-  const { container } = renderAlerts("/alerts/history?asset=meadow.example&severity=info&offset=25", true);
-  const range = container.querySelector("[data-history-range]")?.textContent;
-  expect(range).toBe("26–26 of 51 settled");
-  const query = state.lastQuery;
-  for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
-    fireEvent.click(screen.getByRole("button", { name: `Choose ${view}` }));
-    expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("combobox", { name: "Asset" })).toHaveValue("meadow.example");
-    expect(screen.getByRole("combobox", { name: "Severity" })).toHaveValue("info");
-    expect(container.querySelector("[data-history-range]")?.textContent).toBe(range);
-    expect(state.lastQuery).toEqual(query);
-    expect(settledList().querySelectorAll('[data-flag-severity="info"]')).toHaveLength(1);
-    if (view !== "overview") expect(settledList().querySelector("[data-alert-view]")).toHaveAttribute("data-alert-view", view);
-  }
+it("retains a settled alert’s comparison with its reporting page", () => {
+  state.history = history([row({ id: 26, ruleId: "flow-pct-drop", metric: "signups",
+    ruleInputs: { observed: 12, baselinePerDay: 30, minDropFraction: 0.2 },
+  })], { total: 51, offset: 25, hasMore: true });
+  const { container } = renderAlerts("/alerts/history?asset=meadow.example&offset=25");
+  expect(container.querySelector("[data-history-range]")).toHaveTextContent("26–26 of 51 settled");
+  expect(settledList()).toHaveTextContent("Signups in 24 hours");
+  expect(settledList()).toHaveTextContent("12");
 });
 
 describe("/alerts — the Open | History switch", () => {

@@ -34,14 +34,13 @@ import { fieldClass } from "@/components/ui/field";
 import { useAlertHistory } from "@/hooks/useAlertHistory";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
-import { useView } from "@/hooks/useView";
 import { AlertHistoryPageError } from "@/lib/api";
 import { formatInt } from "@/lib/format";
 import { AlertDaily } from "@/routes/alerts/AlertDaily";
 import { AlertBoard } from "@/routes/alerts/AlertBoard";
 import { AlertWeek } from "@/routes/alerts/AlertWeek";
 import { SnoozedAlerts } from "@/routes/alerts/SnoozedAlerts";
-import { AlertViewContext } from "@/routes/alerts/AlertViewContext";
+import { alertNormal } from "@/lib/alerts-board";
 
 const SEVERITIES: { value: Severity | "all"; label: string }[] = [
   { value: "all", label: "Any severity" },
@@ -129,6 +128,12 @@ function openFilters(params: URLSearchParams): string {
 }
 
 /** The row a link names: `#alert-9001` opens that row and brings it into view. */
+function AlertHistoryReading({ flag }: { flag: Parameters<typeof alertNormal>[0] }) {
+  const normal = alertNormal(flag);
+  if (!normal) return null;
+  return <span className="text-xs text-muted-foreground">{normal.label} · {(normal.format ?? formatInt)(normal.value)}</span>;
+}
+
 function focusedAlert(hash: string): number | null {
   const match = /^#alert-(\d+)$/.exec(hash);
   return match ? Number(match[1]) : null;
@@ -436,7 +441,6 @@ function HistoryView({
   assets: WallPayload["assets"];
   nowMs: number;
 }) {
-  const { choice } = useView();
   const [params] = useSearchParams();
   const setFilter = useFilterWriter();
   const query = parseAlertHistoryQuery(params);
@@ -540,7 +544,7 @@ function HistoryView({
                   assetId={row.asset.id}
                   nowMs={nowMs}
                   history
-                  evidence={choice.view === "overview" ? undefined : <AlertViewContext flag={row.flag} assetId={row.asset.id} />}
+                  evidence={<AlertHistoryReading flag={row.flag} />}
                 />
               ))}
             </AlertList>

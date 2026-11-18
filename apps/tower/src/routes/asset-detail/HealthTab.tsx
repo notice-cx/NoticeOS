@@ -8,8 +8,6 @@ import { segmentName } from "@shared/product";
 import type { AssetCard } from "@shared/wall";
 import { Sparkline } from "@/components/surface/Sparkline";
 import { BarStrip } from "@/components/viz/BarStrip";
-import { useView } from "@/hooks/useView";
-import { prioritize } from "./purpose-presentation";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
 import { useWall } from "@/hooks/useWall";
 import { formatSeriesDate, formatInt, formatPercent } from "@/lib/format";
@@ -24,7 +22,6 @@ import { Hero } from "./shared";
 /** Each health fact owns its status and expandable readings in one card. */
 export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; nowMs: number }) {
   const wall = useWall();
-  const { view } = useView();
   const issues = useSiteIssues();
   const card = wall.data?.assets.find((candidate) => candidate.id === data.asset.id) ?? null;
 
@@ -39,20 +36,13 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
   }
 
   const health = techHealth(card, issues, nowMs);
-  const priority: Record<string, readonly TechFactKey[]> = {
-    growth: ["search", "speed", "reachable", "errors", "code"],
-    revenue: ["reachable", "speed", "errors", "search", "code"],
-    delivery: ["code", "errors", "reachable", "speed", "search"],
-    reliability: ["reachable", "errors", "speed", "code", "search"],
-  };
-  const facts = prioritize(health.facts, priority[view.id] ?? []);
   return (
     <div className="flex flex-col gap-5" data-health-tab={health.key} data-surface-hero="">
       {health.report ? <p className="m-0 text-sm text-warn" data-health-report="">
         {health.report.note} · the readings below may be older
       </p> : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {facts.map(fact => <FactCard key={fact.key} fact={fact} card={card} data={data} nowMs={nowMs} />)}
+        {health.facts.map(fact => <FactCard key={fact.key} fact={fact} card={card} data={data} nowMs={nowMs} />)}
       </div>
     </div>
   );

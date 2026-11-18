@@ -1,5 +1,4 @@
 import { StripeReport } from "./StripeReport";
-import { PurposeSections } from "./purpose-presentation";
 import type { CSSProperties } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type {
@@ -21,6 +20,7 @@ import { formatCalendarRange, formatInt, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAssetTabPath } from "@/routes/asset-detail/AssetTabs";
 import { growthMoves, type GrowthMove } from "@/routes/asset-detail/growth-moves";
+import { hasRecordedTrend, ReportSourceNext } from "@/routes/asset-detail/ReportSourceNext";
 import { timelineAnnotations } from "@/routes/asset-detail/shared";
 import {
   MovementChip,
@@ -63,11 +63,11 @@ export function GrowthTab({
   const moves = growthMoves(performance, days);
 
   return (
-    <PurposeSections surface="growth" id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
-      <StripeReport key="stripe" report={data.stripeSubscriptions} days={days} nowMs={nowMs} />
-      {moves.length > 0 ? <Moves key="moves" moves={moves} days={days} /> : null}
+    <div id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      <StripeReport report={data.stripeSubscriptions} days={days} nowMs={nowMs} />
+      {moves.length > 0 ? <Moves moves={moves} days={days} /> : null}
 
-      <section key="audience"
+      <section
         id="performance"
         // With no series to compare, the audience pair is the answer
         // (`audit:surfaces` wants exactly one hero per tab).
@@ -106,9 +106,10 @@ export function GrowthTab({
             timeline={timeline}
           />
         </div>
+        {!audience.some(hasRecordedTrend) ? <ReportSourceNext report="audience" assetTab="growth" data={data} nowMs={nowMs} /> : null}
       </section>
 
-      <SearchPair key="search"
+      <SearchPair
         performance={performance}
         days={days}
         asset={data.asset.displayName}
@@ -118,18 +119,18 @@ export function GrowthTab({
 
       {/* The analysis's age is Search's to state, beside the findings it
           dates; Growth draws the numbers. */}
-      <PanelSummary key="panel" panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
+      <PanelSummary panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
 
-      <ProductUse key="product" snapshot={data.executive?.productUse ?? null} />
+      <ProductUse snapshot={data.executive?.productUse ?? null} />
 
       {/* What people do once they arrive, and where it breaks. Its header
           names PostHog as the source, so its numbers are never read as
           Google's. */}
-      <ProductJourney key="journey"
+      <ProductJourney
         product={data.executive?.product ?? null}
         connection={productConnection(data.integrations.lanes)}
       />
-    </PurposeSections>
+    </div>
   );
 }
 
