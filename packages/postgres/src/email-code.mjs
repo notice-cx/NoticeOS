@@ -116,7 +116,7 @@ async function eligibility(trx, email, enrollment, operator) {
  * headers never choose a rate bucket. Close in finally after the last action. */
 export function openEmailCodeLogin(options) {
     const { standaloneOwnerWorkspaceId, provisioningWorkspaceId } = options;
-    const operatorWorkspaceId = standaloneOwnerWorkspaceId ?? provisioningWorkspaceId;
+    const operatorWorkspaceId = standaloneOwnerWorkspaceId === undefined ? provisioningWorkspaceId : standaloneOwnerWorkspaceId;
     if ((standaloneOwnerWorkspaceId !== undefined && provisioningWorkspaceId !== undefined)
         || (operatorWorkspaceId !== undefined && (typeof operatorWorkspaceId !== 'string' || !UUID.test(operatorWorkspaceId)))) {
         throw new IdentityRefused('Identity enrollment refused');

@@ -56,7 +56,9 @@ function readPlan(file, newWorkspace, invalid) {
     if (tower.origin !== input.trustedOrigin || (tower.protocol !== 'https:'
       && (tower.protocol !== 'http:' || (tower.hostname !== '127.0.0.1' && !isPrivateTowerOrigin(input.trustedOrigin))))) throw invalid();
     const tasks = input.ntasks;
-    if (!exact(tasks, ['origin', 'workspaceId', 'projectId']) || !uuid.test(tasks.workspaceId) || !uuid.test(tasks.projectId)
+    if (!exact(tasks, ['origin', 'workspaceId', 'projectId'])
+      || typeof tasks.workspaceId !== 'string' || !uuid.test(tasks.workspaceId)
+      || typeof tasks.projectId !== 'string' || !uuid.test(tasks.projectId)
       || typeof tasks.origin !== 'string') throw invalid();
     const origin = new URL(tasks.origin);
     if (origin.origin !== tasks.origin || (origin.protocol !== 'https:'

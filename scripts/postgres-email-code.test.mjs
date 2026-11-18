@@ -41,6 +41,12 @@ test('email entry refuses unsafe requests before connection and exposes only fix
   } finally { await login.close(); }
   for (const peerAddress of ['', 'forwarded unknown', undefined]) assert.throws(() => openEmailCodeLogin({ connectionString: 'postgresql://noticeos_identity@127.0.0.1:1/db',
     trustedOrigin: origin, sessionSecret: randomBytes(48).toString('base64url'), peerAddress, deliver: async () => {} }), IdentityRefused);
+  for (const invalidScope of [{ standaloneOwnerWorkspaceId: null }, { provisioningWorkspaceId: null },
+    { standaloneOwnerWorkspaceId: randomUUID(), provisioningWorkspaceId: randomUUID() }]) {
+    assert.throws(() => openEmailCodeLogin({ connectionString: 'postgresql://noticeos_identity@127.0.0.1:1/db',
+      trustedOrigin: origin, sessionSecret: randomBytes(48).toString('base64url'), peerAddress: '192.0.2.1',
+      deliver: async () => {}, ...invalidScope }), IdentityRefused);
+  }
 });
 
 test('whole-body deadline and oversized tee refuse without identity connection or hanging close', { timeout: 30_000 }, async (t) => {

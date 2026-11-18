@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -95,9 +95,16 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
       return file;
     };
-    const runOwner = (action, file, { id, input, status = 0 } = {}) => {
-      const result = spawnSync(process.execPath, [ownerScript, action, file, ...(id ? [id] : [])],
-        { input, timeout: 30_000, encoding: 'utf8' });
+    const runOwner = async (action, file, { id, input, status = 0 } = {}) => {
+      const result = await new Promise((resolve, reject) => {
+        const child = execFile(process.execPath, [ownerScript, action, file, ...(id ? [id] : [])],
+          { timeout: 30_000, maxBuffer: 64 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error && typeof error.code !== 'number') reject(new Error(`Operator ${action} did not finish.`));
+            else resolve({ status: error?.code ?? 0, stdout, stderr });
+          });
+        child.stdin.on('error', () => undefined);
+        child.stdin.end(input);
+      });
       assert.equal(result.status, status, `Operator ${action} returned an unexpected status.`);
       for (const secret of [identitySecret, platformPassword, input]) {
         if (secret) assert.equal((result.stdout + result.stderr).includes(secret), false);
@@ -105,18 +112,18 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       assert.equal(/@example\.test/u.test(result.stdout + result.stderr), false);
       return status === 0 ? JSON.parse(result.stdout) : null;
     };
-    const verifyOwner = (file, id, email) => {
-      runOwner('send-code', file, { id });
+    const verifyOwner = async (file, id, email) => {
+      await runOwner('send-code', file, { id });
       const mail = readFileSync(mailbox, 'utf8');
       assert.ok(mail.split('\n').includes(`To: ${email}`));
       const otp = /\b(\d{6})\.\s*$/u.exec(mail)?.[1];
       assert.ok(otp);
-      assert.equal(runOwner('verify-code', file, { id, input: otp }).emailVerified, true);
+      assert.equal((await runOwner('verify-code', file, { id, input: otp })).emailVerified, true);
     };
     const [oak, elm] = actors;
     const firstOwner = ownerPlan(oak, 'oak');
     const firstFile = prepareFile('oak', firstOwner);
-    const first = runOwner('prepare', firstFile);
+    const first = await runOwner('prepare', firstFile);
     // The preexisting owner's original enrollment had a different trusted peer.
     let firstCode;
     const firstLogin = openEmailCodeLogin({ connectionString: postgres.identityDatabase, trustedOrigin: origin,
@@ -131,7 +138,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       assert.equal((await firstLogin.verifyCode(request('verify', { email, otp: firstCode }), enrollment)).status, 200);
     } finally { await firstLogin.close(); }
     const activate = (file, prepared, input, status) => runOwner('activate', file, { id: prepared.enrollmentId, input, status });
-    const activeFirst = activate(firstFile, first, oak.token);
+    const activeFirst = await activate(firstFile, first, oak.token);
     assert.equal(activeFirst.serviceId, firstOwner.serviceId);
     const attachedConfig = path.join(root, 'attached.json');
     const attach = workspaces => {
@@ -142,10 +149,16 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       return startAttachedCustomer(startPlan({ dir: path.join(root, 'attached'), port: plan.port }), attachedConfig);
     };
     app = await attach([firstOwner]);
-    const http = (route, { body, headers = {} } = {}) => fetch(origin + route, {
-      ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }), headers: { origin,
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers }, signal: AbortSignal.timeout(30000),
-    });
+    const http = async (route, { body, headers = {} } = {}) => {
+      try {
+        return await fetch(origin + route, {
+          ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
+          // Restarts serve the same port. Do not carry pooled connections across them.
+          headers: { origin, connection: 'close', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+          signal: AbortSignal.timeout(30_000),
+        });
+      } catch (error) { throw new Error(`Loopback Tower request to ${new URL(route, origin).pathname} failed.`, { cause: error }); }
+    };
     const signIn = async ({ intendedEmail: email, workspaceId }) => {
       const previous = new Set(readdirSync(app.outbox));
       assert.equal((await http(EMAIL_CODE_PATHS.request, { body: { email } })).status, 202);
@@ -162,40 +175,12 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       assert.deepEqual(session.workspaces.map(workspace => workspace.workspaceId), [workspaceId]);
       return { cookie, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
     };
-    const firstSession = await signIn(firstOwner);
-    const firstHeaders = { ...firstSession, [WORKSPACE_SELECTION_HEADER]: firstOwner.workspaceId };
-    const firstStillOwnsWorkspace = async () => {
-      const response = await http('/api/session', { headers: firstHeaders });
-      assert.equal(response.status, 200);
-      const { selectedWorkspace, workspaces } = await response.json();
-      assert.equal(selectedWorkspace.role, 'owner');
-      assert.deepEqual(workspaces.map(workspace => workspace.workspaceId), [firstOwner.workspaceId]);
+    const checkCatalog = async actor => {
+      const catalog = await http('/api/tasks/projects', { headers: actor.board });
+      assert.equal(catalog.status, 200);
+      assert.deepEqual((await catalog.json()).projects.map(project => project.projectId), [actor.projectId]);
     };
-    const conflict = ownerPlan(oak, 'overlap');
-    runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
-    const secondOwner = ownerPlan(elm, 'elm');
-    const secondFile = prepareFile('elm', secondOwner);
-    const second = runOwner('prepare', secondFile);
-    runOwner('prepare', secondFile, { status: 1 });
-    activate(secondFile, second, elm.token, 1);
-    verifyOwner(secondFile, second.enrollmentId, secondOwner.intendedEmail);
-    activate(secondFile, { enrollmentId: first.enrollmentId }, elm.token, 1);
-    activate(secondFile, second, elm.readonlyToken, 1);
-    activate(secondFile, second, oak.token, 1);
-    const editedEmail = prepareFile('wrong-recipient', { ...secondOwner, intendedEmail: firstOwner.intendedEmail });
-    activate(editedEmail, second, elm.token, 1);
-    const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
-    activate(reusedGrant, second, elm.token, 1);
-    await firstStillOwnsWorkspace();
-    assert.equal(activate(secondFile, second, elm.token).serviceId, secondOwner.serviceId);
-    activate(secondFile, second, elm.token, 1);
-    await app.close(); app = undefined;
-    app = await attach([firstOwner, secondOwner]);
-    await firstStillOwnsWorkspace();
-    assert.equal((await http('/api/wall', { headers: { ...firstHeaders, [WORKSPACE_SELECTION_HEADER]: secondOwner.workspaceId } })).status, 403);
-    const owners = [firstOwner, secondOwner];
-    for (const [i, actor] of actors.slice(0, 2).entries()) {
-      const workspace = owners[i], binding = i === 0 ? firstSession : await signIn(workspace);
+    const connectNtasks = async (actor, workspace, binding) => {
       const asset = `${actor.prefix}.example`;
       postgres.cluster.run(`UPDATE noticeos.config_documents SET body=:'body'::jsonb WHERE workspace_id=:'workspace'::uuid AND document_key=:'key';
         INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,list_position)
@@ -210,10 +195,42 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       actor.headers = headers;
       actor.board = { cookie: binding.cookie,
         authorization: `Bearer ${hostedTaskAuthorization(workspace.workspaceId, binding[WORKSPACE_SESSION_HEADER], null)}` };
-      const catalog = await http('/api/tasks/projects', { headers: actor.board });
-      assert.equal(catalog.status, 200);
-      assert.deepEqual((await catalog.json()).projects.map(project => project.projectId), [actor.projectId]);
-    }
+      await checkCatalog(actor);
+    };
+    const firstSession = await signIn(firstOwner);
+    await connectNtasks(oak, firstOwner, firstSession);
+    const firstHeaders = { ...firstSession, [WORKSPACE_SELECTION_HEADER]: firstOwner.workspaceId };
+    const firstStillOwnsWorkspace = async () => {
+      const response = await http('/api/session', { headers: firstHeaders });
+      assert.equal(response.status, 200);
+      const { selectedWorkspace, workspaces } = await response.json();
+      assert.equal(selectedWorkspace.role, 'owner');
+      assert.deepEqual(workspaces.map(workspace => workspace.workspaceId), [firstOwner.workspaceId]);
+    };
+    const conflict = ownerPlan(oak, 'overlap');
+    await runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
+    const secondOwner = ownerPlan(elm, 'elm');
+    const secondFile = prepareFile('elm', secondOwner);
+    const second = await runOwner('prepare', secondFile);
+    await runOwner('prepare', secondFile, { status: 1 });
+    await activate(secondFile, second, elm.token, 1);
+    await verifyOwner(secondFile, second.enrollmentId, secondOwner.intendedEmail);
+    await activate(secondFile, { enrollmentId: first.enrollmentId }, elm.token, 1);
+    await activate(secondFile, second, elm.readonlyToken, 1);
+    await activate(secondFile, second, oak.token, 1);
+    const editedEmail = prepareFile('wrong-recipient', { ...secondOwner, intendedEmail: firstOwner.intendedEmail });
+    await activate(editedEmail, second, elm.token, 1);
+    const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
+    await activate(reusedGrant, second, elm.token, 1);
+    await firstStillOwnsWorkspace();
+    assert.equal((await activate(secondFile, second, elm.token)).serviceId, secondOwner.serviceId);
+    await activate(secondFile, second, elm.token, 1);
+    await app.close(); app = undefined;
+    app = await attach([firstOwner, secondOwner]);
+    await firstStillOwnsWorkspace();
+    assert.equal((await http('/api/wall', { headers: { ...firstHeaders, [WORKSPACE_SELECTION_HEADER]: secondOwner.workspaceId } })).status, 403);
+    await checkCatalog(oak);
+    await connectNtasks(elm, secondOwner, await signIn(secondOwner));
     assert.equal((await http(`/api/tasks?project=${elm.projectId}`, { headers: oak.board })).status, 404);
     const saved = await http('/api/tasks', { headers: { ...elm.board, 'idempotency-key': 'fixture-customer-work' },
       body: { projectId: elm.projectId, title: 'Check the signup report' } });
@@ -235,7 +252,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     assert.equal(wall.workProjects[0].open, 0);
     assert.equal((await http(`/api/tasks/${id}/respond`, { headers: elm.board, body: { projectId: elm.projectId, response: 'A fixture answer' } })).status, 401);
     await app.close(); app = undefined;
-    app = await attach(owners);
+    app = await attach([firstOwner, secondOwner]);
     const reopened = await http('/api/tasks/projects', { headers: elm.board });
     assert.equal(reopened.status, 200);
     assert.deepEqual((await reopened.json()).projects.map(project => project.projectId), [elm.projectId]);
