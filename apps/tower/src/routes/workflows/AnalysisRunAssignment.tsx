@@ -35,13 +35,13 @@ export function AnalysisRunAssignment({ run, writable }: { run: AnalysisRun; wri
     <h3 className="font-semibold">Analysis assignment</h3>
     {assignment?.taskId ? <Link className="inline-flex min-h-8 items-center text-sm underline underline-offset-4" to={taskPath(assignment.taskId)}>View assigned task</Link>
       : assignment ? <div className="space-y-2">
-        <p role="status" className="text-sm text-muted-foreground">The task has not been confirmed.</p>
+        <p role="status" data-status-for="task:analysis-assignment" className="text-sm text-muted-foreground">The task has not been confirmed.</p>
         {writable ? <Button type="button" size="sm" variant="outline" disabled={submit.isPending} onClick={() => submit.mutate(null)}>
           {submit.isPending ? 'Checking…' : 'Check assignment'}
         </Button> : null}
       </div> : !canAssign ? <p className="text-sm text-muted-foreground">A workspace owner or operator can assign this analysis.</p>
         : projects.isError ? <div className="flex flex-wrap items-center gap-2 text-sm"><p>Couldn’t load task projects.</p><Button type="button" size="sm" variant="outline" onClick={() => void projects.refetch()}>Try again</Button></div>
-          : !projects.data ? <p role="status" className="text-sm text-muted-foreground">Loading task projects…</p>
+          : !projects.data ? <p role="status" data-status-for="read:analysis-task-projects" className="text-sm text-muted-foreground">Loading task projects…</p>
             : names.length === 0 ? <p className="text-sm">Set up a writable project in <Link className="underline underline-offset-4" to={TASK_PROJECTS_PATH}>Task projects</Link> to assign this analysis.</p>
               : <div className="space-y-2">
                 {names.length === 1 ? <p className="text-sm text-muted-foreground">Project · {project?.displayName}</p> : <label className="grid max-w-md gap-1 text-sm">Task project

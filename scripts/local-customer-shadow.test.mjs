@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as deadline } from 'node:timers/promises';
 import { APP_RELEASE_HEADER } from '../apps/tower/shared/app-release.ts';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
-import { EMAIL_CODE_PATHS } from './identity-protocol.mjs';
+import { EMAIL_CODE_PATHS, PERSONAL_PROFILE_PATH } from './identity-protocol.mjs';
 import { startLocalCustomerShadow } from './local-customer-shadow.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
@@ -20,6 +20,7 @@ import { applyMigrations, bootstrapWorkspace } from './postgres-migrate.mjs';
 import { scramVerifier } from './postgres-scram.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
+import { useCustomerProfileBrowser } from './test-fixtures/customer-profile-browser.mjs';
 
 async function freePort() {
   const server = net.createServer();
@@ -160,6 +161,17 @@ test('the customer shadow entry signs in an enrolled owner and serves stored evi
     assert.equal(session.backupPreview, true);
     const headers = { cookie, [APP_RELEASE_HEADER]: appRelease,
       [WORKSPACE_SESSION_HEADER]: session.session.sessionId, [WORKSPACE_SELECTION_HEADER]: workspaceId };
+    const profile = await http(PERSONAL_PROFILE_PATH, { headers });
+    assert.equal(profile.status, 200, await profile.clone().text());
+    assert.equal(profile.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await profile.json(), { displayName: 'Owner', email: ownerEmail, editable: false });
+    assert.equal((await http(PERSONAL_PROFILE_PATH, { headers: { ...headers, [WORKSPACE_SESSION_HEADER]: randomUUID() } })).status, 403);
+    assert.equal((await http(PERSONAL_PROFILE_PATH, { method: 'PATCH', headers, body: { displayName: 'Other owner' } })).status, 403);
+    assert.equal((await (await http(PERSONAL_PROFILE_PATH, { headers })).json()).displayName, 'Owner');
+    if (process.env.NOTICEOS_TEST_CUSTOMER_PROFILE === '1') {
+      await useCustomerProfileBrowser({ origin, outbox, email: ownerEmail, workspaceLabel: 'Shadow evidence',
+        role: 'owner', initialName: 'Owner' });
+    }
     const optional = await http('/api/tasks/capabilities', { headers });
     assert.equal(optional.status, 403);
     assert.equal(optional.headers.get(APP_RELEASE_HEADER), appRelease);

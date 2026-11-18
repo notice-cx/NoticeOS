@@ -2,7 +2,14 @@ import type { AnalysisEvidence, AnalysisRunbook, AnalysisTemplateId } from "./an
 
 export type { AnalysisEvidence, AnalysisRunbook, AnalysisTemplateId } from "./analysis-runbooks";
 
-export { ANALYSIS_WORKFLOWS_PATH } from "../../../scripts/analysis-workflow-request.mjs";
+export {
+  ANALYSIS_WORKFLOWS_PATH,
+  analysisAssignmentRequest,
+  analysisId,
+  analysisWorkflowRequest,
+  type AnalysisAssignmentRequest,
+  type AnalysisWorkflowRequest,
+} from "../../../scripts/analysis-workflow-request.mjs";
 
 export type AnalysisTrigger = { kind: "manual" } | {
   kind: "weekly";

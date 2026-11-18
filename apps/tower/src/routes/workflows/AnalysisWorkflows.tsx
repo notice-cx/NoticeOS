@@ -39,10 +39,10 @@ export function AnalysisWorkflows() {
       <Link to="/workflows?activity=1" className="underline underline-offset-4">Workflow activity</Link>
       <Link to="/settings/notifications" className="underline underline-offset-4">Notifications</Link>
     </nav>
-    {!valid ? <p role="status" className="text-sm text-muted-foreground">This workflow or run link is invalid.</p>
+    {!valid ? <p role="status" data-status-for="link:analysis-run" className="text-sm text-muted-foreground">This workflow or run link is invalid.</p>
       : workflow ? <SavedAnalysisWorkflow key={workflow} id={workflow} runId={run} runbooks={runbooks} writable={writable} open={open} />
         : query.isError ? <ReadFailed title="Couldn’t load analysis workflows" subject="read:analysis-workflows" error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />
-          : !query.data ? <p role="status" className="text-sm text-muted-foreground">Loading workflows…</p> : <>
+          : !query.data ? <p role="status" data-status-for="read:analysis-workflows" className="text-sm text-muted-foreground">Loading workflows…</p> : <>
             {creating && writable ? <NewAnalysisWorkflow runbooks={runbooks} onCancel={() => setCreating(false)} onCreated={(id) => {
               setCreating(false);
               open(id);
@@ -112,7 +112,7 @@ function NewAnalysisWorkflow({ runbooks, onCancel, onCreated }: { runbooks: read
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">Assets</legend>
       {wall.isError ? <div className="flex items-center gap-2 text-sm"><span>Couldn’t load assets.</span><Button type="button" variant="outline" size="sm" onClick={() => void wall.refetch()}>Try again</Button></div> :
-        !wall.data ? <p role="status" className="text-sm text-muted-foreground">Loading assets…</p> : !assets.length ? <p className="text-sm"><Link className="underline" to="/assets">Add an asset</Link> before creating a workflow.</p> :
+        !wall.data ? <p role="status" data-status-for="read:analysis-assets" className="text-sm text-muted-foreground">Loading assets…</p> : !assets.length ? <p className="text-sm"><Link className="underline" to="/assets">Add an asset</Link> before creating a workflow.</p> :
           <div className="grid gap-1 sm:grid-cols-2">{assets.map(asset => <label key={asset.id} className="flex min-h-8 items-center gap-2 text-sm">
             <input type="checkbox" value={asset.id} checked={assetIds.includes(asset.id)} disabled={selected.length >= MAX_ASSETS && !assetIds.includes(asset.id)}
               onChange={event => setAssetIds(event.target.checked ? [...assetIds, asset.id] : assetIds.filter(id => id !== asset.id))} />{asset.displayName}

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { handleBrowserSessionRequest, type BrowserSessionReaders } from '../worker/browser-session-route';
+import { handleBrowserSessionRequest, handlePersonalProfileRequest, type BrowserSessionReaders } from '../worker/browser-session-route';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
+import { WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { WORKSPACE_SELECTION_HEADER, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 
 const origin = 'https://fixture.example.test';
@@ -30,6 +31,30 @@ async function refused(response: Response) {
   expect(response.headers.get('vary')).toBe('Cookie');
   expect(response.headers.has('set-cookie')).toBe(false);
 }
+
+it('distinguishes a refused profile, unavailable identity storage and invalid input', async () => {
+  const read = vi.fn(async () => null);
+  const profileRequest = (body?: unknown) => new Request(`${origin}/api/profile`, {
+    method: body === undefined ? 'GET' : 'PATCH',
+    headers: { origin, [WORKSPACE_SESSION_HEADER]: session.sessionId, [WORKSPACE_SELECTION_HEADER]: workspaceId,
+      'content-type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const refusedProfile = await handlePersonalProfileRequest(profileRequest(), env(), read);
+  expect(refusedProfile.status).toBe(403);
+  expect(await refusedProfile.json()).toEqual({ error: 'profile_unavailable' });
+  read.mockRejectedValueOnce(new Error('private connection detail'));
+  const unavailable = await handlePersonalProfileRequest(profileRequest(), env(), read);
+  expect(unavailable.status).toBe(503);
+  expect(await unavailable.json()).toEqual({ error: 'profile_unavailable' });
+  const tooLong = await handlePersonalProfileRequest(profileRequest({ displayName: 'A'.repeat(1024) }), env(), read);
+  expect(tooLong.status).toBe(400);
+  expect(await tooLong.json()).toEqual({ error: 'invalid_profile_request' });
+  const invalidName = await handlePersonalProfileRequest(profileRequest({ displayName: ' ' }), env(), read);
+  expect(invalidName.status).toBe(400);
+  expect(await invalidName.json()).toEqual({ error: 'invalid_display_name' });
+  expect(read).toHaveBeenCalledTimes(2);
+});
 
 describe('fixed browser session bootstrap', () => {
   it('standalone returns only its explicit mode without calling either identity reader', async () => {

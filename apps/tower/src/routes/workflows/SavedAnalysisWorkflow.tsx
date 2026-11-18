@@ -56,7 +56,7 @@ export function SavedAnalysisWorkflow({ id, runId, runbooks, writable, open }: {
   });
 
   if (query.isError) return <ReadFailed title="Couldn’t open workflow" subject="read:analysis-workflow" error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
-  if (!query.data) return <p role="status" className="text-sm text-muted-foreground">Loading workflow…</p>;
+  if (!query.data) return <p role="status" data-status-for="read:analysis-workflow" className="text-sm text-muted-foreground">Loading workflow…</p>;
   const { workflow, runs } = query.data;
   const book = runbooks.find(template => template.id === workflow.template);
   const error = start.error ?? pause.error;
@@ -107,7 +107,7 @@ function AnalysisRunDetails({ id, runId, writable, retry, starting }: { id: stri
     },
   });
   if (query.isError) return <ReadFailed title="Couldn’t open run" subject="read:analysis-run" error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
-  if (!query.data) return <p role="status" className="text-sm text-muted-foreground">Loading run…</p>;
+  if (!query.data) return <p role="status" data-status-for="read:analysis-run" className="text-sm text-muted-foreground">Loading run…</p>;
   const { run } = query.data;
 
   return <section aria-label="Workflow run" className="space-y-4 border-y border-border py-5">

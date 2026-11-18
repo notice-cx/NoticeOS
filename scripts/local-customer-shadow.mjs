@@ -8,7 +8,7 @@ import { openIdentityDatabase } from '../packages/postgres/src/identity-engine.m
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { verifyShadowTargetReceipt } from './customer-shadow-receipt.mjs';
-import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
+import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, PERSONAL_PROFILE_PATH } from './identity-protocol.mjs';
 import { localMailbox, privateDirectory, startCustomerRuntime } from './local-customer.mjs';
 import { findPsql } from './postgres-tools.mjs';
 import { isHostedStoredRead, siteIconsReadRequest } from './workspace-operations.mjs';
@@ -86,7 +86,7 @@ async function admits(request, { ownerEmail, workspaceId }) {
   if (selected !== null && selected !== workspaceId) return false;
   if (request.method === 'GET' || request.method === 'HEAD') {
     if (pathname === '/api' || pathname.startsWith('/api/')) {
-      return pathname === '/api/session' || pathname === '/api/app-release' || isHostedStoredRead(request);
+      return pathname === '/api/session' || pathname === '/api/app-release' || pathname === PERSONAL_PROFILE_PATH || isHostedStoredRead(request);
     }
     return true;
   }
