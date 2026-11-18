@@ -15,7 +15,7 @@ import {
   completeWatchReviews,
   type CompletedWatchReview,
   linkWatchReviews,
-  type WatchReviewLink,
+  type WatchReviewLink, type WatchProjectScope,
 } from '../watch-readbacks.js';
 import { asRecord } from '../shared.js';
 import { readJsonBody } from './validate.js';
@@ -33,15 +33,15 @@ export async function handleWatchReadbacks(
 }
 
 /** Used by the authenticated route and the admitted workspace scheduler. */
-export async function workspaceWatchReadbacks(request: Request, env: IngestEnv, nowMs: number): Promise<Response> {
+export async function workspaceWatchReadbacks(request: Request, env: IngestEnv, nowMs: number, scope?: WatchProjectScope): Promise<Response> {
   if (request.method === 'GET') {
     const after = new URL(request.url).searchParams.get('reviewsAfter') ?? '0';
     if (!/^\d{1,10}$/.test(after) || !Number.isSafeInteger(Number(after))) {
       return json({ error: 'bad_request', detail: 'reviewsAfter must be an alert number' }, 400);
     }
     const [pending, reviews] = await Promise.all([
-      Number(after) === 0 ? readPendingWatchReadbacks(env) : Promise.resolve([]),
-      readWatchReviews(env, Number(after)),
+      Number(after) === 0 ? readPendingWatchReadbacks(env, WATCH_READBACK_MAX_BATCH, scope) : Promise.resolve([]),
+      readWatchReviews(env, Number(after), scope),
     ]);
     return json({ pending, reviews, nextReviewAfter: reviews.length === WATCH_READBACK_MAX_BATCH
       ? reviews.at(-1)!.flagNumber : null }, 200);

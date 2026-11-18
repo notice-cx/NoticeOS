@@ -43,7 +43,7 @@ test('approved sites and revenue notifications run once in their own workspace',
           (:'ws'::uuid,'open-error','alert','12','open','{}',now(),now());`,
       { vars: { ws: workspaceId, asset, domain, settings: JSON.stringify(workspaceId === east.workspaceId ? schedules :
         { ...schedules, freshness: { enabled: false, cron: '* * * * *' } }) } });
-      db.cluster.run(sealedProviderSql(workspaceId, credentialsKey, 'discord', { DISCORD_WEBHOOK_URL: webhook }));
+      db.cluster.run(sealedProviderSql(workspaceId, credentialsKey, 'discord', { DISCORD_WEBHOOK_URL: webhook.replace('discord.com/', 'discord.com:443/') }));
     }
     const file = path.join(root, 'config.json');
     const config = { format: 'noticeos-customer-operating/1', database: { app: db.address, identity: db.identityDatabase, grant: db.grantConnectionString },
@@ -108,13 +108,22 @@ test('approved sites and revenue notifications run once in their own workspace',
     clock += 60000; await launch();
     assert.equal(messages.length, 1);
     await app.close(); app = undefined;
+    db.cluster.run(`UPDATE noticeos.config_documents SET body=jsonb_set(body::jsonb,'{discord_mediavine_revenue}','true')::json
+        WHERE workspace_id=:'ws'::uuid AND document_key='constants';
+      UPDATE noticeos.assets SET status='retired' WHERE workspace_id=:'ws'::uuid AND NOT is_os;
+      INSERT INTO noticeos.notification_events(workspace_id,notification_type,source_kind,source_ref,occurrence,payload,occurred_at,next_attempt_at)
+      SELECT workspace_id,notification_type,source_kind,source_ref,'2026-11-18',payload,now(),now() FROM noticeos.notification_events WHERE state='sent';`, { vars: { ws: east.workspaceId } });
+    clock += 60000; await launch();
+    assert.equal(messages.length, 2, 'the pending workspace notification is delivered after its last site retires');
+    assert.deepEqual(probes, first);
+    await app.close(); app = undefined;
     db.cluster.run(`DELETE FROM noticeos.connection_secrets WHERE workspace_id=:'ws'::uuid AND connection_id IN
       (SELECT connection_id FROM noticeos.integration_connections WHERE workspace_id=:'ws'::uuid AND provider='discord');
       UPDATE noticeos.config_documents SET body=jsonb_set(body::jsonb,'{discord_mediavine_revenue}','true')::json
       WHERE workspace_id=:'ws'::uuid AND document_key='constants'`, { vars: { ws: east.workspaceId } });
     await assert.rejects(preflight(), /webhook/u);
     clock += 60000; await launch();
-    assert.equal(messages.length, 1);
+    assert.equal(messages.length, 2);
   } finally {
     try { await app?.close(); } finally { db?.close(); }
     if (!existsSync(path.join(plan.home, '.local', 'customer-postgres', 'data', 'postmaster.pid'))) rmSync(root, { recursive: true, force: true });

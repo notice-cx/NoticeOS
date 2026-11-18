@@ -104,7 +104,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
               const current = await resolveCredential(env, 'discord', 'store-only');
               const url = current.fields[DISCORD_WEBHOOK_FIELD];
               if (current.source !== 'store' || !url) return null;
-              return revenueWebhookId(new URL(url)) === approved.webhookId ? url : null;
+              const target = new URL(url);
+              return revenueWebhookId(target) === approved.webhookId ? target.href : null;
             };
             if (!await destination()) return denied();
             const notice = await runNotifier(env, { revenueOnly: true, fetchImpl: async (input, init) => {
@@ -130,7 +131,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           if (job === 'freshness') {
             await runFreshnessCheck(env);
             await checkSearchTraffic(env, ruleConfigFromConstants(constants));
-            if (policy) return Response.json({ outcome: 'ran', history: await recordCustomerHealthHistory(env, time) });
+            if (policy) return Response.json({ outcome: 'ran', history: await recordCustomerHealthHistory(env, Date.now()) });
             return Response.json({ outcome: 'ran' });
           }
           const options = { fetchImpl, scheduled: true,

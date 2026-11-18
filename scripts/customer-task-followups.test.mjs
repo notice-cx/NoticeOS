@@ -47,6 +47,11 @@ test('automatic follow-ups use the granted external project, published evidence 
         VALUES(:'ws'::uuid,:'window',:'asset','manual','fixture','gsc','position',now()-interval '8 days',
         current_date-16,current_date-9,'{7}','closed','inconclusive',now()-interval '1 day',:'task');`,
       { vars: { ws: workspaceId, service: serviceId, filing: filingId, asset, cfg: JSON.stringify(config), window: windowId, task: tasks.task.id } });
+    db.cluster.run(`INSERT INTO noticeos.watch_windows(workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at,
+        baseline_start,baseline_end,check_offsets,status,outcome,closed_at,readback_bead)
+      SELECT workspace_id, gen_random_uuid()::text, asset_id, ref_kind, 'former-project-' || n, metric_integration, metric, registered_at,
+        baseline_start,baseline_end,check_offsets,status,outcome,closed_at - interval '1 day','former-' || n
+        FROM noticeos.watch_windows CROSS JOIN generate_series(1,51) n WHERE window_id=:'window';`, { vars: { window: windowId } });
     const fields = { NTASKS_URL: tasks.origin, NTASKS_WORKSPACE_ID: tasks.workspaceId, NTASKS_TOKEN: tasks.token };
     db.cluster.run(sealedProviderSql(workspaceId, key, 'ntasks', fields));
     for (const report of DATAFORSEO_BASE_REPORTS) {
@@ -60,7 +65,10 @@ test('automatic follow-ups use the granted external project, published evidence 
     const reports = path.join(root, 'reports'); fs.mkdirSync(reports, { mode: 0o700 });
     const requests = [];
     let interruptComment = true;
-    const followups = localCustomerTaskFollowups({ sourceRoot: plan.root, root: reports, credentialsKey: key, ntasksOrigin: tasks.origin,
+    const configurationRoot = path.join(root, 'fixture-config');
+    fs.cpSync(path.join(plan.root, 'workers/ingest/test/fixture-config'), configurationRoot, { recursive: true });
+    fs.copyFileSync(path.join(plan.root, 'scripts/fixture-config/beads.json'), path.join(configurationRoot, 'beads.json'));
+    const followups = localCustomerTaskFollowups({ sourceRoot: plan.root, configurationRoot, root: reports, credentialsKey: key, ntasksOrigin: tasks.origin,
       async transport(url, options) {
         assert.equal(new URL(url).origin, tasks.origin);
         const method = options.method;
@@ -102,6 +110,7 @@ test('automatic follow-ups use the granted external project, published evidence 
     assert.match(filed[0].id, /^backup-/u);
     assert.equal(filed[0].metadata.noticeos_panel_version, version);
     assert.equal(await commentCount(), 1); assert.equal(stamped(), 'true');
+    assert.equal(db.cluster.sql("SELECT count(*) FROM noticeos.watch_windows WHERE ref LIKE 'former-project-%' AND readback_posted_at IS NULL")[0].count, '51');
     const writes = requests.length;
     await next(); assert.equal(requests.length, writes);
     db.cluster.run(`UPDATE noticeos_platform.workspace_service_grants SET actions=ARRAY['workflows.run'] WHERE service_id='${filingId}'`);

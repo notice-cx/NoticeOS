@@ -44,7 +44,7 @@ function scopedTaskService(connection, callNtasks, fetchImpl, authorize) {
   };
 }
 
-export function localCustomerTaskFollowups({ sourceRoot, root, credentialsKey, ntasksOrigin, transport = fetch }) {
+export function localCustomerTaskFollowups({ sourceRoot, root, credentialsKey, ntasksOrigin, configurationRoot, transport = fetch }) {
   let tools;
   return async ({ job, binding, store, signal, grant, collection, scheduledAt }) => {
     const { workspaceId, serviceId } = binding;
@@ -64,23 +64,27 @@ export function localCustomerTaskFollowups({ sourceRoot, root, credentialsKey, n
     const cron = new Cron(selected.schedule.cron, { timezone: scheduleTimezone(selected.schedule), paused: true });
     if (!cron.match(new Date(scheduledAt))) return { outcome: 'skipped' };
     const api = await (tools ??= loadCustomerWorkflowModule(sourceRoot, root, `
-      export { readHostedTaskConnection } from './routes/hosted-task-service.ts';
+      export { readHostedTaskConnection, readHostedTaskMapping } from './routes/hosted-task-service.ts';
       export { callNtasks } from './ntasks.ts';
       export { readSerpPanelLandings } from './serp-panel-landings.ts';
       export { workspaceWatchReadbacks } from './routes/watch-readbacks.ts';
-    `).catch(error => { tools = undefined; throw error; }));
+    `, configurationRoot).catch(error => { tools = undefined; throw error; }));
     const env = { STORE: store, CREDENTIALS_KEY: credentialsKey, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_NTASKS_ORIGIN: ntasksOrigin };
     const nowMs = Date.parse(scheduledAt);
     const landings = job === 'panel-review' ? await api.readSerpPanelLandings(env, nowMs) : null;
     const publications = new Map();
+    let failed = false;
     if (landings) {
       const reports = path.join(root, workspaceId, 'reports');
       for (const landing of landings.landings) {
-        const version = await readPublishedVersion(landing.asset, reports);
-        if (!version) continue;
-        const freshness = await readPublishedFreshness(landing.asset, version, reports);
-        if (!panelPublicationGap(freshness, landing)) publications.set(landing.asset, { version, freshness });
+        try {
+          const version = await readPublishedVersion(landing.asset, reports);
+          if (!version) continue;
+          const freshness = await readPublishedFreshness(landing.asset, version, reports);
+          if (!panelPublicationGap(freshness, landing)) publications.set(landing.asset, { version, freshness });
+        } catch { failed = true; }
       }
+      if (!publications.size && failed) throw new Error('Published search evidence could not be read.');
       if (!publications.size) return { outcome: 'skipped' };
     }
     let connection, taskService;
@@ -98,7 +102,6 @@ export function localCustomerTaskFollowups({ sourceRoot, root, credentialsKey, n
     // Both filers check backend before reading the map. An empty readback queue needs no Ntasks call.
     const service = { backend: async () => (await connected()).backend(), projects: async () => (await connected()).projects(),
       call: async request => (await connected()).call(request), tool: async (...args) => (await connected()).tool(...args) };
-    let failed = false;
     const deps = { taskService: service, emit: level => { if (level === 'ERROR' || job === 'watch-readbacks' && level === 'WARN') failed = true; },
       readConfig: async () => { await connected(); return JSON.stringify({ spokes: connection.projects.map(({ asset, prefix }) => ({ asset, prefix })) }); } };
     let result;
@@ -110,6 +113,20 @@ export function localCustomerTaskFollowups({ sourceRoot, root, credentialsKey, n
     } else {
       result = await runWatchReadbackFiler({ ...deps, queueRequest: async request => {
         await authorize();
+        if (request.method === 'GET') {
+          if (!connection) {
+            const { spokes } = await api.readHostedTaskMapping(env);
+            const preview = await api.workspaceWatchReadbacks(request, env, Date.now(), spokes);
+            if (!preview.ok) return preview;
+            const batch = await preview.clone().json();
+            if (!batch.pending.length && !batch.reviews.length) return preview;
+            await connected();
+          }
+          const writable = connection.projects.filter(row => connection.writableProjectIds.has(row.project?.projectId))
+            .map(({ asset, prefix }) => ({ asset, prefix }));
+          return api.workspaceWatchReadbacks(request, env, Date.now(), writable);
+        }
+        if (!connection || !await connection.stillCurrent()) throw new Error('Task connection changed.');
         return api.workspaceWatchReadbacks(request, env, Date.now());
       } });
     }

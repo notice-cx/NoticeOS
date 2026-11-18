@@ -24,17 +24,18 @@ export function customerJobSubject(asset, archive) {
  * a fresh service grant for this store. */
 export async function customerSchedules(store, asset = null, policy) {
     const enrolled = await store.read(tx => tx.query(`SELECT COALESCE(c.body->'schedules','{}'::json)::text AS overrides,
-      a.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,
+      c.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,
       COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
       ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks') AND g.workspace_id=a.workspace_id) AS connected
-    FROM noticeos.assets a
-    JOIN noticeos.config_documents c ON c.workspace_id=a.workspace_id AND c.document_key='constants'
+        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks') AND g.workspace_id=c.workspace_id) AS connected
+    FROM noticeos.config_documents c
+    LEFT JOIN noticeos.assets a ON a.workspace_id=c.workspace_id AND (
+      (a.is_os AND $1::text IS NULL) OR
+      (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1)))
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
     LEFT JOIN noticeos.config_documents p ON p.workspace_id=a.workspace_id AND p.document_key='pull'
-    WHERE (a.is_os AND $1::text IS NULL)
-       OR (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1))
+    WHERE c.document_key='constants' AND ($1::text IS NULL OR a.asset_id IS NOT NULL)
     ORDER BY a.asset_id COLLATE "C"`, [asset]));
     if (!enrolled.length)
         return [];
@@ -50,14 +51,8 @@ export async function customerSchedules(store, asset = null, policy) {
     if (enrolled.some(row => row.isOs)) {
         planned.push({ job: 'asset-zero', schedule: selfReport, assets: [null] });
     }
-    const rows = enrolled.filter(row => !row.isOs);
-    if (!rows.length)
-        return planned;
-    const { workspace } = rows[0];
-    const connected = new Set(rows[0].connected);
-    const sites = rows.filter(row => policy ? selectedCustomerSite(policy, workspace, row.asset, row.domain) : row.domain).map(row => row.asset);
-    if (policy && sites.length)
-        planned.push({ job: 'hygiene', schedule: settings('hygiene'), assets: sites });
+    const { workspace } = enrolled[0];
+    const connected = new Set(enrolled[0].connected);
     if (asset === null && policy?.revenueNotices?.some(n => n.workspaceId === workspace) && connected.has('discord')) {
         planned.push({ job: 'notifications', schedule: settings('notifications'), assets: [null] });
     }
@@ -67,6 +62,12 @@ export async function customerSchedules(store, asset = null, policy) {
                 planned.push({ job, schedule: settings(job), assets: [null] });
         }
     }
+    const rows = enrolled.filter((row) => !row.isOs && row.asset !== null);
+    if (!rows.length)
+        return planned;
+    const sites = rows.filter(row => policy ? selectedCustomerSite(policy, workspace, row.asset, row.domain) : row.domain).map(row => row.asset);
+    if (policy && sites.length)
+        planned.push({ job: 'hygiene', schedule: settings('hygiene'), assets: sites });
     for (const job of ['freshness', 'counters', 'signal-dumps']) {
         if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false))
             continue;

@@ -42,9 +42,15 @@ interface ReadbackRow extends Record<string, unknown> {
   review_required: boolean;
 }
 
+export type WatchProjectScope = readonly { asset: string; prefix: string }[];
+const inProjectScope = `($2::jsonb IS NULL OR EXISTS (
+  SELECT 1 FROM jsonb_to_recordset($2::jsonb) AS project(asset text, prefix text)
+  WHERE project.asset=w.asset_id AND starts_with(w.readback_bead, project.prefix || '-')))`;
+
 export async function readPendingWatchReadbacks(
   env: IngestEnv,
   limit: number = WATCH_READBACK_MAX_BATCH,
+  scope?: WatchProjectScope,
 ): Promise<PendingWatchReadback[]> {
   // Oldest close first, ties by id.
   const records = await env.STORE.read((tx) =>
@@ -57,10 +63,10 @@ export async function readPendingWatchReadbacks(
          FROM noticeos.watch_windows w
         WHERE w.status = 'closed'
           AND w.readback_bead IS NOT NULL
-          AND w.readback_posted_at IS NULL
+          AND w.readback_posted_at IS NULL AND ${inProjectScope}
         ORDER BY w.closed_at ASC, w.window_id COLLATE "C" ASC
         LIMIT $1`,
-      [Math.max(1, Math.min(limit, WATCH_READBACK_MAX_BATCH))],
+      [Math.max(1, Math.min(limit, WATCH_READBACK_MAX_BATCH)), scope ? JSON.stringify(scope) : null],
     ),
   );
   return records.map(watchReadback);
@@ -143,7 +149,7 @@ export async function linkWatchReviews(env: IngestEnv, links: WatchReviewLink[])
 }
 
 /** Keyset pages keep an unfinished early review from hiding later completions. */
-export async function readWatchReviews(env: IngestEnv, after: number = 0): Promise<WatchReview[]> {
+export async function readWatchReviews(env: IngestEnv, after: number = 0, scope?: WatchProjectScope): Promise<WatchReview[]> {
   const rows = await env.STORE.read((tx) => tx.query<ReadbackRow & { flagNumber: number; postedAt: string }>(
     `SELECT f.flag_number::int AS "flagNumber", w.window_id AS id, w.asset_id AS asset,
             w.ref, w.note, w.metric_integration, w.metric, w.scope::text AS scope_json,
@@ -153,8 +159,8 @@ export async function readWatchReviews(env: IngestEnv, after: number = 0): Promi
        JOIN noticeos.current_flags f ON f.asset_id = w.asset_id
         AND f.rule_id = 'watch-window-closed' AND f.rule_inputs->>'watchWindowId' = w.window_id
       WHERE w.status = 'closed' AND w.readback_bead IS NOT NULL AND w.readback_posted_at IS NOT NULL
-        AND f.flag_number > $1 AND NOT ${settledFlagsSql('f')}
-      ORDER BY f.flag_number LIMIT $2`, [after, WATCH_READBACK_MAX_BATCH],
+        AND f.flag_number > $1 AND ${inProjectScope} AND NOT ${settledFlagsSql('f')}
+      ORDER BY f.flag_number LIMIT $3`, [after, scope ? JSON.stringify(scope) : null, WATCH_READBACK_MAX_BATCH],
   ));
   return rows.map((row) => ({ ...watchReadback(row), flagNumber: row.flagNumber, postedAt: javascriptInstant(row.postedAt) }));
 }
