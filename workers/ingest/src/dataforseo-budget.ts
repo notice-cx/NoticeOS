@@ -1,6 +1,7 @@
 import { METERED_ARCHIVE_COST, METERED_DATA_PROVIDER, RESEARCH_COLLECTOR_ACTOR, meteredSpendBounds } from '@noticeos/contract';
 import type { Transaction, WorkspaceStore } from '@noticeos/postgres';
 import { dataForSeoConnectionMatches, type DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
+import { sha256Hex } from './shared.js';
 
 const budgetName = 'noticeos.dataforseo-budget';
 
@@ -42,17 +43,22 @@ export function canReserveDataForSeo(store: WorkspaceStore, nowMs: number, reser
 export type DataForSeoReservation = { kind: 'reserved'; attemptId: string; reservedAtMs: number }
   | { kind: 'budget_exhausted' | 'dataforseo_uncertain' | 'dataforseo_approval_changed' };
 
-export function reserveDataForSeo(store: WorkspaceStore, input: {
+export async function reserveDataForSeo(store: WorkspaceStore, input: {
   asset: string; requestKey: string; requestClock: () => number; reserveUsd: number; capUsd: number; fenceUnsettled: boolean;
   requireSavedCap?: boolean; approvedCredential?: DataForSeoConnectionPin;
 }): Promise<DataForSeoReservation> {
+  // Both profiles check unresolved customer purchases. Standalone still
+  // repairs its own interrupted work through the existing retry paths.
+  const customerKey = await sha256Hex(`customer:${input.requestKey}`);
+  const blockedKeys = input.fenceUnsettled ? [customerKey, input.requestKey] : [customerKey];
+  const recordedKey = input.fenceUnsettled ? customerKey : input.requestKey;
   return store.write(async tx => {
     await serializeBudget(tx);
     if (input.approvedCredential && !await dataForSeoConnectionMatches(tx, input.approvedCredential)) {
       return { kind: 'dataforseo_approval_changed' };
     }
-    if (input.fenceUnsettled && (await tx.query(`SELECT attempt_id FROM noticeos.dataforseo_request_charges
-        WHERE request_key=$1 AND provider_cost_usd IS NULL LIMIT 1`, [input.requestKey])).length > 0) {
+    if ((await tx.query(`SELECT 1 FROM noticeos.dataforseo_request_charges
+        WHERE request_key=ANY($1::text[]) AND provider_cost_usd IS NULL LIMIT 1`, [blockedKeys])).length > 0) {
       return { kind: 'dataforseo_uncertain' };
     }
     const reservedAtMs = input.requestClock();
@@ -61,7 +67,7 @@ export function reserveDataForSeo(store: WorkspaceStore, input: {
     await tx.execute(`INSERT INTO noticeos.dataforseo_request_charges
       (workspace_id, attempt_id, asset_id, request_key, reserved_at, reserve_usd)
       VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6::numeric)`, [
-      tx.workspaceId, attemptId, input.asset, input.requestKey, new Date(reservedAtMs).toISOString(), input.reserveUsd,
+      tx.workspaceId, attemptId, input.asset, recordedKey, new Date(reservedAtMs).toISOString(), input.reserveUsd,
     ]);
     return { kind: 'reserved', attemptId, reservedAtMs };
   });

@@ -3,7 +3,7 @@ import { loadMeteredDataSpend } from '@noticeos/contract';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { beforeEach, expect, it } from 'vitest';
 import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../src/dataforseo-budget.js';
-import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
+import { runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { runCustomerDataForSeo } from '../src/customer-dataforseo.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
@@ -28,7 +28,7 @@ beforeEach(async () => {
 });
 
 it('serializes competing reservations and keeps an unsettled request out of replay', async () => {
-  const reserve = (key: string, nowMs = AUGUST, fenceUnsettled = false, store = env.STORE) => reserveDataForSeo(store, {
+  const reserve = (key: string, nowMs = AUGUST, store = env.STORE, fenceUnsettled = false) => reserveDataForSeo(store, {
     asset: 'northwind.example', requestKey: key.repeat(64), requestClock: () => nowMs, capUsd: 0.25, reserveUsd: 0.25, fenceUnsettled,
   });
   const written = gate<void>(), release = gate<void>(), entered = gate<number>();
@@ -43,11 +43,11 @@ it('serializes competing reservations and keeps an unsettled request out of repl
     entered.resolve(row!.pid);
     return work(tx);
   }) };
-  const first = reserve('a', AUGUST, false, uncommitted);
+  const first = reserve('a', AUGUST, uncommitted, true);
   let second: ReturnType<typeof reserve> | undefined, secondFinished = false;
   try {
     await Promise.race([written.promise, first]);
-    second = reserve('b', AUGUST, false, contender).finally(() => { secondFinished = true; });
+    second = reserve('b', AUGUST, contender).finally(() => { secondFinished = true; });
     const pid = await Promise.race([entered.promise, second.then(() => 0)]);
     const until = Date.now() + 5_000;
     const waiting = await env.STORE.read(async tx => {
@@ -64,8 +64,9 @@ it('serializes competing reservations and keeps an unsettled request out of repl
   }
   const winning = await first;
   expect((await second)?.kind).toBe('budget_exhausted');
-  expect((await reserve('a', SEPTEMBER, true)).kind).toBe('dataforseo_uncertain');
+  expect((await reserve('a', SEPTEMBER)).kind).toBe('dataforseo_uncertain');
   expect((await reserve('c', SEPTEMBER)).kind).toBe('reserved');
+  expect((await reserve('c', SEPTEMBER, env.STORE, true)).kind).toBe('dataforseo_uncertain');
   if (winning.kind !== 'reserved') throw new Error('The budget must admit one request.');
   await settleDataForSeo(env.STORE, winning.attemptId, 0.05);
   await expect(settleDataForSeo(env.STORE, winning.attemptId, 0)).rejects.toThrow();
@@ -111,7 +112,7 @@ it('admits a retry when the next request fits beside the cost already billed', a
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.07);
 });
 
-it('uses no paid retry after an ambiguous customer response and refuses exact replay', async () => {
+it('blocks exact replay of an ambiguous customer purchase after return to standalone', async () => {
   const seeded = await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } }, actor: 'config:seed' }, AUGUST);
   expect(seeded.ok).toBe(true);
   let paid = 0;
@@ -123,6 +124,12 @@ it('uses no paid retry after an ambiguous customer response and refuses exact re
   const run = () => runDataForSeoDumps(env, { ...options, fetchImpl, fenceUnsettled: true });
   expect(await run()).toMatchObject({ failed: 1, costUsd: 0, outcomes: [{ retries: 0 }] });
   expect(await run()).toMatchObject({ failed: 1, outcomes: [{ errorCode: 'dataforseo_uncertain' }] });
+  const offline = new EgressGate(env, { lane: 'dataforseo', fetchImpl: cutUplink(fetchImpl), at: new Date(AUGUST).toISOString() });
+  expect(await offline.isDown()).toBe(true);
+  offline.recordUnmeasured(options.scope.asset, options.scope.families[0]);
+  await offline.finalize();
+  expect(await runDataForSeoRecovery(env, { ...options, fetchImpl })).toMatchObject({ failed: 1,
+    outcomes: [{ asset: options.scope.asset, report: options.scope.families[0], errorCode: 'dataforseo_uncertain' }] });
   expect(paid).toBe(1);
   expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.000001, 0.25)).toBe(false);
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBe(0);

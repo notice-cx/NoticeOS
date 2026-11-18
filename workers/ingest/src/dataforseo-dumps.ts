@@ -306,6 +306,7 @@ export interface DataForSeoDumpsOptions {
   approvedCredential?: DataForSeoConnectionPin;
   authorizePurchase?: () => Promise<void>;
   signal?: AbortSignal;
+  /** The customer schedule requires a saved cap and stops on an unconfirmed bill. */
   fenceUnsettled?: true;
   /** A scheduled sweep and its automatic retry must never take over outage recovery. */
   preserveRecoveryLock?: true;
