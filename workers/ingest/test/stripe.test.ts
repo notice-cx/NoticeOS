@@ -354,6 +354,33 @@ const receiptRows = () => pgRows<{ asset: string; day: string; item: string; net
      FROM noticeos.current_revenue WHERE source = 'stripe' AND item_ref LIKE 'txn_%' ORDER BY day, item`);
 
 describe('Stripe product mappings', () => {
+  it('keeps the account recovery point when a mapping or earlier refund belongs to an excluded site', async () => {
+    await connect();
+    const original = productSale('tip', 500);
+    const first = productStripe([original, productSale('invoice', 900)]);
+    const settings = { nowMs: NOW, laneRegister: productRegister(), fetchImpl: first.fetchImpl };
+    expect((await runStripeRevenue(env, { ...settings, assets: [ASSET] })).outcome).toBe('skipped');
+    expect(first.calls).toHaveLength(0);
+    expect(await receiptRows()).toEqual([]);
+    expect((await runStripeRevenue(env, { ...settings, assets: [ASSET, OTHER] })).outcome).toBe('ran');
+    const held = await receiptRows();
+    const coverage = () => pgRows(`SELECT MAX(covered_until)::text AS covered_until
+      FROM noticeos.current_revenue WHERE source='stripe'`);
+    const lastCovered = await coverage();
+
+    const refund = productRefund(original, 50, '2026-09-09', 'later');
+    const next = productStripe([productSale('new_tip', 300, '2026-09-09'), refund]);
+    const tomorrow = { nowMs: NOW + DAY_MS, laneRegister: productRegister({ prod_tip: OTHER }), fetchImpl: next.fetchImpl };
+    expect((await runStripeRevenue(env, { ...tomorrow, assets: [OTHER] })).outcome).toBe('failed');
+    expect(await coverage()).toEqual(lastCovered);
+    expect(await receiptRows()).toEqual(held);
+    expect((await runStripeRevenue(env, { ...tomorrow, assets: [ASSET, OTHER] })).outcome).toBe('ran');
+    expect((await receiptRows()).slice(-2)).toEqual([
+      { asset: ASSET, day: '2026-09-09', item: 'txn_later', net: -50, payment: 0, refund: 1 },
+      { asset: OTHER, day: '2026-09-09', item: 'txn_new_tip', net: 270, payment: 1, refund: 0 },
+    ]);
+  });
+
   it('lists all account products including archived ones, without an account override', async () => {
     const mock = productStripe([]);
     expect(await discoverStripeProducts(KEY, mock.fetchImpl)).toMatchObject({

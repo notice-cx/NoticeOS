@@ -105,9 +105,9 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             return Response.json({ outcome });
           }
           if (job === 'stripe') {
-            const { outcome } = await runStripeRevenue(env, { fetchImpl, nowMs: time, assets: plan.portfolioAssets,
+            const { outcome, detail } = await runStripeRevenue(env, { fetchImpl, nowMs: time, assets: plan.portfolioAssets,
               laneRegister: options.laneRegister, timeZone: options.osTimeZone });
-            return Response.json({ outcome });
+            return Response.json({ outcome, detail });
           }
           if (job === 'pull') {
             if (asset === null) {
