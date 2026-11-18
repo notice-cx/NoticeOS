@@ -465,7 +465,8 @@ export interface SignalDumpsOptions {
   /** Override {@link ARCHIVE_RETRY_LIMIT} (tests pin the bound with a small one). */
   retryLimit?: number;
   /** A customer occurrence covers one property and integration. */
-  googleArchive?: { asset: string; integration: GoogleIntegrationId; report?: string };
+  googleArchive?: { asset: string; integration: GoogleIntegrationId; report: string };
+  accessToken?: typeof googleAccessToken;
   /** A customer Bing occurrence covers only its admitted eligible sites. */
   bingArchiveAssets?: readonly string[];
 }
@@ -544,7 +545,7 @@ async function collectTargetJourneys(
 }
 
 export interface Ga4JourneyDumpsOptions extends Pick<SignalDumpsOptions,
-  'nowMs' | 'fetchImpl' | 'rawConfig' | 'journeyConfig' | 'laneRegister' | 'configSources' | 'osTimeZone' | 'egress'> {
+  'nowMs' | 'fetchImpl' | 'rawConfig' | 'journeyConfig' | 'laneRegister' | 'configSources' | 'osTimeZone' | 'egress' | 'accessToken'> {
   assets: readonly string[];
 }
 
@@ -577,7 +578,7 @@ export async function runGa4JourneyDumps(
   for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     // Cached windows need no token mint. A rejected mint is reused within this account too.
     let token: Promise<string> | undefined;
-    const accessToken = () => token ??= googleAccessToken(accountTargets[0]!.auth, GOOGLE_SCOPES.ga4, nowMs, egress.transport.fetch);
+    const accessToken = () => token ??= (options.accessToken ?? googleAccessToken)(accountTargets[0]!.auth, GOOGLE_SCOPES.ga4, nowMs, egress.transport.fetch);
     for (const target of accountTargets) {
       outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, budget, monitoring));
     }
@@ -682,7 +683,7 @@ export async function runSignalDumps(
 
       let accessToken: string;
       try {
-        accessToken = await googleAccessToken(
+        accessToken = await (options.accessToken ?? googleAccessToken)(
           scopedTargets[0]!.auth,
           GOOGLE_SCOPES[integration],
           nowMs,
@@ -764,7 +765,7 @@ export async function runSignalDumps(
             outcomes.push(outcome);
           }
         }
-        if (target.integration === 'ga4' && !googleArchive?.report) {
+        if (target.integration === 'ga4' && !googleArchive) {
           outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, journeyBudget, googleMonitoring, clock));
         }
       }
@@ -822,7 +823,7 @@ export async function runSignalDumps(
   const covers = (asset: string, part: string | null): boolean => {
     const dated = part === null ? null : parseArchivePart(part);
     if (googleArchive && (!dated || asset !== googleArchive.asset || dated.integration !== googleArchive.integration
-      || (googleArchive.report !== undefined && dated.report !== googleArchive.report))) return false;
+      || dated.report !== googleArchive.report)) return false;
     if (bingArchiveAssets !== undefined) return part !== null && bingArchiveAssets.includes(asset)
       && BING_REPORTS.some(report => report.name === part) && answered.has(archivePartKey(asset, part));
     if (dated === null) return true;

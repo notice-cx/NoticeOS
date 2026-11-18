@@ -72,11 +72,12 @@ test('the native customer schedule continues scoped counters and free archive fa
   const root = testFixtureRoot('n-customer-archives-');
   const source = startPlan({ dir: path.join(root, 'source'), port: await availableCustomerPort() });
   const attached = startPlan({ dir: path.join(root, 'runtime'), port: source.port });
-  let db, app, archiveBucket, clock = now, counterFailure = false;
+  let db, app, archiveBucket, clock = now, counterFailure = false, clarityFailure = false;
+  let rejectGscToken = false, gscAuthRejected = false;
   const requests = [];
   let unexpected = 0;
   const key = () => randomBytes(24).toString('base64url');
-  const tokens = { access: key(), bing: key(), posthog: key(), clarity: key(), counters: key() };
+  const tokens = { access: key(), bing: key(), posthog: key(), clarity: key(), laterClarity: key(), counters: key() };
   const transport = async (input, init) => {
     const url = new URL(input);
     const bearer = new Headers(init.headers).get('authorization');
@@ -107,6 +108,10 @@ test('the native customer schedule continues scoped counters and free archive fa
       if (url.href === gsc) {
         const family = body.dimensions.join('/');
         requests.push('gsc/' + family);
+        if (rejectGscToken && !gscAuthRejected) {
+          gscAuthRejected = true;
+          return Response.json({ error: { message: 'Synthetic expired token' } }, { status: 401 });
+        }
         if (family === 'page/country') return Response.json({ error: { message: 'Synthetic temporary error' } }, { status: 503 });
         return Response.json({ rows: [] });
       }
@@ -138,8 +143,10 @@ test('the native customer schedule continues scoped counters and free archive fa
         { status: 429, headers: { 'retry-after': '1800' } });
     }
     if (url.href === clarity) {
-      assert.equal(bearer, 'Bearer ' + tokens.clarity);
-      requests.push('clarity');
+      const first = bearer === 'Bearer ' + tokens.clarity;
+      assert.ok(first || bearer === 'Bearer ' + tokens.laterClarity);
+      requests.push(first ? 'clarity' : 'clarity-later');
+      if (first && clarityFailure) return new Response(null, { status: 503 });
       return Response.json([{ metricName: 'Traffic', information: [{ Url: site, totalSessionCount: '2' }] }]);
     }
     unexpected++;
@@ -168,6 +175,15 @@ test('the native customer schedule continues scoped counters and free archive fa
     register.assets[laterAsset] = { 'bing-webmaster': { status: 'skipped' }, posthog: { host: 'us', projectId: laterProject } };
     write(east.workspaceId, 'integrations', register);
     write(east.workspaceId, 'value-events', { assets: { [asset]: { journeys: [definition] } } });
+    db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,is_os,list_position) VALUES (:'workspace'::uuid,'fixture-os','Fixture OS','live',true,3)",
+      { vars: { workspace: east.workspaceId } });
+    const owed = `ga4:journeys-${'a'.repeat(64)}:2026-10-15`;
+    db.cluster.run(`INSERT INTO noticeos.flags(workspace_id,flag_number,asset_id,fired_at,severity,kind,rule_id,rule_inputs)
+      SELECT workspace_id,1,asset_id,'2026-10-16','warn','anomaly','os-egress-down',:'inputs'::jsonb
+      FROM noticeos.assets WHERE workspace_id=:'workspace'::uuid AND is_os`,
+    { vars: { workspace: east.workspaceId, inputs: JSON.stringify({
+      lanes: { 'signal-dumps': { unmeasuredAssets: [asset], parts: { [asset]: [owed] }, lastFailedAt: '2026-10-16T00:00:00Z' } },
+    }) } });
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
     for (const [provider, fields] of [
       ['google', { GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({ archive: {
@@ -177,7 +193,7 @@ test('the native customer schedule continues scoped counters and free archive fa
       } }) }],
       ['bing-webmaster', { BING_WEBMASTER_API_KEY: tokens.bing }],
       ['posthog', { POSTHOG_KEYS: JSON.stringify({ [asset]: tokens.posthog, [laterAsset]: tokens.posthog }) }],
-      ['clarity', { CLARITY_TOKENS: JSON.stringify({ [asset]: tokens.clarity }) }],
+      ['clarity', { CLARITY_TOKENS: JSON.stringify({ [asset]: tokens.clarity, [laterAsset]: tokens.laterClarity }) }],
     ]) db.cluster.run(sealedProviderSql(east.workspaceId, keys.credentialsKey, provider, fields));
     const check = (workspaceId, collectorProviders) => verifyComposeCustomerCollection({ address: db.address, workspaces: [{ workspaceId }], collectorProviders });
     await assert.rejects(check(west.workspaceId, ['clarity']), /Connect Microsoft Clarity/u);
@@ -199,7 +215,7 @@ test('the native customer schedule continues scoped counters and free archive fa
         } });
       await app.whenIdle();
     };
-    const archives = () => db.cluster.sql("SELECT r.workspace_id,integration,report,status,object_key FROM noticeos.archive_runs r LEFT JOIN noticeos.archive_objects USING(workspace_id,object_seq) ORDER BY r.run_seq");
+    const archives = () => db.cluster.sql("SELECT r.workspace_id,r.asset_id,integration,report,status,object_key FROM noticeos.archive_runs r LEFT JOIN noticeos.archive_objects USING(workspace_id,object_seq) ORDER BY r.run_seq");
     const readings = () => db.cluster.sql('SELECT workspace_id,metric,value,observed_at FROM noticeos.counter_readings ORDER BY metric');
     await restart();
     const collected = archives(), savedCounters = readings(), count = requests.length;
@@ -209,6 +225,7 @@ test('the native customer schedule continues scoped counters and free archive fa
     assert.ok([...families].some(family => family.startsWith('ga4/journeys-')));
     assert.ok(collected.some(row => row.integration === 'gsc' && row.report === 'page-country' && row.status === 'error'));
     assert.ok(collected.some(row => row.integration === 'posthog' && row.status === 'error'));
+    assert.deepEqual(db.cluster.sql("SELECT resolved_at IS NULL AS unresolved FROM noticeos.flags WHERE rule_id='os-egress-down'"), [{ unresolved: 't' }]);
     assert.ok(collected.every(row => row.workspace_id === east.workspaceId &&
       (row.status === 'error' || row.object_key?.startsWith('workspaces/' + east.workspaceId + '/raw/'))));
     for (const integration of ['ga4', 'gsc', 'bing-webmaster', 'posthog', 'clarity']) {
@@ -219,7 +236,7 @@ test('the native customer schedule continues scoped counters and free archive fa
     assert.equal(requests.filter(call => call === 'token').length, 2);
     assert.equal(requests.filter(call => call === 'posthog-project').length, 1);
     assert.equal(requests.filter(call => call.startsWith('noticeos:posthog-')).length, 2);
-    assert.equal(requests.filter(call => call === 'clarity').length, 1);
+    assert.deepEqual(requests.filter(call => call.startsWith('clarity')), ['clarity', 'clarity-later']);
     assert.deepEqual(savedCounters.map(row => [row.workspace_id, row.metric, row.value]),
       [[west.workspaceId, 'recipes', '12'], [west.workspaceId, 'signups', '90']]);
     assert.deepEqual(db.cluster.sql('SELECT pulse_id FROM noticeos.pulses'), []);
@@ -243,12 +260,17 @@ test('the native customer schedule continues scoped counters and free archive fa
     register.assets[laterAsset].posthog.status = 'skipped';
     write(east.workspaceId, 'integrations', register);
     clock = now + 3_600_000;
+    clarityFailure = true;
+    rejectGscToken = true;
     await restart();
+    assert.equal(gscAuthRejected, true);
+    assert.equal(requests.slice(count).filter(call => call === 'token').length, 3);
     assert.equal(requests.slice(count).filter(call => call === 'GetQueryStats' || call === 'GetPageStats').length, 0);
     const recent = archives().slice(collected.length);
     assert.ok(recent.some(row => row.integration === 'bing-webmaster' && row.status === 'unchanged'
       && collected.some(old => old.object_key === row.object_key)));
-    assert.ok(recent.some(row => row.integration === 'clarity' && row.status === 'unchanged'
+    assert.ok(recent.some(row => row.integration === 'clarity' && row.asset_id === asset && row.status === 'error'));
+    assert.ok(recent.some(row => row.integration === 'clarity' && row.asset_id === laterAsset && row.status === 'unchanged'
       && collected.some(old => old.object_key === row.object_key)));
     assert.deepEqual(readings(), savedCounters);
     assert.equal(unexpected, 0);

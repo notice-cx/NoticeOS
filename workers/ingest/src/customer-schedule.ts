@@ -13,7 +13,8 @@ import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from '.
 import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { eligibleAssets, runUptimeChecks } from './hygiene.js';
 import { runGoogleSignals } from './google-signals.js';
-import { runSignalDumps, type Ga4CustomDimensionConfig } from './signal-dumps.js';
+import { runGa4JourneyDumps, runSignalDumps, type Ga4CustomDimensionConfig } from './signal-dumps.js';
+import { googleAccessToken, googleAuthCacheKey, type GoogleAuth } from './google-auth.js';
 import type { JourneyConfig } from './ga4-journeys.js';
 import type { LaneRegister } from './lane-mapping.js';
 import { runBingSignals } from './bing-signals.js';
@@ -32,6 +33,36 @@ interface ScheduleEnv extends IngestEnv {
 }
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const denied = () => new Response(null, { status: 403 });
+// Only admitted archive calls share these tokens. Reading the current credential first
+// changes the key on rotation, and missing, expired and rejected grants are never reused.
+const googleArchiveTokens = new Map<string, { accessToken: string; expiresAt: number }>();
+
+function archiveAuthorization(workspaceId: string) {
+  let used: { key: string; accessToken: string } | undefined;
+  return {
+    async accessToken(auth: GoogleAuth, scope: string, nowMs: number, fetchImpl: typeof fetch) {
+      const key = `${workspaceId}/${googleAuthCacheKey(auth, scope)}`;
+      const cached = googleArchiveTokens.get(key);
+      if (cached && cached.expiresAt > nowMs) {
+        used = { key, accessToken: cached.accessToken };
+        return cached.accessToken;
+      }
+      googleArchiveTokens.delete(key);
+      let lifetime = 0;
+      const accessToken = await googleAccessToken(auth, scope, nowMs, fetchImpl, seconds => { lifetime = seconds; });
+      const expiresAt = nowMs + Math.min(lifetime * 1000 - 30_000, 5 * 60_000);
+      if (expiresAt > nowMs) {
+        if (googleArchiveTokens.size >= 64) googleArchiveTokens.delete(googleArchiveTokens.keys().next().value!);
+        googleArchiveTokens.set(key, { accessToken, expiresAt });
+      }
+      used = { key, accessToken };
+      return accessToken;
+    },
+    reject() {
+      if (used && googleArchiveTokens.get(used.key)?.accessToken === used.accessToken) googleArchiveTokens.delete(used.key);
+    },
+  };
+}
 
 /** Only the deployment's private trigger binds this entrypoint. No public route
  * forwards to it. The binding alone cannot run an unclaimed occurrence. */
@@ -51,7 +82,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       || (asset !== null && (typeof asset !== 'string' || !asset.length || asset.length > 512))
       || typeof occurrence !== 'string' || occurrence.length > 128) return denied();
     const archive = customerArchive(body.archive);
-    if (job === 'signal-dumps' ? !archive || (archive.provider === 'bing-webmaster') !== (asset === null) : body.archive !== undefined) return denied();
+    if (job === 'signal-dumps' ? !archive || asset === null : body.archive !== undefined) return denied();
     const [at, suffix, extra] = occurrence.split('/');
     const time = Date.parse(at ?? '');
     if (!Number.isFinite(time) || time % 60_000 || new Date(time).toISOString() !== at || extra !== undefined) return denied();
@@ -88,9 +119,12 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             return Response.json({ outcome: report ? 'ran' : 'skipped' });
           }
           const env = { ...this.env, STORE: store };
-          const fetchImpl: typeof fetch = (input, init) => {
+          const authorization = archive && archive.provider !== 'bing-webmaster' && policy?.extendedArchives ? archiveAuthorization(workspaceId) : undefined;
+          const fetchImpl: typeof fetch = async (input, init) => {
             const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
-            return fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });
+            const response = await fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });
+            if (response.status === 401) authorization?.reject();
+            return response;
           };
           if (job === 'freshness' && asset !== null) {
             const entries = (await eligibleAssets(env)).filter(site => site.asset === asset);
@@ -100,7 +134,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           const { documents, sources } = await readCollectorConfigs(env, ['config/constants.json', 'config/integrations.json',
             ...(job === 'pull' && asset !== null ? ['config/pull.json'] as const : []),
             ...(job === 'site-counters' ? ['config/counters.json'] as const : []),
-            ...(archive?.provider === 'ga4' && !archive.report ? ['config/ga4-custom-dimensions.json', 'config/value-events.json'] as const : [])]);
+            ...(archive?.provider === 'ga4' && archive.report === 'journeys' ? ['config/value-events.json'] as const
+              : archive?.provider === 'ga4' ? ['config/ga4-custom-dimensions.json'] as const : [])]);
           const constants = documents['config/constants.json'];
           if (job === 'freshness') {
             await runFreshnessCheck(env);
@@ -131,25 +166,28 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
               credential: { asset, token: selected.token } });
             return Response.json({ attempted, succeeded, failed });
           }
-          if (archive) {
+          if (archive && asset !== null) {
             if (!env.RAW_SIGNALS) return new Response(null, { status: 503 });
-            const result = await runSignalDumps(env, { ...options, retryLimit: 1,
-              ga4CustomDimensions: documents['config/ga4-custom-dimensions.json'] as Ga4CustomDimensionConfig | undefined,
-              journeyConfig: documents['config/value-events.json'] as JourneyConfig | undefined,
-              ...(archive.provider === 'bing-webmaster'
-                ? { bingArchiveAssets: plan.portfolioAssets ?? [] }
-                : { googleArchive: { asset: asset!, integration: archive.provider, report: archive.report } }) });
+            const result = archive.provider === 'ga4' && archive.report === 'journeys'
+              ? await runGa4JourneyDumps(env, { ...options, accessToken: authorization?.accessToken, assets: [asset],
+                journeyConfig: documents['config/value-events.json'] as JourneyConfig | undefined })
+              : await runSignalDumps(env, { ...options, accessToken: authorization?.accessToken, retryLimit: 1,
+                ga4CustomDimensions: documents['config/ga4-custom-dimensions.json'] as Ga4CustomDimensionConfig | undefined,
+                ...(archive.provider === 'bing-webmaster' ? { bingArchiveAssets: [asset] }
+                  : { googleArchive: { asset, integration: archive.provider, report: archive.report } }) });
             return Response.json({ attempted: result.attempted, succeeded: result.succeeded, unchanged: result.unchanged, failed: result.failed });
           }
-          if (job === 'posthog' || job === 'clarity') {
+          if (job === 'posthog') {
             if (!env.RAW_SIGNALS) return new Response(null, { status: 503 });
-            const assets = plan.portfolioAssets ?? [];
-            const { attempted, succeeded, unchanged, failed } = job === 'posthog'
-              ? await runPosthogDumps(env, { ...options, assets })
-              : await runClarityDumps(env, { ...options, assets });
+            const { attempted, succeeded, unchanged, failed } = await runPosthogDumps(env, { ...options, assets: plan.portfolioAssets ?? [] });
             return Response.json({ attempted, succeeded, unchanged, failed });
           }
           if (asset === null) return denied();
+          if (job === 'clarity') {
+            if (!env.RAW_SIGNALS) return new Response(null, { status: 503 });
+            const { attempted, succeeded, unchanged, failed } = await runClarityDumps(env, { ...options, assets: [asset] });
+            return Response.json({ attempted, succeeded, unchanged, failed });
+          }
           if (job === 'site-counters') {
             const config = documents['config/counters.json'] as CountersConfig | undefined;
             const selected = selectedCustomerCounter(policy, workspaceId, asset, config?.assets[asset]);

@@ -13,7 +13,7 @@ declare const ARCHIVE_REPORTS: {
 type GoogleProvider = keyof typeof ARCHIVE_REPORTS;
 export type CustomerArchive = {
     provider: GoogleProvider;
-    report?: string;
+    report: string;
 } | {
     provider: 'bing-webmaster';
     report?: never;
@@ -23,7 +23,7 @@ export interface CustomerSchedule {
     schedule: JobSchedule;
     assets: (string | null)[];
     archives?: {
-        asset: string | null;
+        asset: string;
         archive: CustomerArchive;
     }[];
     portfolioAssets?: string[];
