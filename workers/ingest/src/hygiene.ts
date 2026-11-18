@@ -1963,7 +1963,7 @@ export async function runHygieneChecks(
   for (const outcome of confirmed.outcomes) count(outcome);
   for (const failure of confirmed.failed) result.failed.push({ ...failure, check: 'html-depth' });
 
-  result.egress = await gate.finalize();
+  result.egress = await gate.finalize(opts.assets ? { covers: asset => opts.assets!.some(site => site.asset === asset) } : {});
   return result;
 }
 
@@ -2062,6 +2062,6 @@ export async function runUptimeChecks(
   );
   for (const outcome of confirmed.outcomes) count(outcome);
   result.failed.push(...confirmed.failed);
-  result.egress = await gate.finalize();
+  result.egress = await gate.finalize(opts.assets ? { covers: asset => opts.assets!.some(site => site.asset === asset) } : {});
   return result;
 }

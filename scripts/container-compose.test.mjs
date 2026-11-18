@@ -365,7 +365,18 @@ test('the application container runs its schedules with no task service, preserv
       assert.equal((await get('api/health')).ok, true);
       assert.equal((await query('SELECT document_key FROM noticeos.config_documents')).length, settings.length);
       if (source) {
-        const restored = await developStack({ root: source, selectorFile, disable: true, env, run, out: { write() {} } });
+        const options = { root: source, selectorFile, disable: true, env, run, out: { write() {} } };
+        assert.equal((await ownerSql("INSERT INTO noticeos_migrations.applied(version,name,sha256) VALUES(9999,'9999_fixture',repeat('a',64))")).code, 0);
+        try {
+          await assert.rejects(developStack(options), /database migrations differ/u);
+          assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), currentContainer);
+          assert.equal((await get('api/health')).ok, true);
+        } finally {
+          assert.equal((await ownerSql("DELETE FROM noticeos_migrations.applied WHERE version=9999 AND name='9999_fixture'")).code, 0);
+        }
+        const release = process.env.NOTICEOS_TEST_PREPARED_CHECKOUT;
+        const restored = await developStack(release ? { ...options, root: release, image: process.env.NOTICEOS_TEST_DEVELOPMENT_IMAGE } : options);
+        if (release) assert.equal(restored.image, process.env.NOTICEOS_TEST_DEVELOPMENT_IMAGE);
         assert.equal(restored.mode, 'prepared');
         developmentOverride = undefined;
         assert.equal(await db(), dbId);

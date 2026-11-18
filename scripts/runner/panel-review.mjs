@@ -140,6 +140,7 @@ export function panelPublicationGap(freshness, landing) {
  * through NoticeOS's panel tools, and the same files on the OS's own machine. */
 function panelSource(landing, osCheckout) {
   const version = landing.version ? ` version=${landing.version}` : '';
+  if (osCheckout === null) return `In NoticeOS, open the published search report for ${landing.asset}, version ${landing.version}. Review the figures for the collection date.`;
   return `In NoticeOS MCP, open get_panel asset=${landing.asset}${version} and read its attention list first. ` +
     `Use get_search_review if available and query_panel for detail on the same version. On the OS's own machine the files are in ${osCheckout} ` +
     `(${panelReportRelativePath(landing.asset)}/), and docs/20-signal-panels.md there is the read contract.`;
@@ -194,7 +195,7 @@ export function panelReviewAcceptance(hasPanel) {
 
 /** The review filed in Ntasks (runner/task-service-register.mjs), due date
  * included, once per collection under a key for the project's prefix. */
-export async function fileNtasksPanelReview(register, project, landing) {
+export async function fileNtasksPanelReview(register, project, landing, { osCheckout } = {}) {
   const key = 'panel-review:' + createHash('sha256').update(JSON.stringify(
     ['ntasks', project.prefix, landing.asset, landing.panelDate, [...new Set(landing.invalidated ?? [])].sort()])).digest('hex');
   const dueAt = panelReviewDueDate(landing.panelDate);
@@ -203,7 +204,7 @@ export async function fileNtasksPanelReview(register, project, landing) {
     labels: [PANEL_REVIEW_LABEL], ...(dueAt ? { dueAt } : {}),
     metadata: { [PANEL_REVIEW_ASSET_KEY]: landing.asset, [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
       ...(landing.version ? { [PANEL_REVIEW_VERSION_KEY]: landing.version } : {}) },
-    description: panelReviewDescription(landing), acceptance: panelReviewAcceptance(landing.panel !== false),
+    description: panelReviewDescription(landing, { osCheckout }), acceptance: panelReviewAcceptance(landing.panel !== false),
   }, key);
 }
 
@@ -222,6 +223,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     readToken = operatorToken,
     get = fetch,
+    readLandings, osCheckout,
     readPublished = readPublishedFreshness,
     readVersion = readPublishedVersion,
     state = panelFilerState,
@@ -242,16 +244,16 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
   if (unreadable) return skip(unreadable);
   if (projects.length === 0) return skip('no task projects are configured');
 
-  const token = await readToken().catch(() => null);
-  if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
-
   let landings;
   try {
-    const res = await get(serpPanelLandingsUrl(CONFIG), {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return skip(`the panel landings read returned HTTP ${res.status}`);
-    landings = parsePanelLandings(await res.json());
+    if (readLandings) landings = parsePanelLandings(await readLandings());
+    else {
+      const token = await readToken().catch(() => null);
+      if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
+      const res = await get(serpPanelLandingsUrl(CONFIG), { headers: { authorization: `Bearer ${token}` } });
+      if (!res.ok) return skip(`the panel landings read returned HTTP ${res.status}`);
+      landings = parsePanelLandings(await res.json());
+    }
   } catch (err) {
     return skip(`the panel landings read failed (${err.message})`);
   }
@@ -316,7 +318,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     try { taskId = await fileNtasksPanelReview(register, project, { ...landing, version,
       invalidated: rows.filter(row => invalidPanelReview(row) && panelReviewPanelDate(row) === landing.panelDate)
         .map(row => taskText(row.id)).filter(Boolean),
-    }); }
+    }, { osCheckout }); }
     catch (error) {
       emit('ERROR', `panel review: ${landing.asset} — review create failed: ${error.message}`);
       continue;

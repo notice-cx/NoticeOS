@@ -11,6 +11,7 @@
 // go out under this OS's own honest User-Agent.
 
 import { type OpenAlert, appendReading, holdCondition, raiseAlertUnlessOpen, readOpenAlert } from './alert-store.js';
+import { HEALTH_BEACONS } from '../../../scripts/customer-collection-policy.mjs';
 import { readOsAssetId } from './os-asset.js';
 import { isRecord } from './shared.js';
 
@@ -26,10 +27,7 @@ export const EGRESS_DOWN_RULE_ID = 'os-egress-down';
  * is to answer cheaply, run by two independent operators. Never one of our own
  * origins, which would fail exactly when a property is down.
  */
-export const EGRESS_BEACONS = [
-  'https://www.cloudflare.com/cdn-cgi/trace',
-  'https://www.google.com/generate_204',
-] as const;
+export const EGRESS_BEACONS = HEALTH_BEACONS;
 
 /**
  * Honest identification with a contact URL, and a product token distinct from

@@ -1215,12 +1215,7 @@ async function collectReport(
         egress,
         budget,
       );
-      const parsed = parseProviderResponse(
-        call.status,
-        call.body,
-        spec.name,
-        spec.independentRequests === true,
-      );
+      const parsed = call.parsed;
       const page: DumpPage = {
         request: {
           path: spec.path,
@@ -1378,7 +1373,7 @@ async function collectReport(
       error: retriedFailure(normalized, budget.used),
       providerCostUsd: spent,
       dataForSeoCostAccountedUsd,
-      knownZeroCost: spent === 0 && normalized.code === 'budget_exhausted' ? true : undefined,
+      knownZeroCost: spent === 0 && ['budget_exhausted', 'dataforseo_already_purchased'].includes(normalized.code) ? true : undefined,
     });
     return { ...outcome, costUsd: spent, retries: budget.used };
   }
@@ -1506,8 +1501,7 @@ function retriedFailure(error: SignalError, retries: number): SignalError {
 /** One provider call, repeated while the failure is about the call rather than
  * what we asked for. `budget` is shared by every request in the family, so the
  * ceiling is per family. Once the budget is gone a transient response is
- * returned rather than thrown; `parseProviderResponse` turns it into the right
- * error. */
+ * interpreted as the final response. */
 async function callProvider(
   spec: ReportSpec,
   /** The planned request's body only; the envelope's other fields are not the
@@ -1518,7 +1512,7 @@ async function callProvider(
   authorization: string,
   egress: EgressLane,
   budget: RetryBudget,
-): Promise<{ status: number; body: unknown; attempts: number; costUsd: number }> {
+): Promise<{ body: unknown; parsed: ParsedProviderResponse; attempts: number; costUsd: number }> {
   const reserveUsd = spec.name === 'serp-panel' ? SERP_PANEL_CALL_USD : MAX_REPORT_COST_USD;
   let costUsd = 0;
   let attempts = 0;
@@ -1532,7 +1526,8 @@ async function callProvider(
       const message = reservation.kind === 'budget_exhausted'
         ? `DataForSEO paused before the portfolio ${budget.monthlyCapUsd.toFixed(2)} USD monthly data cap.`
         : reservation.kind === 'dataforseo_uncertain' ? 'DataForSEO may have already billed this request.'
-          : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
+          : reservation.kind === 'dataforseo_already_purchased' ? 'DataForSEO already returned a paid result for this request.'
+            : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
       throw new SignalError(reservation.kind, message);
     }
     try {
@@ -1584,9 +1579,12 @@ async function callProvider(
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       continue;
     }
+    let parsed: ParsedProviderResponse | SignalError;
+    try { parsed = parseProviderResponse(answer.status, answer.body, spec.name, spec.independentRequests === true); }
+    catch (error) { parsed = normalizeSignalError(error, `DataForSEO ${spec.name} request failed.`); }
     const billed = billedDataForSeoCost(answer.body);
     if (billed !== null) {
-      await settleDataForSeo(budget.store, reservation.attemptId, billed);
+      await settleDataForSeo(budget.store, reservation.attemptId, billed, !(parsed instanceof SignalError) && parsed.taskError === null);
       costUsd += billed;
       budget.confirmedUsd += billed;
     } else {
@@ -1595,7 +1593,10 @@ async function callProvider(
     }
     const delayMs = isTransientResponse(answer.status, answer.body) && (billed !== null || !budget.fenceUnsettled)
       ? await nextRetryDelay(budget, reserveUsd, answer.askedForMs) : null;
-    if (delayMs === null) return { status: answer.status, body: answer.body, attempts, costUsd };
+    if (delayMs === null) {
+      if (parsed instanceof SignalError) throw parsed;
+      return { body: answer.body, parsed, attempts, costUsd };
+    }
     budget.used += 1;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }

@@ -120,9 +120,9 @@ test('an attached customer buys only approved due DataForSEO reports using a sep
       assert.ok(object_key.startsWith('workspaces/' + east + '/raw/'));
       assert.ok(await bucket.head(object_key));
     }
-    const charges = db.cluster.sql(`SELECT workspace_id,asset_id,provider_cost_usd::text AS cost
+    const charges = db.cluster.sql(`SELECT workspace_id,asset_id,provider_cost_usd::text AS cost,provider_completed::text
       FROM noticeos.dataforseo_request_charges ORDER BY asset_id`);
-    assert.deepEqual(charges, [alpha, beta].map(asset_id => ({ workspace_id: east, asset_id, cost: '0.020000' })));
+    assert.deepEqual(charges, [alpha, beta].map(asset_id => ({ workspace_id: east, asset_id, cost: '0.020000', provider_completed: 'true' })));
     assert.deepEqual(receipts, [{ workspace_id: east, lane: 'dataforseo', state: 'exhausted', occurrence }]);
     assert.deepEqual(db.cluster.sql(`SELECT workspace_id,asset_id,error_code FROM noticeos.archive_runs
       WHERE integration='dataforseo' AND status='error'`), [{ workspace_id: east, asset_id: gamma, error_code: 'budget_exhausted' }]);

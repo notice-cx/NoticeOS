@@ -8,7 +8,22 @@ export interface CustomerSitePull {
     token: string;
     urls: string[];
 }
+export interface CustomerSiteCheck {
+    workspaceId: string;
+    asset: string;
+    origins: string[];
+}
+export interface CustomerRevenueNotices {
+    workspaceId: string;
+    webhookId: string;
+}
 export interface CustomerCollectionPolicy {
+    siteChecks: CustomerSiteCheck[];
+    revenueNotices: CustomerRevenueNotices[];
+    taskFollowups: {
+        workspaceId: string;
+        serviceId: string;
+    }[];
     googleDaily: boolean;
     extendedArchives: boolean;
     collectorProviders: CustomerProvider[];
@@ -32,6 +47,12 @@ export interface CustomerDataForSeoApproval extends DataForSeoConnectionPin {
     recovery: boolean;
     approvedMonthlyCapUsd: number;
 }
+/** The stored site's domain must still match an origin approved for this workspace and asset. */
+export declare function selectedCustomerSite(policy: CustomerCollectionPolicy | undefined, workspace: string, asset: string, domain: string | null): CustomerSiteCheck | undefined;
+/** The reference reads distinguish a site's outage from a collector without internet access. */
+export declare const HEALTH_BEACONS: readonly ["https://www.cloudflare.com/cdn-cgi/trace", "https://www.google.com/generate_204"];
+export declare function siteCheckAddress(url: URL, origins: readonly string[]): boolean;
+export declare function revenueWebhookId(url: URL): string | null;
 /** Host configuration authorizes the targets. A workspace's edited roster can
  * disable a target, but cannot redirect its existing bearer elsewhere. */
 export declare function customerCollectionPolicy(value: unknown): CustomerCollectionPolicy;

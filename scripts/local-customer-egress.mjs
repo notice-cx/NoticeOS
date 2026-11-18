@@ -1,5 +1,6 @@
 import { hostedTaskProviderOperation } from './hosted-task-request.mjs';
 import { cloudflareD1DownloadAddress } from './cloudflare-d1-download.mjs';
+import { revenueWebhookId, siteCheckAddress } from './customer-collection-policy.mjs';
 
 function googleDailyQuery(url, method, extendedArchives) {
   if (method !== 'POST' || url.search || url.hash || url.username || url.password) return false;
@@ -36,9 +37,11 @@ function clarityReport(url, method) {
 
 /** Workers have no fallback to public fetch. The controller belongs to the
  * scheduler lease and also cancels an accepted request if that lease ends. */
-export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], signal, transport = fetch } = {}) {
+export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], siteChecks = [], revenueNotices = [], signal, transport = fetch } = {}) {
   const allowed = new Set(collectorProviders);
   const pullUrls = new Set(sitePulls.flatMap(site => site.urls));
+  const siteOrigins = siteChecks.flatMap(site => site.origins);
+  const webhooks = new Set(revenueNotices.map(notice => notice.webhookId));
   return async request => {
     const url = new URL(request.url);
     if (url.username || url.password || url.hash) return new Response(null, { status: 403 });
@@ -50,15 +53,21 @@ export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, exten
     const clarityAllowed = allowed.has('clarity') && clarityReport(url, request.method);
     const mediavineAllowed = allowed.has('mediavine') && request.method === 'POST' && url.href === 'https://api-publishers.mediavine.com/graphql';
     const pullAllowed = request.method === 'GET' && pullUrls.has(url.href);
-    if (!(ntasksAllowed || googleAllowed || stripeAllowed || bingAllowed || mediavineAllowed || posthogAllowed || clarityAllowed || pullAllowed)) return new Response(null, { status: 403 });
+    const website = siteOrigins.length > 0 && request.method === 'GET' && siteCheckAddress(url, siteOrigins)
+      && !request.headers.has('authorization') && !request.headers.has('cookie');
+    const discord = request.method === 'POST' && webhooks.has(revenueWebhookId(url));
+    if (!(website || discord || ntasksAllowed || googleAllowed || stripeAllowed || bingAllowed || mediavineAllowed || posthogAllowed || clarityAllowed || pullAllowed)) return new Response(null, { status: 403 });
     const timeout = AbortSignal.timeout(10000);
     const bounded = AbortSignal.any([timeout, ...(signal ? [signal] : []), ...(request.signal ? [request.signal] : [])]);
     bounded.throwIfAborted();
-    const headers = new Headers(request.headers);
+    const headers = website ? new Headers() : new Headers(request.headers);
+    if (website) for (const name of ['user-agent', 'accept']) {
+      if (request.headers.has(name)) headers.set(name, request.headers.get(name));
+    }
     headers.set('accept-encoding', 'identity');
     const response = await transport(url.href, { method: request.method, headers: Object.fromEntries(headers),
       body: request.body ? await request.arrayBuffer() : undefined, redirect: 'manual', signal: bounded });
-    if (response.status >= 300 && response.status < 400) {
+    if (response.status >= 300 && response.status < 400 && !(website)) {
       await response.body?.cancel();
       return new Response(null, { status: 502 });
     }

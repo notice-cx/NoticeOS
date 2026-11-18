@@ -276,7 +276,9 @@ recovery of reports missed during an internet outage. The same
 `approvedMonthlyCapUsd` covers all approved assets and both jobs. Each
 request is subject to the lower of that ceiling and the monthly data cap in
 Settings, using the UTC calendar month. An unconfirmed charge reserves its
-amount for that month. The preflight checks the workspace, saved connection,
+amount for that month. A valid result with a confirmed cost blocks another
+purchase of the same request for that report date, even before the archive
+is written. The preflight checks the workspace, saved connection,
 eligible assets and cap without contacting DataForSEO. After replacing or
 rotating the credential, review the saved connection and update the private
 approval before resuming paid collection. Keep this app release when returning
@@ -293,6 +295,27 @@ feed using the same asset bearer. The preflight checks that the existing
 From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. The check runs inside the app container. With mounted source, it builds the checkout in a temporary directory and removes that directory after verification.
 
 The app reads `state/installation/customer-runtime.enabled` on startup. To select customer mode in an approved disposable rehearsal, write `noticeos-compose-customer/1` followed by a newline into that file with the same ownership and permissions, then run `pnpm os:restart:noticeos` or the installation launcher's `noticeos restart noticeos`. Remove the enable file and restart the app again to return to standalone. Postgres, archives and the connected Ntasks project keep writes made during the rehearsal. A second customer scheduler for the same database cannot start while the first holds its database lease.
+
+#### Site checks, revenue notices and automatic tasks
+
+The hourly freshness job records the Tower’s daily source and connection history from the workspace’s stored evidence. For website uptime, search accessibility and icon checks, add an entry to `siteChecks` with `workspaceId`, `asset` and `origins`. List the site’s full HTTPS origin and each canonical host its redirects or sitemap need. The same entry authorizes the two public connectivity checks the collector uses when a site cannot be reached.
+
+To deliver daily revenue notices, connect Discord in **Integrations**, enable the revenue notice in Settings, then add `{ "workspaceId": "...", "webhookId": "..." }` to `revenueNotices`. The numeric webhook ID is the first path segment after `/api/webhooks/`. The encrypted connection holds the complete URL. Check the pending revenue notices before enabling delivery after downtime. The sender applies the existing queue age limit.
+
+To enable automatic Ntasks search reviews and outcome updates, set `ntasksOrigin`, connect a writable project-scoped service credential and map each asset to its Ntasks project. Add `{ "workspaceId": "...", "serviceId": "..." }` to `taskFollowups`. Use a separate scheduler identity for task writes. A database administrator can create its expiring grant with the following statement after owner enrollment. In a `psql` session for the installation database, set `workspace_id` and `scheduler_id` to the ordinary scheduler’s IDs from the declaration, and `expires_at` to the approved expiration. Save the returned `service_id` with the matching workspace in `taskFollowups`.
+
+```sql
+INSERT INTO noticeos_platform.workspace_service_grants (service_id, workspace_id, actions, expires_at)
+SELECT gen_random_uuid(), workspace_id, ARRAY['workflows.run', 'tasks.write'],
+       least(expires_at, :'expires_at'::timestamptz)
+FROM noticeos_platform.workspace_service_grants
+WHERE workspace_id = :'workspace_id'::uuid AND service_id = :'scheduler_id'::uuid
+  AND revoked_at IS NULL AND expires_at > now() AND :'expires_at'::timestamptz > now()
+  AND actions = ARRAY['workflows.run']::text[]
+RETURNING service_id, workspace_id, expires_at;
+```
+
+Preflight checks that the selected webhook matches the saved Discord connection and that the automatic task grant is active. These two checks run against the local database. The search review job checks the published version against the collected reports before it creates a task. Outcome updates use saved measurements. The separate service grant and the selected Ntasks project's write access must both be active. To stop automatic filings, pause **Search review tasks** and **Outcome task updates** in the schedule editor, or revoke the dedicated service grant. Manual task editing uses the existing Tower connection.
 
 With a configured backup worker, the preflight checks the private backup request channel and verifies access to the saved Ntasks workspace's backup route. In **Integrations → Ntasks**, connect the project-scoped **Service credential**, the **Ntasks workspace ID**, and a separate **Backup credential** with only backup access. The readiness check requires the customer schedule, compiled Tower and ingest Workers, and a ready backup worker. `noticeos backup` runs a manual backup alongside the nightly schedule. Other standalone manual jobs remain in the standalone profile. See the [backup and restore procedure](backup.README.md).
 
@@ -534,6 +557,20 @@ Return to the prepared image it ran before with:
 ```sh
 pnpm os:prod
 ```
+
+The command first compares the prepared image's frozen migrations with the
+applied migration history. If they differ, the app keeps serving the checkout.
+After upgrading the database, select a matching prepared release from a clean
+`main` checkout at that release. Use the selector for the existing installation
+and the full local image ID:
+
+```sh
+pnpm os:prod -- --config /absolute/path/to/stack.json --image sha256:ID
+```
+
+The command verifies the image's source, revision, schema and platform before
+replacing the app. To resume live edits, run `pnpm os:dev` from the checkout
+you edit, using the same selector. Its new fallback is the verified release.
 
 The private `stack-development/previous.json` and journal beside the selector
 record recovery. The switch shares the update lock and restores the old

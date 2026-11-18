@@ -44,7 +44,9 @@ export async function startPreparedCustomer(plan, db, {
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
       startSchedules, resumeSince: db.resumeSince, backupResumeSince: db.backupResumeSince, deployment,
       operating: { googleDaily: operating.googleDaily, extendedArchives: operating.extendedArchives, collectorTransport,
-        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls, paidDataForSeo: operating.paidDataForSeo, dataForSeoTransport,
+        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
+        siteChecks: operating.siteChecks, revenueNotices: operating.revenueNotices, taskFollowups: operating.taskFollowups,
+        paidDataForSeo: operating.paidDataForSeo, dataForSeoTransport,
         siteReports: operating.siteReports, signal } });
     db.ready();
     return Object.freeze({ ...app, whenLost, close });

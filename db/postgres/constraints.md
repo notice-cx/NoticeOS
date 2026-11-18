@@ -324,10 +324,12 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `reserved_at` | timestamp with time zone | yes |  |
 | `reserve_usd` | numeric(14,6) | yes | `((reserve_usd > (0)) AND (reserve_usd <> 'NaN'))` |
 | `provider_cost_usd` | numeric(14,6) | no | `((provider_cost_usd >= (0)) AND (provider_cost_usd <> 'NaN'))` |
+| `provider_completed` | boolean | yes |  |
 
 - **Keys:** primary (workspace_id, attempt_id)
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
-- **Triggers:** `settle_dataforseo_request_charge` (before update of provider_cost_usd)
+- **Row checks:** `((NOT provider_completed) OR (provider_cost_usd IS NOT NULL))`
+- **Triggers:** `settle_dataforseo_request_charge` (before update of provider_cost_usd, provider_completed)
 
 ## `egress_checks`
 

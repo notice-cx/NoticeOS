@@ -41,14 +41,14 @@ export function canReserveDataForSeo(store: WorkspaceStore, nowMs: number, reser
 }
 
 export type DataForSeoReservation = { kind: 'reserved'; attemptId: string; reservedAtMs: number }
-  | { kind: 'budget_exhausted' | 'dataforseo_uncertain' | 'dataforseo_approval_changed' };
+  | { kind: 'budget_exhausted' | 'dataforseo_uncertain' | 'dataforseo_already_purchased' | 'dataforseo_approval_changed' };
 
 export async function reserveDataForSeo(store: WorkspaceStore, input: {
   asset: string; requestKey: string; requestClock: () => number; reserveUsd: number; capUsd: number; fenceUnsettled: boolean;
   requireSavedCap?: boolean; approvedCredential?: DataForSeoConnectionPin;
 }): Promise<DataForSeoReservation> {
-  // Both profiles check unresolved customer purchases. Standalone still
-  // repairs its own interrupted work through the existing retry paths.
+  // Both profiles check unresolved or completed customer purchases. Standalone
+  // still repairs its own interrupted work through the existing retry paths.
   const customerKey = await sha256Hex(`customer:${input.requestKey}`);
   const blockedKeys = input.fenceUnsettled ? [customerKey, input.requestKey] : [customerKey];
   const recordedKey = input.fenceUnsettled ? customerKey : input.requestKey;
@@ -57,9 +57,11 @@ export async function reserveDataForSeo(store: WorkspaceStore, input: {
     if (input.approvedCredential && !await dataForSeoConnectionMatches(tx, input.approvedCredential)) {
       return { kind: 'dataforseo_approval_changed' };
     }
-    if ((await tx.query(`SELECT 1 FROM noticeos.dataforseo_request_charges
-        WHERE request_key=ANY($1::text[]) AND provider_cost_usd IS NULL LIMIT 1`, [blockedKeys])).length > 0) {
-      return { kind: 'dataforseo_uncertain' };
+    const [blocked] = await tx.query<{ completed: boolean }>(`SELECT provider_completed AS completed FROM noticeos.dataforseo_request_charges
+      WHERE request_key=ANY($1::text[]) AND (provider_cost_usd IS NULL OR provider_completed)
+      ORDER BY provider_completed DESC LIMIT 1`, [blockedKeys]);
+    if (blocked) {
+      return { kind: blocked.completed ? 'dataforseo_already_purchased' : 'dataforseo_uncertain' };
     }
     const reservedAtMs = input.requestClock();
     if (!await canSpend(tx, reservedAtMs, input.reserveUsd, input.capUsd, input.requireSavedCap === true)) return { kind: 'budget_exhausted' };
@@ -73,11 +75,11 @@ export async function reserveDataForSeo(store: WorkspaceStore, input: {
   });
 }
 
-export function settleDataForSeo(store: WorkspaceStore, attemptId: string, costUsd: number): Promise<void> {
+export function settleDataForSeo(store: WorkspaceStore, attemptId: string, costUsd: number, providerCompleted = false): Promise<void> {
   return store.write(async tx => {
     await serializeBudget(tx);
-    const matched = await tx.execute(`UPDATE noticeos.dataforseo_request_charges SET provider_cost_usd=$2::numeric
-      WHERE attempt_id=$1::uuid AND provider_cost_usd IS NULL`, [attemptId, costUsd]);
+    const matched = await tx.execute(`UPDATE noticeos.dataforseo_request_charges SET provider_cost_usd=$2::numeric,provider_completed=$3::boolean
+      WHERE attempt_id=$1::uuid AND provider_cost_usd IS NULL`, [attemptId, costUsd, providerCompleted]);
     if (matched !== 1) throw new Error('DataForSEO reservation could not be settled.');
   });
 }

@@ -25,7 +25,7 @@ export interface NotifierResult {
   sent: number;
   skipped: null | 'nothing-to-say' | 'no-credential' | 'store-unavailable' | 'delivery-failed' | 'paused';
 }
-export interface NotifierOptions { nowMs?: number; fetchImpl?: typeof fetch; recover?: boolean }
+export interface NotifierOptions { nowMs?: number; fetchImpl?: typeof fetch; recover?: boolean; revenueOnly?: boolean }
 
 // The same eligibility predicate cancels stale intent and chooses what to send.
 // A later successful call closes a connection episode even if it failed again.
@@ -41,14 +41,15 @@ const ELIGIBLE = `(q.notification_type = 'open-error' AND EXISTS (
 const DISCORD_EVENTS = `channel = '${NOTIFICATION_CHANNEL}'
   AND notification_type IN ('open-error', 'source-failing', '${DAILY_REVENUE}')`;
 
-async function claim(env: IngestEnv, now: string, lease: string): Promise<Candidate[]> {
+async function claim(env: IngestEnv, now: string, lease: string, revenueOnly: boolean): Promise<Candidate[]> {
+  const events = revenueOnly ? `channel = '${NOTIFICATION_CHANNEL}' AND notification_type = '${DAILY_REVENUE}'` : DISCORD_EVENTS;
   const cutoff = new Date(Date.parse(now) - NOTIFY_WINDOW_HOURS * 3_600_000).toISOString();
   return env.STORE.write(async tx => {
     // Two consumers must not divide the rows of one response between messages.
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`noticeos.discord-claim:${tx.workspaceId}`]);
     await tx.execute(`UPDATE noticeos.notification_events q SET state = 'cancelled', finished_at = $1::timestamptz,
       lease_id = NULL, lease_until = NULL WHERE q.state = 'pending'
-        AND ${DISCORD_EVENTS}
+        AND ${events}
         AND (q.lease_until IS NULL OR q.lease_until <= $1::timestamptz)
         AND (q.occurred_at < $2::timestamptz OR NOT (${ELIGIBLE}))`, [now, cutoff]);
     const rows = await tx.query<{
@@ -58,7 +59,7 @@ async function claim(env: IngestEnv, now: string, lease: string): Promise<Candid
       asset: string | null; displayName: string | null; isOs: boolean | null;
       metric: string | null; message: string | null; ruleId: string | null; error: string | null;
     }>(`WITH ready AS NOT MATERIALIZED (
-      SELECT * FROM noticeos.notification_events WHERE state = 'pending' AND ${DISCORD_EVENTS}
+      SELECT * FROM noticeos.notification_events WHERE state = 'pending' AND ${events}
         AND next_attempt_at <= $1::timestamptz AND (lease_until IS NULL OR lease_until <= $1::timestamptz)
     ), first AS (
       SELECT ready.payload ->> 'batch_id' AS batch_id
@@ -143,8 +144,8 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
   const lease = crypto.randomUUID();
   let candidates: Candidate[];
   try {
-    if (options.recover) await recoverIntents(env, now);
-    candidates = await claim(env, now, lease);
+    if (options.recover && !options.revenueOnly) await recoverIntents(env, now);
+    candidates = await claim(env, now, lease, options.revenueOnly === true);
     if (candidates.some(candidate => candidate.type === 'source-failing')) {
       const carded = new Set(integrationProviderCards().map(provider => provider.id));
       const summaries = await listCredentialSummaries(env);
@@ -165,7 +166,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
        attempts = attempts - CASE WHEN $3::boolean THEN 1 ELSE 0 END,
        next_attempt_at = $2::timestamptz WHERE lease_id = $1::uuid AND state = 'pending'`,
     [lease, new Date(nowMs + Date.now() - beganAt + delayMs).toISOString(), disconnected]));
-  const credential = await resolveCredential(env, NOTIFICATION_PROVIDER);
+  const credential = await resolveCredential(env, NOTIFICATION_PROVIDER, options.revenueOnly ? 'store-only' : 'legacy-fallback');
   const webhook = credential.fields[DISCORD_WEBHOOK_FIELD];
   if (webhook === undefined || webhook.trim() === '') {
     await retry(60_000, true);

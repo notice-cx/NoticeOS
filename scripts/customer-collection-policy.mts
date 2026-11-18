@@ -10,7 +10,12 @@ export interface CustomerSitePull {
   token: string;
   urls: string[];
 }
+export interface CustomerSiteCheck { workspaceId: string; asset: string; origins: string[] }
+export interface CustomerRevenueNotices { workspaceId: string; webhookId: string }
 export interface CustomerCollectionPolicy {
+  siteChecks: CustomerSiteCheck[];
+  revenueNotices: CustomerRevenueNotices[];
+  taskFollowups: { workspaceId: string; serviceId: string }[];
   googleDaily: boolean;
   extendedArchives: boolean;
   collectorProviders: CustomerProvider[];
@@ -75,20 +80,59 @@ function sitePull(value: unknown): value is CustomerSitePull {
     && new Set(value.urls).size === value.urls.length;
 }
 
+function siteCheck(value: unknown): value is CustomerSiteCheck {
+  return isRecord(value) && Object.keys(value).length === 3 && typeof value.workspaceId === 'string' && UUID.test(value.workspaceId)
+    && typeof value.asset === 'string' && value.asset.length <= 512 && ASSET_ID_RE.test(value.asset)
+    && Array.isArray(value.origins) && value.origins.length > 0 && value.origins.length <= 8
+    && value.origins.every(origin => typeof origin === 'string' && approvedUrl(origin + '/') && new URL(origin).origin === origin)
+    && new Set(value.origins).size === value.origins.length;
+}
+
+function revenueNotice(value: unknown): value is CustomerRevenueNotices {
+  return isRecord(value) && Object.keys(value).length === 2 && typeof value.workspaceId === 'string' && UUID.test(value.workspaceId)
+    && typeof value.webhookId === 'string' && /^[0-9]{17,20}$/u.test(value.webhookId);
+}
+
+/** The stored site's domain must still match an origin approved for this workspace and asset. */
+export function selectedCustomerSite(policy: CustomerCollectionPolicy | undefined, workspace: string, asset: string, domain: string | null) {
+  if (!domain || !PUBLIC_HOST.test(domain)) return undefined;
+  return policy?.siteChecks?.find(site => site.workspaceId === workspace && site.asset === asset && site.origins.includes('https://' + domain));
+}
+
+/** The reference reads distinguish a site's outage from a collector without internet access. */
+export const HEALTH_BEACONS = ['https://www.cloudflare.com/cdn-cgi/trace', 'https://www.google.com/generate_204'] as const;
+export function siteCheckAddress(url: URL, origins: readonly string[]) {
+  return !url.username && !url.password && !url.hash && (origins.includes(url.origin) || HEALTH_BEACONS.some(target => target === url.href));
+}
+
+export function revenueWebhookId(url: URL) {
+  if (url.origin !== 'https://discord.com' || url.username || url.password || url.hash || url.search) return null;
+  return /^\/api\/webhooks\/([0-9]{17,20})\/[A-Za-z0-9_-]{16,256}$/u.exec(url.pathname)?.[1] ?? null;
+}
+
 /** Host configuration authorizes the targets. A workspace's edited roster can
  * disable a target, but cannot redirect its existing bearer elsewhere. */
 export function customerCollectionPolicy(value: unknown): CustomerCollectionPolicy {
   if (!isRecord(value)) throw new Error('Invalid local customer collection settings.');
-  const { googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], paidDataForSeo = [] } = value;
-  if (typeof googleDaily !== 'boolean' || typeof extendedArchives !== 'boolean'
-    || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
+  const { googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [],
+    siteChecks = [], revenueNotices = [], taskFollowups = [], paidDataForSeo = [] } = value;
+  if (!Array.isArray(siteChecks) || siteChecks.length > 256 || !siteChecks.every(siteCheck)
+    || new Set(siteChecks.map(site => JSON.stringify([site.workspaceId, site.asset]))).size !== siteChecks.length
+    || !Array.isArray(revenueNotices) || revenueNotices.length > 64 || !revenueNotices.every(revenueNotice)
+    || new Set(revenueNotices.map(notice => notice.workspaceId)).size !== revenueNotices.length
+    || !Array.isArray(taskFollowups) || taskFollowups.length > 64 || !taskFollowups.every(entry => isRecord(entry)
+      && Object.keys(entry).length === 2 && typeof entry.workspaceId === 'string' && UUID.test(entry.workspaceId)
+      && typeof entry.serviceId === 'string' && UUID.test(entry.serviceId))
+    || new Set(taskFollowups.map(entry => entry.workspaceId)).size !== taskFollowups.length
+    || new Set(taskFollowups.map(entry => entry.serviceId)).size !== taskFollowups.length
+    || typeof googleDaily !== 'boolean' || typeof extendedArchives !== 'boolean' || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
     || new Set(collectorProviders).size !== collectorProviders.length || !Array.isArray(sitePulls) || sitePulls.length > 64
     || !sitePulls.every(sitePull) || new Set(sitePulls.map(site => JSON.stringify([site.workspaceId, site.asset]))).size !== sitePulls.length
     || !Array.isArray(paidDataForSeo) || paidDataForSeo.length > 64 || !paidDataForSeo.every(paidApproval)
     || new Set(paidDataForSeo.map(paid => paid.workspaceId)).size !== paidDataForSeo.length) {
     throw new Error('Invalid local customer collection settings.');
   }
-  return { googleDaily, extendedArchives, collectorProviders, sitePulls, paidDataForSeo };
+  return { googleDaily, extendedArchives, collectorProviders, sitePulls, siteChecks, revenueNotices, taskFollowups, paidDataForSeo };
 }
 
 const approvedDataForSeoConnection = `EXISTS (SELECT 1 FROM noticeos.integration_connections c
@@ -106,7 +150,9 @@ export async function customerDataForSeoFacts(store: WorkspaceStore, approval: C
   return store.read(async tx => {
     if (tx.workspaceId !== approval.workspaceId) throw new Error('Invalid customer workspace for paid collection.');
     const [facts] = await tx.query<{ connectionMatches: boolean; savedCap: boolean; eligibleAssets: string[]; budgetReady: boolean }>(`SELECT
-      pg_catalog.to_regclass('noticeos.dataforseo_request_charges') IS NOT NULL AS "budgetReady",
+      EXISTS (SELECT 1 FROM pg_catalog.pg_attribute
+        WHERE attrelid=pg_catalog.to_regclass('noticeos.dataforseo_request_charges')
+          AND attname='provider_completed' AND NOT attisdropped) AS "budgetReady",
       ${approvedDataForSeoConnection} AS "connectionMatches",
       EXISTS (SELECT 1 FROM noticeos.config_documents c WHERE c.document_key='constants' AND c.workspace_id=$2::uuid
         AND CASE WHEN jsonb_typeof(c.body::jsonb #> '{monthly_caps,data_usd}')='number'

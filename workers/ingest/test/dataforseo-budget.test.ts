@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:test';
 import { loadMeteredDataSpend } from '@noticeos/contract';
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../src/dataforseo-budget.js';
 import { runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
@@ -68,8 +68,14 @@ it('serializes competing reservations and keeps an unsettled request out of repl
   expect((await reserve('c', SEPTEMBER)).kind).toBe('reserved');
   expect((await reserve('c', SEPTEMBER, env.STORE, true)).kind).toBe('dataforseo_uncertain');
   if (winning.kind !== 'reserved') throw new Error('The budget must admit one request.');
-  await settleDataForSeo(env.STORE, winning.attemptId, 0.05);
+  await settleDataForSeo(env.STORE, winning.attemptId, 0.05, true);
+  // The provider response is settled, and its archive is still absent.
+  const later = Date.parse('2026-10-01T00:00:00Z');
+  expect((await reserve('a', later, env.STORE, true)).kind).toBe('dataforseo_already_purchased');
+  expect((await reserve('a', later)).kind).toBe('dataforseo_already_purchased');
   await expect(settleDataForSeo(env.STORE, winning.attemptId, 0)).rejects.toThrow();
+  await expect(env.STORE.write(tx => tx.execute(`UPDATE noticeos.dataforseo_request_charges
+    SET provider_completed=false WHERE attempt_id=$1::uuid`, [winning.attemptId]))).rejects.toThrow(/only be established once/u);
   expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.2, 0.25)).toBe(true);
   expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.200001, 0.25)).toBe(false);
 });
@@ -110,6 +116,8 @@ it('admits a retry when the next request fits beside the cost already billed', a
     .toMatchObject({ succeeded: 1, costUsd: 0.07, outcomes: [{ retries: 1 }] });
   expect(paid).toBe(2);
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.07);
+  expect(await pgFirst(`SELECT count(*)::int AS attempts, count(*) FILTER (WHERE provider_completed)::int AS completed
+    FROM noticeos.dataforseo_request_charges`)).toEqual({ attempts: 2, completed: 1 });
 });
 
 it('blocks exact replay of an ambiguous customer purchase after return to standalone', async () => {
@@ -133,6 +141,28 @@ it('blocks exact replay of an ambiguous customer purchase after return to standa
   expect(paid).toBe(1);
   expect(await canReserveDataForSeo(env.STORE, AUGUST, 0.000001, 0.25)).toBe(false);
   expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBe(0);
+});
+
+it('does not repurchase an answered report when its archive is missing', async () => {
+  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } },
+    actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+  let paid = 0;
+  const fetchImpl: typeof fetch = async () => {
+    paid += 1;
+    return Response.json({ status_code: 20000, cost: 0.03,
+      tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
+  };
+  const put = vi.spyOn(env.RAW_SIGNALS, 'put').mockRejectedValue(new Error('Synthetic archive write failure'));
+  try {
+    expect(await runDataForSeoDumps(env, { ...options, fetchImpl, fenceUnsettled: true })).toMatchObject({
+      failed: 1, outcomes: [{ errorCode: 'local_store_failed', objectKey: null }], costUsd: 0.03,
+    });
+  } finally { put.mockRestore(); }
+  expect(await runDataForSeoDumps(env, { ...options, fetchImpl })).toMatchObject({
+    failed: 1, outcomes: [{ errorCode: 'dataforseo_already_purchased' }], costUsd: 0,
+  });
+  expect(paid).toBe(1);
+  expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.03);
 });
 
 it('collects only an approved customer property and requires a saved budget', async () => {

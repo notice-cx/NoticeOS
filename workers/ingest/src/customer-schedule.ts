@@ -7,7 +7,7 @@ import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerArchive, customerJobStep, customerJobSubject, customerSchedules, isCustomerJob,
   type CustomerGoogleArchiveTarget } from '../../../scripts/customer-collection.mjs';
-import { customerCollectionPolicy, isCustomerDataForSeoJob, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
+import { customerCollectionPolicy, isCustomerDataForSeoJob, revenueWebhookId, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
 import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
@@ -18,6 +18,11 @@ import { resolveGoogleCredential } from './google-oauth.js';
 import { runGa4JourneyDumps, runSignalDumps, type Ga4CustomDimensionConfig } from './signal-dumps.js';
 import { googleAccessToken, googleAuthCacheKey, type GoogleAuth } from './google-auth.js';
 import type { JourneyConfig } from './ga4-journeys.js';
+import { recordCustomerHealthHistory, runCustomerSiteCheck } from './customer-site-health.js';
+import { runNotifier } from './notifier.js';
+import { resolveCredential } from './credentials.js';
+import { DISCORD_WEBHOOK_FIELD } from './discord-webhook.js';
+import { runWatchWindows } from './watch-windows.js';
 import { laneDeclined, type LaneRegister } from './lane-mapping.js';
 import { runBingSignals } from './bing-signals.js';
 import { runMediavine } from './mediavine.js';
@@ -145,7 +150,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       const env = { ...this.env, STORE: store };
       const authorization = archive && archive.provider !== 'bing-webmaster' && policy?.extendedArchives ? archiveAuthorization(workspaceId) : undefined;
       const fetchImpl: typeof fetch = async (input, init) => {
-        const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
+        const signals = [signal, init?.signal, input instanceof Request ? input.signal : undefined].filter((s): s is AbortSignal => Boolean(s));
         const response = await fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });
         if (response.status === 401) authorization?.reject();
         return response;
@@ -174,6 +179,32 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
         const { attempted, succeeded, unchanged, failed } = result;
         return Response.json({ attempted, succeeded, unchanged, failed });
       }
+      if ((job === 'hygiene' || job === 'freshness') && policy && asset !== null) {
+        return Response.json(await runCustomerSiteCheck(env, policy, workspaceId, asset, job, fetchImpl));
+      }
+      if (job === 'notifications') {
+        const approved = policy?.revenueNotices?.find(notice => notice.workspaceId === workspaceId);
+        if (!approved) return denied();
+        const destination = async () => {
+          const current = await resolveCredential(env, 'discord', 'store-only');
+          const url = current.fields[DISCORD_WEBHOOK_FIELD];
+          if (current.source !== 'store' || !url) return null;
+          const target = new URL(url);
+          return revenueWebhookId(target) === approved.webhookId ? target.href : null;
+        };
+        if (!await destination()) return denied();
+        const notice = await runNotifier(env, { revenueOnly: true, fetchImpl: async (input, init) => {
+          const request = new Request(input, init);
+          if (request.url !== await destination()) throw new Error('Revenue notification destination is unavailable.');
+          return fetchImpl(request);
+        } });
+        const failed = notice.skipped === 'delivery-failed' || notice.skipped === 'store-unavailable';
+        return Response.json(notice, { status: failed ? 503 : 200 });
+      }
+      if (job === 'watch-windows') {
+        const result = await runWatchWindows(env, time);
+        return Response.json({ evaluated: result.evaluated, readings: result.readings, failed: result.failed.length });
+      }
       if (job === 'freshness' && asset !== null) {
         const entries = (await eligibleAssets(env)).filter(site => site.asset === asset);
         const result = await runUptimeChecks(env, { assets: entries, fetchImpl });
@@ -188,6 +219,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       if (job === 'freshness') {
         await runFreshnessCheck(env);
         await checkSearchTraffic(env, ruleConfigFromConstants(constants));
+        if (policy) return Response.json({ outcome: 'ran', history: await recordCustomerHealthHistory(env, Date.now()) });
         return Response.json({ outcome: 'ran' });
       }
       const options = { fetchImpl, scheduled: true,

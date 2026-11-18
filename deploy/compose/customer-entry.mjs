@@ -126,6 +126,31 @@ export async function verifyComposeCustomerWorkspace(origin, operating, localTow
   finally { await identity?.close(); }
 }
 
+/** Check the selected effects without contacting a site, Discord or the task service. */
+export async function verifyComposeCustomerFollowups(operating) {
+  const { workspaceId } = operating.workspaces[0];
+  const notice = operating.revenueNotices?.find(entry => entry.workspaceId === workspaceId);
+  const filing = operating.taskFollowups?.find(entry => entry.workspaceId === workspaceId);
+  if (notice) {
+    try {
+      const { readCustomerConnection, customerCredentialFields } = await import('../../scripts/customer-stored-connection.mjs');
+      const { revenueWebhookId } = await import('../../scripts/customer-collection-policy.mjs');
+      const row = await readCustomerConnection({ address: operating.address, workspaceId }, 'discord');
+      const fields = await customerCredentialFields(row, operating.credentialsKey);
+      if (revenueWebhookId(new URL(fields.DISCORD_WEBHOOK_URL)) !== notice.webhookId) throw new Error();
+    } catch { throw new ContainerRefusal('Connect the selected revenue webhook in Integrations before enabling Discord revenue notices.'); }
+  }
+  if (filing) {
+    const { openWorkspaceServiceGrant } = await import('../../packages/postgres/src/service-grant.mjs');
+    const grant = openWorkspaceServiceGrant({ connectionString: operating.grantAddress, workspaceId, principalId: filing.serviceId });
+    try {
+      const facts = await grant.facts();
+      if (facts?.workspaceStatus !== 'active' || !['workflows.run', 'tasks.write'].every(action => facts.actions.includes(action))) throw new Error();
+    } catch { throw new ContainerRefusal('Prepare the dedicated automatic task grant with workflows.run and tasks.write.'); }
+    finally { await grant.close(); }
+  }
+}
+
 export async function verifyComposeCustomerCollection(operating) {
   const clarity = operating.collectorProviders.includes('clarity');
   const workspaceId = operating.workspaces[0].workspaceId;
@@ -142,7 +167,7 @@ export async function verifyComposeCustomerCollection(operating) {
     }
     if (paid) {
       const facts = await customerDataForSeoFacts(store, paid);
-      if (!facts.budgetReady) throw new ContainerRefusal('Apply the DataForSEO reservation migration with the operator migration command before enabling paid collection.');
+      if (!facts.budgetReady) throw new ContainerRefusal('Apply the DataForSEO budget migrations with the operator migration command before enabling paid collection.');
       if (!facts.connectionMatches) throw new ContainerRefusal('Review the saved DataForSEO connection and renew its paid scheduling approval.');
       if (!facts.savedCap) throw new ContainerRefusal('Save a positive monthly data cap in Settings before scheduling paid DataForSEO.');
       if (facts.eligibleAssets.length !== paid.assets.length) throw new ContainerRefusal('Review the assets selected for paid DataForSEO. Include only eligible assets in this workspace.');
@@ -272,6 +297,7 @@ if (!isMainThread && workerData?.composeCustomer === true) {
   if (process.argv[2] === '--check') {
     try {
       const { backup, operating, plan } = await prepareCustomer();
+      await verifyComposeCustomerFollowups(operating);
       await verifyComposeCustomerCollection(operating);
       const problem = await backup?.check();
       if (problem) throw new ContainerRefusal(problem);

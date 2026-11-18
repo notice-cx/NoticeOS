@@ -14,6 +14,7 @@ import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerOutbound, localD1BackupOutbound } from './local-customer-egress.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 import { localDataForSeoOutbound } from './customer-dataforseo-egress.mjs';
+import { localCustomerTaskFollowups } from './local-customer-task-followups.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
@@ -371,7 +372,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest, ingestOutbound);
     const collection = operating ? customerCollectionPolicy(operating) : undefined;
     const { paidDataForSeo = [], ...freeCollection } = collection ?? {};
-    const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length);
+    const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length
+      || collection.siteChecks.length || collection.revenueNotices.length || collection.taskFollowups.length);
     const paid = Boolean(startSchedules && paidDataForSeo.length);
     const scheduleName = isolated ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
@@ -474,10 +476,13 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       };
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
+      const reportRoot = privateDirectory(reports, !existsSync(reports));
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
         resumeSince, backupResumeSince, collection, backup,
+        taskFollowups: collection?.taskFollowups.length ? localCustomerTaskFollowups({ sourceRoot: plan.root,
+          root: reportRoot, credentialsKey, ntasksOrigin, transport: operating.collectorTransport }) : undefined,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
-          root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: scheduler, paidWorker, bucket });
+          root: reportRoot, bucket }), worker: scheduler, paidWorker, bucket });
     }
     operating?.signal.throwIfAborted();
     if (deployment && ((backup && !schedules?.manualBackup) || !await customerWorkerdReady(schedulerReady, probe))) {
