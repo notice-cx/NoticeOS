@@ -85,8 +85,11 @@ const SERP_COMPETITORS_LIMIT = 20;
 /** `keyword_ideas` expands by category, not string: without a ceiling the
  * internet's biggest queries fill every slot. */
 const KEYWORD_IDEAS_VOLUME_CEILING = 500_000;
-/** The cap the budget gate enforces when a run names none. */
-export const DATA_MONTHLY_CAP_USD = constants.monthly_caps.data_usd;
+/** A saved cap can be set independently of the other portfolio settings. */
+export function dataForSeoMonthlyCap(settings: unknown): number {
+  const cap = asRecord(asRecord(settings)?.monthly_caps)?.data_usd;
+  return typeof cap === 'number' ? cap : constants.monthly_caps.data_usd;
+}
 /** Two pages. A property below this records no rank: "not inside the tracked
  * depth", never "not ranking". */
 const SERP_PANEL_DEPTH = 20;
@@ -770,7 +773,7 @@ async function collectDueReports(
     console.log(JSON.stringify({ event: 'dataforseo_dumps_not_connected', ...(recovery ? { recovery: true } : {}) }));
     return { attempted: 0, succeeded: 0, unchanged: 0, failed: 0, costUsd: 0, outcomes: [] };
   }
-  const monthlyCapUsd = options.monthlyCapUsd ?? DATA_MONTHLY_CAP_USD;
+  const monthlyCapUsd = options.monthlyCapUsd ?? dataForSeoMonthlyCap(undefined);
   const panel = options.serpPanelConfig ?? SERP_PANEL_CONFIG;
   const retryBackoffMs = options.retryBackoffMs ?? RETRY_BACKOFF_MS;
   const scope = options.scope ?? null;
@@ -1807,6 +1810,7 @@ function finish(
       ...configSourceLine(configSources, [
         'config/integrations.json',
         'config/serp-panel.json',
+        'config/constants.json',
       ]),
       skippedFresh,
       // The word and never the figure: a balance does not belong in a log file.

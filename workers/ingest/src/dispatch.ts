@@ -31,9 +31,9 @@ import {
   type DataForSeoCollectScope,
   type SerpPanelConfig,
   DATAFORSEO_REPORTS,
-  DATA_MONTHLY_CAP_USD,
   dataForSeoCandidates,
   dataForSeoFamiliesFor,
+  dataForSeoMonthlyCap,
   runDataForSeoDumps,
   runDataForSeoRecovery,
 } from './dataforseo-dumps.js';
@@ -80,6 +80,7 @@ interface RunConfig {
   /** The operator paused the DataForSEO job. The daily outage re-collection
    * rides another job's tick, so it has to honour that pause itself. */
   dataForSeoPaused: boolean;
+  dataForSeoMonthlyCapUsd: number;
   /** The stored settings document, for the saved schedules a collect-now
    * press honours (`jobPaused`). */
   constants: unknown;
@@ -110,6 +111,7 @@ function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
     serpPanelConfig: documents['config/serp-panel.json'] as SerpPanelConfig | undefined,
     osTimeZone: savedOsTimeZone(documents['config/constants.json'], OS_TIME_ZONE),
     dataForSeoPaused: schedulePaused(documents['config/constants.json'], 'dataforseo'),
+    dataForSeoMonthlyCapUsd: dataForSeoMonthlyCap(documents['config/constants.json']),
     constants: documents['config/constants.json'],
     configSources: sources,
   };
@@ -135,6 +137,7 @@ function searchLane(env: IngestEnv, cfg: RunConfig, narrow: LaneNarrowing & {
     laneRegister: cfg.laneRegister,
     serpPanelConfig: cfg.serpPanelConfig,
     configSources: cfg.configSources,
+    monthlyCapUsd: cfg.dataForSeoMonthlyCapUsd,
     ...narrow,
   });
 }
@@ -212,6 +215,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
               laneRegister: cfg.laneRegister,
               serpPanelConfig: cfg.serpPanelConfig,
               configSources: cfg.configSources,
+              monthlyCapUsd: cfg.dataForSeoMonthlyCapUsd,
             }),
     },
   },
@@ -434,7 +438,7 @@ export async function runCollectNow(
     // cap buys nothing and leaves no failed report behind.
     if (families && eligible.length > 0) {
       const { spentUsd } = await loadMeteredDataSpend(env.STORE, startedAt, 'month');
-      if (capReserveExceeded(spentUsd, eligible.length * families.length, DATA_MONTHLY_CAP_USD)) {
+      if (capReserveExceeded(spentUsd, eligible.length * families.length, cfg.dataForSeoMonthlyCapUsd)) {
         return { ok: false, provider, error: 'over-cap', job };
       }
     }

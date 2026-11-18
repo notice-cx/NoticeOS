@@ -16,8 +16,10 @@ import constantsJson from './fixture-config/constants.json';
 import integrationsJson from './fixture-config/integrations.json';
 import { bingSiteMapping, getBingVerifiedSites } from '../src/bing-client.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
+import { DATAFORSEO_DUMPS_CRON } from '../src/crons.js';
 import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
-import { manualRunOutcome, runCollectNow } from '../src/dispatch.js';
+import { manualRunOutcome, runCollectNow, runCron } from '../src/dispatch.js';
+import { handleSignalCollect } from '../src/routes/signal-collect.js';
 import { cronRunSuccessValue, latestJobRuns } from '../src/job-runs.js';
 import { bingSites, discoverSites } from '../src/site-discovery.js';
 import { jobRunName, collectNowStep } from '../../../scripts/scheduled-jobs.mjs';
@@ -64,13 +66,14 @@ function dataForSeo(): { fetchImpl: typeof fetch; calls: string[] } {
 
 /** The stored documents a Save on the Sources tab would leave: meadow.example's
  * Bing site mapped, and — optionally — a paused job. */
-async function seed({ paused = null as string | null } = {}) {
+async function seed({ paused = null as string | null, dataCapUsd }: { paused?: string | null; dataCapUsd?: number } = {}) {
   const integrations = structuredClone(integrationsJson) as unknown as {
     assets: Record<string, Record<string, Record<string, unknown>>>;
   };
   integrations.assets['meadow.example']!['bing-webmaster']!.siteUrl = MAPPED;
   const constants = structuredClone(constantsJson) as Record<string, unknown>;
   if (paused) constants.schedules = { [paused]: { enabled: false, cron: '30 2 * * *' } };
+  if (dataCapUsd !== undefined) constants.monthly_caps = { data_usd: dataCapUsd };
   const seeded = await seedConfigDocuments(env, {
     documents: {
       'config/integrations.json': integrations as unknown as Record<string, unknown>,
@@ -156,6 +159,36 @@ describe('collect now runs the job step for the confirmed assets', () => {
     expect(provider.calls).toEqual([]);
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo'`)).toBe(1);
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
+  });
+
+  it('enforces the saved monthly cap in the scheduled lane and both manual paths', async () => {
+    await seed({ dataCapUsd: 1 });
+    await storeArchiveRun({ id: 'spent-under-old-cap', asset: 'northwind.example', integration: 'dataforseo', report: 'ranked-keywords',
+      report_date: '2026-09-21', finished_at: '2026-09-21T12:46:00.000Z', provider_cost_usd: 0.9 });
+    const provider = dataForSeo();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(provider.fetchImpl);
+    const options = { fetchImpl: provider.fetchImpl, nowMs: NOW };
+    const request = { asset: 'northwind.example', families: ['backlinks-summary'] };
+    const press = () => runCollectNow(env, { provider: 'dataforseo', assets: [request.asset], families: request.families }, options);
+    const collect = () => handleSignalCollect(new Request('https://fixture.example.test/api/signal-collect', {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${OPERATOR_TOKEN}` }, body: JSON.stringify(request),
+    }), env, options);
+    expect(await press()).toMatchObject({ ok: false, error: 'over-cap' });
+    expect(await (await collect()).json()).toMatchObject({ outcomes: [{ errorCode: 'budget_exhausted' }] });
+    vi.setSystemTime(NOW);
+    try { await runCron(DATAFORSEO_DUMPS_CRON, env); }
+    finally { vi.useRealTimers(); }
+    expect(provider.calls).toEqual([]);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND error_code = 'budget_exhausted'`)).toBeGreaterThan(1);
+
+    await emptyTables(['config_documents']);
+    forgetConfigCache();
+    expect(await press()).toMatchObject({ ok: true, sites: [{ outcome: 'collected' }] });
+    expect(await (await collect()).json()).toMatchObject({ unchanged: 1, failed: 0 });
+    vi.setSystemTime(NOW);
+    try { await runCron(DATAFORSEO_DUMPS_CRON, env); }
+    finally { vi.useRealTimers(); }
+    expect(provider.calls.length).toBeGreaterThan(2);
   });
 
   it('refuses families another provider does not have, a family DataForSEO does not collect, and an asset without the family', async () => {
