@@ -385,7 +385,7 @@ primary component already presents the same conclusion or data.
 only line, so an empty list and a finished list look the same, and neither is
 a blank panel.
 
-**Each report has one address.** The sidebar lists workspace pages, and an asset’s tabs list its reports. Search opens the same destinations. When a report requires setup, link to the source or mapping that supplies it. A measured zero, a pending collection and an unavailable source have different meanings.
+**Each report has one address.** The sidebar lists workspace pages, and an asset’s tabs list its reports. Settings stays in the sidebar footer while the list of assets scrolls. The phone menu uses the same layout. Search opens the same destinations. When a report requires setup, link to the source or mapping that supplies it. A measured zero, a pending collection and an unavailable source have different meanings.
 
 **Home shows how the business is doing, what is broken and what needs the
 operator's attention**, in that order, each as a chart or graphic. The month's money is the main figure

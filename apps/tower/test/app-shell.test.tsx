@@ -459,7 +459,9 @@ describe("the small-screen drawer", () => {
       "/financials",
     );
 
+    expect(within(drawer).getByRole("button", { name: "Close", exact: true })).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Open navigation" })).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
   });
 
@@ -472,7 +474,8 @@ describe("the small-screen drawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
-    fireEvent.click(within(drawer).getByRole("link", { name: "Tasks" }));
+    const utilities = within(drawer).getByRole("navigation", { name: "Workspace" });
+    fireEvent.click(within(utilities).getByRole("link", { name: "Settings" }));
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
   });
 });

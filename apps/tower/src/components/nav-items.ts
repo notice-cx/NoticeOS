@@ -93,8 +93,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Plug,
     keywords: ["integrations", "connected accounts", "connect", "credentials", "api key", "providers", "secrets"],
   },
-  { to: "/settings", label: "Settings", icon: Settings, keywords: ["config", "knobs", "preferences"] },
 ];
+
+export const SETTINGS_ITEM: NavItem = {
+  to: "/settings", label: "Settings", icon: Settings, keywords: ["workspace settings", "configuration", "preferences", "notifications"],
+};
 
 /**
  * The television renders outside the desk shell. Its entry sits in the
@@ -134,7 +137,7 @@ export const SITES_ARRANGE_ITEM: NavItem = {
 };
 
 /** Every page the palette can jump to, in the sidebar's order. */
-export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
+export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, SETTINGS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
 
 /** Every core page remains reachable even when its service is unavailable. */
 export function shownPages(items: readonly NavItem[]): NavItem[] {

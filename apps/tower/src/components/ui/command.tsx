@@ -2,6 +2,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { containDialogTab } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 /**
@@ -9,7 +10,7 @@ import { cn } from "@/lib/utils";
  * with `muted` marking the highlighted row. `CommandDialog` is written here
  * rather than using cmdk's Radix-based `Command.Dialog`, since
  * `@radix-ui/react-dialog` is not a dependency. It restores focus and closes on
- * Escape and the backdrop, but does not trap Tab.
+ * Escape and the backdrop, and keeps keyboard navigation in the search dialog.
  */
 export const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -91,6 +92,7 @@ export function CommandDialog({
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[10vh]">
       <button
         type="button"
+        tabIndex={-1}
         aria-label={`Close ${label.toLowerCase()}`}
         onClick={() => onOpenChange(false)}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm"
@@ -99,6 +101,7 @@ export function CommandDialog({
         role="dialog"
         aria-modal="true"
         aria-label={label}
+        onKeyDown={containDialogTab}
         className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-pop"
       >
         <Command label={label} className={className} {...props}>

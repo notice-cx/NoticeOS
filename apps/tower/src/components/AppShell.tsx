@@ -1,7 +1,7 @@
 import { useBrowserContext, useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
-import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
+import { Suspense, createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
@@ -26,6 +26,7 @@ import {
   TV_EDIT_ITEM,
   TV_ITEM,
   NAV_ITEMS,
+  SETTINGS_ITEM,
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -37,6 +38,7 @@ import { useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useTheme, type Theme } from "@/hooks/useTheme";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
+import { containDialogTab, SHORTCUT_MODIFIER } from "@/lib/keyboard-shortcuts";
 import { storageKey } from "@/lib/browser-storage";
 import { useBootSplashRelease } from "@/lib/boot-splash";
 
@@ -141,9 +143,7 @@ export interface SidebarProps {
 }
 
 /**
- * The desk's one navigation surface, on every desk page. The footer holds
- * what is not a page: search, the TV and the theme. The dev gallery is
- * reached by URL only.
+ * Desk navigation and the phone drawer share the same Settings footer.
  */
 export function Sidebar({
   theme,
@@ -170,7 +170,7 @@ export function Sidebar({
       </Link>
 
       <WorkspaceButton className="mx-2 mb-2" />
-      <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+      <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
           item.to === ASSETS_ROUTE ? (
@@ -208,7 +208,7 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="flex flex-col gap-1 border-t border-border p-2">
+      <div className="flex shrink-0 flex-col gap-1 border-t border-border p-2">
         <button
           type="button"
           onClick={() => {
@@ -222,7 +222,7 @@ export function Sidebar({
         >
           <Search className="size-4" />
           Search…
-          <span className="ml-auto text-xs tracking-widest text-muted-foreground">⌘K</span>
+          <span aria-hidden className="ml-auto hidden text-xs text-muted-foreground md:inline">{SHORTCUT_MODIFIER}K</span>
         </button>
         <div className="flex items-center gap-0.5">
           <NavLink
@@ -253,6 +253,9 @@ export function Sidebar({
             <Pencil aria-hidden className="size-4" />
           </NavLink>
         </div>
+        <nav aria-label="Workspace">
+          <PageNav item={SETTINGS_ITEM} onNavigate={onNavigate} />
+        </nav>
         <div className="flex items-center gap-2 px-0.5 pt-1">
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         </div>
@@ -525,6 +528,7 @@ export function AppShell({
 } = {}) {
   const { theme, toggle } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // The shell mounts with the first desk page under it, so this is the desk's
   // first screen drawn.
@@ -538,16 +542,23 @@ export function AppShell({
 
   useEffect(() => {
     if (!menuOpen) return;
+    const desktop = window.matchMedia?.("(min-width: 48rem)");
+    const onResize = () => { if (desktop?.matches) setMenuOpen(false); };
+    desktop?.addEventListener("change", onResize);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape" && !event.defaultPrevented) setMenuOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      desktop?.removeEventListener("change", onResize);
+      window.removeEventListener("keydown", onKey);
+      if (!desktop?.matches) menuButton.current?.focus();
+    };
   }, [menuOpen]);
 
   return (
     <RoutePrefetch.Provider value={onPrefetch}>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen" inert={menuOpen || paletteOpen}>
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}
@@ -562,7 +573,10 @@ export function AppShell({
                 type="button"
                 variant="ghost"
                 size="icon"
+                ref={menuButton}
                 aria-label="Open navigation"
+                aria-haspopup="dialog"
+                aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(true)}
               >
                 <PanelLeft className="size-4" />
@@ -599,7 +613,10 @@ export function AppShell({
             )
           : null}
 
-        <PaletteLauncher open={paletteOpen} onOpenChange={setPaletteOpen} />
+        <PaletteLauncher open={paletteOpen} onOpenChange={open => {
+          if (open) setMenuOpen(false);
+          setPaletteOpen(open);
+        }} />
       </div>
     </RoutePrefetch.Provider>
   );
@@ -681,6 +698,7 @@ function NavDrawer({
     <div className="fixed inset-0 z-50 flex md:hidden">
       <button
         type="button"
+        tabIndex={-1}
         aria-label="Close navigation"
         onClick={onClose}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm"
@@ -689,6 +707,7 @@ function NavDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
+        onKeyDown={containDialogTab}
         className="relative flex h-full"
       >
         <Sidebar
@@ -706,6 +725,7 @@ function NavDrawer({
           variant="ghost"
           size="icon"
           aria-label="Close"
+          autoFocus
           onClick={onClose}
           className="absolute right-2 top-2"
         >

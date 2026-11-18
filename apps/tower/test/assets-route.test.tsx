@@ -514,7 +514,10 @@ describe("Portfolio reports", () => {
     ]);
     expect(container.querySelector('[data-channel="Organic Search"]')).toHaveAttribute("data-channel-share", "0.7500");
     expect(container.querySelector('[data-channel="Direct"]')).toHaveAttribute("data-channel-share", "0.2500");
-    expect(screen.getByRole("button", { name: "Make a task for Diversify search referrals" })).toBeInTheDocument();
+    const gaps = container.querySelector<HTMLElement>("[data-home-gaps]")!;
+    const more = within(gaps).queryByRole("button", { name: /show \d+ more/i });
+    if (more) fireEvent.click(more);
+    expect(within(gaps).getByRole("button", { name: "Make a task for Diversify search referrals" })).toBeInTheDocument();
   });
 
   it("retains filters, unrelated query state, and an explicit saved order when clearing filters", () => {

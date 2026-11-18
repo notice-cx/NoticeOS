@@ -3795,3 +3795,40 @@ test("an asset bookmark opens its selected report with legacy workspace preferen
   await expect(tabs.getByRole("tab", { name: "Journeys", exact: true })).toHaveAttribute("aria-selected", "true");
   await assertNoPageOverflow(page);
 });
+
+
+test("Settings stays within reach while the portfolio navigation scrolls", { tag: PR_SMOKE }, async ({ page }, info) => {
+  await wallScene(page, "six", { layout: WALL_PRESETS.product });
+  await page.goto("/integrations");
+  await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1200, height: 560 });
+  const opener = page.getByRole("button", { name: "Open navigation" });
+  if (info.project.name === "mobile") {
+    await opener.click();
+    const dialog = page.getByRole("dialog", { name: "Navigation" });
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("link").first()).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(opener).toBeFocused();
+    await opener.click();
+  }
+  const main = page.getByRole("navigation", { name: "Main", exact: true });
+  await expect(main.getByRole("link", { name: "Integrations" })).toHaveAttribute("aria-current", "page");
+  const expand = main.getByRole("button", { name: "Expand the asset list" });
+  if (await expand.isVisible()) await expand.click();
+  const settings = page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Settings" });
+  const position = await settings.boundingBox();
+  await main.evaluate(nav => { nav.scrollTop = nav.scrollHeight; });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+  expect(await settings.boundingBox()).toEqual(position);
+  await settings.click();
+  await expect(page).toHaveURL(/\/settings$/);
+  if (info.project.name === "mobile") {
+    await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
+    await opener.click();
+  }
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  await expect(main.getByRole("link", { name: "Integrations" })).not.toHaveAttribute("aria-current", "page");
+});

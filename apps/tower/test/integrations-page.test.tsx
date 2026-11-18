@@ -273,11 +273,7 @@ describe("/integrations is a page, not an alias", () => {
     expect(health).toBe(HealthRoute);
   });
 
-  it("gives it a nav entry between Health and Settings, with the palette words", () => {
-    const labels = NAV_ITEMS.map((item) => item.label);
-    expect(labels.indexOf("Integrations")).toBe(labels.indexOf("System health") + 1);
-    expect(labels.indexOf("Integrations")).toBe(labels.indexOf("Settings") - 1);
-
+  it("opens Integrations from navigation and source searches", () => {
     const entry = NAV_ITEMS.find((item) => item.label === "Integrations");
     expect(entry?.to).toBe("/integrations");
     for (const word of ["connect", "credentials", "api key"]) {

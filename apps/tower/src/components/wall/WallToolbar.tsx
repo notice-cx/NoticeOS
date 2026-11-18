@@ -2,6 +2,7 @@ import { Check, History, Plus, Redo2, TriangleAlert, Undo2 } from "lucide-react"
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
+import { SHORTCUT_MODIFIER as MOD } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 /** Which drawer the side of the editor shows. */
@@ -34,9 +35,6 @@ export interface WallToolbarProps {
   onSubmit: () => void;
   onDiscard: () => void;
 }
-
-/** ⌘ on a Mac, Ctrl elsewhere: the one modifier the shortcuts name. */
-const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/u.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 /**
  * The editor's one bar, above the television: Add a widget, Undo and Redo,
