@@ -70,9 +70,16 @@ test('customers can invite, change access, remove and switch workspaces in the T
   const resources = new AsyncDisposableStack();
   const guards = [];
   t.after(async () => {
-    await resources.disposeAsync();
-    assert.equal(existsSync(path.join(home, '.local', 'customer-postgres', 'data', 'postmaster.pid')), false);
-    rmSync(home, { recursive: true, force: true });
+    let disposalError;
+    try { await resources.disposeAsync(); } catch (error) { disposalError = error; }
+    try {
+      assert.equal(existsSync(path.join(home, '.local', 'customer-postgres', 'data', 'postmaster.pid')), false);
+      rmSync(home, { recursive: true, force: true });
+      for (const guard of guards) assert.equal(guard.check(), null);
+    } catch (error) {
+      if (!disposalError) throw error;
+    }
+    if (disposalError) throw disposalError;
   });
   process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
   const { chromium, expect } = requireTower('@playwright/test');
@@ -174,5 +181,4 @@ test('customers can invite, change access, remove and switch workspaces in the T
   await teammate.goto(`${origin}/settings/members`);
   await expect(teammate.getByRole('combobox', { name: `Role for ${east.email}`, exact: true })).toBeVisible();
   await expect(teammate.getByText(west.email, { exact: true })).toHaveCount(0);
-  for (const guard of guards) assert.equal(guard.check(), null);
 });

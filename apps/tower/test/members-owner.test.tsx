@@ -77,6 +77,35 @@ it("another member's role change rechecks access without rebuilding the page", a
   await vi.waitFor(() => expect(revalidateSession).toHaveBeenCalledTimes(1));
   expect(refreshSession).not.toHaveBeenCalled();
 });
+it('refresh serializes with pagination and keeps the existing roster available when reloading fails', async () => {
+  const colleague = { id: other, name: 'Generated viewer', email: 'viewer@example.test', role: 'viewer' };
+  let reloadFails = false;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.collection !== 'members') return roster(input, init);
+    if (command.after === other) return Response.json({ ok: true, collection: 'members', items: [colleague], nextCursor: null });
+    if (reloadFails) return Response.json({ ok: false }, { status: 503 });
+    return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+  });
+  let finishRecheck!: () => void;
+  const revalidate = () => new Promise<void>(resolve => { finishRecheck = resolve; });
+  const value = runtime(fetch);
+  value.queries.setDefaultOptions({ queries: { retry: false } });
+  mount(value, 'owner', undefined, revalidate);
+  await screen.findByText(member.name);
+  const more = screen.getByRole('button', { name: 'More people' });
+  reloadFails = true;
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh access' }));
+  expect(more).toBeDisabled();
+  fireEvent.click(more);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await act(async () => finishRecheck());
+  await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
+  expect(screen.getByText(member.name)).toBeVisible();
+  expect(more).toBeEnabled();
+  fireEvent.click(more);
+  expect(await screen.findByText(colleague.name)).toBeVisible();
+});
 it('saved delivery failure clears new-invite draft and Resend reuses the existing invitation ID', async () => {
   let saved = false;
   const fetch = vi.fn<ApiTransport>(async (input, init) => {

@@ -34,8 +34,16 @@ function OwnerMembers() {
   } });
   const update = runtime.guard((callback: () => void) => callback());
   async function refreshAccess() {
-    await recheckAccess?.();
-    if (runtime.guard(() => true)() === true) await read.refetch();
+    if (issuing.current || runtime.guard(() => true)() !== true) return;
+    issuing.current = true; setBusy(true); setNotice(null);
+    try {
+      await recheckAccess?.();
+      if (runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
+    } catch {
+      update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
+    } finally {
+      issuing.current = false; update(() => setBusy(false));
+    }
   }
   async function execute(command: MemberCommand) {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
