@@ -59,6 +59,21 @@ test('task projects the Tower exported readable by others are kept, and only as 
   await verifyContainerRecovery(f.output, options);
 });
 
+test('a new standalone backup keeps prepared customer connections after rollback', async t => {
+  const f = fixture(t); const options = { fs: f.io, fsSync: f.sync };
+  const name = 'customer-runtime.json', file = `/state/installation/${name}`;
+  await assert.rejects(copyContainerRecovery(f.output, { ...options, customer: true }), /customer-runtime\.json/u);
+  f.write(file, { format: 'noticeos-compose-customer/1', identitySecret: 'synthetic-secret' });
+  const afterRollback = f.output + '-standalone';
+  await copyContainerRecovery(afterRollback, options);
+  const recovered = f.map(path.join(afterRollback, name));
+  assert.equal(fs.statSync(recovered).mode & 0o777, 0o600);
+  assert.deepEqual(fs.readFileSync(recovered), fs.readFileSync(f.map(file)));
+  await verifyContainerRecovery(afterRollback, options);
+  fs.rmSync(f.map(file));
+  await assert.rejects(verifyContainerRecovery(afterRollback, options), /inventory does not match/u);
+});
+
 test('a refused recovery file names its entry and cause without leaking its contents or mount path', async t => {
   const f = fixture(t);
   const options = { fs: f.io, fsSync: f.sync };

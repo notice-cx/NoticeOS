@@ -654,6 +654,12 @@ function restoreInstructions(startedAt, stages, retentionDays, retention, contai
       + (result.rows ? `; rows: ${Object.entries(result.rows).map(([table, rows]) => `${table} ${rows}`).join(', ')}` : '')
       + result.errors.map((error) => `\n  - ${error.item}: ${error.detail}`).join('');
   }).join('\n');
+  const customerRestore = containerMode ? `- For customer recovery, restore into the new installation's \`noticeos\` database.
+  If the set includes \`recovery/customer-runtime.json\`, run \`pnpm db:prepare-customer-roles\`
+  with the new stack's selector to generate and verify its logins. In a private copy of the
+  runtime file, replace \`database.identity\` and \`database.grant\` with the plan's two internal URLs.
+  Keep the identity secret and workspace mapping. Run customer preflight before enabling the profile.
+` : '';
   return `# NoticeOS backup — ${startedAt.slice(0, 10)}
 
 Created at ${startedAt} by \`scripts/host-backup.mjs\` (nightly 04:00 UTC or
@@ -706,7 +712,7 @@ replacing an existing installation requires an explicitly approved maintenance w
   Do not apply migrations before restoring; the dump includes the schema and
   recorded migration hashes. Reconcile rows, archive references and application
   reads/writes before accepting recovery. No existing database is replaced here.
-- R2: copy \`r2/\` back over \`.wrangler/state/v3/r2/\`.
+${customerRestore}- R2: copy \`r2/\` back over \`.wrangler/state/v3/r2/\`.
   If present, restore \`recovery/resource-names.json\` into the new installation's settings folder before starting the app.
   For older sets without it, keep the original declaration or set \`rawSignalsBucket\` to the verified archive bucket before starting customer mode.
   If the restore contains several buckets, verify which physical bucket contains the indexed report objects before choosing the name.

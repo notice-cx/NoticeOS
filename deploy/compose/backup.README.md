@@ -84,8 +84,8 @@ includes the bootstrap bindings, database credentials, the saved task projects
 when the installation has exported them, and the worker/exporter declarations.
 The recovery folder also keeps `resource-names.json` when the installation uses
 a saved archive bucket name.
-Customer backups also keep the private customer runtime declaration and its
-database role credentials in `recovery/customer-runtime.json`. If a source credential or
+The local set keeps an existing private customer runtime declaration in
+`recovery/customer-runtime.json` in either profile, including after rollback. If a source credential or
 declaration changes during capture, the set is not published.
 
 The offsite copy leaves out `recovery/`; only the local set has it. The copy
@@ -118,11 +118,17 @@ the operation that made the claim has stopped, then remove its protected claim.
 
 Restore uses a new, proven absent destination. The Postgres restore identity must
 receive its own private copy or input stream; the backup's own copy stays mode `0600`.
-Restore the archived bootstrap bindings, adapting only the explicitly chosen new
-endpoint and credentials selector. For a customer restore, prepare the identity
-and schedule-service database logins and their `CONNECT` grants on the new
-destination. The dump contains the workspace, identity tables and workspace
-service grants. The database login setup uses the protected recovery declaration.
+Restore the archived bootstrap bindings, adapting the endpoint and credentials
+selector to the new destination. The Postgres dump contains the workspace,
+identity tables and service grants. To start the recovered workspace in customer
+mode, restore into the new installation's `noticeos` database, then follow
+[Prepare the Postgres logins](../../scripts/README.md#prepare-the-postgres-logins-on-the-existing-local-stack)
+for that new stack. The verified plan generates fresh role credentials and
+enables their local `CONNECT` access. Copy the protected `customer-runtime.json`
+into the new installation, preserving its identity secret and workspace mapping.
+Replace `database.identity` and `database.grant` in that copy with the new
+plan's `noticeos_identity.internal` and `noticeos_service_grant.internal` URLs.
+Run customer preflight before starting the customer profile.
 If present, restore `recovery/resource-names.json` to the new installation's own
 settings folder before starting the app. For older sets without this file, keep
 the original declaration or set `rawSignalsBucket` to the verified archive

@@ -182,16 +182,13 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
   } finally { clearTimeout(timer); }
 }
 
-/** The scopes the credential holds in its workspace, as Ntasks's list_workspaces
- * answers them; null when the answer is not one. */
-async function credentialScopes(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<string[] | null> {
+/** The workspaces Ntasks lists for the current credential. */
+async function credentialWorkspaces(fields: Record<string, string>, fetchImpl: typeof fetch) {
   const { status, body } = await callNtasks(fields, { method: 'POST', path: '/api/mcp', body: NTASKS_BACKUP_SCOPE_QUERY }, fetchImpl);
-  const workspaces = (body as { result?: { structuredContent?: { workspaces?: unknown } } } | null)?.result?.structuredContent?.workspaces;
-  if (status !== 200 || !Array.isArray(workspaces)) return null;
-  return workspaces.flatMap(workspace => {
-    const access = (workspace as { access?: unknown } | null)?.access;
-    return Array.isArray(access) ? access.filter((scope): scope is string => typeof scope === 'string') : [];
-  });
+  const result = (body as { result?: { isError?: boolean; structuredContent?: { workspaces?: unknown } } } | null)?.result;
+  const workspaces = result?.structuredContent?.workspaces;
+  return status === 200 && result?.isError !== true && Array.isArray(workspaces)
+    ? workspaces as ({ status?: unknown; workspaceId?: unknown; access?: unknown } | null)[] : null;
 }
 
 async function checkBackupOnlyCredential(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<boolean> {
@@ -212,13 +209,17 @@ export async function checkNtasks(fields: Record<string, string>, fetchImpl: typ
     const projects = (body as { projects?: unknown } | null)?.projects;
     if (status !== 200 || !Array.isArray(projects)) return { outcome: 'unreachable', failure: { kind: status === 200 ? 'invalid-response' : 'http', status } };
     const facts = { projects: projects.length };
+    const workspaces = await credentialWorkspaces(fields, fetchImpl);
+    if (!workspaces) return { outcome: 'unreachable', facts, failure: { kind: 'invalid-response' } };
+    const refused = { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } } as const;
     if (fields[NTASKS_BACKUP_TOKEN] !== undefined) {
-      return await checkBackupOnlyCredential(fields, fetchImpl) ? { outcome: 'answered', facts }
-        : { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } };
+      const active = workspaces.filter(workspace => workspace?.status === 'active');
+      if (active.length !== 1 || active[0]?.workspaceId !== fields[NTASKS_WORKSPACE_ID] || !await checkBackupOnlyCredential(fields, fetchImpl)) {
+        return refused;
+      }
+      return { outcome: 'answered', facts };
     }
-    const scopes = await credentialScopes(fields, fetchImpl);
-    if (scopes === null) return { outcome: 'unreachable', facts, failure: { kind: 'invalid-response' } };
-    if (!scopes.includes('tasks:backup')) return { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } };
+    if (!workspaces.some(workspace => Array.isArray(workspace?.access) && workspace.access.includes('tasks:backup'))) return refused;
     return { outcome: 'answered', facts };
   } catch (error) {
     if (error instanceof TaskServiceError && error.failure.kind === 'configuration') return { outcome: 'invalid', failing: ['Ntasks address'], failure: error.failure };

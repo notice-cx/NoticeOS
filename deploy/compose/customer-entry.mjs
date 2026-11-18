@@ -7,6 +7,7 @@ import { isMainThread, parentPort, Worker, workerData } from 'node:worker_thread
 import { ContainerRefusal } from './development.mjs';
 import { CUSTOMER_BACKUP_CLIENT, CUSTOMER_BACKUP_EFFECT_MS, CUSTOMER_BACKUP_PATH } from '../../scripts/customer-backup.mjs';
 import { D1_FAILURE_LABELS } from '../../packages/contract/src/cloudflare-d1.mjs';
+import { NEW_INSTALL_NAMES, readResourceNames } from '../../scripts/resource-names.mjs';
 
 const marker = '/state/installation/customer-runtime.enabled';
 const selected = '/tmp/noticeos-running-profile';
@@ -112,11 +113,21 @@ export async function verifyComposeCustomerWorkspace(origin, operating) {
   finally { await identity?.close(); }
 }
 
+export function composeArchiveBucket(installationDir) {
+  try {
+    const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
+    return names.rawSignalsBucket ?? NEW_INSTALL_NAMES.rawSignalsBucket;
+  } catch {
+    throw new ContainerRefusal('The installation’s resource-names.json must identify its existing archive bucket.');
+  }
+}
+
 async function prepareCustomer() {
   const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
   const { createCustomerBackup } = await import('../../scripts/customer-backup.mjs');
   const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
   const plan = composeCustomerPlan(process.env);
+  const archiveBucket = composeArchiveBucket('/state/installation');
   const backupStatus = await containerBackupStatus(CUSTOMER_BACKUP_CLIENT);
   const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
   const io = { lstatSync, readFileSync };
@@ -128,7 +139,7 @@ async function prepareCustomer() {
       staging: '/state/.local/compose-customer/backup-staging' }),
     client: CUSTOMER_BACKUP_CLIENT, operatorToken: bootstrap.OPERATOR_TOKEN,
   } : undefined;
-  return { plan, operating, bridgePeer, backup };
+  return { plan, operating, bridgePeer, archiveBucket, backup };
 }
 
 async function runCustomer(stop) {
@@ -139,7 +150,7 @@ async function runCustomer(stop) {
   if (selectedCustomerProfile() !== 'customer') throw new ContainerRefusal('The customer profile was not selected.');
   const selection = lstatSync(marker);
   const activation = `${selection.ino}/${selection.mtimeMs}`;
-  const { plan, operating, bridgePeer, backup } = await prepareCustomer();
+  const { plan, operating, bridgePeer, archiveBucket, backup } = await prepareCustomer();
   const state = '/state/.local/compose-customer';
   privateDirectory(state, !existsSync(state));
   const workerState = composeArchiveState('/state', { lstatSync }, folder => { if (!existsSync(folder)) mkdirSync(folder, { mode: 0o700 }); });
@@ -148,7 +159,7 @@ async function runCustomer(stop) {
   if (backupProblem) process.stderr.write(`NoticeOS backup unavailable. ${backupProblem}\n`);
   // A backed-up store remains accessible so its owner can replace a revoked credential.
   const app = await startPreparedCustomer(plan, db, { deployment: {
-    artifactRoot, archiveBucket: 'noticeos-raw-signals', workerState, listenPort: 5173, bridgePeer, backup,
+    artifactRoot, archiveBucket, workerState, listenPort: 5173, bridgePeer, backup,
   } });
   try {
     const status = await Promise.race([stop.then(() => 0), app.whenLost.then(() => 1)]);

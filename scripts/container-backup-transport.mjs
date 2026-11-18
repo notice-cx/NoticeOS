@@ -11,6 +11,7 @@ import { RESOURCE_NAMES_FILE } from './installation.mjs';
 import { resourceNamesRefusal } from './resource-names.mjs';
 
 const refusal = () => { throw new Error('The declared container snapshot failed; no complete backup was published.'); };
+const customerDeclaration = ['customer-runtime.json', '/state/installation/customer-runtime.json', true];
 const recoverySources = [
   ['bootstrap.json', '/state/workers/ingest/.dev.secrets.json', true],
   ['worker-profile.json', BACKUP_PATHS.profile, true],
@@ -28,9 +29,10 @@ function recoveryText(name, source, privateMode, io) {
  * Installation settings may be broadly readable. Their copies are private. */
 function recoveryInputs(io, customer) {
   const inputs = [...recoverySources];
-  if (customer) inputs.push(['customer-runtime.json', '/state/installation/customer-runtime.json', true]);
+  if (customer) inputs.push(customerDeclaration);
   for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true],
-    ['beads.json', '/state/installation/beads.json', false], [RESOURCE_NAMES_FILE, `/state/installation/${RESOURCE_NAMES_FILE}`, false]]) {
+    ['beads.json', '/state/installation/beads.json', false], [RESOURCE_NAMES_FILE, `/state/installation/${RESOURCE_NAMES_FILE}`, false],
+    ...(!customer ? [customerDeclaration] : [])]) {
     try {
       io.lstatSync(source);
       inputs.push([name, source, privateMode]);
