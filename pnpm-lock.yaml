@@ -170,6 +170,9 @@ overrides:
   vitepress-plugin-llms>minimatch: ^11.0.1
   vitepress@1.6.4>vite: ^6.4.4
 
+patchedDependencies:
+  '@notice-cx/ntasks-ui@0.5.0': 9cad77a9a1bf3d70ce91aaa2a0ce28dbb8d5dfec8a8c8fb7c67056531212b97a
+
 importers:
 
   .:
@@ -194,7 +197,7 @@ importers:
         version: 2.4.0
       '@notice-cx/ntasks-ui':
         specifier: 0.5.0
-        version: 0.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        version: 0.5.0(patch_hash=9cad77a9a1bf3d70ce91aaa2a0ce28dbb8d5dfec8a8c8fb7c67056531212b97a)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
       '@noticeos/contract':
         specifier: workspace:*
         version: link:../../packages/contract
@@ -5223,7 +5226,7 @@ snapshots:
 
   '@noble/hashes@2.4.0': {}
 
-  '@notice-cx/ntasks-ui@0.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)':
+  '@notice-cx/ntasks-ui@0.5.0(patch_hash=9cad77a9a1bf3d70ce91aaa2a0ce28dbb8d5dfec8a8c8fb7c67056531212b97a)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react-router-dom@7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)':
     dependencies:
       '@fontsource-variable/inter': 5.3.0
       '@fontsource-variable/jetbrains-mono': 5.3.0
