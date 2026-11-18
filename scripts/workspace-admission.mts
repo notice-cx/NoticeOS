@@ -81,7 +81,7 @@ interface EntryBase {
   readonly now?: () => number;
 }
 export type WorkspaceEntry = EntryBase & (
-  | { readonly kind: 'hosted'; readonly trustedOrigin: string;
+  | { readonly kind: 'hosted'; readonly trustedOrigin: string; readonly localTowerOrigin?: string;
       readonly membership: (headers: Headers, workspaceId: string) => Promise<WorkspaceMembership | null>;
       readonly googleOAuth?: GoogleOAuthAdmissionAdapter;
       /** Verifies a bearer request's agent token and reads its person's
@@ -188,7 +188,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
   const kind = entry.kind;
   if (typeof kind !== 'string' || !['hosted', 'standalone', 'demo', 'service'].includes(kind) || typeof entry.profile !== 'symbol') refuse();
   const specific = kind === 'hosted' ? ['trustedOrigin', 'membership'] : kind === 'demo' ? ['workspaceId', 'workspaceStatus'] : ['authority'];
-  keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth', 'agent'] : [])]);
+  keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth', 'agent', 'localTowerOrigin'] : [])]);
   if (entry.now !== undefined && typeof entry.now !== 'function') refuse();
   const clock = (entry.now ?? Date.now) as () => number;
   function checkedClock(): number {
@@ -200,7 +200,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
   const profile = entry.profile;
   let browserPolicy: ReturnType<typeof createBrowserRequestPolicy> | null = null;
   if (kind === 'hosted') {
-    try { browserPolicy = createBrowserRequestPolicy(entry.trustedOrigin as string); } catch { refuse(); }
+    try { browserPolicy = createBrowserRequestPolicy(entry.trustedOrigin as string, entry.localTowerOrigin as string | undefined); } catch { refuse(); }
   }
   const trustedOrigin = browserPolicy?.origin ?? null;
   const demoWorkspace = kind === 'demo' ? uuid(entry.workspaceId) : null;

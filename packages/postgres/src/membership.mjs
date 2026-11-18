@@ -59,13 +59,13 @@ function command(input) {
         return Object.freeze({ kind: 'cancel', invitationId });
     return Object.freeze({ kind: 'accept', invitationId });
 }
-function proof(original, origin) {
+function proof(original, origin, localTowerOrigin) {
     if (!(original instanceof Request) || original.method !== 'POST' || original.url.length > 12288)
         refuse();
     // The explicit command is validated separately. Snapshot truthful request
     // metadata without retaining an unused tee of its incoming body stream.
     const request = new Request(original.url, { method: original.method, headers: new Headers(original.headers) });
-    createBrowserRequestPolicy(origin).assertEffect(request);
+    createBrowserRequestPolicy(origin, localTowerOrigin).assertEffect(request);
     uuid(request.headers.get(WORKSPACE_SESSION_HEADER));
     return request;
 }
@@ -157,7 +157,7 @@ async function roster(trx, workspaceId, query) {
 /** Open lazily per request and await close. Unknown commands, foreign evidence
  * and malformed selectors never connect. No active-organization fallback. */
 export function openMembershipLifecycle(input) {
-    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin,
+    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin,
         sessionSecret: input.sessionSecret, authorize: input.authorize, deliver: input.deliver });
     const origin = validateIdentityOptions(options);
     if (typeof options.authorize !== 'function' || typeof options.deliver !== 'function')
@@ -177,7 +177,7 @@ export function openMembershipLifecycle(input) {
         return opened.database;
     }
     async function execute(request, workspaceId, inputCommand) {
-        const original = proof(request, origin), requested = workspaceId === undefined ? undefined : uuid(workspaceId), action = command(inputCommand);
+        const original = proof(request, origin, options.localTowerOrigin), requested = workspaceId === undefined ? undefined : uuid(workspaceId), action = command(inputCommand);
         if (requested === undefined && action.kind !== 'accept')
             refuse();
         const expectedSession = original.headers.get(WORKSPACE_SESSION_HEADER);

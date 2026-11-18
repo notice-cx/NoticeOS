@@ -18,6 +18,8 @@ export declare class WorkspaceEntryRefused extends Error {
     name: string;
     constructor();
 }
+/** The local customer gateway supplies this binding to its private Workers. */
+export declare function localTowerOrigin(env: object): string | undefined;
 export declare function workspaceEntryOrigin(env: object): string;
 /** All legacy RPC/HTTP/cron entries call this before opening their old store. */
 export declare function requireStandaloneWorkspace(env: object): void;

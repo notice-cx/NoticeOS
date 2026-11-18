@@ -3,7 +3,7 @@ import { ArrowRight, Check, ExternalLink, FileKey2, KeyRound, Loader2, TriangleA
 import { type DragEvent, type ReactNode, useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { GOOGLE_CONSOLE, readGoogleClientFile, type GoogleClientFile } from "@shared/google-client-file";
-import type { GoogleOAuthCardState } from "@shared/integrations-page";
+import { LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP, type GoogleOAuthCardState } from "@shared/integrations-page";
 import { CopyCommand } from "@/components/CopyCommand";
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,15 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
   const [editingClient, setEditingClient] = useState(false);
   const adsense = provider === 'adsense';
   const clientReady = card.state !== "app-missing";
+  const serviceAccount = <Link to="/integrations?provider=google&setup=page" className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
+    Service account instead
+  </Link>;
+  if (card.localSignInBlocked) return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">{LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP}</p>
+      {adsense ? null : serviceAccount}
+    </div>
+  );
 
   async function take(file: File | undefined) {
     if (!file || upload.phase === "saving") return;
@@ -192,9 +201,7 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
         <summary className="cursor-pointer">Where to set read-only access</summary>
         <p className="mt-2">In Google Auth Platform → Data Access, add this scope. NoticeOS requests it when you continue with Google.</p>
         <CopyCommand command={ADSENSE_READ_SCOPE} mark={{ "data-adsense-read-scope": "" }} />
-      </details> : <Link to="/integrations?provider=google&setup=page" className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
-        Service account instead
-      </Link>}
+      </details> : serviceAccount}
       {start}
     </div>
   );

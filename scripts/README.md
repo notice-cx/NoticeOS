@@ -835,7 +835,9 @@ Supply an absolute path to an operator-owned, mode `0600` JSON plan. Set
 `identitySecret` and `ntasks`. The two connection URLs name the same database
 on `postgres` or loopback, using `noticeos_platform` and `noticeos_identity`
 respectively. Keep the platform login in the operator plan. Keep the identity
-secret consistent with the intended customer deployment. Existing Compose
+secret consistent with the intended customer deployment. Set `trustedOrigin`
+to the exact address the owner uses. On a home-network Tower it matches the
+private customer declaration’s `towerOrigin`. Existing Compose
 stores require operator-approved login, connection and host access for those
 roles and for the customer runtime's `noticeos_service_grant` role. Use local
 database access and dedicated credentials for each role. In `ntasks`, give

@@ -3,8 +3,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { openEmailCodeLogin, type EmailCodeLogin, type EmailCodeOptions } from '@noticeos/postgres/email-code';
 import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, type EmailEnrollment } from '../../../scripts/identity-protocol.mjs';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
-import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
-import { workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
+import { createBrowserRequestPolicy, isPrivateTowerOrigin, WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
+import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 import { captureIdentityMail, type IdentityMailBindings } from './identity-mail';
 
 export interface AuthEntryBindings extends WorkspaceEntryBindings, IdentityMailBindings {
@@ -17,15 +17,21 @@ function refuse(): never { throw new Error('Identity entry unavailable'); }
 
 /** The configured gateway supplies the peer used for sign-in limits. */
 export function edgePeer(request: Request, env: AuthEntryBindings): string {
-  if (env[PRODUCT_ENV.identityEdge.name] === 'local-loopback') {
+  const mode = env[PRODUCT_ENV.identityEdge.name];
+  if (mode === 'local-loopback' || mode === 'local-network') {
     // The native gateway replaces this proof after checking its socket peer.
     const expected = env.NOTICEOS_LOCAL_PEER_PROOF, proof = request.headers.get('x-noticeos-local-peer-proof');
     const origin = new URL(workspaceEntryOrigin(env));
     const key = /^[A-Za-z0-9_-]{43}$/u;
-    if (origin.protocol !== 'http:' || origin.hostname !== '127.0.0.1'
+    const validOrigin = mode === 'local-loopback' ? origin.hostname === '127.0.0.1'
+      : origin.origin === localTowerOrigin(env) && isPrivateTowerOrigin(origin.origin);
+    if (origin.protocol !== 'http:' || !validOrigin
       || typeof expected !== 'string' || !key.test(expected) || !proof || !key.test(proof)
       || !timingSafeEqual(Buffer.from(expected), Buffer.from(proof))) refuse();
-    return '127.0.0.1';
+    if (mode === 'local-loopback') return '127.0.0.1';
+    const peer = request.headers.get('cf-connecting-ip');
+    if (!peer || !isIP(peer)) refuse();
+    return peer;
   }
   if (env[PRODUCT_ENV.identityEdge.name] !== 'cloudflare') refuse();
   // Cloudflare replaces the edge peer header. Worker subrequests have different peer semantics.
@@ -65,7 +71,7 @@ export async function handleAuthRequest(request: Request, env: AuthEntryBindings
       .find(key => EMAIL_CODE_PATHS[key] === url.pathname);
     if (!action || request.method !== 'POST' || url.search || url.hash || url.username || url.password) refuse();
     const origin = workspaceEntryOrigin(env);
-    createBrowserRequestPolicy(origin).assertEffect(request);
+    createBrowserRequestPolicy(origin, localTowerOrigin(env)).assertEffect(request);
     const peerAddress = edgePeer(request, env);
     const selected = enrollment(request);
     if (action === 'logout') {
@@ -78,7 +84,7 @@ export async function handleAuthRequest(request: Request, env: AuthEntryBindings
     if (typeof connectionString !== 'string' || typeof sessionSecret !== 'string') refuse();
     // Verification and logout keep working if delivery is unavailable.
     const deliver = action === 'request' ? codeSender(env) : async () => refuse();
-    login = open({ connectionString, sessionSecret, trustedOrigin: origin, peerAddress,
+    login = open({ connectionString, sessionSecret, trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env), peerAddress,
       deliver,
     });
     const result = action === 'request' ? await login.requestCode(request, selected)

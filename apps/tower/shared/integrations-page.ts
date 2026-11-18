@@ -338,12 +338,13 @@ export type GoogleOAuthState =
 
 export interface GoogleOAuthCardState {
   state: GoogleOAuthState;
+  localSignInBlocked?: boolean;
   /** The exact string to paste into the Google Cloud console, derived from the
    * address this browser has the Tower open at. */
   redirectUri: string;
   /** Where the same Tower answers on loopback, the address Google accepts —
    * what the card links to when this one is refused. Null when Google accepts
-   * this address, or it is not one. */
+   * this address or the app does not serve a second origin. */
   loopbackUrl: string | null;
   /** Whose account is connected. Null until it is. */
   account: string | null;
@@ -360,11 +361,12 @@ export function googleOAuthCardState(
   google: IntegrationProviderStatus,
   app: IntegrationProviderStatus | null,
   origin: string,
+  offerLoopback = true,
 ): GoogleOAuthCardState {
   const verdict = googleRedirectVerdict(origin);
   const metadata = google.credential.metadata;
   const connected = google.credential.auth === "oauth";
-  const loopback = verdict.usable ? null : googleLoopbackOrigin(origin);
+  const loopback = verdict.usable || !offerLoopback ? null : googleLoopbackOrigin(origin);
   const base = {
     redirectUri: googleOAuthRedirectUri(origin, google.provider.id === 'adsense' ? 'adsense' : 'google'),
     loopbackUrl: loopback === null ? null : `${loopback}/integrations?connect=${google.provider.id}`,
@@ -372,6 +374,9 @@ export function googleOAuthCardState(
     scopes: grantedScopes(metadata?.scopes ?? []),
     connectedAt: metadata?.connectedAt ?? null,
   };
+  if (!verdict.usable && !offerLoopback) {
+    return { ...base, state: connected ? 'connected' : 'redirect-unusable', localSignInBlocked: true };
+  }
   if (google.provider.id === 'adsense' && (app === null || app.credential.source === 'none')) {
     return { ...base, state: 'app-missing' };
   }
@@ -464,10 +469,15 @@ function oauthFailureAction(code: string, origin: string, provider: 'google' | '
   return undefined;
 }
 
-export function googleOAuthNotice(value: string | null, origin = '', provider: 'google' | 'adsense' = 'google'): GoogleOAuthNotice | null {
+export const LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP = 'Connect from the standalone Tower on the computer running NoticeOS.';
+
+export function googleOAuthNotice(value: string | null, origin = '', provider: 'google' | 'adsense' = 'google', offerLoopback = true): GoogleOAuthNotice | null {
   if (value === null || value === "") return null;
   if (value === GOOGLE_OAUTH_CONNECTED) {
     return { tone: "ok", message: "Signed in to Google." };
+  }
+  if (value === 'redirect_unusable' && !offerLoopback) {
+    return { tone: 'bad', message: LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP };
   }
   const action = oauthFailureAction(value, origin, provider);
   return {

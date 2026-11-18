@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
-import { composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
+import { composeArchiveBucket, composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
 import { readComposeCustomerOperating } from './local-customer-operating.mjs';
@@ -125,6 +125,11 @@ test('the same container explicitly selects one customer clock, exact loopback i
   const plan = composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' });
   assert.equal(plan.url, 'http://127.0.0.1:25173');
   assert.throws(() => composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173' }), ContainerRefusal);
+  const lan = { NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173', TOWER_ALLOWED_HOSTS: 'test-tower.local' };
+  assert.equal(composeCustomerPlan(lan, 'http://test-tower.local:25173').url, 'http://test-tower.local:25173');
+  for (const origin of ['http://other.local:25173', 'http://test-tower.local:25174', 'http://public.example:25173']) {
+    assert.throws(() => composeCustomerPlan(lan, origin), ContainerRefusal);
+  }
   const header = 'Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n';
   const route = 'eth0 00000000 010011AC 0003 0 0 0 00000000 0 0 0\n';
   const subnet = 'eth0 000011AC 00000000 0001 0 0 0 0000FFFF 0 0 0\n';
@@ -134,6 +139,9 @@ test('the same container explicitly selects one customer clock, exact loopback i
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-compose-archive-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.equal(composeArchiveBucket(root), 'noticeos-raw-signals');
+  fs.writeFileSync(path.join(root, 'resource-names.json'), JSON.stringify({ rawSignalsBucket: '../escape' }));
+  assert.throws(() => composeArchiveBucket(root), ContainerRefusal);
   const archive = composeArchiveState(root, fs, dir => fs.mkdirSync(dir, { recursive: true, mode: 0o700 }));
   fs.writeFileSync(path.join(archive, 'existing'), 'keep');
   assert.equal(composeArchiveState(root, fs, () => {}), path.join(root, '.wrangler/state/v3'));
@@ -181,7 +189,7 @@ test('customer readiness does not fall back to stale standalone state or ignore 
       checks.push([url, options.host]); return 204;
     } };
   assert.equal(await containerHealthy(health), true);
-  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:25173']]);
+  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:5173']]);
   assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
   for (const available of [true, false]) {
     assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);

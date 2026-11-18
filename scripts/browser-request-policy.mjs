@@ -7,7 +7,26 @@ export class BrowserRequestRefused extends Error {
     constructor() { super('Browser request is not authorized.'); }
 }
 function refuse() { throw new BrowserRequestRefused(); }
-function canonicalOrigin(value) {
+/** Only a server-declared origin may opt an OrbStack browser into private HTTP. */
+export function isPrivateTowerOrigin(value) {
+    if (typeof value !== 'string')
+        return false;
+    let url;
+    try {
+        url = new URL(value);
+    }
+    catch {
+        return false;
+    }
+    if (url.origin !== value || url.protocol !== 'http:' || Number(url.port) < 1024)
+        return false;
+    const hostname = url.hostname;
+    const privateIPv4 = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/u.test(hostname)
+        && /^\d+\.\d+\.\d+\.\d+$/u.test(hostname);
+    return privateIPv4 || (hostname.length <= 253 && hostname.endsWith('.local')
+        && hostname.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label)));
+}
+function canonicalOrigin(value, localTowerOrigin) {
     if (typeof value !== 'string')
         refuse();
     let parsed;
@@ -18,8 +37,10 @@ function canonicalOrigin(value) {
         refuse();
     }
     const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
+    const privateTower = value === localTowerOrigin && isPrivateTowerOrigin(value);
+    const allowedHttp = parsed.protocol === 'http:' && (loopback || privateTower);
     if (parsed.origin !== value || parsed.username || parsed.password || parsed.hostname.includes('*')
-        || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)))
+        || (parsed.protocol !== 'https:' && !allowedHttp))
         refuse();
     return value;
 }
@@ -47,8 +68,8 @@ function browserEffect(proof, trustedOrigin) {
     if (dest !== null && dest !== 'empty')
         refuse();
 }
-export function createBrowserRequestPolicy(trustedOrigin) {
-    const origin = canonicalOrigin(trustedOrigin);
+export function createBrowserRequestPolicy(trustedOrigin, localTowerOrigin) {
+    const origin = canonicalOrigin(trustedOrigin, localTowerOrigin);
     return Object.freeze({ origin, assertEffect(request) {
             if (!(request instanceof Request))
                 refuse();

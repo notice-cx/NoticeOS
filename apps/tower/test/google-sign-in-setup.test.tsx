@@ -127,6 +127,16 @@ describe("the sign-in in the panel", () => {
     expect(screen.getByRole("link", { name: /Open on 127.0.0.1/ }).getAttribute("href")).toBe("http://127.0.0.1:4747/integrations?connect=google");
     expect(screen.queryByRole("link", { name: "Continue with Google" })).toBeNull();
   });
+
+  it.each(['google', 'adsense'] as const)('the customer LAN connection panel offers no unusable %s callback or navigation', provider => {
+    renderSetup({ provider, card: card('redirect-unusable', { localSignInBlocked: true }) });
+    expect(screen.queryByRole('link', { name: 'Open on 127.0.0.1' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    expect(screen.queryByLabelText('client_secret.json')).toBeNull();
+    if (provider === 'google') {
+      expect(screen.getByRole('link', { name: 'Service account instead' })).toHaveAttribute('href', '/integrations?provider=google&setup=page');
+    } else expect(screen.queryByRole('link', { name: 'Service account instead' })).toBeNull();
+  });
 });
 
 

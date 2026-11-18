@@ -135,6 +135,7 @@ interface EntryBase {
 export type WorkspaceEntry = EntryBase & ({
     readonly kind: 'hosted';
     readonly trustedOrigin: string;
+    readonly localTowerOrigin?: string;
     readonly membership: (headers: Headers, workspaceId: string) => Promise<WorkspaceMembership | null>;
     readonly googleOAuth?: GoogleOAuthAdmissionAdapter;
     /** Verifies a bearer request's agent token and reads its person's

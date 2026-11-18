@@ -12,7 +12,7 @@ Most of the data NoticeOS has about an asset comes from data sources you connect
 ## Before you begin
 
 - The asset added in NoticeOS. Its id is its domain as added in the product.
-- In a local customer workspace, report intake requires `NOTICEOS_LOCAL_SITE_REPORTS=1` and `NOTICEOS_WORKSPACE_ORIGIN` set to the Tower's exact `http://127.0.0.1:<port>` origin in both the Tower and ingest Worker bindings. Once enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
+- In a local customer workspace, enable `siteReports` in the private customer configuration. The local runtime supplies the exact origin to both Workers. Once enabled, open the asset's **Settings** tab and choose **Create token** under **Daily reports**. Copy the token to your server when it appears. One token authorizes reports for one asset in one workspace. **Replace token** and **Revoke token** invalidate the previous token.
 - In a standalone installation, the operator keeps the token map under `ASSET_TOKENS` in `workers/ingest/.dev.secrets.json`. The token authenticates a push and, when configured, NoticeOS presents it to the asset's metrics endpoint for a fetch. See [the bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment).
 
 ### What belongs in a report
@@ -49,9 +49,9 @@ Each metric is one name with three numbers: how many in the last 24 hours, the a
 ## Push the report each night
 
 1. In your product, build the report in the shape each night.
-2. Send it to `POST /api/pulse` with the header `Authorization: Bearer <token>`. Use the Tower's exact loopback origin for a local customer workspace or the ingest origin for a standalone installation.
+2. Send it to `POST /api/pulse` with the header `Authorization: Bearer <token>`. Use the configured local sender address or the standalone ingest origin.
 
-Local customer report intake uses the opted-in Tower's exact loopback address. The sender runs on the same machine.
+A loopback-only Tower accepts the sender on the same machine. When the Tower uses a home-network hostname, a sender runs inside the app container, connects to `127.0.0.1:5173`, and supplies the configured Tower hostname and published port in the Host header.
 
 ## Fetch reports on a standalone installation
 

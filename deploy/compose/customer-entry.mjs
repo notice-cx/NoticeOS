@@ -3,6 +3,8 @@ import { lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
+import { isPrivateTowerOrigin } from '../../scripts/browser-request-policy.mjs';
+import { NEW_INSTALL_NAMES, readResourceNames } from '../../scripts/resource-names.mjs';
 import { ContainerRefusal } from './development.mjs';
 
 const marker = '/state/installation/customer-runtime.enabled';
@@ -55,11 +57,22 @@ export function runningContainerProfile(io = { lstatSync, readFileSync }) {
   throw new ContainerRefusal('The running application profile cannot be established.');
 }
 
-export function composeCustomerPlan(env) {
+export function composeCustomerPlan(env, towerOrigin) {
   const port = Number(env.NOTICEOS_HOST_TOWER_PORT);
-  if (env.NOTICEOS_HOST_TOWER_ADDRESS !== '127.0.0.1' || !Number.isInteger(port) || port < 1024 || port > 65535
-    || String(port) !== env.NOTICEOS_HOST_TOWER_PORT) throw new ContainerRefusal('Customer mode requires a published 127.0.0.1 Tower address.');
-  return { root: '/opt/noticeos', url: `http://127.0.0.1:${port}`, port, doorPort: 5173 };
+  if (!Number.isInteger(port) || port < 1024 || port > 65535 || String(port) !== env.NOTICEOS_HOST_TOWER_PORT) {
+    throw new ContainerRefusal('Customer mode needs the published Tower port.');
+  }
+  const address = env.NOTICEOS_HOST_TOWER_ADDRESS;
+  const local = { root: '/opt/noticeos', url: `http://127.0.0.1:${port}`, port, doorPort: 5173 };
+  if (towerOrigin === undefined && address === '127.0.0.1') return local;
+  const hosts = (env.TOWER_ALLOWED_HOSTS ?? '').split(/[,\s]+/u);
+  if (!isPrivateTowerOrigin(towerOrigin)) throw new ContainerRefusal('Set towerOrigin to the exact home-network Tower address in the private customer configuration.');
+  const url = new URL(towerOrigin);
+  if (url.port !== String(port) || !hosts.includes(url.hostname)
+    || (address !== '0.0.0.0' && address !== '127.0.0.1' && !(isIP(address) === 4 && isPrivateTowerOrigin(`http://${address}:${port}`)))) {
+    throw new ContainerRefusal('The home-network Tower address must match the published port and an allowed installation host.');
+  }
+  return { ...local, url: towerOrigin, localTowerOrigin: towerOrigin };
 }
 
 // Linux reports the default IPv4 route in network-interface byte order.
@@ -85,7 +98,7 @@ export function composeArchiveState(home, io, makeDirectory) {
   return locations[2];
 }
 
-export async function verifyComposeCustomerWorkspace(origin, operating) {
+export async function verifyComposeCustomerWorkspace(origin, operating, localTowerOrigin) {
   const { openStore } = await import('../../packages/postgres/src/store.mjs');
   const { openWorkspaceServiceGrant } = await import('../../packages/postgres/src/service-grant.mjs');
   const { openIdentity } = await import('../../packages/postgres/src/identity.mjs');
@@ -103,24 +116,35 @@ export async function verifyComposeCustomerWorkspace(origin, operating) {
   finally { await grant.close(); }
   let identity;
   try {
-    identity = await openIdentity({ connectionString: operating.identityAddress, sessionSecret: operating.identitySecret, trustedOrigin: origin });
+    identity = await openIdentity({ connectionString: operating.identityAddress, sessionSecret: operating.identitySecret, trustedOrigin: origin, localTowerOrigin });
     if ((await identity.workspaceSummary(workspaceId))?.status !== 'active') throw new Error('identity');
   } catch { throw new ContainerRefusal('The prepared identity role cannot read the enrolled customer workspace.'); }
   finally { await identity?.close(); }
 }
 
+export function composeArchiveBucket(installationDir) {
+  try {
+    const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
+    return names.rawSignalsBucket ?? NEW_INSTALL_NAMES.rawSignalsBucket;
+  } catch {
+    throw new ContainerRefusal('The installation’s resource-names.json must identify its existing archive bucket.');
+  }
+}
+
 async function prepareCustomer() {
   const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
   const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
-  const plan = composeCustomerPlan(process.env);
+  const io = { lstatSync, readFileSync };
+  const config = JSON.parse(privateText(io, '/state/installation/customer-runtime.json', 32768));
+  const plan = composeCustomerPlan(process.env, config.towerOrigin);
+  const archiveBucket = composeArchiveBucket('/state/installation');
   const backup = await containerBackupStatus('/state/backup-client.json');
   if (backup.configured) throw new ContainerRefusal('Customer mode needs the existing backup request and export path before it can run with this backup declaration.');
   const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
-  const io = { lstatSync, readFileSync };
   const bootstrap = JSON.parse(privateText(io, '/state/workers/ingest/.dev.secrets.json', 16384));
   const operating = readComposeCustomerOperating('/state/installation/customer-runtime.json', plan, bootstrap);
-  await verifyComposeCustomerWorkspace(plan.url, operating);
-  return { plan, operating, bridgePeer };
+  await verifyComposeCustomerWorkspace(plan.url, operating, plan.localTowerOrigin);
+  return { plan, operating, bridgePeer, archiveBucket };
 }
 
 async function runCustomer(stop) {
@@ -131,13 +155,13 @@ async function runCustomer(stop) {
   if (selectedCustomerProfile() !== 'customer') throw new ContainerRefusal('The customer profile was not selected.');
   const selection = lstatSync(marker);
   const activation = `${selection.ino}/${selection.mtimeMs}`;
-  const { plan, operating, bridgePeer } = await prepareCustomer();
+  const { plan, operating, bridgePeer, archiveBucket } = await prepareCustomer();
   const state = '/state/.local/compose-customer';
   privateDirectory(state, !existsSync(state));
   const workerState = composeArchiveState('/state', { lstatSync }, folder => { if (!existsSync(folder)) mkdirSync(folder, { mode: 0o700 }); });
   const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation });
   const app = await startPreparedCustomer(plan, db, { deployment: {
-    artifactRoot, archiveBucket: 'noticeos-raw-signals', workerState, listenPort: 5173, bridgePeer,
+    artifactRoot, archiveBucket, workerState, listenPort: 5173, bridgePeer,
   } });
   try {
     const status = await Promise.race([stop.then(() => 0), app.whenLost.then(() => 1)]);

@@ -66,6 +66,7 @@
     "@better-auth/core": "1.7.18",
     "@better-auth/kysely-adapter": "1.7.18",
     "@better-auth/oauth-provider": "1.7.18",
+    "@noticeos/contract": "workspace:*",
     "better-auth": "1.7.18",
     "jose": "6.2.16",
     "kysely": "0.29.8",

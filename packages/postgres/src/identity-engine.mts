@@ -1,5 +1,6 @@
 // Private shared maintained engine. Public modules expose facts or fixed login
 // actions; the raw library handler and organization administration stay private.
+import { createBrowserRequestPolicy } from '../../../scripts/browser-request-policy.mjs';
 import { Pool } from 'pg';
 import { betterAuth } from 'better-auth/minimal';
 import { organization, emailOTP, jwt } from 'better-auth/plugins';
@@ -16,6 +17,7 @@ export const IDENTITY_SCHEMA = 'noticeos_identity';
 export interface IdentityOptions {
   readonly connectionString: string;
   readonly trustedOrigin: string;
+  readonly localTowerOrigin?: string;
   readonly sessionSecret: string;
 }
 export class IdentityRefused extends Error { override name = 'IdentityRefused'; }
@@ -78,16 +80,6 @@ export const AGENT_NAMES = {
 } as const;
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-function origin(value: string): string {
-  let parsed: URL;
-  try { parsed = new URL(value); } catch { throw new IdentityRefused('Identity requires an explicit trusted origin'); }
-  const loopback = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]';
-  if (parsed.origin !== value || parsed.username || parsed.password || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback))) {
-    throw new IdentityRefused('Identity requires an HTTPS origin or a local fixture origin');
-  }
-  return value;
-}
-
 const ROLE_SQL = `SELECT session_user::text AS session_role, current_user::text AS acting_role,
   r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication AS elevated,
   EXISTS (SELECT 1 FROM pg_catalog.pg_roles other WHERE other.rolname<>current_user
@@ -98,7 +90,9 @@ const ROLE_SQL = `SELECT session_user::text AS session_role, current_user::text 
 
 
 export function validateIdentityOptions(input: IdentityOptions): string {
-  const baseURL = origin(input.trustedOrigin);
+  let baseURL: string;
+  try { baseURL = createBrowserRequestPolicy(input.trustedOrigin, input.localTowerOrigin).origin; }
+  catch { throw new IdentityRefused('Identity requires an explicit trusted origin'); }
   if (typeof input.connectionString !== 'string' || input.connectionString.length === 0 || typeof input.sessionSecret !== 'string' || input.sessionSecret.length < 32) {
     throw new IdentityRefused('Identity requires an explicit connection and session secret');
   }

@@ -7,6 +7,7 @@ export declare const IDENTITY_SCHEMA = "noticeos_identity";
 export interface IdentityOptions {
     readonly connectionString: string;
     readonly trustedOrigin: string;
+    readonly localTowerOrigin?: string;
     readonly sessionSecret: string;
 }
 export declare class IdentityRefused extends Error {

@@ -3,9 +3,10 @@
  * verification API. Server composition supplies the shared action decision.
  * Provider exchange must happen only AFTER issue/claim resolves (commit). */
 import { sql } from 'kysely';
+import { googleOAuthRedirectUri, googleRedirectVerdict } from '@noticeos/contract/google-oauth';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { identityEngine, identityMembership, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused } from './identity-engine.mjs';
-import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_CALLBACK, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
 export { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK };
 export const GOOGLE_INTEGRATION_TTL_MS = 10 * 60 * 1000;
 const NAMESPACE = 'noticeos:integration-google:v1:';
@@ -40,7 +41,7 @@ function readBinding(value, redirectUri, provider) {
         refuse();
     return Object.freeze(row);
 }
-async function proof(request, origin, action) {
+async function proof(request, origin, action, localTowerOrigin) {
     if (!(request instanceof Request) || request.url.length > 12288)
         refuse();
     let cloned;
@@ -52,7 +53,7 @@ async function proof(request, origin, action) {
     }
     if (action === 'start') {
         await googleOAuthRequest(cloned, origin, 'start');
-        createBrowserRequestPolicy(origin).assertEffect(cloned);
+        createBrowserRequestPolicy(origin, localTowerOrigin).assertEffect(cloned);
     }
     else
         googleOAuthRequest(cloned, origin, 'callback');
@@ -77,7 +78,7 @@ async function lockedFacts(trx, options, request, workspaceId) {
 /** Lazy request-owned resources; malformed original proof never opens a pool.
  * `authorize` is the server's shared policy callback, never request input. */
 export function openIntegrationOAuthCustody(input) {
-    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, sessionSecret: input.sessionSecret });
+    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin, sessionSecret: input.sessionSecret });
     const origin = validateIdentityOptions(options);
     let resources;
     let validation;
@@ -105,12 +106,15 @@ export function openIntegrationOAuthCustody(input) {
     }
     return Object.freeze({
         issueGoogle(request, workspaceId, authorize) {
+            if (!googleRedirectVerdict(origin).usable) {
+                return Promise.reject(new IdentityRefused('Google OAuth requires an HTTPS or loopback redirect origin.'));
+            }
             return run(async () => {
                 if (typeof workspaceId !== 'string' || !UUID.test(workspaceId) || typeof authorize !== 'function')
                     refuse();
-                const original = await proof(request, origin, 'start');
+                const original = await proof(request, origin, 'start', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
-                const redirectUri = `${origin}${provider === 'adsense' ? ADSENSE_INTEGRATION_CALLBACK : GOOGLE_INTEGRATION_CALLBACK}`;
+                const redirectUri = googleOAuthRedirectUri(origin, provider);
                 const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
                 if (selected !== workspaceId)
                     refuse();
@@ -136,7 +140,7 @@ export function openIntegrationOAuthCustody(input) {
             return run(async () => {
                 if (typeof authorize !== 'function')
                     refuse();
-                const original = await proof(request, origin, 'callback');
+                const original = await proof(request, origin, 'callback', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
                 const redirectUri = `${origin}${new URL(original.url).pathname}`;
                 const identifier = NAMESPACE + new URL(original.url).searchParams.get('state');

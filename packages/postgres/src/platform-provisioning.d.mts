@@ -4,6 +4,7 @@ export interface PlatformProvisioningOptions {
     readonly platformConnectionString: string;
     readonly identityConnectionString: string;
     readonly trustedOrigin: string;
+    readonly localTowerOrigin?: string;
     readonly sessionSecret: string;
     /** Fixed trusted server composition. It verifies the real physical target,
      * checks factory custody in its own realm, and awaits cleanup on cancellation.

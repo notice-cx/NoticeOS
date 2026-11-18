@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { copyFileSync, cpSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../browser-request-policy.mjs';
 import { CONFIG_DOCUMENT_FILES, configDocumentKey } from '../config-documents.mjs';
@@ -16,7 +16,7 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../../packages/postgres/sr
 import { openIdentity } from '../../packages/postgres/src/identity.mjs';
 import { openWorkspaceServiceGrant } from '../../packages/postgres/src/service-grant.mjs';
 import { customerReadinessStatus } from '../../deploy/compose/health.mjs';
-import { verifyComposeCustomerWorkspace } from '../../deploy/compose/customer-entry.mjs';
+import { composeArchiveBucket, verifyComposeCustomerWorkspace } from '../../deploy/compose/customer-entry.mjs';
 
 /** Open the same disposable stores one runtime at a time. */
 export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntasksOrigin, actor, t }) {
@@ -94,7 +94,10 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     bundleWorkerFixture(root, 'handoff-ingest', path.join(REPO_ROOT, 'workers/ingest/src/index.ts')),
   ]);
   const archiveRoot = path.join(root, 'handoff', '.wrangler', 'state', 'v3');
-  const output = 'noticeos-raw-signals';
+  const output = 'fixture-existing-archive';
+  const installation = path.join(root, 'handoff', 'installation');
+  mkdirSync(installation);
+  writeFileSync(path.join(installation, 'resource-names.json'), JSON.stringify({ rawSignalsBucket: output }));
   const operator = randomBytes(32).toString('base64url'), sender = randomBytes(32).toString('base64url');
   const allowLocalNtasks = async request => {
     const url = new URL(request.url);
@@ -164,12 +167,12 @@ export async function assertSameStoreHandoff({ root, postgres, ownerOrigin, ntas
     await assert.rejects(verifyComposeCustomerWorkspace(ownerOrigin, { ...operating, identityAddress: unusableIdentity.href }), /identity role/u);
     const receipt = path.join(customerState, 'target.json');
     const open = () => openCustomerTarget(plan, operating, path.join(customerState, 'app'), receipt);
-    hostedApp = await startPreparedCustomer(plan, await open(), { deployment: { artifactRoot, archiveBucket: output, workerState: archiveRoot,
+    hostedApp = await startPreparedCustomer(plan, await open(), { deployment: { artifactRoot, archiveBucket: composeArchiveBucket(installation), workerState: archiveRoot,
       listenPort: plan.port, bridgePeer: '172.17.0.1' } });
     await assert.rejects(open(), /already owns/u);
     const readiness = host => customerReadinessStatus(ownerOrigin + '/_noticeos/ready', { host, signal: AbortSignal.timeout(3_000) });
-    assert.equal(await readiness(new URL(ownerOrigin).host), 204);
-    assert.equal(await readiness('foreign.example'), 400);
+    assert.equal(await readiness('127.0.0.1:5173'), 204);
+    assert.equal(await readiness('foreign.example'), 404);
     const report = await fetch(ownerOrigin + '/api/assets/' + asset, { headers: owner });
     assert.equal(report.status, 200);
     assert.equal((await report.json()).metrics.find(metric => metric.name === 'signups')?.last24h, 7);

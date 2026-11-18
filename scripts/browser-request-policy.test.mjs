@@ -15,6 +15,17 @@ test('the server origin is exact, HTTPS or explicit loopback; no wildcard or coe
   }
 });
 
+test('private HTTP requires the exact origin selected on the local Tower', () => {
+  const local = 'http://test-tower.local:5173';
+  assert.throws(() => createBrowserRequestPolicy(local), BrowserRequestRefused);
+  const policy = createBrowserRequestPolicy(local, local);
+  policy.assertEffect(request({ origin: local }, local));
+  assert.throws(() => policy.assertEffect(request({ origin: 'http://other.local:5173' }, local)), BrowserRequestRefused);
+  for (const invalid of ['http://unlisted.example:5173', 'http://0.0.0.0:5173', 'http://*.local:5173']) {
+    assert.throws(() => createBrowserRequestPolicy(invalid, invalid), BrowserRequestRefused);
+  }
+});
+
 test('first login refuses absent or contradictory evidence before an identity read', () => {
   const policy = createBrowserRequestPolicy(origin); let identityReads = 0;
   const enter = proof => { policy.assertEffect(proof); identityReads++; };
