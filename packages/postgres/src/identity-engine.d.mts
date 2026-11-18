@@ -193,6 +193,14 @@ interface IdentityEngine {
                 id: string;
             };
         } | null>;
+        updateUser(input: {
+            headers: Headers;
+            body: {
+                name: string;
+            };
+        }): Promise<{
+            status: boolean;
+        }>;
     };
 }
 export interface IdentityMembershipFacts {

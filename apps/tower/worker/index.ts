@@ -13,12 +13,12 @@ import { snapshotRpcData } from "./rpc-data";
 // (tasks-route.ts). Only /api/* reaches here (run_worker_first in
 // wrangler.jsonc); every other path is a static asset with SPA fallback.
 
-import { BROWSER_SESSION_PATH, handleBrowserSessionRequest } from './browser-session-route';
+import { BROWSER_SESSION_PATH, handleBrowserSessionRequest, handlePersonalProfileRequest } from './browser-session-route';
 import { edgePeer, handleAuthRequest, type AuthEntryBindings } from './auth-route';
 import { handleAgentSignInRequest, isAgentSignInPath } from './agent-sign-in-route';
 import { bearerChallenge, bearerToken } from '../../../scripts/agent-access.mjs';
 import { handleMembershipRequest } from './membership-route';
-import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH } from '../../../scripts/identity-protocol.mjs';
+import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH, PERSONAL_PROFILE_PATH } from '../../../scripts/identity-protocol.mjs';
 import { demoViewer } from '../shared/demo-viewer';
 import { demoViewerReadResponse, demoViewerResponse } from './demo-viewer-route';
 import { requireStandaloneWorkspace, withWorkspaceEntry, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
@@ -470,6 +470,7 @@ const towerHandler = {
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
     const path = new URL(request.url).pathname;
+    if (profile === 'hosted' && path === PERSONAL_PROFILE_PATH) return handlePersonalProfileRequest(request, env);
     if (profile === 'hosted' && path === SITE_REPORT_INTAKE_PATH) {
       if (!localSiteReportsEnabled(env) || !env.INGEST.siteReport) return jsonError('not_found', 404);
       try { return await env.INGEST.siteReport(request.clone()); }

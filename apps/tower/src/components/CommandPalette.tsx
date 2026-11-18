@@ -1,4 +1,4 @@
-import { useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
 import { Eye, ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
 import { PAGE_ITEMS, shownPages } from "@/components/nav-items";
+import { ACCOUNT_PROFILE_PAGE } from "@/components/AccountMenu";
 import {
   Command,
   CommandDialog,
@@ -155,8 +156,9 @@ function PaletteBody({
   const assets = useMemo(() => allAssets.filter((asset) => !isRetired(asset.status)), [allAssets]);
   const navigate = useNavigate();
   const preferences = useOwnerPreferences();
+  const hosted = useBrowserRuntime().owner.mode === 'hosted';
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
-  const pages = useMemo(() => shownPages(PAGE_ITEMS), []);
+  const pages = useMemo(() => shownPages(hosted ? [...PAGE_ITEMS, ACCOUNT_PROFILE_PAGE] : PAGE_ITEMS), [hosted]);
   const { choice, setChoice } = useView();
   // Switching keeps the person on the page they are on and keeps their picks.
   const otherViews = VIEW_LIBRARY.filter((spec) => spec.id !== choice.view);
