@@ -40,6 +40,8 @@ export function canReserveDataForSeo(store: WorkspaceStore, nowMs: number, reser
   return store.read(tx => canSpend(tx, nowMs, reserveUsd, capUsd, requireSavedCap));
 }
 
+export const customerDataForSeoRequestKey = (requestKey: string) => sha256Hex(`customer:${requestKey}`);
+
 export type DataForSeoReservation = { kind: 'reserved'; attemptId: string; reservedAtMs: number }
   | { kind: 'budget_exhausted' | 'dataforseo_uncertain' | 'dataforseo_already_purchased' | 'dataforseo_approval_changed' };
 
@@ -49,7 +51,7 @@ export async function reserveDataForSeo(store: WorkspaceStore, input: {
 }): Promise<DataForSeoReservation> {
   // Both profiles check unresolved or completed customer purchases. Standalone
   // still repairs its own interrupted work through the existing retry paths.
-  const customerKey = await sha256Hex(`customer:${input.requestKey}`);
+  const customerKey = await customerDataForSeoRequestKey(input.requestKey);
   const blockedKeys = input.fenceUnsettled ? [customerKey, input.requestKey] : [customerKey];
   const recordedKey = input.fenceUnsettled ? customerKey : input.requestKey;
   return store.write(async tx => {
