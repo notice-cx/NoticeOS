@@ -13,7 +13,7 @@ import { sql } from 'kysely';
 import { oauthProviderAuthServerMetadata, verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 import { isValidIP, normalizeIP } from '@better-auth/core/utils/ip';
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
-import { AGENT_ACCESS_PATHS, AGENT_OAUTH_ROUTES, AGENT_QUERY, AGENT_SCOPES, AUTHORIZATION_SERVER_METADATA_PATH,
+import { AGENT_ACCESS_PATHS, AGENT_DEFAULT_SCOPES, AGENT_OAUTH_ROUTES, AGENT_QUERY, AGENT_SCOPES, OFFLINE_ACCESS, AUTHORIZATION_SERVER_METADATA_PATH,
   PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadata } from '../../../scripts/agent-access.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused,
@@ -105,7 +105,20 @@ export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
       if (body.length > BODY_BYTES) return json({ error: 'invalid_request' }, 400);
       if (url.pathname === '/api/auth/oauth2/register' && type === 'application/json') body = nativeByDefault(body);
     }
-    const engine = identityEngine(await database(), options, { transaction: true, agents: true, validateSchema: false, peer });
+    const db = await database();
+    // An omitted request uses the client's compatible defaults. Review scope
+    // always needs an explicit request, even for a client registered for it.
+    if (url.pathname === '/api/auth/oauth2/authorize' && !url.searchParams.has('scope')) {
+      const clientId = url.searchParams.get('client_id');
+      const [client] = clientId && clientId.length <= 512 ? (await sql<{ scopes: unknown }>`
+        SELECT scopes FROM noticeos_identity.auth_oauth_client WHERE client_id=${clientId}`.execute(db)).rows : [];
+      const scopes = client?.scopes;
+      const defaults = [...AGENT_DEFAULT_SCOPES, OFFLINE_ACCESS].filter(scope =>
+        scopes === null || (Array.isArray(scopes) && scopes.includes(scope)));
+      if (client && defaults.length === 0) return json({ error: 'invalid_scope' }, 400);
+      if (client) url.searchParams.set('scope', defaults.join(' '));
+    }
+    const engine = identityEngine(db, options, { transaction: true, agents: true, validateSchema: false, peer });
     return engine.handler(forwarded(request, url.pathname + url.search, body));
   }
   /** What the page shows: the client's own name and address, and the access

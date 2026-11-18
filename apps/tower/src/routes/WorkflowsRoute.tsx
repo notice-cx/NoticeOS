@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useView } from "@/hooks/useView";
 import type { ViewId } from "@shared/views";
 import { WorkflowViewEvidence, workflowDefaultSort, workflowViewFigures } from "./workflows/workflow-view";
-import { useBackupPreview, useDemoReadonly } from '@/lib/browser-context';
+import { useBrowserContext, useDemoReadonly } from '@/lib/browser-context';
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { BackupExecutionDetails, BackupRunDetails } from './workflows/BackupRunDetails';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { HealthNavigation } from './health/HealthNavigation';
 import { ScheduleEditor } from './workflows/ScheduleEditor';
 import { RunWorkflow } from './workflows/RunWorkflow';
+import { AnalysisWorkflows } from './workflows/AnalysisWorkflows';
 
 const ATTENTION = new Set<WorkflowState>(['failed', 'unknown']);
 const INACTIVE = new Set<WorkflowState>(['skipped', 'paused', 'never']);
@@ -97,13 +98,17 @@ function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDef
 export default function WorkflowsRoute({ surface = 'workflow' }: { surface?: WorkflowSurface }) {
   const { id } = useParams();
   const location = useLocation();
-  const backupPreview = useBackupPreview();
+  const { runtime, backupPreview } = useBrowserContext();
+  const customerAnalysis = surface === 'workflow' && runtime.owner.mode === 'hosted' && !backupPreview;
+  const search = new URLSearchParams(location.search);
+  const oldActivity = ['activity', 'state', 'q', 'group', 'sort', 'view'].some(key => search.has(key));
   const definition = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === id);
   if (definition && definition.surface !== surface) return <Navigate replace to={`${workflowBasePath(definition.surface)}/${id}${location.search}`} />;
   if (backupPreview) return id && id !== 'schedule'
     ? <Navigate replace to={workflowBasePath(surface)} />
     : <BackupWorkflows surface={surface} schedule={id === 'schedule'} />;
-  return id && id !== 'schedule' ? <WorkflowDetail key={id} id={id} surface={surface} /> : <WorkflowIndex schedule={id === 'schedule'} surface={surface} />;
+  if (!id && customerAnalysis && (search.has('workflow') || !oldActivity)) return <AnalysisWorkflows />;
+  return id && id !== 'schedule' ? <WorkflowDetail key={id} id={id} surface={surface} /> : <WorkflowIndex schedule={id === 'schedule'} surface={surface} analysisAvailable={customerAnalysis} />;
 }
 
 function BackupWorkflows({ surface, schedule }: { surface: WorkflowSurface; schedule: boolean }) {
@@ -124,7 +129,7 @@ function BackupWorkflows({ surface, schedule }: { surface: WorkflowSurface; sche
   </div>;
 }
 
-function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: WorkflowSurface }) {
+function WorkflowIndex({ schedule, surface, analysisAvailable }: { schedule: boolean; surface: WorkflowSurface; analysisAvailable: boolean }) {
   const { view } = useView();
   const system = surface === 'system';
   const base = workflowBasePath(surface);
@@ -137,7 +142,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
   const group = search.get('group') ?? 'all';
   const sort = search.get('sort') ?? workflowDefaultSort(view.id);
   const grouped = search.get('view') !== 'flat';
-  const setFilter = (key: string, value: string) => { const next = new URLSearchParams(search); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearch(next, { replace: key === 'q' }); };
+  const setFilter = (key: string, value: string) => { const next = new URLSearchParams(search); if (analysisAvailable) next.set('activity', '1'); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearch(next, { replace: key === 'q' }); };
   const data = query.data ? { ...query.data, runtimeFresh: query.data.runtimeFresh && !query.isError && now - Date.parse(query.data.generatedAt) < 45_000 } : undefined;
   const definitions = installedWorkflows(data, schedule).filter((workflow) => workflow.surface === surface && (!schedule || !workflow.manualOnly));
   const categories = WORKFLOW_GROUPS.filter((group) => definitions.some((workflow) => workflow.group === group.label));
@@ -160,9 +165,12 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
     });
   const sections = grouped ? [...new Set(rows.map((row) => row.workflow.group))].map((label) => ({ label, items: rows.filter((row) => row.workflow.group === label) })) : [{ label: null, items: rows }];
   const tab = schedule ? 'schedule' : 'overview';
-  const suffix = search.size ? `?${search}` : '';
+  const activitySearch = new URLSearchParams(search);
+  if (analysisAvailable) activitySearch.set('activity', '1');
+  const suffix = activitySearch.size ? `?${activitySearch}` : '';
   return <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
     <PageHeader title={system ? 'System health' : 'Workflows'} actions={<span className="flex items-center gap-2 text-xs text-muted-foreground"><Clock className="size-3.5" aria-hidden />Times in {localTimezone()}</span>} />
+    {analysisAvailable ? <Link to="/workflows" className="self-start text-sm underline underline-offset-4">Saved workflows</Link> : null}
     {system && <HealthNavigation />}
     <div id={system ? 'health-view-panel' : undefined} role={system ? 'tabpanel' : undefined} aria-labelledby={system ? 'health-view-operations' : undefined} className="space-y-6">
     {/* A failed first read is the desk's one failure state, never the read's

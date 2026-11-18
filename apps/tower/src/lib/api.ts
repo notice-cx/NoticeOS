@@ -10,6 +10,7 @@ import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials, bankingValue } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
 import { fetchMembershipsRequest, manageMembershipRequest } from './membership-client';
+import { ANALYSIS_WORKFLOWS_PATH, type AnalysisAssignment, type AnalysisAssignmentProject, type AnalysisWorkflow, type AnalysisRun, type AnalysisResult, type AnalysisWorkflowResponse, type AnalysisWorkflowsResponse, type CreateAnalysisWorkflow } from '@shared/analysis-workflows';
 import { PERSONAL_PROFILE_PATH, type PersonalProfile } from '../../../../scripts/identity-protocol.mjs';
 import {
   ALERT_HISTORY_PAGE,
@@ -1612,6 +1613,27 @@ async function fetchWorkflowsRequest(fetch: ApiTransport, runId?: string, signal
   if (!response.ok) throw new ApiError(`GET /api/workflows failed: ${response.status}`, response.status);
   return response.json() as Promise<WorkflowsPayload>;
 }
+async function analysisRequest<T>(fetch: ApiTransport, path: string, options: { signal?: AbortSignal; body?: object; key?: string } = {}): Promise<T> {
+  const { signal, body, key } = options;
+  const response = await fetch(`${ANALYSIS_WORKFLOWS_PATH}${path}`, {
+    signal, ...(body === undefined ? {} : {
+      method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) },
+    }),
+  });
+  if (!response.ok) {
+    const messages: Record<number, string> = {
+      400: 'Check the workflow or result fields and try again.',
+      401: 'Sign in to open analysis workflows.', 403: 'Your workspace access does not allow this action.',
+      404: 'This workflow or run could not be found.', 409: 'This workflow or run has changed. Refresh and try again.',
+      422: 'Check the workflow or result fields and try again.',
+    };
+    throw new ApiError(messages[response.status] ?? 'The workflow request could not be completed. Try again.', response.status);
+  }
+  return responseJson(response, 'Analysis workflow') as Promise<T>;
+}
+const analysisWorkflowPath = (id: string) => `/${encodeURIComponent(id)}`;
+const analysisRunPath = (id: string, run: string) => `${analysisWorkflowPath(id)}/runs/${encodeURIComponent(run)}`;
+
 async function runLocalJobRequest(fetch: ApiTransport, id: string, background = false): Promise<{ job: string; outcome: string; detail?: string; runId?: string }> {
   const resultUnconfirmed = 'Couldn’t confirm the start. Check the latest run before starting again.';
   const response = await fetch('/api/workflows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, ...(background ? { background } : {}) }) }).catch((error: unknown) => {
@@ -1707,6 +1729,16 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     syncMediavine: bind(syncMediavineRequest),
     saveMediavineSettings: bind(saveMediavineSettingsRequest),
     fetchWorkflows: bind(fetchWorkflowsRequest),
+    fetchAnalysisWorkflows: bind((fetch: ApiTransport, signal?: AbortSignal) => analysisRequest<AnalysisWorkflowsResponse>(fetch, '', { signal })),
+    fetchAnalysisWorkflow: bind((fetch: ApiTransport, id: string, signal?: AbortSignal) => analysisRequest<AnalysisWorkflowResponse>(fetch, analysisWorkflowPath(id), { signal })),
+    fetchAnalysisRun: bind((fetch: ApiTransport, id: string, run: string, signal?: AbortSignal) => analysisRequest<{ run: AnalysisRun }>(fetch, analysisRunPath(id, run), { signal })),
+    createAnalysisWorkflow: bind((fetch: ApiTransport, body: CreateAnalysisWorkflow, key: string) => analysisRequest<{ workflow: AnalysisWorkflow }>(fetch, '', { body, key })),
+    setAnalysisWorkflowEnabled: bind((fetch: ApiTransport, id: string, body: { enabled: boolean; expectedVersion: number }) => analysisRequest<{ workflow: AnalysisWorkflow }>(fetch, `${analysisWorkflowPath(id)}/pause`, { body })),
+    startAnalysisRun: bind((fetch: ApiTransport, id: string, body: { retryOf?: string }, key: string) => analysisRequest<{ run: AnalysisRun }>(fetch, `${analysisWorkflowPath(id)}/runs`, { body, key })),
+    completeAnalysisRun: bind((fetch: ApiTransport, id: string, run: string, body: AnalysisResult) => analysisRequest<{ run: AnalysisRun }>(fetch, `${analysisRunPath(id, run)}/complete`, { body })),
+    fetchAnalysisAssignmentProjects: bind((fetch: ApiTransport, signal?: AbortSignal) => analysisRequest<{ projects: AnalysisAssignmentProject[] }>(fetch, '/assignments', { signal })),
+    assignAnalysisRun: bind((fetch: ApiTransport, id: string, run: string, projectId: string) => analysisRequest<{ assignment: AnalysisAssignment }>(fetch, `${analysisRunPath(id, run)}/assignment`, { body: { projectId } })),
+    reconcileAnalysisAssignment: bind((fetch: ApiTransport, id: string, run: string) => analysisRequest<{ assignment: AnalysisAssignment }>(fetch, `${analysisRunPath(id, run)}/assignment/reconcile`, { body: {} })),
     runLocalJob: bind(runLocalJobRequest),
     fetchInstallation: bind(fetchInstallationRequest),
     fetchWall: bind(fetchWallRequest),
@@ -1789,6 +1821,16 @@ export const {
   syncMediavine,
   saveMediavineSettings,
   fetchWorkflows,
+  fetchAnalysisWorkflows,
+  fetchAnalysisWorkflow,
+  fetchAnalysisRun,
+  createAnalysisWorkflow,
+  setAnalysisWorkflowEnabled,
+  startAnalysisRun,
+  completeAnalysisRun,
+  fetchAnalysisAssignmentProjects,
+  assignAnalysisRun,
+  reconcileAnalysisAssignment,
   runLocalJob,
   fetchInstallation,
   fetchWall,

@@ -217,3 +217,49 @@ test('a paused report stays listed and schedule edits only affect future runs', 
     assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z', '2026-11-17T11:45:00.000Z']);
   } finally { await clock.close(); }
 });
+
+test('weekly analysis retries its original occurrence on later ticks without delaying other work', async () => {
+  const due = Date.parse('2026-11-17T09:59:00Z');
+  const minute = 60_000;
+  let now = due, paused = false;
+  const transient = 'analysis-workflow-00000000-0000-4000-8000-000000000001';
+  const persistent = 'analysis-workflow-00000000-0000-4000-8000-000000000002';
+  const disabled = 'analysis-workflow-00000000-0000-4000-8000-000000000003';
+  const weekly = (job, enabled = true) => ({ job, schedule: { enabled, cron: '59 9 * * 2' }, assets: [null] });
+  const counters = { job: 'site-counters', schedule: { enabled: true, cron: '0 10 * * *' }, assets: ['site'] };
+  const runs = [], attempts = new Map();
+  const clock = customerScheduleClock({ workspaces: ['one', 'two'], now: () => now,
+    async read(workspace) {
+      if (workspace === 'two') return [weekly(disabled, !paused), counters];
+      if (now === due + minute) return { jobs: [counters], analysisPending: true };
+      return [weekly(transient), weekly(persistent), counters];
+    },
+    async run({ binding, job, scheduledAt }) {
+      const attempt = (attempts.get(job) ?? 0) + 1;
+      attempts.set(job, attempt);
+      runs.push({ binding, job, scheduledAt, at: now });
+      if (job === persistent || job === disabled || job === transient && attempt === 1) throw new Error('Synthetic read outage');
+    },
+    warn() {},
+  });
+  const tick = async (offset) => { now = due + offset * minute; await clock.tick(); await clock.whenIdle(); };
+  const times = job => runs.filter(run => run.job === job).map(run => (run.at - due) / minute);
+  try {
+    await tick(0);
+    assert.deepEqual(times(transient), [0]);
+    paused = true;
+    await tick(1);
+    assert.deepEqual(times(transient), [0]);
+    assert.deepEqual(runs.filter(run => run.job === counters.job).map(run => run.binding).sort(), ['one', 'two']);
+    await tick(2);
+    assert.deepEqual(times(transient), [0, 2]);
+    assert.deepEqual(times(persistent), [0, 2]);
+    await tick(3);
+    assert.deepEqual(times(persistent), [0, 2]);
+    await tick(4);
+    await tick(7);
+    assert.deepEqual(times(persistent), [0, 2, 4]);
+    assert.deepEqual(times(disabled), [0]);
+    assert.ok(runs.filter(run => run.job !== counters.job).every(run => Date.parse(run.scheduledAt) === due));
+  } finally { await clock.close(); }
+});

@@ -1,5 +1,8 @@
 {
   "tables": {
+    "analysis_workflow_assignments": { "shape": "state", "arrival": "started_at" },
+    "analysis_workflows": { "shape": "state", "arrival": "created_at" },
+    "analysis_workflow_runs": { "shape": "history", "arrival": "created_at" },
     "alert_daily_counts": { "shape": "cache", "arrival": "day" },
     "analytical_exports": { "shape": "state", "arrival": "exported_at" },
     "annotations": { "shape": "history", "arrival": "created_at" },

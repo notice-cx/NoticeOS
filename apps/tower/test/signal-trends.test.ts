@@ -313,6 +313,7 @@ describe("loadSignalTrends — one provider resource per series", () => {
     await notes([{
       id: "a.example",
       at: "2026-07-04T00:00:00.000Z",
+      recordedAt: "2026-07-05T12:00:00.000Z",
       ref: "reporting-time-zone-changed:ga4:America/Los_Angeles->America/New_York",
     }]);
 
@@ -334,6 +335,10 @@ describe("loadSignalTrends — one provider resource per series", () => {
     ]);
     expect(trend.activeUsers.timeZone).toBe("America/New_York");
     expect(trend.activeUsers.estimatedDates).toContain('2026-07-04');
+    const before = await trends(28, { nowMs: NOW_MS, assets: ['a.example'], collectedThrough: '2026-07-05T11:59:59Z' });
+    const after = await trends(28, { nowMs: NOW_MS, collectedThrough: '2026-07-05T12:00:00Z' });
+    expect(before.get('a.example')!.activeUsers.timeZoneChanges).toEqual([]);
+    expect(after.get('a.example')!.activeUsers.timeZoneChanges).toEqual(trend.activeUsers.timeZoneChanges);
   });
 });
 
@@ -448,6 +453,7 @@ function withSpecTimeZoneRead(store: WorkspaceStore): WorkspaceStore {
 interface Note {
   id: string;
   at: string;
+  recordedAt?: string;
   ref: string;
   kind?: string;
 }
@@ -457,11 +463,11 @@ async function notes(rows: Note[]): Promise<void> {
   const store = ctx.call;
   await store.write((tx) =>
     tx.execute(
-      `INSERT INTO noticeos.annotations (workspace_id, asset_id, at, kind, ref, note)
-       SELECT $1::uuid, n.asset_id, n.at, n.kind, n.ref, 'change'
-         FROM unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[]) WITH ORDINALITY AS n(asset_id, at, kind, ref, filed)
+      `INSERT INTO noticeos.annotations (workspace_id, asset_id, at, kind, ref, note, created_at)
+       SELECT $1::uuid, n.asset_id, n.at, n.kind, n.ref, 'change', n.created_at
+         FROM unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::timestamptz[]) WITH ORDINALITY AS n(asset_id, at, kind, ref, created_at, filed)
         ORDER BY n.filed`,
-      [tx.workspaceId, rows.map((row) => row.id), rows.map((row) => row.at), rows.map((row) => row.kind ?? "config"), rows.map((row) => row.ref)],
+      [tx.workspaceId, rows.map((row) => row.id), rows.map((row) => row.at), rows.map((row) => row.kind ?? "config"), rows.map((row) => row.ref), rows.map((row) => row.recordedAt ?? row.at)],
     ),
   );
 }

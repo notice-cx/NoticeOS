@@ -293,7 +293,7 @@ function isSearchQueryProviderTrend(
 
 /** Validates, then normalizes: an absent `evidence` key becomes an explicit
  * `[]` so every consumer reads one value for "this lane stated nothing". */
-function parseSearchQueryProviderTrend(
+export function parseSearchQueryProviderTrend(
   value: unknown,
   provider: "google" | "bing",
 ): SearchQueryProviderTrend | null {
@@ -440,7 +440,7 @@ function isProductUseMetric(value: unknown): value is ProductUseMetric {
   );
 }
 
-function parseProductUse(value: unknown): ProductUseSnapshot | null {
+export function parseProductUse(value: unknown): ProductUseSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const snapshot = value as Partial<ProductUseSnapshot>;
   return (
@@ -532,7 +532,7 @@ function pickReportedNumbers<K extends string>(
  * retained), so absent and explicit null both mean null. Every other family is
  * required: a missing or renamed key drops the whole section rather than
  * rendering a partial number set as a complete one. */
-function parseSearchIntelligence(
+export function parseSearchIntelligence(
   value: unknown,
 ): ExecutiveSnapshot["searchIntelligence"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -662,7 +662,7 @@ function parseSerpPanelQuery(value: unknown): SerpPanelQuery | null {
  * rides through as `number | null` untouched; defaulting it would invent a
  * depth the pull never recorded.
  */
-function parseSerpPanel(value: unknown): SerpPanelSnapshot | null {
+export function parseSerpPanel(value: unknown): SerpPanelSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const block = value as Partial<SerpPanelSnapshot>;
   if (typeof block.reportDate !== "string" || block.reportDate === "") return null;
@@ -765,7 +765,7 @@ function parseSearchPageLeadingQuery(value: unknown): SearchPageLeadingQuery | n
   };
 }
 
-function parseSearchPages(value: unknown): SearchPageTrends | null {
+export function parseSearchPages(value: unknown): SearchPageTrends | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const block = value as Partial<SearchPageTrends>;
   if (

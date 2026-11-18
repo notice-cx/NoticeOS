@@ -8,6 +8,7 @@ import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
 import { REPORT_EFFECT_LIMIT_MS } from './local-customer-reports.mjs';
+import { scheduledAnalysisId } from './local-customer-analysis-workflows.mjs';
 import { isCustomerTaskFiler } from './local-customer-task-followups.mjs';
 import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
@@ -17,6 +18,7 @@ const PAID_BATCH_LIMIT_MS = 15 * MINUTE;
 const POSTHOG_LIMIT_MS = 4 * MINUTE;
 const GOOGLE_ARCHIVE_LIMIT_MS = 10 * MINUTE;
 const BING_ARCHIVE_LIMIT_MS = 3 * MINUTE;
+const ANALYSIS_ATTEMPT_LIMIT = 3;
 
 export async function readCustomerGoogleArchiveScope(worker, workspaceId) {
   const response = await worker.fetch(new Request(CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, {
@@ -40,7 +42,7 @@ function next(schedule, after) {
 export function customerScheduleClock({ workspaces, read, run, now = Date.now, resumeSince, backupResumeSince,
   warn = () => console.warn('Customer collection could not finish. See workflow history.') }) {
   const entries = workspaces.map(binding => ({ binding, jobs: [], planned: false, queued: new Map(),
-    running: false, discovery: -Infinity, retryDelay: MINUTE, initial: true }));
+    running: false, discovery: -Infinity, retryDelay: MINUTE, initial: true, analysisPending: false }));
   const running = new Set();
   let pending, stopped = false, turn = 0;
   const inPairs = async (items, apply) => {
@@ -52,17 +54,29 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
   };
   function launch() {
     while (!stopped && running.size < 2) {
-      let entry;
+      let entry, ready;
+      const at = now();
       for (let tried = 0; tried < entries.length; tried++) {
         const candidate = entries[turn];
         turn = (turn + 1) % entries.length;
-        if (candidate.planned && !candidate.running && candidate.queued.size) { entry = candidate; break; }
+        if (!candidate.planned || candidate.running) continue;
+        ready = candidate.queued.entries().find(([, call]) => (call.retryAt ?? -Infinity) <= at
+          && (!candidate.analysisPending || scheduledAnalysisId(call.job) === null));
+        if (ready) { entry = candidate; break; }
       }
       if (!entry) return;
-      const [key, call] = entry.queued.entries().next().value;
+      const [key, call] = ready;
       entry.queued.delete(key);
       entry.running = true;
-      const work = Promise.resolve().then(() => stopped ? undefined : run(call)).catch(warn).finally(() => {
+      const work = Promise.resolve().then(() => stopped ? undefined : run(call)).catch(() => {
+        warn();
+        const attempt = call.attempt ?? 1;
+        // Analysis capture is idempotent by its original weekly occurrence.
+        if (!stopped && scheduledAnalysisId(call.job) !== null && attempt < ANALYSIS_ATTEMPT_LIMIT
+          && !entry.queued.has(key) && entry.jobs.some(item => item.job === call.job && item.schedule.enabled)) {
+          entry.queued.set(key, { ...call, attempt: attempt + 1, retryAt: now() + attempt * MINUTE });
+        }
+      }).finally(() => {
         running.delete(work); entry.running = false; launch();
       });
       running.add(work);
@@ -83,12 +97,14 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
         entry.discovery = at + entry.retryDelay;
         entry.retryDelay = Math.min(15 * MINUTE, entry.retryDelay * 2);
         const result = await read(entry.binding);
-        const { jobs: selected, googleScopePending = false } = Array.isArray(result) ? { jobs: result } : result;
+        const { jobs: selected, googleScopePending = false, analysisPending = false } = Array.isArray(result) ? { jobs: result } : result;
+        entry.analysisPending = analysisPending;
         const recoveringGoogleSince = googleScopePending ? undefined : entry.googleScopeUnavailableSince;
         if (googleScopePending) {
           entry.googleScopeUnavailableSince ??= entry.initial && Number.isFinite(resumeSince) ? Math.min(at, resumeSince) : at;
         } else entry.googleScopeUnavailableSince = undefined;
         for (const [key, call] of entry.queued) {
+          if (analysisPending && scheduledAnalysisId(call.job) !== null) continue;
           if (!selected.some(item => item.schedule.enabled && item.job === call.job && (call.archive
             ? item.archives?.some(target => customerJobSubject(target.asset, target.archive) === customerJobSubject(call.asset, call.archive))
             : item.assets.includes(call.asset)))) entry.queued.delete(key);
@@ -103,26 +119,28 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           const restartSince = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
           const since = recoverGoogle ?? (entry.initial ? restartSince : undefined);
           const resuming = Number.isFinite(since);
-          if (resuming || entry.initial && item.job === 'panel-refresh') {
+          const newlyScheduledAnalysis = scheduledAnalysisId(item.job) !== null && !matching;
+          if (resuming || entry.initial && item.job === 'panel-refresh' || newlyScheduledAnalysis) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;
-            if (previous >= earliest) due = previous;
+            if (previous >= Math.max(earliest, item.availableFrom ?? -Infinity)) due = previous;
           }
           return { ...item, due };
         });
+        if (analysisPending) entry.jobs.push(...previous.filter(item => scheduledAnalysisId(item.job) !== null));
         entry.planned = true;
         entry.initial = false;
-        if (!googleScopePending) {
+        if (!googleScopePending && !analysisPending) {
           entry.retryDelay = MINUTE;
           entry.discovery = Math.floor(at / HOUR) * HOUR + HOUR;
         }
       });
     }
-    for (const { binding, jobs, queued, planned } of entries) {
+    for (const { binding, jobs, queued, planned, analysisPending } of entries) {
       if (!planned) continue;
       for (const item of jobs) {
-        if (item.due > at) continue;
+        if (item.due > at || analysisPending && scheduledAnalysisId(item.job) !== null) continue;
         // Resume at most the most recent occurrence after a delayed tick.
         const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
         const due = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime() ?? item.due;
@@ -140,9 +158,10 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
     status(workspaceId) {
       const entry = entries.find(item => item.binding.workspaceId === workspaceId);
       if (stopped || !entry) return null;
-      return { onlyListedJobs: true, hostLanes: false, registeredJobs: entry.jobs.map(item => item.job),
+      const operations = entry.jobs.filter(item => scheduledAnalysisId(item.job) === null);
+      return { onlyListedJobs: true, hostLanes: false, registeredJobs: operations.map(item => item.job),
         updatedAt: new Date(now()).toISOString(), error: entry.planned ? null : 'waiting', overrides: null,
-        jobs: entry.jobs.map(({ job, schedule, due }) => ({ id: job, ...schedule,
+        jobs: operations.map(({ job, schedule, due }) => ({ id: job, ...schedule,
           nextRun: Number.isFinite(due) ? new Date(due).toISOString() : null })) };
     },
     tick() {
@@ -164,7 +183,7 @@ async function readBackupSchedule(store) {
 }
 
 export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, paidWorker, reports, now = Date.now,
-  resumeSince, backupResumeSince, collection, backup, taskFollowups }) {
+  resumeSince, backupResumeSince, collection, backup, taskFollowups, analysis }) {
   if (collection?.paidDataForSeo?.length && !paidWorker) throw new Error('Paid DataForSEO requires its private scheduling Worker.');
   const ids = new Set();
   for (const binding of workspaces) {
@@ -204,13 +223,31 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
               try { scheduled.push(...await reports.targets(store)); }
               catch { console.warn('Customer report settings could not be read. Check the report configuration.'); }
             }
-            return { jobs: scheduled, googleScopePending };
+            let analysisPending = false;
+            if (analysis) {
+              try { scheduled.push(...await analysis.targets(store)); }
+              catch { analysisPending = true; console.warn('Saved analysis schedules are unavailable.'); }
+            }
+            return { jobs: scheduled, googleScopePending, analysisPending };
           });
       } finally { await Promise.all([store.close(), grant.close()]); }
     },
     run,
   });
   async function run({ binding, job, asset, archive, scheduledAt, manual }) {
+    const workflowId = scheduledAnalysisId(job);
+    if (workflowId !== null) {
+      const { store, grant } = resources(binding);
+      try {
+        const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer analysis'),
+          authority: () => grant.facts() });
+        await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
+          new Request(privateUrl, { method: 'POST' }), context => analysis.run({
+            store, principalId: context.principalId, workflowId, scheduledAt,
+          }));
+      } finally { await Promise.all([store.close(), grant.close()]); }
+      return;
+    }
     const occurrence = manual ? `manual/${randomUUID()}`
       : scheduledAt + '/' + (asset === null ? 'workspace' : createHash('sha256').update(customerJobSubject(asset, archive)).digest('hex'));
     const filing = isCustomerTaskFiler(job);

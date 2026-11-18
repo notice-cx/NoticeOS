@@ -9,6 +9,7 @@ const ACCESS: Readonly<Record<string, string>> = {
   'tasks:read': 'Read tasks and their history',
   'tasks:write': 'Create, claim, update, comment on and close tasks',
   'evidence:read': 'Read asset reports and research',
+  'analysis:review': 'Read saved analysis runs and submit their results',
 };
 
 /** Agent sign-in: the one decision a person makes for an

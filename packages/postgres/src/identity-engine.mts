@@ -10,7 +10,7 @@ import { createAuthMiddleware, formCsrfMiddleware } from 'better-auth/api';
 import { kyselyAdapter } from '@better-auth/kysely-adapter';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import type { AuthContext, BetterAuthPlugin } from '@better-auth/core';
-import { AGENT_ACCESS_PAGE, AGENT_ACCESS_SECONDS, AGENT_REFRESH_SECONDS, AGENT_RESOURCE_NAME, AGENT_SCOPES, OFFLINE_ACCESS,
+import { AGENT_ACCESS_PAGE, AGENT_ACCESS_SECONDS, AGENT_REFRESH_SECONDS, AGENT_RESOURCE_NAME, AGENT_DEFAULT_SCOPES, AGENT_SCOPES, OFFLINE_ACCESS,
   agentResourceUri } from '../../../scripts/agent-access.mjs';
 export const IDENTITY_ROLE = 'noticeos_identity';
 export const IDENTITY_SCHEMA = 'noticeos_identity';
@@ -158,7 +158,7 @@ export function agentPlugins(baseURL: string): BetterAuthPlugin[] {
     resources: [{ identifier: resource, name: AGENT_RESOURCE_NAME, allowedScopes: scopes }],
     grantTypes: ['authorization_code', 'refresh_token'],
     allowDynamicClientRegistration: true, allowUnauthenticatedClientRegistration: true,
-    clientRegistrationDefaultScopes: scopes, clientRegistrationAllowedScopes: scopes,
+    clientRegistrationDefaultScopes: [...AGENT_DEFAULT_SCOPES, OFFLINE_ACCESS], clientRegistrationAllowedScopes: scopes,
     clientRegistrationDefaultResources: [resource], clientRegistrationAllowedResources: [resource],
     clientRegistrationRequirePKCE: true,
     accessTokenExpiresIn: AGENT_ACCESS_SECONDS, refreshTokenExpiresIn: AGENT_REFRESH_SECONDS,
