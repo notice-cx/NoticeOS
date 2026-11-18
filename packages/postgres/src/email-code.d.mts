@@ -7,6 +7,7 @@ export interface EmailCodeOptions extends IdentityOptions {
     readonly peerAddress: string;
     /** The private operator command binds its email operations to one workspace. */
     readonly standaloneOwnerWorkspaceId?: string;
+    readonly provisioningWorkspaceId?: string;
     /** Set by the attached customer runtime when mail follows workspace access. */
     readonly mailWorkspaceIds?: readonly string[];
     /** Called only after database commit. No real sender is selected here. */

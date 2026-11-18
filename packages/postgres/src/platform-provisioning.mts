@@ -5,7 +5,7 @@
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import { openIdentity } from './identity.mjs';
-import { identityEngine, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
+import { hasConflictingLegacyMailbox, identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
 import type { TaskProjectMapping } from './task-directory.mjs';
 import { releasedDefaultDocuments } from '../../../scripts/released-defaults.mjs';
 
@@ -28,8 +28,9 @@ export interface PreparedWorkspace {
   readonly enrollmentId: string;
 }
 export interface PlatformProvisioning {
-  prepare(input: unknown): Promise<PreparedWorkspace>;
-  activate(input: unknown): Promise<PreparedWorkspace>;
+  prepare(input: unknown, project?: unknown): Promise<PreparedWorkspace>;
+  recoverPreparation(input: unknown, project: unknown): Promise<PreparedWorkspace>;
+  activate(input: unknown, scheduler?: { serviceId: string; intendedEmail: string }): Promise<PreparedWorkspace>;
   prepareStandaloneOwner(input: unknown): Promise<PreparedWorkspace>;
   activateStandaloneOwner(input: unknown): Promise<PreparedWorkspace & { readonly serviceId: string }>;
   close(): Promise<void>;
@@ -41,6 +42,10 @@ export class PlatformProvisioningRefused extends Error {
 export class StandaloneOwnerMigrationRequired extends Error {
   override name = 'StandaloneOwnerMigrationRequired';
   constructor() { super('Apply the standalone owner handoff migration with the operator migration command first.'); }
+}
+export class PlatformProjectReserved extends Error {
+  override name = 'PlatformProjectReserved';
+  constructor() { super('That Ntasks project is already reserved for another workspace.'); }
 }
 function refuse(): never { throw new PlatformProvisioningRefused(); }
 function record(input: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -92,6 +97,21 @@ function intendedOwner(intendedEmail: unknown, expiresAt: unknown) {
   const now = Date.now();
   if (!Number.isFinite(expires) || expires <= now || expires > now + 7 * 86400000) refuse();
   return { intendedEmail: ownerEmail(intendedEmail), expiresAt: new Date(expires).toISOString() };
+}
+function initialProject(input: unknown): Omit<TaskProjectMapping, 'workspaceId'> {
+  const row = record(input, ['projectId', 'executorRef', 'credentialRef', 'databaseKey']);
+  if (typeof row.databaseKey !== 'string' || !/^n_[0-9a-f]{32}$/u.test(row.databaseKey)) refuse();
+  return { projectId: uuid(row.projectId), executorRef: uuid(row.executorRef),
+    credentialRef: uuid(row.credentialRef), databaseKey: row.databaseKey };
+}
+async function lockAvailableProject(trx: Transaction<IdentityDatabase>, workspaceId: string, projectId: string) {
+  // The physical project UUID also identifies reservations written by the
+  // standalone adopter, whose executor and database references differ.
+  await sql`SELECT pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('noticeos:initial-task-project:' || ${projectId}::text, 0))`.execute(trx);
+  const existing = await sql`SELECT 1 FROM noticeos_platform.task_project_directory
+    WHERE project_id=${projectId}::uuid AND workspace_id<>${workspaceId}::uuid LIMIT 1`.execute(trx);
+  if (existing.rows.length) throw new PlatformProjectReserved();
 }
 function standaloneBinding(row: Record<string, unknown>) {
   if (typeof row.ntasksOrigin !== 'string' || row.ntasksOrigin.length > 512) refuse();
@@ -192,7 +212,10 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
       const db = await connected();
       if (controller.signal.aborted) refuse();
       return await work(db, controller.signal, deadline);
-    } catch (error) { if (error instanceof StandaloneOwnerMigrationRequired) throw error; refuse(); }
+    } catch (error) {
+      if (error instanceof StandaloneOwnerMigrationRequired || error instanceof PlatformProjectReserved) throw error;
+      refuse();
+    }
     finally { clearTimeout(timer); }
   }
   function track<T extends PreparedWorkspace>(work: Promise<T>): Promise<T> {
@@ -206,26 +229,74 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
     { transaction: false, validateSchema: false }).api.addMember({ body: { organizationId, userId, role: 'owner' } });
   }
   return Object.freeze({
-    prepare(input: unknown) {
+    prepare(input: unknown, projectInput?: unknown) {
       if (closed) return Promise.reject(new PlatformProvisioningRefused());
       let command: ReturnType<typeof preparation>;
-      try { command = preparation(input); } catch { return Promise.reject(new PlatformProvisioningRefused()); }
-      return track(transaction(async (db, signal) => db.transaction().execute(async trx => {
+      let project: ReturnType<typeof initialProject> | undefined;
+      try {
+        command = preparation(input);
+        if (projectInput !== undefined) project = initialProject(projectInput);
+      } catch { return Promise.reject(new PlatformProvisioningRefused()); }
+      return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async trx => {
+        if (project) {
+          if (await hasConflictingLegacyMailbox(trx, command.intendedEmail)) refuse();
+          await lockAvailableProject(trx, command.workspaceId, project.projectId);
+        }
         if (signal.aborted) refuse();
         const result = await sql<{ enrollment_id: string }>`SELECT noticeos_platform.prepare_workspace(
           ${command.workspaceId}::uuid,${command.slug},${command.displayName},${command.intendedEmail},
           ${command.expiresAt}::timestamptz,${documents}::jsonb) AS enrollment_id`.execute(trx);
         const enrollmentId = result.rows[0]?.enrollment_id;
         if (!enrollmentId || !UUID.test(enrollmentId) || signal.aborted) refuse();
+        if (project) {
+          await sql`INSERT INTO noticeos_platform.task_project_directory(workspace_id,project_id,executor_ref,credential_ref,database_key)
+            VALUES (${command.workspaceId}::uuid, ${project.projectId}::uuid, ${project.executorRef}::uuid,
+              ${project.credentialRef}::uuid, ${project.databaseKey})`.execute(trx);
+        }
+        if (signal.aborted) refuse();
         return Object.freeze({ workspaceId: command.workspaceId, enrollmentId });
       })));
     },
-    activate(input: unknown) {
+    recoverPreparation(input: unknown, projectInput: unknown) {
+      if (closed) return Promise.reject(new PlatformProvisioningRefused());
+      let expected: { workspaceId: string; displayName: string; intendedEmail: string };
+      let project: ReturnType<typeof initialProject>;
+      try {
+        const row = record(input, ['workspaceId', 'displayName', 'intendedEmail']);
+        if (typeof row.displayName !== 'string' || row.displayName.length < 1 || row.displayName.length > 80) refuse();
+        expected = { workspaceId: uuid(row.workspaceId), displayName: row.displayName, intendedEmail: ownerEmail(row.intendedEmail) };
+        project = initialProject(projectInput);
+      } catch { return Promise.reject(new PlatformProvisioningRefused()); }
+      return track(transaction(async (db, signal) => {
+        const reservation = await sql`SELECT 1 FROM noticeos_platform.task_project_directory
+          WHERE workspace_id=${expected.workspaceId}::uuid AND project_id=${project.projectId}::uuid
+            AND executor_ref=${project.executorRef}::uuid AND credential_ref=${project.credentialRef}::uuid
+            AND database_key=${project.databaseKey} AND revoked_at IS NULL`.execute(db);
+        if (reservation.rows.length !== 1 || signal.aborted) refuse();
+        const identity = await openIdentityDatabase({ connectionString: options.identityConnectionString, trustedOrigin: options.trustedOrigin,
+          localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret });
+        try {
+          const result = await sql<{ id: string }>`SELECT e.id FROM noticeos_identity.platform_enrollment e
+            JOIN LATERAL noticeos_identity.workspace_summary(e.workspace_id) w ON w.status='provisioning'
+            WHERE e.workspace_id=${expected.workspaceId}::uuid AND e.email=${expected.intendedEmail} AND w.display_name=${expected.displayName}
+              AND e.activated_at IS NULL AND e.revoked_at IS NULL AND e.expires_at>pg_catalog.clock_timestamp() LIMIT 2`.execute(identity.database);
+          const enrollmentId = result.rows[0]?.id;
+          if (result.rows.length !== 1 || !enrollmentId || !UUID.test(enrollmentId) || signal.aborted) refuse();
+          return Object.freeze({ workspaceId: expected.workspaceId, enrollmentId });
+        } finally { await identity.database.destroy(); }
+      }));
+    },
+    activate(input: unknown, schedulerInput?: { serviceId: string; intendedEmail: string }) {
       if (closed) return Promise.reject(new PlatformProvisioningRefused());
       let command: Readonly<{ workspaceId: string; enrollmentId: string; projectId: string }>;
+      let scheduler: { serviceId: string; intendedEmail: string } | undefined;
       try {
         const row = record(input, ['workspaceId', 'enrollmentId', 'projectId']);
         command = Object.freeze({ workspaceId: uuid(row.workspaceId), enrollmentId: uuid(row.enrollmentId), projectId: uuid(row.projectId) });
+        if (schedulerInput !== undefined) {
+          const grant = record(schedulerInput, ['serviceId', 'intendedEmail']);
+          scheduler = { serviceId: uuid(grant.serviceId), intendedEmail: ownerEmail(grant.intendedEmail) };
+        }
       } catch { return Promise.reject(new PlatformProvisioningRefused()); }
       return track(transaction(async (db, signal, deadline) => db.transaction().execute(async trx => {
         if (signal.aborted) refuse();
@@ -236,6 +307,11 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         if (!row || result.rows.length !== 1 || !UUID.test(row.person_id)
           || row.project_id !== command.projectId || !UUID.test(row.executor_ref) || !UUID.test(row.credential_ref)
           || !/^n_[0-9a-f]{32}$/u.test(row.database_key) || signal.aborted) refuse();
+        if (scheduler) {
+          const person = await sql<{ matches: boolean }>`SELECT lower(email)=${scheduler.intendedEmail} AS matches
+            FROM noticeos_identity.auth_user WHERE id=${row.person_id}::uuid`.execute(trx);
+          if (person.rows[0]?.matches !== true || signal.aborted) refuse();
+        }
         const mapping = Object.freeze({ workspaceId: command.workspaceId, projectId: row.project_id,
           executorRef: row.executor_ref, credentialRef: row.credential_ref, databaseKey: row.database_key });
         // Never race away from this promise: locks remain held until the real
@@ -246,6 +322,10 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         if (signal.aborted) refuse();
         await sql`SELECT noticeos_platform.complete_workspace_activation(${command.workspaceId}::uuid,
           ${command.enrollmentId}::uuid,${command.projectId}::uuid,${documents}::jsonb)`.execute(trx);
+        if (scheduler) {
+          await sql`INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
+            VALUES (${scheduler.serviceId}::uuid, ${command.workspaceId}::uuid, ARRAY['workflows.run'], clock_timestamp() + interval '1 year')`.execute(trx);
+        }
         if (signal.aborted) refuse();
         return Object.freeze({ workspaceId: command.workspaceId, enrollmentId: command.enrollmentId });
       })));
@@ -257,8 +337,9 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         const row = record(input, ['workspaceId', 'ntasksWorkspaceId', 'ntasksOrigin', 'projectId', 'intendedEmail', 'expiresAt']);
         command = { ...standaloneBinding(row), ...intendedOwner(row.intendedEmail, row.expiresAt) };
       } catch { return Promise.reject(new PlatformProvisioningRefused()); }
-      return track(transaction(async (db, signal) => db.transaction().execute(async trx => {
+      return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async trx => {
         await requireStandaloneSchema(trx);
+        await lockAvailableProject(trx, command.workspaceId, command.projectId);
         if (signal.aborted) refuse();
         const result = await sql<{ enrollment_id: string }>`SELECT noticeos_platform.prepare_standalone_owner(
           ${command.workspaceId}::uuid,${command.intendedEmail},${command.expiresAt}::timestamptz,${command.ntasksOrigin},
