@@ -31,6 +31,8 @@ function OwnerMembers() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const issuing = useRef(false);
+  const rosterVersion = useRef(0);
+  const pagination = useRef<AbortController | null>(null);
   // An offline refresh must settle while it holds the roster lock.
   const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster | null> => {
     const pending = new AbortController();
@@ -44,10 +46,12 @@ function OwnerMembers() {
       const [members, invitations] = await Promise.all([readOne(runtime.api.fetchMembers(undefined, deadline)), readOne(runtime.api.fetchInvitations(undefined, deadline))]);
       if ('error' in members) throw members.error;
       if ('error' in invitations) throw invitations.error;
+      rosterVersion.current++;
       return { members: members.value, invitations: invitations.value };
     } catch (error) {
       if (!accessDenied(error)) throw error;
       pending.abort();
+      pagination.current?.abort();
       return null;
     }
   } });
@@ -90,20 +94,34 @@ function OwnerMembers() {
   }
   async function more(collection: 'members' | 'invitations') {
     const cursor = roster?.[collection].nextCursor;
-    if (!cursor || issuing.current) return;
+    if (!cursor || issuing.current || runtime.guard(() => true)() !== true) return;
+    const version = rosterVersion.current;
+    const page = new AbortController();
+    const signal = AbortSignal.any([page.signal, AbortSignal.timeout(10_000)]);
+    pagination.current = page;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      const next = collection === 'members' ? await runtime.api.fetchMembers(cursor) : await runtime.api.fetchInvitations(cursor);
+      const next = collection === 'members' ? await runtime.api.fetchMembers(cursor, signal) : await runtime.api.fetchInvitations(cursor, signal);
       update(() => {
         const previous = runtime.queries.getQueryData<Roster | null>(QUERY);
-        if (!previous) return;
+        if (!previous || page.signal.aborted || version !== rosterVersion.current) return;
         const old = previous[collection];
         // De-duplicate a concurrent roster change across cursor pages.
         const items = [...old.items, ...next.items.filter(item => !old.items.some(existing => existing.id === item.id))];
         runtime.queries.setQueryData(QUERY, { ...previous, [collection]: { items, nextCursor: next.nextCursor } });
       });
-    } catch { update(() => setNotice({ error: true, text: 'More people could not be loaded. Try again.' })); }
-    finally { issuing.current = false; update(() => setBusy(false)); }
+    } catch (error) {
+      if (accessDenied(error)) {
+        await runtime.queries.cancelQueries({ queryKey: QUERY, exact: true });
+        update(() => runtime.queries.setQueryData(QUERY, null));
+      } else if (!page.signal.aborted) {
+        update(() => setNotice({ error: true, text: collection === 'members' ? 'More people could not be loaded. Try again.' : 'More invitations could not be loaded. Try again.' }));
+      }
+    } finally {
+      pagination.current = null;
+      issuing.current = false;
+      update(() => setBusy(false));
+    }
   }
   const oneOwner = roster?.members.nextCursor === null && roster.members.items.filter(member => member.role === 'owner').length === 1;
   return <>
@@ -123,7 +141,7 @@ function OwnerMembers() {
       {notice ? <div role="status" data-status-for="members" className={`mt-3 text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
     </SettingsPanel>
     {!roster ? read.isError || refused ? <ReadFailed title={refused ? "Couldn't verify access to members" : "Couldn't load members"}
-        subject="read:members" error={refused ? readError ?? rosterRefused : readError} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
+        subject="read:members" error={refused ? readError ?? rosterRefused : readError} retrying={busy || read.isFetching} onRetry={() => void refreshAccess()} />
       : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
       <SettingsPanel title="People">
         <ul className="divide-y divide-border">{roster.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}

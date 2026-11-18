@@ -114,6 +114,64 @@ it('holds the roster action lock during an offline refresh and keeps people visi
     onlineManager.setOnline(wasOnline);
   }
 });
+it('a page from an earlier roster cannot overwrite a newer first page or its cursor', async () => {
+  const oldPage = deferred<Response>();
+  let cursor = other;
+  const newCursor = '33333333-3333-4333-8333-333333333333';
+  const oldMember = { ...member, id: other, name: 'Former page member', role: 'viewer' };
+  const newMember = { ...oldMember, id: newCursor, name: 'Current page member' };
+  const response = (items: typeof member[], nextCursor: string | null) =>
+    Response.json({ ok: true, collection: 'members', items, nextCursor });
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.collection !== 'members') return roster(input, init);
+    if (command.after === other) return oldPage.promise;
+    if (command.after === newCursor) return response([newMember], null);
+    return response([member], cursor);
+  });
+  const value = runtime(fetch); mount(value);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    cursor = newCursor;
+    await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+    await act(async () => oldPage.resolve(response([oldMember], null)));
+    expect(screen.queryByText(oldMember.name)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More people' }));
+    expect(await screen.findByText(newMember.name)).toBeVisible();
+  } finally { oldPage.resolve(response([oldMember], null)); }
+});
+
+it.each(['page', 'refresh'] as const)('403 during %s clears and retires pagination before retry', async deniedBy => {
+  const page = deferred<Response>();
+  let pageSignal: AbortSignal | undefined;
+  let denyRefresh = false;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.collection !== 'members') return roster(input, init);
+    if (command.after) { pageSignal = init?.signal ?? undefined; return page.promise; }
+    if (denyRefresh) return Response.json({ ok: false }, { status: 403 });
+    return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+  });
+  const revalidate = vi.fn(async () => {});
+  const value = runtime(fetch); mount(value, 'owner', undefined, revalidate);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    await vi.waitFor(() => expect(pageSignal).toBeDefined());
+    if (deniedBy === 'refresh') {
+      denyRefresh = true;
+      await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+      expect(pageSignal?.aborted).toBe(true);
+    } else await act(async () => page.resolve(Response.json({ ok: false }, { status: 403 })));
+    await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+    await vi.waitFor(() => expect(revalidate).toHaveBeenCalledTimes(1));
+    denyRefresh = false;
+    page.resolve(Response.json({ ok: false }, { status: 503 }));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(member.name)).toBeVisible();
+  } finally { page.resolve(Response.json({ ok: false }, { status: 503 })); }
+});
+
 it('a refusal from either read hides cached people until a complete authorized refresh succeeds', async () => {
   let mode: 'allowed' | 'mixed' | 'temporary' = 'allowed';
   const denied = deferred();
