@@ -8,7 +8,15 @@ export interface ReportReturn {
     readonly report: typeof REPORT_TABS[number];
     readonly range?: typeof REPORT_RANGES[number];
 }
+type ParamReader = {
+    get(key: string): string | null;
+    getAll(key: string): string[];
+};
+type ParamWriter = {
+    set(key: string, value: string): void;
+    delete(key: string): void;
+};
 export declare function readReportReturn(input: unknown): ReportReturn | null;
-export declare function reportReturnFromParams(params: URLSearchParams): ReportReturn | null;
-export declare function setReportReturnParams(params: URLSearchParams, destination: ReportReturn): void;
+export declare function reportReturnFromParams(params: ParamReader): ReportReturn | null;
+export declare function setReportReturnParams(params: ParamWriter, destination: ReportReturn): void;
 export {};

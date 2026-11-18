@@ -9,6 +9,8 @@ export interface ReportReturn {
   readonly report: typeof REPORT_TABS[number];
   readonly range?: typeof REPORT_RANGES[number];
 }
+type ParamReader = { get(key: string): string | null; getAll(key: string): string[] };
+type ParamWriter = { set(key: string, value: string): void; delete(key: string): void };
 
 export function readReportReturn(input: unknown): ReportReturn | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
@@ -21,7 +23,7 @@ export function readReportReturn(input: unknown): ReportReturn | null {
   return Object.freeze({ asset, report: tab, ...(days === undefined ? {} : { range: days }) });
 }
 
-export function reportReturnFromParams(params: URLSearchParams): ReportReturn | null {
+export function reportReturnFromParams(params: ParamReader): ReportReturn | null {
   if (REPORT_RETURN_PARAMETERS.some(key => params.getAll(key).length > 1)) return null;
   const raw = params.get('range');
   const range = raw === null ? undefined : REPORT_RANGES.find(days => String(days) === raw);
@@ -29,7 +31,7 @@ export function reportReturnFromParams(params: URLSearchParams): ReportReturn | 
   return readReportReturn({ asset: params.get('asset'), report: params.get('fromReport'), range });
 }
 
-export function setReportReturnParams(params: URLSearchParams, destination: ReportReturn): void {
+export function setReportReturnParams(params: ParamWriter, destination: ReportReturn): void {
   params.set('asset', destination.asset);
   params.set('fromReport', destination.report);
   if (destination.range === undefined) params.delete('range');
