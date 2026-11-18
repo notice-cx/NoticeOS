@@ -16,16 +16,21 @@ const DECISIONS = ['respond', 'choose', 'dismiss', 'dispute', 'accept', 'resolve
 const unavailable = 'Ntasks is unavailable. Check the connection in Task projects.';
 const json = (body: unknown, status = 200) => jsonResponse(body, status, { 'cache-control': 'no-store' });
 
+export async function readHostedTaskMapping(env: IngestEnv) {
+  const document = await getConfigDocument(env, TOWER_CONFIG_FILES.beads, { fresh: true });
+  const configured = isRecord(document.body) && Array.isArray(document.body.spokes) ? document.body.spokes : [];
+  const spokes = configured.flatMap(spoke => isRecord(spoke) && typeof spoke.asset === 'string' && typeof spoke.prefix === 'string'
+    ? [{ asset: spoke.asset, prefix: spoke.prefix }] : []);
+  return { document, spokes };
+}
+
 export async function readHostedTaskConnection(env: IngestEnv, fetchImpl: typeof fetch) {
   const credential = await resolveCredential(env, 'ntasks', 'store-only');
   if (credential.source !== 'store') {
     if (credential.connectionId !== null) throw new TaskServiceError({ kind: 'invalid-response' });
     return null;
   }
-  const document = await getConfigDocument(env, TOWER_CONFIG_FILES.beads, { fresh: true });
-  const configured = isRecord(document.body) && Array.isArray(document.body.spokes) ? document.body.spokes : [];
-  const spokes = configured.flatMap(spoke => isRecord(spoke) && typeof spoke.asset === 'string' && typeof spoke.prefix === 'string'
-    ? [{ asset: spoke.asset, prefix: spoke.prefix }] : []);
+  const { document, spokes } = await readHostedTaskMapping(env);
   const connection = await readHostedNtasksProjects(env, credential.fields, fetchImpl);
   // Workspace-wide reads such as search and the change feed use the provider's
   // grant boundary. Refuse a credential whose grant includes an unmapped project.

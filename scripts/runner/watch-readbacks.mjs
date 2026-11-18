@@ -67,26 +67,27 @@ export async function runWatchReadbackFiler(deps = {}) {
   const {
     config = CONFIG,
     readToken = operatorToken,
-    fetchImpl = fetch,
+    fetchImpl = fetch, queueRequest,
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     emit = log,
     now = Date.now,
     taskService = null,
   } = deps;
 
-  const token = await readToken();
-  if (!token) {
+  const token = queueRequest ? null : await readToken();
+  if (!queueRequest && !token) {
     emit('WARN', 'watch readbacks skipped — no operator token');
     return { posted: [], failed: [] };
   }
 
-  const url = watchReadbacksUrl(config);
-  const auth = { authorization: `Bearer ${token}` };
+  const url = queueRequest ? 'https://readbacks.internal/api/watch-readbacks' : watchReadbacksUrl(config);
+  const auth = token ? { authorization: `Bearer ${token}` } : {};
+  const request = queueRequest ? (input, init) => queueRequest(new Request(input, init)) : fetchImpl;
   let pending;
   let reviews;
   let nextReviewAfter;
   try {
-    const res = await fetchImpl(url, { headers: auth });
+    const res = await request(url, { headers: auth });
     if (!res.ok) {
       emit('WARN', `watch readbacks: the door answered HTTP ${res.status}`);
       return { posted: [], failed: [] };
@@ -131,7 +132,7 @@ export async function runWatchReadbackFiler(deps = {}) {
       let taskId = entry.taskId;
       if (task.status === 'closed' && entry.reviewRequired !== false) {
         taskId = await fileNtasksOutcomeReview(reviewer, spoke, entry);
-        await attachReview(fetchImpl, url, auth, entry, taskId, null);
+        await attachReview(request, url, auth, entry, taskId, null);
       }
       await updates.comment(spoke, taskId, entry.comment, verdictKey(entry, taskId));
       expectedTasks[entry.windowId] = taskId;
@@ -144,7 +145,7 @@ export async function runWatchReadbackFiler(deps = {}) {
 
   if (posted.length > 0) {
     try {
-      const res = await fetchImpl(url, {
+      const res = await request(url, {
         method: 'POST',
         headers: { ...auth, 'content-type': 'application/json' },
         body: JSON.stringify({ posted, expectedTasks }),
@@ -190,7 +191,7 @@ export async function runWatchReadbackFiler(deps = {}) {
         const checkedAt = new Date(now()).toISOString();
         if (task.status === 'closed' && closedAt && closedAt <= review.postedAt) {
           const taskId = await fileNtasksOutcomeReview(reviewer, spoke, review);
-          await attachReview(fetchImpl, url, auth, review, taskId, review.postedAt);
+          await attachReview(request, url, auth, review, taskId, review.postedAt);
           // Delivery stays pending until the new task's comment is confirmed.
           continue;
         }
@@ -199,7 +200,7 @@ export async function runWatchReadbackFiler(deps = {}) {
           || typeof task.close_reason !== 'string' || task.close_reason.trim() === ''
           || !recordsClose(task.metadata, task.closed_at)
           || readTaskResolution(task.metadata, task.closed_at).resolution !== 'done') continue;
-        const res = await fetchImpl(url, {
+        const res = await request(url, {
           method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
           body: JSON.stringify({ reviewed: [{ ...review, closedAt, checkedAt, reason: task.close_reason.slice(0, 2048) }] }),
         });
@@ -216,7 +217,7 @@ export async function runWatchReadbackFiler(deps = {}) {
     if (!Number.isSafeInteger(next) || next <= after) break;
     after = next;
     try {
-      const res = await fetchImpl(`${url}?reviewsAfter=${after}`, { headers: auth });
+      const res = await request(`${url}?reviewsAfter=${after}`, { headers: auth });
       if (!res.ok) throw new Error(`review queue HTTP ${res.status}`);
       ({ reviews, nextReviewAfter = null } = await res.json());
       if (!Array.isArray(reviews)) throw new Error('invalid review queue');

@@ -3,7 +3,7 @@ import { type JobSchedule } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 export declare const CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL = "https://scheduler.internal/google-archive-targets";
-declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity"];
+declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity", "hygiene", "notifications", "watch-windows", "panel-review", "watch-readbacks"];
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export declare const isCustomerJob: (value: unknown) => value is CustomerJob;
 export declare const customerJobStep: (job: CustomerJob) => "clarity" | "product" | "counters" | "report" | "collect";

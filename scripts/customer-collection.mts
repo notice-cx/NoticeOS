@@ -1,9 +1,9 @@
 import { scheduleFor, schedulesRefusal, ALL_SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
-import { selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
+import { selectedCustomerSite, selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
 export const CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL = 'https://scheduler.internal/google-archive-targets';
-const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity'] as const;
+const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity', 'hygiene', 'notifications', 'watch-windows', 'panel-review', 'watch-readbacks'] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
 export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : job === 'site-counters' ? 'counters'
@@ -46,24 +46,25 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
 export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy,
   googleScope?: readonly CustomerGoogleArchiveTarget[]): Promise<CustomerSchedule[]> {
   const enrolled = await store.read(tx => tx.query<{
-    workspace: string; overrides: string; asset: string; isOs: boolean; domain: string | null; status: string;
+    workspace: string; overrides: string; asset: string | null; isOs: boolean; domain: string | null; status: string;
     connected: string[]; sources: string; pulls: string; counter: string | null; journeys: string | null;
   }>(`SELECT COALESCE(c.body->'schedules','{}'::json)::text AS overrides,
-      a.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,a.status,
+      c.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,a.status,
       COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
       (n.body->'assets'->a.asset_id)::text AS counter,
       (v.body->'assets'->a.asset_id->'journeys')::text AS journeys,
       ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','posthog','clarity') AND g.workspace_id=a.workspace_id) AS connected
-    FROM noticeos.assets a
-    JOIN noticeos.config_documents c ON c.workspace_id=a.workspace_id AND c.document_key='constants'
+        WHERE g.provider IN ('google','mediavine','stripe','bing-webmaster','discord','ntasks','posthog','clarity') AND g.workspace_id=c.workspace_id) AS connected
+    FROM noticeos.config_documents c
+    LEFT JOIN noticeos.assets a ON a.workspace_id=c.workspace_id AND (
+      (a.is_os AND $1::text IS NULL) OR
+      (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1)))
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
     LEFT JOIN noticeos.config_documents p ON p.workspace_id=a.workspace_id AND p.document_key='pull'
     LEFT JOIN noticeos.config_documents n ON n.workspace_id=a.workspace_id AND n.document_key='counters'
     LEFT JOIN noticeos.config_documents v ON v.workspace_id=a.workspace_id AND v.document_key='value-events'
-    WHERE (a.is_os AND $1::text IS NULL)
-       OR (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1))
+    WHERE c.document_key='constants' AND ($1::text IS NULL OR a.asset_id IS NOT NULL)
     ORDER BY a.asset_id COLLATE "C"`, [asset]));
   if (!enrolled.length) return [];
   const overrides: ScheduleOverrides = JSON.parse(enrolled[0]!.overrides);
@@ -77,9 +78,20 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   if (enrolled.some(row => row.isOs)) {
     planned.push({ job: 'asset-zero', schedule: selfReport, assets: [null] });
   }
-  const rows = enrolled.filter(row => !row.isOs);
+  const { workspace } = enrolled[0]!;
+  const connected = new Set(enrolled[0]!.connected);
+  if (asset === null && policy?.revenueNotices?.some(n => n.workspaceId === workspace) && connected.has('discord')) {
+    planned.push({ job: 'notifications', schedule: settings('notifications'), assets: [null] });
+  }
+  if (asset === null && policy?.taskFollowups?.some(binding => binding.workspaceId === workspace)) {
+    for (const job of ['watch-windows', 'panel-review', 'watch-readbacks'] as const) {
+      if (job === 'watch-windows' || connected.has('ntasks')) planned.push({ job, schedule: settings(job), assets: [null] });
+    }
+  }
+  const rows = enrolled.filter((row): row is typeof row & { asset: string } => !row.isOs && row.asset !== null);
   if (!rows.length) return planned;
-  const connected = new Set(rows[0]!.connected);
+  const sites = rows.filter(row => policy ? selectedCustomerSite(policy, workspace, row.asset, row.domain) : row.domain).map(row => row.asset);
+  if (policy && sites.length) planned.push({ job: 'hygiene', schedule: settings('hygiene'), assets: sites });
   const portfolioAssets = rows.map(row => row.asset);
   const allowed = new Set(policy?.collectorProviders);
   const domainRows = rows.filter(row => row.domain);
@@ -89,7 +101,7 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
     return source?.status !== 'skipped' && source?.status !== 'not-applicable';
   }).map(row => row.asset);
   planned.push({ job: 'freshness', schedule: settings('freshness'),
-    assets: [null, ...(policy ? [] : rows.filter(row => row.domain).map(row => row.asset))] });
+    assets: [null, ...sites] });
   const archives: NonNullable<CustomerSchedule['archives']> = [];
   if (connected.has('google') && policy?.googleDaily !== false) {
     planned.push({ job: 'counters', schedule: settings('counters'), assets: portfolioAssets });

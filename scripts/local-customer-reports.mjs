@@ -1,7 +1,6 @@
-import { access, mkdtemp, rm } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { access } from 'node:fs/promises';
+import { loadCustomerWorkflowModule } from './local-customer-workflow-module.mjs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { configDocumentFile, configDocumentKey } from './config-documents.mjs';
 import { analyzeSignalHistory, storedSearchMarket, storedValueEvents } from './signal-history-analyze.mjs';
 import { customerArchiveCache } from './customer-archive-cache.mjs';
@@ -34,23 +33,6 @@ async function reportConfiguration(store) {
   });
 }
 
-async function loadReportHelpers(sourceRoot, privateRoot) {
-  const buildRoot = await mkdtemp(path.join(privateRoot, 'report-code-'));
-  try {
-    const ingest = createRequire(path.join(sourceRoot, 'workers/ingest/package.json'));
-    const { build } = createRequire(ingest.resolve('wrangler/package.json'))('esbuild');
-    const outfile = path.join(buildRoot, 'reports.mjs');
-    await build({ absWorkingDir: sourceRoot, outfile, bundle: true, platform: 'node', format: 'esm', target: 'node24', logLevel: 'silent',
-      stdin: { resolveDir: path.join(sourceRoot, 'workers/ingest/src'), loader: 'ts', contents: `
-        export { panelReportReader } from './panel-source.ts';
-        export { writeInsightSnapshot } from './insight-snapshots.ts';
-      ` },
-      banner: { js: 'import { createRequire as reportRequire } from "node:module"; const require = reportRequire(import.meta.url);' },
-    });
-    return await import(pathToFileURL(outfile));
-  } finally { await rm(buildRoot, { recursive: true, force: true }); }
-}
-
 /** Store selection comes from the scheduler's fresh service admission. The
  * report reads only that store's archived object names and saved documents. */
 export function localCustomerReports({ sourceRoot, root, bucket }) {
@@ -78,7 +60,10 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
         fetchedTag = content?.etag;
         return content;
       } } };
-      const { panelReportReader, writeInsightSnapshot } = await (helpers ??= loadReportHelpers(sourceRoot, root)
+      const { panelReportReader, writeInsightSnapshot } = await (helpers ??= loadCustomerWorkflowModule(sourceRoot, root, `
+        export { panelReportReader } from './panel-source.ts';
+        export { writeInsightSnapshot } from './insight-snapshots.ts';
+      `)
         .catch(error => { helpers = undefined; throw error; }));
       const reader = panelReportReader(env);
       const windowDays = Math.min(400, roster.windowDays);

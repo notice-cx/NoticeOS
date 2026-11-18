@@ -374,6 +374,6 @@ export async function runSiteIcons(env: IngestEnv, opts: SiteIconsOptions = {}):
     }
   }
 
-  result.egress = await gate.finalize();
+  result.egress = await gate.finalize(opts.assets ? { covers: asset => opts.assets!.some(site => site.asset === asset) } : {});
   return result;
 }

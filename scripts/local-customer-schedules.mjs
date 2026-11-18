@@ -7,6 +7,7 @@ import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
 import { REPORT_EFFECT_LIMIT_MS } from './local-customer-reports.mjs';
+import { isCustomerTaskFiler } from './local-customer-task-followups.mjs';
 import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
@@ -161,7 +162,7 @@ async function readBackupSchedule(store) {
 }
 
 export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now,
-  resumeSince, backupResumeSince, collection, backup }) {
+  resumeSince, backupResumeSince, collection, backup, taskFollowups }) {
   const ids = new Set();
   for (const binding of workspaces) {
     if (!binding.workspaceId || !binding.serviceId || ids.has(binding.workspaceId)) throw new Error('Invalid customer schedule binding.');
@@ -209,13 +210,20 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
   async function run({ binding, job, asset, archive, scheduledAt, manual }) {
     const occurrence = manual ? `manual/${randomUUID()}`
       : scheduledAt + '/' + (asset === null ? 'workspace' : createHash('sha256').update(customerJobSubject(asset, archive)).digest('hex'));
-    const scoped = resources(binding);
+    const filing = isCustomerTaskFiler(job);
+    const effectBinding = filing ? collection?.taskFollowups.find(item => item.workspaceId === binding.workspaceId) : binding;
+    if (!effectBinding) throw new Error('Task follow-up unavailable.');
+    const scoped = resources(effectBinding);
     const reporting = job === 'panel-refresh';
     const snapshot = job === 'backup';
     let backupResult;
     const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
-      steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : customerJobStep(job), kind: 'effect', action: 'workflows.run',
+      steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : customerJobStep(job), kind: 'effect', action: filing ? 'tasks.write' : 'workflows.run',
         ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
+        if (filing) {
+          if (!taskFollowups) throw new Error('Task follow-up unavailable.');
+          return taskFollowups({ job, binding: effectBinding, ...scoped, collection, scheduledAt, signal });
+        }
         if (snapshot) {
           if (!manual && !(await readBackupSchedule(scoped.store)).enabled) return { outcome: 'skipped' };
           backupResult = await backup.run(signal);
@@ -229,7 +237,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         if (!response.ok) throw new Error('Customer collection was refused.');
         return response.json();
       } }] }];
-    const runner = createHostedJobRunner({ ...binding, ...scoped, definitions,
+    const runner = createHostedJobRunner({ ...effectBinding, ...scoped, definitions,
       effectTimeoutMs: snapshot ? CUSTOMER_BACKUP_EFFECT_MS : reporting ? REPORT_EFFECT_LIMIT_MS
         : job === 'posthog' ? POSTHOG_LIMIT_MS
         : archive?.provider === 'bing-webmaster' ? BING_ARCHIVE_LIMIT_MS
