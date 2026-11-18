@@ -6,12 +6,14 @@ import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
 
 /** Start the same customer app without provisioning, rotating logins or
  * changing database ownership. This controller owns the single scheduler. */
-export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport } = {}) {
+export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport } = {}) {
   const db = await openCustomerOperating(plan, file);
-  return startPreparedCustomer(plan, db, { startSchedules, googleTransport });
+  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport });
 }
 
-export async function startPreparedCustomer(plan, db, { startSchedules = startLocalCustomerSchedules, googleTransport, deployment } = {}) {
+export async function startPreparedCustomer(plan, db, {
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, deployment,
+} = {}) {
   const { operating, signal } = db;
   let app, closing;
   const close = () => {
@@ -34,7 +36,8 @@ export async function startPreparedCustomer(plan, db, { startSchedules = startLo
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
-      startSchedules, resumeSince: db.resumeSince, deployment, operating: { googleDaily: operating.googleDaily, googleTransport,
+      startSchedules, resumeSince: db.resumeSince, deployment, operating: { googleDaily: operating.googleDaily, collectorTransport,
+        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteReports: operating.siteReports, signal } });
     db.ready();
     return Object.freeze({ ...app, whenLost, close });

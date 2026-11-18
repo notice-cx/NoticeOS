@@ -354,6 +354,48 @@ const receiptRows = () => pgRows<{ asset: string; day: string; item: string; net
      FROM noticeos.current_revenue WHERE source = 'stripe' AND item_ref LIKE 'txn_%' ORDER BY day, item`);
 
 describe('Stripe product mappings', () => {
+  it('collects the active Stripe mapping when a retired site still has a product mapping', async () => {
+    await connect();
+    const [prior] = await pgRows<{ status: string }>(`SELECT status FROM noticeos.assets WHERE asset_id=$1`, [OTHER]);
+    const status = (value: string) => env.STORE.write(tx => tx.execute(`UPDATE noticeos.assets SET status=$1 WHERE asset_id=$2`, [value, OTHER]));
+    await status('retired');
+    try {
+      const provider = productStripe([productSale('tip', 500)]);
+      const result = await runStripeRevenue(env, { fetchImpl: provider.fetchImpl, nowMs: NOW, laneRegister: productRegister(), assets: [ASSET] });
+      expect(result.outcome).toBe('ran');
+      expect(await receiptRows()).toEqual([{ asset: ASSET, day: '2026-09-08', item: 'txn_tip', net: 470, payment: 1, refund: 0 }]);
+    } finally {
+      await status(prior!.status);
+    }
+  });
+
+  it('keeps the account recovery point when a mapping or earlier refund belongs to an excluded site', async () => {
+    await connect();
+    const original = productSale('tip', 500);
+    const first = productStripe([original, productSale('invoice', 900)]);
+    const settings = { nowMs: NOW, laneRegister: productRegister(), fetchImpl: first.fetchImpl };
+    expect(await runStripeRevenue(env, { ...settings, assets: [ASSET] })).toMatchObject({ outcome: 'skipped', reason: 'stripe_scope_incomplete' });
+    expect(first.calls).toHaveLength(0);
+    expect(await receiptRows()).toEqual([]);
+    expect((await runStripeRevenue(env, { ...settings, assets: [ASSET, OTHER] })).outcome).toBe('ran');
+    const held = await receiptRows();
+    const coverage = () => pgRows(`SELECT MAX(covered_until)::text AS covered_until
+      FROM noticeos.current_revenue WHERE source='stripe'`);
+    const lastCovered = await coverage();
+
+    const refund = productRefund(original, 50, '2026-09-09', 'later');
+    const next = productStripe([productSale('new_tip', 300, '2026-09-09'), refund]);
+    const tomorrow = { nowMs: NOW + DAY_MS, laneRegister: productRegister({ prod_tip: OTHER }), fetchImpl: next.fetchImpl };
+    expect(await runStripeRevenue(env, { ...tomorrow, assets: [OTHER] })).toMatchObject({ outcome: 'failed', reason: 'stripe_scope_incomplete' });
+    expect(await coverage()).toEqual(lastCovered);
+    expect(await receiptRows()).toEqual(held);
+    expect((await runStripeRevenue(env, { ...tomorrow, assets: [ASSET, OTHER] })).outcome).toBe('ran');
+    expect((await receiptRows()).slice(-2)).toEqual([
+      { asset: ASSET, day: '2026-09-09', item: 'txn_later', net: -50, payment: 0, refund: 1 },
+      { asset: OTHER, day: '2026-09-09', item: 'txn_new_tip', net: 270, payment: 1, refund: 0 },
+    ]);
+  });
+
   it('lists all account products including archived ones, without an account override', async () => {
     const mock = productStripe([]);
     expect(await discoverStripeProducts(KEY, mock.fetchImpl)).toMatchObject({

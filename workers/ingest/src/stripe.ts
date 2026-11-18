@@ -168,12 +168,14 @@ export interface StripeRunResult extends ScheduledRunResult {
   outcomes: StripeOutcome[];
   unattributedTransactions?: number;
   monitoringAvailable?: false;
+  reason?: 'stripe_scope_incomplete';
 }
 
 export interface StripeOptions {
   nowMs?: number;
   timeZone?: string;
   fetchImpl?: typeof fetch;
+  assets?: readonly string[];
   /** `config/integrations.json` as this fire read it; the compiled copy when absent. */
   laneRegister?: LaneRegister;
 }
@@ -441,6 +443,7 @@ async function resolveProductReceipts(
 async function writeReceipts(
   env: IngestEnv, account: string, targets: Target[], refundAnchor: string | null, receipts: StripeReceipt[],
   window: CollectionWindow, clock: SourceClock, defaultCurrency: string, runId: string, at: string,
+  assets?: ReadonlySet<string>,
 ) {
   return env.STORE.write(async (tx) => {
     await stripeLedgerLock(tx, account);
@@ -482,6 +485,9 @@ async function writeReceipts(
       if (!earnedBy) {
         unattributedTransactions++;
         continue;
+      }
+      if (assets && !assets.has(earnedBy)) {
+        throw new StripeFailure('stripe_scope_incomplete', 'The Stripe account includes a refund for a site with collection disabled.');
       }
       observations.push({
         asset: earnedBy, day, item: row.id, currency: row.currency, net: row.net,
@@ -540,20 +546,27 @@ async function writeReceipts(
 async function runStripeProducts(
   env: IngestEnv, mapping: StripeProductMapping, apiKey: string | undefined,
   resolved: Awaited<ReturnType<typeof resolveCredential>>, clock: SourceClock, until: number, at: string, fetchImpl: typeof fetch,
+  assets?: readonly string[],
 ): Promise<StripeRunResult> {
   const skipped = (detail: string): StripeRunResult => ({ outcome: 'skipped', detail, connected: true, outcomes: [] });
+  const allowed = assets ? new Set(assets) : undefined;
   const eligible = await env.STORE.read((tx) => tx.query<{ asset: string }>(
     `SELECT asset_id AS asset FROM noticeos.assets WHERE status <> 'retired' AND is_os = false`));
   const ids = new Set(eligible.map(({ asset }) => asset));
   const targets = stripeProductTargets(mapping).filter(({ asset }) => ids.has(asset));
+  // An account has one recovery position. Advancing it without an active
+  // mapped site would make that site's transactions unreachable.
+  if (allowed && targets.some(({ asset }) => !allowed.has(asset))) {
+    return { ...skipped('The Stripe account includes an active mapped site with collection disabled.'), reason: 'stripe_scope_incomplete' };
+  }
   // With every mapping cleared, still reconcile refunds for sales already
   // recorded. One previously credited asset anchors the completed days.
   const refundAnchor = targets.length > 0 ? null : await env.STORE.read(async (tx) => {
     const [row] = await tx.query<{ asset: string }>(
       `SELECT asset_id AS asset FROM noticeos.current_revenue
-        WHERE source = $1 AND account_ref = $2 AND payment_count > 0
+        WHERE source = $1 AND account_ref = $2 AND payment_count > 0 AND ($3::text[] IS NULL OR asset_id=ANY($3::text[]))
         ORDER BY revenue_date DESC, observation_id DESC LIMIT 1`,
-      [STRIPE_REVENUE_SOURCE, mapping.accountId]);
+      [STRIPE_REVENUE_SOURCE, mapping.accountId, assets ?? null]);
     return row?.asset ?? null;
   });
   if (targets.length === 0 && refundAnchor === null) return skipped('No Stripe products or collected sales.');
@@ -582,7 +595,7 @@ async function runStripeProducts(
 
     const products = Object.fromEntries(Object.entries(mapping.products).filter(([, asset]) => ids.has(asset)));
     const receipts = await resolveProductReceipts(apiKey, window, clock, products, fetchImpl);
-    const saved = await writeReceipts(env, mapping.accountId, targets, refundAnchor, receipts, window, clock, currency, runId, at);
+    const saved = await writeReceipts(env, mapping.accountId, targets, refundAnchor, receipts, window, clock, currency, runId, at, allowed);
     if (!saved) return skipped('No Stripe day is due.');
     written = saved.days;
     unattributedTransactions = saved.unattributedTransactions;
@@ -612,6 +625,7 @@ async function runStripeProducts(
     connected: true,
     outcomes,
     unattributedTransactions,
+    ...(failure?.code === 'stripe_scope_incomplete' ? { reason: 'stripe_scope_incomplete' as const } : {}),
     ...(monitoringAvailable ? {} : { monitoringAvailable: false as const }),
   };
 }
@@ -669,6 +683,11 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
     return { outcome: 'failed', detail: 'Stripe product mappings could not be read.', connected: true, outcomes: [] };
   }
   const targets = mapping ? stripeProductTargets(mapping) : stripeTargets(register);
+  const scope = options.assets;
+  if (!mapping && scope && targets.some(({ asset }) => !scope.includes(asset))) {
+    return { outcome: 'skipped', detail: 'The Stripe account includes a mapped site with collection disabled.',
+      reason: 'stripe_scope_incomplete', connected: true, outcomes: [] };
+  }
   if (resolved.source === 'demo' || (!mapping && targets.length === 0)) {
     return { outcome: 'skipped', detail: 'No assets are assigned to Stripe.', connected: true, outcomes: [] };
   }
@@ -683,7 +702,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   }
   const until = collectionThrough(nowMs, clock, options.timeZone ?? clock.timeZone);
 
-  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, until, at, fetchImpl);
+  if (mapping) return runStripeProducts(env, mapping, apiKey, resolved, clock, until, at, fetchImpl, options.assets);
 
   const health = await tryHealthConnection(env, 'stripe', resolved);
   let monitoringAvailable = health !== null;

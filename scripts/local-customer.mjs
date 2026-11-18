@@ -12,6 +12,7 @@ import { APP_RELEASE_HEADER, isAppApiPath, releaseMismatch } from '../apps/tower
 import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtifact } from './hosted-demo-server.mjs';
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerOutbound } from './local-customer-egress.mjs';
+import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
@@ -299,11 +300,13 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         .map(file => ({ type: 'ESModule', path: path.join(artifactRoot, file) })),
       outboundService });
     const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest, ingestOutbound);
-    const google = operating?.googleDaily === true;
-    const scheduleName = google ? 'customer-scheduled-ingest' : ingest.name;
+    const collection = operating ? customerCollectionPolicy(operating) : undefined;
+    const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length);
+    const scheduleName = isolated ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
       ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
-    const scheduleBindings = grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces) } : {};
+    const scheduleBindings = grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces),
+      ...(collection ? { NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify(collection) } : {}) } : {};
     const scheduleTransport = grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {};
     const ingestBindings = { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}) };
     const archive = { r2Buckets: { RAW_SIGNALS: deployment?.archiveBucket ?? 'customer-raw-signals' } };
@@ -322,12 +325,12 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
               return status ? Response.json(status) : new Response(null, { status: 404 });
             } } : {}) },
           r2Buckets: { NOTICEOS_PORTFOLIO: 'customer-portfolio-summaries' } },
-        { ...ingest, ...archive, bindings: { ...ingestBindings, ...siteReports, ...(google ? {} : scheduleBindings),
+        { ...ingest, ...archive, bindings: { ...ingestBindings, ...siteReports, ...(isolated ? {} : scheduleBindings),
           ...(ntasksOrigin === null ? {} : { NOTICEOS_NTASKS_ORIGIN: ntasksOrigin }) },
-          ...(google ? {} : scheduleTransport) },
-        ...(google ? [{
-          ...worker(scheduleName, artifact.ingest, localCustomerOutbound({ googleDaily: true, signal: operating.signal,
-            transport: operating.googleTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
+          ...(isolated ? {} : scheduleTransport) },
+        ...(isolated ? [{
+          ...worker(scheduleName, artifact.ingest, localCustomerOutbound({ ...collection, signal: operating.signal,
+            transport: operating.collectorTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
         }] : []),
         ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
           script: `export default {fetch(r,e){
@@ -351,7 +354,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
-        resumeSince, ...(operating ? { operatingGoogle: google } : {}),
+        resumeSince, collection,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
           root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
           fetch(input, init) {

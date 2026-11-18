@@ -13,6 +13,10 @@ const OBJECT_BYTES = 33 * 1024 * 1024;
 const META_SOURCE = 'legacyArchiveSource';
 const META_BYTES = 'legacyArchiveSha256';
 const META_VERSION = 'legacyArchiveFormat';
+const ORIGINAL_GOOGLE_REPORTS = {
+  ga4: new Set(['pages-screens', 'landing-pages', 'traffic-acquisition', 'traffic-sources', 'events']),
+  gsc: new Set(['page-query', 'page', 'query', 'country', 'device']),
+};
 
 type ArchiveEnv = Parameters<typeof signalObjectScope>[0] & Pick<IngestEnv, 'RAW_SIGNALS'>;
 type Counts = { through: string; objects: number; bytes: number };
@@ -146,6 +150,14 @@ function canonicalPages(row: ArchiveRow, pages: unknown[]): unknown[] {
   return [{ request: first.request, response }];
 }
 
+function originalGoogleMetadata(row: ArchiveRow, meta: R2Object['customMetadata']): boolean {
+  return (row.integration === 'ga4' || row.integration === 'gsc') && row.version === 1
+    && row.report !== null && ORIGINAL_GOOGLE_REPORTS[row.integration].has(row.report)
+    && meta !== undefined && Object.keys(meta).length === 6
+    && meta.asset === row.asset && meta.contentSha256 === row.hash && meta.integration === row.integration
+    && meta.report === row.report && meta.reportDate === row.date && meta.schemaVersion === '1';
+}
+
 async function originalBytes(object: R2ObjectBody, row: ArchiveRow, workspaceId: string): Promise<ArrayBuffer> {
   const meta = object.customMetadata;
   const size = Number(row.bytes);
@@ -163,10 +175,16 @@ async function originalBytes(object: R2ObjectBody, row: ArchiveRow, workspaceId:
     || content.propertyRef !== row.property || !Array.isArray(content.pages)) throw new LegacyArchiveRefusal('The legacy archive belongs to a different report.');
   const { schemaVersion, provider, integration, report, asset, credentialRef, propertyRef, reportDate, dataState,
     providerRows, providerTruncated, pages } = content;
-  const canonical = JSON.stringify({ schemaVersion, provider, integration, report, asset, credentialRef, propertyRef,
-    reportDate, dataState, providerRows, providerTruncated, pages: canonicalPages(row, pages) });
-  if (await sha256Hex(canonical) !== row.hash) throw new LegacyArchiveRefusal('The legacy archive content hash does not match.');
-  return compressed;
+  const canonical = { schemaVersion, provider, integration, report, asset, credentialRef, propertyRef,
+    reportDate, dataState, providerRows, providerTruncated, pages: canonicalPages(row, pages) };
+  if (await sha256Hex(JSON.stringify(canonical)) === row.hash) return compressed;
+  if (provider === 'google' && originalGoogleMetadata(row, meta)) {
+    // The initial Google digest omitted the credential field. Its body still
+    // has to match the credential and property in the selected SQL receipt.
+    const { credentialRef: _credentialRef, ...original } = canonical;
+    if (await sha256Hex(JSON.stringify(original)) === row.hash) return compressed;
+  }
+  throw new LegacyArchiveRefusal('The legacy archive content hash does not match.');
 }
 
 async function copyOne(bucket: R2Bucket, scope: SignalObjectScope, row: ArchiveRow): Promise<void> {

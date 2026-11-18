@@ -17,9 +17,9 @@ const METRICS = {
     pulseId: 'Report ID', envelopeFlags: 'Reported alerts', centralFlags: 'Central alerts', resolvedAnomalies: 'Anomalies resolved', resolvedFreshness: 'Freshness alerts resolved',
 };
 const COUNTS = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
-// The notifier's `skipped` codes.
 const REASONS = {
     'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
+    stripe_scope_incomplete: 'A site on this Stripe account has collection disabled',
 };
 const REQUEST_FAILURES = {
     request_timeout: 'Request timed out', request_failed: 'Request failed', os_egress_down: 'NoticeOS could not reach the internet',

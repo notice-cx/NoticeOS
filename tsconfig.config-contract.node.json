@@ -18,6 +18,7 @@
     "scripts/ntasks-activation.mts",
     "scripts/hosted-scheduler.mts",
     "scripts/customer-collection.mts",
+    "scripts/customer-collection-policy.mts",
     "scripts/published-image.mts",
     "scripts/hosted-demo.mts",
     "scripts/hosted-demo-runtime.mts",

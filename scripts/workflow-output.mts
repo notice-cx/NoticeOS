@@ -24,9 +24,9 @@ const METRICS: Readonly<Record<string, string>> = {
   pulseId: 'Report ID', envelopeFlags: 'Reported alerts', centralFlags: 'Central alerts', resolvedAnomalies: 'Anomalies resolved', resolvedFreshness: 'Freshness alerts resolved',
 };
 const COUNTS: Readonly<Record<string, string>> = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
-// The notifier's `skipped` codes.
 const REASONS: Readonly<Record<string, string>> = {
   'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
+  stripe_scope_incomplete: 'A site on this Stripe account has collection disabled',
 };
 const REQUEST_FAILURES: Readonly<Record<string, string>> = {
   request_timeout: 'Request timed out', request_failed: 'Request failed', os_egress_down: 'NoticeOS could not reach the internet',
