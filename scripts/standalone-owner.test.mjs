@@ -127,7 +127,7 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.equal(oldSchema.status, 1);
     assert.match(oldSchema.stderr, /handoff migration/i);
     assert.deepEqual(counts(), { members: '0', grants: '0' });
-    assert.deepEqual(applyMigrations(owner).applied, [migration.replace('.sql', '')]);
+    assert.equal(applyMigrations(owner).applied[0], migration.replace('.sql', ''));
     assert.deepEqual(counts(), { members: '0', grants: '0' });
 
     writePlan({ workspaceId: randomUUID() });

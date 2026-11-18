@@ -7,7 +7,7 @@ import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerArchive, customerJobStep, customerJobSubject, customerSchedules, isCustomerJob,
   type CustomerGoogleArchiveTarget } from '../../../scripts/customer-collection.mjs';
-import { customerCollectionPolicy, revenueWebhookId, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
+import { customerCollectionPolicy, isCustomerDataForSeoJob, revenueWebhookId, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
 import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
@@ -31,6 +31,7 @@ import { runPullAdapter, type PullAssetConfig } from './pull.js';
 import { runCountersScrape, type CountersConfig } from './counters.js';
 import { runPosthogDumps } from './posthog-dumps.js';
 import { runClarityDumps } from './clarity-dumps.js';
+import { runCustomerDataForSeo } from './customer-dataforseo.js';
 import { isolateState } from './isolate-state.js';
 
 interface ScheduleEnv extends IngestEnv {
@@ -38,6 +39,7 @@ interface ScheduleEnv extends IngestEnv {
   NOTICEOS_SCHEDULE_GRANTS?: string;
   NOTICEOS_SCHEDULE_GRANT_DB?: { connectionString: string };
   NOTICEOS_CUSTOMER_COLLECTION?: string;
+  NOTICEOS_CUSTOMER_PAID_SCHEDULE?: boolean;
 }
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const denied = () => new Response(null, { status: 403 });
@@ -92,6 +94,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const planning = url.href === CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL;
+    const paidWorker = this.env.NOTICEOS_CUSTOMER_PAID_SCHEDULE === true;
     if (workspaceProfile(this.env) !== 'hosted' || (!planning && url.href !== 'https://scheduler.internal/collect')
       || request.method !== 'POST' || !this.env.NOTICEOS_SCHEDULE_GRANT_DB || !this.env.NOTICEOS_SCHEDULE_GRANTS
       || !this.env.NOTICEOS_WORKSPACE_DATABASE_URL) return denied();
@@ -102,7 +105,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     const { workspaceId, job, asset, occurrence } = body;
     if (typeof workspaceId !== 'string' || !uuid.test(workspaceId)) return denied();
     if (planning) {
-      if (Object.keys(body).length !== 1) return denied();
+      if (paidWorker || Object.keys(body).length !== 1) return denied();
       return this.inWorkspace(request, workspaceId, async store => {
         const policy = this.collectionPolicy();
         if (!policy?.extendedArchives || !policy.googleDaily) return denied();
@@ -113,6 +116,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     if (!isCustomerJob(job)
       || (asset !== null && (typeof asset !== 'string' || !asset.length || asset.length > 512))
       || typeof occurrence !== 'string' || occurrence.length > 128) return denied();
+    const paid = isCustomerDataForSeoJob(job);
+    if (paid !== paidWorker || paid && asset !== null) return denied();
     const archive = customerArchive(body.archive);
     if (job === 'signal-dumps' ? !archive || asset === null : body.archive !== undefined) return denied();
     const [at, suffix, extra] = occurrence.split('/');
@@ -121,11 +126,11 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     const digest = asset === null ? 'workspace' : Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
       new TextEncoder().encode(customerJobSubject(asset, archive ?? undefined)))), byte => byte.toString(16).padStart(2, '0')).join('');
     if (suffix !== digest) return denied();
-    return this.inWorkspace(request, workspaceId, async (store, principalId) => {
-      const claimed = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_job_occurrences
+    return this.inWorkspace(request, workspaceId, async (store, principalId, recheckGrant) => {
+      const hasClaim = async () => (await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_job_occurrences
         WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3 AND state='running' AND service_id=$4::uuid
-          AND effect_step=$5 AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId, customerJobStep(job)]));
-      if (!claimed.length) return denied();
+          AND effect_step=$5 AND lease_expires_at>clock_timestamp()`, [workspaceId, job, occurrence, principalId, customerJobStep(job)]))).length === 1;
+      if (!await hasClaim()) return denied();
       const policy = this.collectionPolicy();
       // The collector re-resolves this one property before any outbound call.
       const claimedGoogle = policy?.extendedArchives && asset !== null && archive && archive.provider !== 'bing-webmaster'
@@ -150,6 +155,30 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
         if (response.status === 401) authorization?.reject();
         return response;
       };
+      if (paid) {
+        const approval = policy?.paidDataForSeo.find(item => item.workspaceId === workspaceId);
+        const assets = plan.portfolioAssets;
+        if (!approval || !assets?.length || !env.RAW_SIGNALS) return denied();
+        const refused = new AbortController();
+        const result = await runCustomerDataForSeo(env, {
+          job, approval: { ...approval, assets: approval.assets.filter(item => assets.includes(item.asset)) },
+          signal: AbortSignal.any([signal, refused.signal]),
+          async authorizePurchase() {
+            try {
+              await recheckGrant();
+              if (!await hasClaim()) throw new Error('The paid schedule claim expired.');
+            } catch (error) {
+              refused.abort();
+              throw error;
+            }
+          },
+        }, { fetchImpl });
+        if (result.refused || result.outcomes.some(outcome => outcome.unconfirmedCost)) {
+          return new Response(null, { status: 503 });
+        }
+        const { attempted, succeeded, unchanged, failed } = result;
+        return Response.json({ attempted, succeeded, unchanged, failed });
+      }
       if ((job === 'hygiene' || job === 'freshness') && policy && asset !== null) {
         return Response.json(await runCustomerSiteCheck(env, policy, workspaceId, asset, job, fetchImpl));
       }
@@ -257,7 +286,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       ? customerCollectionPolicy(JSON.parse(this.env.NOTICEOS_CUSTOMER_COLLECTION)) : undefined;
   }
 
-  private async inWorkspace(request: Request, workspaceId: string, work: (store: WorkspaceStore, principalId: string) => Promise<Response>): Promise<Response> {
+  private async inWorkspace(request: Request, workspaceId: string,
+    work: (store: WorkspaceStore, principalId: string, recheckGrant: () => Promise<void>) => Promise<Response>): Promise<Response> {
     const { NOTICEOS_WORKSPACE_DATABASE_URL: connectionString, NOTICEOS_SCHEDULE_GRANTS: scheduleGrants,
       NOTICEOS_SCHEDULE_GRANT_DB: grantDatabase } = this.env;
     if (!connectionString || !scheduleGrants || !grantDatabase) return denied();
@@ -270,9 +300,11 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
       const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer collection'), authority: () => grant.facts() });
       // Admission snapshots the headers. The bounded JSON body has already been consumed.
       const proof = new Request(request.url, { method: request.method, headers: request.headers, signal: request.signal });
-      return await admission.withAdmission('workflows.run', { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() }, proof, async () => {
+      const selection = { requestedWorkspaceId: workspaceId, correlationId: crypto.randomUUID() };
+      const recheckGrant = () => admission.withAdmission('workflows.run', selection, proof, async () => undefined);
+      return await admission.withAdmission('workflows.run', selection, proof, async () => {
         const store = openWorkspaceStore(connectionString, { workspaceId, maxConnections: 1 });
-        try { return await work(store, principalId); }
+        try { return await work(store, principalId, recheckGrant); }
         finally { await store.close(); }
       });
     } catch (error) {

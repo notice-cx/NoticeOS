@@ -9,6 +9,7 @@ import { NEW_INSTALL_NAMES, readResourceNames } from '../../scripts/resource-nam
 import { ContainerRefusal } from './development.mjs';
 import { CUSTOMER_BACKUP_CLIENT, CUSTOMER_BACKUP_EFFECT_MS, CUSTOMER_BACKUP_PATH } from '../../scripts/customer-backup.mjs';
 import { D1_FAILURE_LABELS } from '../../packages/contract/src/cloudflare-d1.mjs';
+import { customerDataForSeoFacts } from '../../scripts/customer-collection-policy.mjs';
 
 const marker = '/state/installation/customer-runtime.enabled';
 const selected = '/tmp/noticeos-running-profile';
@@ -151,14 +152,26 @@ export async function verifyComposeCustomerFollowups(operating) {
 }
 
 export async function verifyComposeCustomerCollection(operating) {
-  if (!operating.collectorProviders.includes('clarity')) return;
+  const clarity = operating.collectorProviders.includes('clarity');
+  const workspaceId = operating.workspaces[0].workspaceId;
+  const paid = operating.paidDataForSeo?.find(approval => approval.workspaceId === workspaceId);
+  if (!clarity && !paid) return;
   const { openWorkspaceStore } = await import('../../packages/postgres/src/store.mjs');
-  const store = openWorkspaceStore(operating.address, { workspaceId: operating.workspaces[0].workspaceId, maxConnections: 1 });
+  const store = openWorkspaceStore(operating.address, { workspaceId, maxConnections: 1 });
   try {
-    const connected = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.integration_connections c
-      JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
-      WHERE c.workspace_id=$1::uuid AND c.provider='clarity' LIMIT 1`, [tx.workspaceId]));
-    if (!connected.length) throw new ContainerRefusal('Connect Microsoft Clarity in the standalone Tower before enabling its customer schedule.');
+    if (clarity) {
+      const connected = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.integration_connections c
+        JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
+        WHERE c.workspace_id=$1::uuid AND c.provider='clarity' LIMIT 1`, [tx.workspaceId]));
+      if (!connected.length) throw new ContainerRefusal('Connect Microsoft Clarity in the standalone Tower before enabling its customer schedule.');
+    }
+    if (paid) {
+      const facts = await customerDataForSeoFacts(store, paid);
+      if (!facts.budgetReady) throw new ContainerRefusal('Apply the DataForSEO budget migrations with the operator migration command before enabling paid collection.');
+      if (!facts.connectionMatches) throw new ContainerRefusal('Review the saved DataForSEO connection and renew its paid scheduling approval.');
+      if (!facts.savedCap) throw new ContainerRefusal('Save a positive monthly data cap in Settings before scheduling paid DataForSEO.');
+      if (facts.eligibleAssets.length !== paid.assets.length) throw new ContainerRefusal('Review the assets selected for paid DataForSEO. Include only eligible assets in this workspace.');
+    }
   } finally { await store.close(); }
 }
 

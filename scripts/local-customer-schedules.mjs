@@ -3,6 +3,7 @@ import { Cron } from 'croner';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerJobStep, customerJobSubject, customerSchedules } from './customer-collection.mjs';
+import { isCustomerDataForSeoJob } from './customer-collection-policy.mjs';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
@@ -12,6 +13,7 @@ import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
 const privateUrl = 'https://scheduler.internal/collect';
+const PAID_BATCH_LIMIT_MS = 15 * MINUTE;
 const POSTHOG_LIMIT_MS = 4 * MINUTE;
 const GOOGLE_ARCHIVE_LIMIT_MS = 10 * MINUTE;
 const BING_ARCHIVE_LIMIT_MS = 3 * MINUTE;
@@ -161,8 +163,9 @@ async function readBackupSchedule(store) {
   return scheduleFor(manualScheduledJob('backup'), overrides);
 }
 
-export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now,
+export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, paidWorker, reports, now = Date.now,
   resumeSince, backupResumeSince, collection, backup, taskFollowups }) {
+  if (collection?.paidDataForSeo?.length && !paidWorker) throw new Error('Paid DataForSEO requires its private scheduling Worker.');
   const ids = new Set();
   for (const binding of workspaces) {
     if (!binding.workspaceId || !binding.serviceId || ids.has(binding.workspaceId)) throw new Error('Invalid customer schedule binding.');
@@ -216,6 +219,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     const scoped = resources(effectBinding);
     const reporting = job === 'panel-refresh';
     const snapshot = job === 'backup';
+    const paid = isCustomerDataForSeoJob(job);
     let backupResult;
     const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
       steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : customerJobStep(job), kind: 'effect', action: filing ? 'tasks.write' : 'workflows.run',
@@ -232,14 +236,14 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         }
         if (reporting) return await reports.run({ store: scoped.store, workspaceId: context.workspaceId, asset, scheduledAt, signal })
           ?? { state: 'skipped', summary: 'No eligible reports were archived.' };
-        const response = await worker.fetch(new Request(privateUrl, { method: 'POST', signal,
+        const response = await (paid ? paidWorker : worker).fetch(new Request(privateUrl, { method: 'POST', signal,
           headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: binding.workspaceId, job, asset, archive, occurrence }) }));
         if (!response.ok) throw new Error('Customer collection was refused.');
         return response.json();
       } }] }];
     const runner = createHostedJobRunner({ ...effectBinding, ...scoped, definitions,
       effectTimeoutMs: snapshot ? CUSTOMER_BACKUP_EFFECT_MS : reporting ? REPORT_EFFECT_LIMIT_MS
-        : job === 'posthog' ? POSTHOG_LIMIT_MS
+        : paid ? PAID_BATCH_LIMIT_MS : job === 'posthog' ? POSTHOG_LIMIT_MS
         : archive?.provider === 'bing-webmaster' ? BING_ARCHIVE_LIMIT_MS
         : collection?.extendedArchives && archive ? GOOGLE_ARCHIVE_LIMIT_MS : 90_000 });
     active.add(runner);

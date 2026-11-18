@@ -14,7 +14,7 @@ const ROLES = { app: 'noticeos_app', identity: 'noticeos_identity', grant: 'noti
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/iu;
 const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'mailDelivery', 'ntasksOrigin',
-  'googleDaily', 'extendedArchives', 'collectorProviders', 'sitePulls', 'siteReports', 'siteChecks', 'revenueNotices', 'taskFollowups']);
+  'googleDaily', 'extendedArchives', 'collectorProviders', 'sitePulls', 'siteReports', 'siteChecks', 'revenueNotices', 'taskFollowups', 'paidDataForSeo']);
 
 export class CustomerOperatingRefused extends Error {}
 function refused() { return new CustomerOperatingRefused('Use a private customer config for one separately provisioned loopback Postgres database.'); }
@@ -124,7 +124,8 @@ function customerOperating(config, plan, compose = false) {
       .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
     const collection = customerCollectionPolicy(config);
     const approvedWorkspaces = new Set(workspaces.map(workspace => workspace.workspaceId));
-    if ([...collection.sitePulls, ...collection.siteChecks, ...collection.revenueNotices].some(entry => !approvedWorkspaces.has(entry.workspaceId))
+    if ([...collection.sitePulls, ...collection.siteChecks, ...collection.revenueNotices, ...collection.paidDataForSeo]
+      .some(entry => !approvedWorkspaces.has(entry.workspaceId))
       || collection.taskFollowups.some(entry => !approvedWorkspaces.has(entry.workspaceId) || !config.ntasksOrigin
         || workspaces.some(binding => binding.serviceId === entry.serviceId))) throw refused();
     return { target, address: app.href, identityAddress: identity.href, grantAddress: grant.href,

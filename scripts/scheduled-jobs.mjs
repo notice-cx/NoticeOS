@@ -80,6 +80,8 @@ export const SCHEDULED_JOBS = [
 ];
 export const CUSTOMER_SCHEDULED_JOBS = [
     { id: 'site-counters', customerOnly: true, surface: 'system', label: 'Asset counters', group: 'Asset health', cron: '*/15 * * * *' },
+    { id: 'dataforseo-recovery', customerOnly: true, surface: 'system', label: 'Missed search reports', group: 'Business signals',
+        cron: '15 12 * * *', source: 'DataForSEO', connections: ['dataforseo'] },
 ];
 export const ALL_SCHEDULED_JOBS = [...SCHEDULED_JOBS, ...CUSTOMER_SCHEDULED_JOBS];
 /**

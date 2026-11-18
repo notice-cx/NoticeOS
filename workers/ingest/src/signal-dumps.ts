@@ -491,6 +491,8 @@ interface ManifestSuccess {
   contentSha256: string;
   objectBytes: number;
   providerCostUsd?: number;
+  dataForSeoCostAccountedUsd?: number;
+  knownZeroCost?: true;
 }
 
 interface ManifestFailure {
@@ -502,6 +504,7 @@ interface ManifestFailure {
   dataState: DumpDataState;
   error: SignalError;
   providerCostUsd?: number;
+  dataForSeoCostAccountedUsd?: number;
   /** No purchase happened, or a separate archive row already carries its cost. */
   knownZeroCost?: true;
 }
@@ -1232,6 +1235,8 @@ interface ArchiveInput {
   dataState: DumpDataState;
   collected: CollectedDump;
   providerCostUsd?: number;
+  dataForSeoCostAccountedUsd?: number;
+  knownZeroCost?: true;
 }
 
 async function storeCollectedDump(
@@ -1311,6 +1316,8 @@ async function storeCollectedDump(
       contentSha256,
       objectBytes: prior.objectBytes,
       providerCostUsd,
+      dataForSeoCostAccountedUsd: input.dataForSeoCostAccountedUsd,
+      knownZeroCost: input.knownZeroCost,
     });
     return {
       asset: target.asset,
@@ -1372,6 +1379,8 @@ async function storeCollectedDump(
     contentSha256,
     objectBytes: object.size,
     providerCostUsd,
+    dataForSeoCostAccountedUsd: input.dataForSeoCostAccountedUsd,
+    knownZeroCost: input.knownZeroCost,
   });
   return {
     asset: target.asset,
@@ -1697,14 +1706,16 @@ SELECT object_seq FROM noticeos.archive_objects
 const INSERT_RUN_SQL = `INSERT INTO noticeos.archive_runs
   (workspace_id, run_id, asset_id, integration, report, credential_ref, property_ref, report_date,
    requested_at, finished_at, status, data_state, schema_version, provider_rows, request_count,
-   provider_truncated, object_seq, error_code, error_message, cost_usd, cost_state)
+   provider_truncated, object_seq, error_code, error_message, cost_usd, cost_state, dataforseo_cost_accounted_usd)
 VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9::timestamptz, $10::timestamptz, $11, $12, $13, $14, $15,
-        $16, $17::bigint, $18::text, $19::text, $20::numeric, $21)`;
+        $16, $17::bigint, $18::text, $19::text, $20::numeric, $21, $22::numeric)`;
 
 async function recordDumpSuccess(store: WorkspaceStore, manifest: ManifestSuccess): Promise<void> {
   const id = crypto.randomUUID();
   const finishedAt = new Date().toISOString();
-  const cost = storedProviderCost(manifest.target.integration, manifest.providerCostUsd ?? 0);
+  const cost = manifest.knownZeroCost && (manifest.providerCostUsd === undefined || manifest.providerCostUsd === 0)
+    ? { usd: 0, state: 'reported' as const }
+    : storedProviderCost(manifest.target.integration, manifest.providerCostUsd ?? 0);
   const incomplete = manifest.providerTruncated && !depthBoundedReports(manifest.target.integration).includes(manifest.report);
   await persistCollectionAttempt({
     target: manifest.target,
@@ -1728,7 +1739,7 @@ async function recordDumpSuccess(store: WorkspaceStore, manifest: ManifestSucces
         manifest.target.credentialRef, manifest.target.propertyRef, manifest.reportDate,
         manifest.requestedAt, finishedAt, manifest.status, manifest.dataState, SCHEMA_VERSION,
         manifest.providerRows, manifest.requestCount, manifest.providerTruncated, object.object_seq,
-        null, null, cost.usd, cost.state,
+        null, null, cost.usd, cost.state, manifest.dataForSeoCostAccountedUsd ?? 0,
       ]);
     }),
   );
@@ -1754,7 +1765,7 @@ async function recordDumpFailure(store: WorkspaceStore, manifest: ManifestFailur
         tx.workspaceId, id, manifest.target.asset, manifest.target.integration, manifest.report,
         manifest.target.credentialRef, manifest.target.propertyRef, manifest.reportDate,
         manifest.requestedAt, finishedAt, 'error', manifest.dataState, SCHEMA_VERSION,
-        0, 0, false, null, manifest.error.code, manifest.error.message.slice(0, 500), cost.usd, cost.state,
+        0, 0, false, null, manifest.error.code, manifest.error.message.slice(0, 500), cost.usd, cost.state, manifest.dataForSeoCostAccountedUsd ?? 0,
       ]),
     ),
   );
@@ -2154,6 +2165,7 @@ export async function archiveDumpFailure(
     dataState: DumpDataState;
     error: SignalError;
     providerCostUsd?: number;
+    dataForSeoCostAccountedUsd?: number;
     knownZeroCost?: true;
   },
 ): Promise<SignalDumpOutcome> {

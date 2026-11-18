@@ -33,6 +33,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   'signal-dumps': [action('archives', 'Archive traffic and search', 'Stores the available Google and Bing reporting archives.', 'collection'), action('search-recovery', 'Recover missed search intelligence', 'Re-collects reports an internet outage skipped.', 'collection')],
   posthog: [action('product', 'Archive product analytics', 'Stores each connected asset’s PostHog report families.', 'collection')],
   dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
+  'dataforseo-recovery': [action('search', 'Recover missed search reports', 'Retrieves approved reports missed during an internet outage within the saved budget.', 'collection')],
   'ga4-realtime': [action('traffic', 'Retain realtime traffic', 'Records per-minute activity and live user counts for connected properties.', 'collection')],
   counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
   'site-counters': [action('counters', 'Refresh asset counters', 'Reads the configured counter feed.', 'collection')],

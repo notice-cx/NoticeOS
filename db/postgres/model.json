@@ -130,6 +130,14 @@
       },
       "rule": "Append-only."
     },
+    "dataforseo_request_charges": {
+      "revision": {
+        "insert": true,
+        "update": ["provider_cost_usd", "provider_completed"],
+        "delete": false
+      },
+      "rule": "One durable reservation per attempted paid DataForSEO call. One settlement can record the known cost and whether the provider reported completion. An unsettled call keeps its reserve in its original UTC month."
+    },
     "research_log": {
       "revision": {
         "insert": true,

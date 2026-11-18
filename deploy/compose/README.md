@@ -267,6 +267,24 @@ in the encrypted workspace connection in standalone mode before switching
 if they are currently saved as environment bindings. The preflight checks for
 the saved Clarity connection when it is enabled in `collectorProviders`.
 
+Paid DataForSEO collection requires a separate `paidDataForSeo` entry in the
+private customer declaration. Set `workspaceId`, the saved DataForSEO
+`connectionId` and its `secretVersion`. In `assets`, list each approved asset
+as an object with its `asset` ID and its own `families` array. Set `weekly`
+and `recovery` independently to approve the regular collection and daily
+recovery of reports missed during an internet outage. The same
+`approvedMonthlyCapUsd` covers all approved assets and both jobs. Each
+request is subject to the lower of that ceiling and the monthly data cap in
+Settings, using the UTC calendar month. An unconfirmed charge reserves its
+amount for that month. Provider-confirmed completion and cost block another
+purchase of the same request for that report date, even when the result
+cannot be archived. The preflight checks the workspace, saved connection,
+eligible assets and cap without contacting DataForSEO. After replacing or
+rotating the credential, review the saved connection and update the private
+approval before resuming paid collection. Keep this app release when returning
+to standalone after a paid run so it still applies saved reservations and
+checks for unconfirmed requests.
+
 For each enabled nightly site report or counter feed already pulled by this
 app, add a `sitePulls` entry with the
 enrolled `workspaceId`, its `asset` ID and the exact approved HTTPS `urls`

@@ -13,6 +13,7 @@ import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtif
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
 import { localCustomerOutbound, localD1BackupOutbound } from './local-customer-egress.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
+import { localDataForSeoOutbound } from './customer-dataforseo-egress.mjs';
 import { localCustomerTaskFollowups } from './local-customer-task-followups.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
@@ -352,6 +353,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
     const peerProof = randomBytes(32).toString('base64url');
     const scheduleProof = randomBytes(32).toString('base64url');
+    const paidScheduleProof = randomBytes(32).toString('base64url');
     const backupProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const { Miniflare, Log } = v4Miniflare(createRequire(require.resolve('wrangler/package.json')));
@@ -369,18 +371,27 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       outboundService });
     const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest, ingestOutbound);
     const collection = operating ? customerCollectionPolicy(operating) : undefined;
+    const { paidDataForSeo = [], ...freeCollection } = collection ?? {};
     const isolated = collection && (collection.googleDaily || collection.collectorProviders.length || collection.sitePulls.length
       || collection.siteChecks.length || collection.revenueNotices.length || collection.taskFollowups.length);
+    const paid = Boolean(startSchedules && paidDataForSeo.length);
     const scheduleName = isolated ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
       ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
     const backup = deployment?.backup;
     if (backup && (!startSchedules || serviceWorkspaces.length !== 1)) throw new Error('Customer backup requires one declared workspace.');
     const scheduleBindings = grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces),
-      ...(collection ? { NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify(collection) } : {}) } : {};
+      ...(collection ? { NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify(freeCollection) } : {}) } : {};
     const scheduleTransport = grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {};
     const ingestBindings = { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}) };
     const archive = { r2Buckets: { RAW_SIGNALS: deployment?.archiveBucket ?? 'customer-raw-signals' } };
+    const scheduleTrigger = (name, service, proof) => ({ name, modules: true, compatibilityDate: ingest.compatibilityDate,
+      script: `export default {fetch(r,e){
+        if (r.headers.get('${SCHEDULE_HEADER}') !== e.PROOF) return new Response(null,{status:403});
+        if (r.method === 'HEAD' && new URL(r.url).pathname === '/health') return new Response(null,{status:204});
+        return e.SCHEDULE.fetch(r);
+      }}`, bindings: { PROOF: proof },
+      serviceBindings: { SCHEDULE: { name: service, entrypoint: 'CustomerSchedule' } } });
     runtime = new Miniflare({ host: HOST, port: 0, cf: { colo: 'LOCAL' }, inspectorPort: undefined,
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
@@ -400,16 +411,18 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
           ...(ntasksOrigin === null ? {} : { NOTICEOS_NTASKS_ORIGIN: ntasksOrigin }) },
           ...(isolated ? {} : scheduleTransport) },
         ...(isolated ? [{
-          ...worker(scheduleName, artifact.ingest, localCustomerOutbound({ ...collection, signal: operating.signal,
+          ...worker(scheduleName, artifact.ingest, localCustomerOutbound({ ...freeCollection, signal: operating.signal,
             transport: operating.collectorTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
         }] : []),
-        ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
-          script: `export default {fetch(r,e){
-            if (r.headers.get('${SCHEDULE_HEADER}') !== e.PROOF) return new Response(null,{status:403});
-            if (r.method === 'HEAD' && new URL(r.url).pathname === '/health') return new Response(null,{status:204});
-            return e.SCHEDULE.fetch(r);
-          }}`, bindings: { PROOF: scheduleProof },
-          serviceBindings: { SCHEDULE: { name: scheduleName, entrypoint: 'CustomerSchedule' } } }] : []),
+        ...(startSchedules ? [scheduleTrigger('customer-schedule-trigger', scheduleName, scheduleProof)] : []),
+        ...(paid ? [{
+          ...worker('customer-paid-ingest', artifact.ingest, localDataForSeoOutbound({ signal: operating.signal,
+            transport: operating.dataForSeoTransport })), ...archive, ...scheduleTransport, bindings: {
+            NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_DATABASE_URL: connectionString,
+            ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}),
+            NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces), NOTICEOS_CUSTOMER_PAID_SCHEDULE: true,
+            NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify({ paidDataForSeo }) },
+        }, scheduleTrigger('customer-paid-trigger', 'customer-paid-ingest', paidScheduleProof)] : []),
         ...(backup ? [{ ...worker('customer-backup-ingest', artifact.ingest, localD1BackupOutbound({ signal: operating.signal,
           transport: deployment.backupD1Transport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings,
           NOTICEOS_BACKUP_WORKSPACE: serviceWorkspaces[0].workspaceId, NOTICEOS_BACKUP_SERVICE: serviceWorkspaces[0].serviceId } },
@@ -446,9 +459,21 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     if (backup) await listen(); // A backup due at startup may need the sidecar's gateway immediately.
     if (startSchedules) {
       operating?.signal.throwIfAborted();
-      const trigger = await runtime.getWorker('customer-schedule-trigger');
-      probe = signal => trigger.fetch('https://scheduler.internal/health', { method: 'HEAD',
-        headers: { [SCHEDULE_HEADER]: scheduleProof }, signal });
+      const scopedSchedule = async (name, secret) => {
+        const trigger = await runtime.getWorker(name);
+        return { fetch(input, init) {
+          const request = new Request(input, init);
+          request.headers.set(SCHEDULE_HEADER, secret);
+          return trigger.fetch(request);
+        } };
+      };
+      const scheduler = await scopedSchedule('customer-schedule-trigger', scheduleProof);
+      const paidWorker = paid ? await scopedSchedule('customer-paid-trigger', paidScheduleProof) : undefined;
+      probe = async signal => {
+        const check = worker => worker.fetch('https://scheduler.internal/health', { method: 'HEAD', signal });
+        const result = await check(scheduler);
+        return result.status === 204 && paidWorker ? check(paidWorker) : result;
+      };
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       const reportRoot = privateDirectory(reports, !existsSync(reports));
@@ -457,13 +482,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         taskFollowups: collection?.taskFollowups.length ? localCustomerTaskFollowups({ sourceRoot: plan.root,
           root: reportRoot, credentialsKey, ntasksOrigin, transport: operating.collectorTransport }) : undefined,
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
-          root: reportRoot, bucket }), worker: {
-          fetch(input, init) {
-            const proof = new Request(input, init);
-            proof.headers.set(SCHEDULE_HEADER, scheduleProof);
-            return trigger.fetch(proof);
-          },
-        }, bucket });
+          root: reportRoot, bucket }), worker: scheduler, paidWorker, bucket });
     }
     operating?.signal.throwIfAborted();
     if (deployment && ((backup && !schedules?.manualBackup) || !await customerWorkerdReady(schedulerReady, probe))) {

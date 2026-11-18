@@ -79,14 +79,12 @@ Reviewers can propose term changes when they affect a recurring decision.
   the overview fails to load the archive says *unknown*; only a cleanly parsed
   page with no overview says *no*. The CSV keeps that as empty-vs-`false`, and
   the query decisions treat unknown like an untracked query.
-- **Cost rides the existing gate.** Each query is one metered call per device
-  (`SERP_PANEL_CALL_USD`, about $0.004). The collector reserves the same
-  per-report amount (`MAX_REPORT_COST_USD`, $0.25) as every other family and
-  fails closed under the portfolio `monthly_caps.data_usd` cap; both devices'
-  calls land on one manifest row, so the spend meter shows the real weekly
-  bill. The money facts live in `packages/contract/src/dataforseo.ts` so the
-  Growth tab and the collector price a term identically;
-  `workers/ingest/src/dataforseo-dumps.ts` owns the enforcement.
+- **Cost uses the saved monthly cap.** Each query is one metered call per device
+  (`SERP_PANEL_CALL_USD`, about $0.004). The collector checks the existing $0.25
+  allowance for a report, then reserves each call before sending it. Known bills
+  replace their reservations and count in the UTC month of the request. An
+  unanswered call keeps its reserve in that month. Both devices still share
+  one archive and its full reported cost.
 - Editing the panel changes what the asset is *measured on*. Record the
   reason a term came or went where the decision lives, not here.
 
