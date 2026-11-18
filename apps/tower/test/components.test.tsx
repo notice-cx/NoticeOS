@@ -3693,6 +3693,9 @@ describe("phone mode — the tab strip scrolls, the page does not", () => {
     expect(tabs[0]).toHaveFocus();
     expect(list.scrollLeft).toBe(0);
     expect(selected).toHaveAttribute("aria-selected", "true");
+    view.rerender(strip(path, SEVEN.map(tab => ({ ...tab, count: 10 }))));
+    expect(tabs[0]).toHaveFocus();
+    expect(list.scrollLeft).toBe(0);
     fireEvent.keyDown(tabs[0]!, { key: "End" });
     expect(selected).toHaveFocus();
     expect(list.scrollLeft).toBe(450);

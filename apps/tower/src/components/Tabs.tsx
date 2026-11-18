@@ -76,18 +76,21 @@ function revealTab(strip: HTMLElement, tab: HTMLElement) {
 export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
   const { pathname } = useLocation();
   const list = useRef<HTMLDivElement | null>(null);
+  const revealedPath = useRef<string | null>(null);
 
   // The scroll below must re-run when a count changes, not only the route:
   // counts arrive a beat after first paint and move every tab to their right.
   const measure = tabs.map((tab) => `${tab.key}:${tab.count ?? ""}`).join("|");
 
-  // Brings the selected tab into the scrolling strip. The strip's own
-  // `scrollLeft`, not `scrollIntoView`: that also scrolls every ancestor, so
-  // selecting a tab would jump the page.
+  // Count updates can shift tabs while keyboard focus is on an unselected tab.
+  // Reveal selection on navigation and preserve focus during count updates.
   useEffect(() => {
     const strip = list.current;
-    const selected = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (strip && selected) revealTab(strip, selected);
+    if (!strip) return;
+    const focused = revealedPath.current === pathname ? strip.querySelector<HTMLElement>('[role="tab"]:focus') : null;
+    const tab = focused ?? strip.querySelector<HTMLElement>('[aria-selected="true"]');
+    revealedPath.current = pathname;
+    if (tab) revealTab(strip, tab);
   }, [pathname, measure]);
 
   function move(event: KeyboardEvent<HTMLDivElement>) {
