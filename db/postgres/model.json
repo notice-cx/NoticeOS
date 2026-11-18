@@ -1,5 +1,29 @@
 {
   "targets": {
+    "analysis_workflows": {
+      "revision": {
+        "insert": true,
+        "update": ["enabled", "version", "updated_at"],
+        "delete": false
+      },
+      "rule": "A customer names a template, asset list and schedule on creation. Later changes only pause or resume new runs."
+    },
+    "analysis_workflow_runs": {
+      "revision": {
+        "insert": true,
+        "update": ["result", "completed_by", "completed_client_id", "completed_at"],
+        "delete": false
+      },
+      "rule": "Inputs and retry links are immutable. An accepted result and its completing actor can be recorded once."
+    },
+    "analysis_workflow_assignments": {
+      "revision": {
+        "insert": true,
+        "update": ["task_id", "linked_at"],
+        "delete": false
+      },
+      "rule": "Each run reserves one project assignment. A verified task can be linked once."
+    },
     "workspaces": {
       "revision": {
         "insert": false,
@@ -711,6 +735,13 @@
     "alert_daily_counts.asset_id": {
       "unique": "one",
       "means": "The whole-workspace row (the legacy '*'): one per day."
+    },
+    "analysis_workflow_assignments.task_id": {
+      "unique": "many",
+      "means": "The run has reserved an assignment but has no confirmed task."
+    },
+    "analysis_workflow_runs.retry_of": {
+      "means": "An original manual or scheduled run with no earlier run."
     },
     "assets.domain": {
       "unique": "excluded",

@@ -104,7 +104,7 @@ test('an agent registers, its person approves it once, and its token reaches eac
     // Discovery: the MCP endpoint names this server; this server describes itself.
     const resource = await (await call(PROTECTED_RESOURCE_METADATA_PATH)).json();
     assert.deepEqual(resource, { resource: `${origin}/api/mcp`, authorization_servers: [`${origin}/api/auth`],
-      scopes_supported: ['tasks:read', 'tasks:write', 'evidence:read'], bearer_methods_supported: ['header'], resource_name: 'NoticeOS' });
+      scopes_supported: ['tasks:read', 'tasks:write', 'evidence:read', 'analysis:review'], bearer_methods_supported: ['header'], resource_name: 'NoticeOS' });
     const server = await (await call(AUTHORIZATION_SERVER_METADATA_PATH)).json();
     assert.equal(server.issuer, `${origin}/api/auth`);
     assert.equal(server.authorization_endpoint, `${origin}/api/auth/oauth2/authorize`);
@@ -114,10 +114,11 @@ test('an agent registers, its person approves it once, and its token reaches eac
     assert.equal(server.authorization_response_iss_parameter_supported, true);
 
     // Dynamic registration of a public client with a loopback redirect.
-    const register = async name => {
+    const register = async (name, scope) => {
       const registered = await call('/api/auth/oauth2/register', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ client_name: name, redirect_uris: [redirect], token_endpoint_auth_method: 'none',
-          grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] }) });
+          grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'],
+          ...(scope === undefined ? {} : { scope }) }) });
       const client = await registered.json();
       assert.equal(registered.status, 201, JSON.stringify(client));
       assert.equal(client.client_secret, undefined);
@@ -125,10 +126,10 @@ test('an agent registers, its person approves it once, and its token reaches eac
     };
     const client = await register('Example agent');
     const mcpUri = `${origin}/api/mcp`;
-    const authorize = async (forClient = client) => {
+    const authorize = async (forClient = client, scope = 'tasks:read tasks:write evidence:read offline_access') => {
       const verifier = base64url(randomBytes(32));
       const params = new URLSearchParams({ response_type: 'code', client_id: forClient.client_id, redirect_uri: redirect,
-        scope: 'tasks:read tasks:write evidence:read offline_access', state: base64url(randomBytes(12)), resource: mcpUri,
+        ...(scope === null ? {} : { scope }), state: base64url(randomBytes(12)), resource: mcpUri,
         code_challenge: base64url(createHash('sha256').update(verifier).digest()), code_challenge_method: 'S256' });
       const response = await call(`/api/auth/oauth2/authorize?${params}`, { headers: { cookie } });
       assert.equal(response.status, 302, await response.clone().text());
@@ -242,12 +243,31 @@ test('an agent registers, its person approves it once, and its token reaches eac
     const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
       membership: async () => assert.fail('an agent request never reads a browser session'),
       agent: (request, workspace) => identity.agentAuthority(request, workspace) });
-    const admitted = (action, requestedWorkspaceId) => admission.withAdmission(action,
-      { correlationId: 'agent-test', ...(requestedWorkspaceId ? { requestedWorkspaceId } : {}) }, bearer(operator), async context => context);
+    const admitted = (action, requestedWorkspaceId, token = operator) => admission.withAdmission(action,
+      { correlationId: 'agent-test', ...(requestedWorkspaceId ? { requestedWorkspaceId } : {}) }, bearer(token), async context => context);
     const context = await admitted('tasks.write', operated);
     assert.deepEqual([context.principalKind, context.principalId, context.workspaceId, context.agentClientId, context.sessionId],
       ['agent', person.id, operated, client.client_id, undefined]);
-    assert.deepEqual([...context.allowedActions].sort(), ['evidence.read', 'tasks.read', 'tasks.write']);
+    assert.deepEqual([...context.allowedActions].sort(), ['evidence.read', 'mcp.connect', 'tasks.read', 'tasks.write']);
+    await assert.rejects(admitted('analysis.complete', operated), 'earlier task and evidence consent grants no analysis ability');
+    const reviewClient = await register('Saved analysis reviewer', 'analysis:review');
+    const implicit = await authorize(reviewClient, null);
+    const implicitScope = await (await page(AGENT_ACCESS_PATHS.request, { oauth_query: implicit.location.search.slice(1) })).json();
+    assert.deepEqual(implicitScope.scopes.sort(), ['evidence:read', 'tasks:read', 'tasks:write']);
+    const review = await authorize(reviewClient, 'analysis:review');
+    assert.equal(review.location.pathname, '/agent-access');
+    const reviewQuery = review.location.search.slice(1);
+    const requestedScope = await (await page(AGENT_ACCESS_PATHS.request, { oauth_query: reviewQuery })).json();
+    assert.deepEqual(requestedScope.scopes, ['analysis:review']);
+    const reviewReady = new URL((await (await approve(reviewQuery, true)).json()).url);
+    const reviewer = await (await exchange(reviewReady.searchParams.get('code'), review.verifier, reviewClient)).json();
+    assert.ok(reviewer.access_token);
+    assert.deepEqual((await admitted('analysis.complete', operated, reviewer.access_token)).allowedActions.slice().sort(),
+      ['analysis.complete', 'analysis.read', 'mcp.connect']);
+    assert.equal((await admitted('analysis.read', viewed, reviewer.access_token)).workspaceId, viewed);
+    await assert.rejects(admitted('analysis.complete', viewed, reviewer.access_token));
+    await assert.rejects(admitted('analysis.assign', operated, reviewer.access_token));
+    await assert.rejects(admitted('evidence.read', operated, reviewer.access_token));
     await assert.rejects(admitted('tasks.decide', operated));
     await assert.rejects(admitted('tasks.read'), 'an agent call always names its workspace');
     await assert.rejects(admitted('tasks.read', randomUUID()));

@@ -28,6 +28,7 @@ query chooses that index or that its write cost has been measured.
 
 | Index | Query or integrity purpose |
 |---|---|
+| `analysis_workflow_runs_history` | Recent runs for one workspace workflow (`apps/tower/worker/analysis-workflow-store.ts`). |
 | `assets_one_os` | Enforces one OS asset per workspace (`workers/ingest/src/os-asset.ts`). |
 | `assets_one_per_domain` | Enforces one asset per non-null domain in a workspace (`workers/ingest/src/asset-registry.ts`). |
 | `pulses_received` | Asset receipt-time history for the `current_pulses` view and `apps/tower/worker/pulse-history.ts`. |

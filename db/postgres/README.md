@@ -498,6 +498,9 @@ by column; retention and maintenance privileges are checked separately.
 | Postgres table or view | What the application may do | Rule |
 |---|---|---|
 | `alert_daily_counts` | insert, update, delete | One row per asset per day, upserted; swept after 400 days. |
+| `analysis_workflow_assignments` | insert; update only task_id, linked_at | Each run reserves one project assignment. A verified task can be linked once. |
+| `analysis_workflow_runs` | insert; update only result, completed_by, completed_client_id, completed_at | Inputs and retry links are immutable. An accepted result and its completing actor can be recorded once. |
+| `analysis_workflows` | insert; update only enabled, version, updated_at | A customer names a template, asset list and schedule on creation. Later changes only pause or resume new runs. |
 | `analytical_exports` | read-only | Read-only for the application: the export job records, as noticeos_maint, the last day each dataset covers. |
 | `annotations` | append-only | Append-only. |
 | `archive_objects` | append-only | Append-only; objects are immutable. |

@@ -50,6 +50,10 @@
       "types": "./src/service-grant.d.mts",
       "default": "./src/service-grant.mjs"
     },
+    "./analysis-assignment": {
+      "types": "./src/analysis-assignment.d.mts",
+      "default": "./src/analysis-assignment.mjs"
+    },
     "./mutation-audit": {
       "types": "./src/mutation-audit.d.mts",
       "default": "./src/mutation-audit.mjs"

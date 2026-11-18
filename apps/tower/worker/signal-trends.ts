@@ -58,6 +58,8 @@ export interface SignalTrendOptions {
   /** When "now" is, for the evidence floor below. Defaults to the wall clock so
    * a caller that does not care need not thread it. */
   nowMs?: number;
+  /** Last permissible collection when reproducing a dated analysis. */
+  collectedThrough?: string;
 }
 
 /** An untouched set: every series present, every series empty. */
@@ -138,7 +140,7 @@ function everyTrend(
  * site's read its own, where Postgres would flatten the join into one pass).
  * The change's number breaks a tie between two filed at the same instant.
  */
-export function timeZoneChangesSql(narrowedTo: number): string {
+export function timeZoneChangesSql(narrowedTo: number, dated = false): string {
   return `SELECT a.asset_id AS asset, (n.at AT TIME ZONE 'UTC')::date AS "effectiveOn", n.ref AS ref
            FROM noticeos.assets a
            CROSS JOIN LATERAL (
@@ -146,6 +148,7 @@ export function timeZoneChangesSql(narrowedTo: number): string {
                FROM noticeos.annotations c
               WHERE c.workspace_id = a.workspace_id AND c.asset_id = a.asset_id
                 AND c.at >= (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
+                ${dated ? `AND c.at <= $${narrowedTo ? 3 : 2}::timestamptz` : ""}
                 AND c.kind = 'config' AND c.ref LIKE 'reporting-time-zone-changed:%'
              OFFSET 0) n
           ${narrowedTo > 0 ? "WHERE a.asset_id = ANY($2::text[])" : ""}
@@ -175,6 +178,7 @@ export function signalTrendsSql(options: {
   includeSecondarySeries: boolean;
   includeSessions: boolean;
   narrowed: boolean;
+  dated?: boolean;
 }): string {
   const webSearchClause = options.includeWebSearch
     ? `OR (latest.integration IN ('gsc', 'bing-webmaster') AND s.metric IN ('clicks', 'impressions'))`
@@ -200,6 +204,7 @@ export function signalTrendsSql(options: {
          AND candidate.integration = lanes.integration
          AND candidate.status = 'success'
          AND candidate.finished_at >= $1::timestamptz
+         ${options.dated ? `AND candidate.finished_at <= $${options.narrowed ? 4 : 3}::timestamptz` : ""}
        ORDER BY candidate.finished_at DESC, candidate.run_seq DESC
        LIMIT 1
     ) run ON true${options.narrowed ? `\n   WHERE a.asset_id = ANY($3::text[])` : ""}
@@ -265,6 +270,7 @@ export async function loadSignalTrends(
     asset,
     assets,
     nowMs = Date.now(),
+    collectedThrough,
     timeZone,
   }: SignalTrendOptions = {},
 ): Promise<Map<string, SignalTrendSet>> {
@@ -280,8 +286,8 @@ export async function loadSignalTrends(
   const rows = (
     await store.read((tx) =>
       tx.query<SignalSeriesRow>(
-        signalTrendsSql({ includeWebSearch, includeSecondarySeries, includeSessions, narrowed: narrowedTo > 0 }),
-        [floor, historyDays - 1, ...(narrowed === null ? [] : [narrowed])],
+        signalTrendsSql({ includeWebSearch, includeSecondarySeries, includeSessions, narrowed: narrowedTo > 0, dated: !!collectedThrough }),
+        [floor, historyDays - 1, ...(narrowed === null ? [] : [narrowed]), ...(collectedThrough ? [collectedThrough] : [])],
       ),
     )
   ).map((row) => ({ ...row, finishedAt: javascriptInstant(row.finishedAt) }));
@@ -301,8 +307,8 @@ export async function loadSignalTrends(
       ? []
       : await store.read((tx) =>
           tx.query<{ asset: string; effectiveOn: string; ref: string }>(
-            timeZoneChangesSql(narrowedTo),
-            narrowed === null ? [earliestPoint] : [earliestPoint, [...narrowed]],
+            timeZoneChangesSql(narrowedTo, !!collectedThrough),
+            [earliestPoint, ...(narrowed === null ? [] : [narrowed]), ...(collectedThrough ? [collectedThrough] : [])],
           ),
         );
   for (const row of changeRows) {

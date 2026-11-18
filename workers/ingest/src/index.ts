@@ -114,6 +114,7 @@ import { handleAssetState, handleAssetStateEdit } from './routes/asset-state.js'
 import { handleTaskSnapshot } from './routes/task-snapshot.js';
 import { handleTaskService, handleTaskServiceApp, TASK_SERVICE_APP_PATH, TASK_SERVICE_PATH } from './routes/task-service.js';
 import { handleHostedTaskService } from './routes/hosted-task-service.js';
+import { handleAnalysisAssignment } from './routes/analysis-assignment.js';
 import { refreshHostedTaskSummary } from './hosted-task-summary.js';
 import { handleCapacity } from './routes/capacity.js';
 import {
@@ -609,6 +610,13 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     await ingestOperation('hostedTaskRequest', original);
     return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
       store => handleHostedTaskService(original, { ...this.env, STORE: store }, call.context)));
+  }
+
+  async analysisAssignment(original: Request): Promise<Response> {
+    if (workspaceProfile(this.env) !== 'hosted' || !(original instanceof Request)) throw new WorkspaceEntryRefused();
+    await ingestOperation('analysisAssignment', original);
+    return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
+      store => handleAnalysisAssignment(original, { ...this.env, STORE: store }, call.context)));
   }
 
   async refreshHostedTaskSummary(original: Request): Promise<boolean> {

@@ -15,6 +15,7 @@ import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
+import { analysisAssignmentRequest, analysisWorkflowRequest } from './analysis-workflow-request.mjs';
 import { hostedTaskRequest, hostedTaskProof } from './hosted-task-request.mjs';
 export { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 export { workspaceProfile };
@@ -271,11 +272,15 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
     const googleStart = [GOOGLE_INTEGRATION_START, ADSENSE_INTEGRATION_START].includes(pathname) && proof.method === 'POST';
     const storedResearch = ['/api/mcp', '/api/alerts/backtest'].includes(pathname) && proof.method === 'POST';
     const reportGrant = siteReportGrantRequest(proof);
+    const analysisWorkflow = analysisWorkflowRequest(proof);
+    const analysisAssignment = analysisAssignmentRequest(proof);
+    if ((analysisWorkflow || analysisAssignment) && kind !== 'hosted')
+        refuse();
     if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
         && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
         && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
         && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
-        && !personPreferenceRequest(proof) && !task && !reportGrant)
+        && !personPreferenceRequest(proof) && !task && !reportGrant && !analysisWorkflow && !analysisAssignment)
         || selected.kind !== 'workspace' || selected.action === null)
         refuse();
     const origin = binding(env, 'workspaceOrigin');

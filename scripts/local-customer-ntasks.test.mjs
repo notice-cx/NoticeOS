@@ -20,6 +20,7 @@ import { openDevelopmentStart } from './start-development.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { assertCustomerShadowTarget } from './test/customer-shadow-target.mjs';
+import { assertAnalysisAssignment } from './test-fixtures/customer-analysis-assignment.mjs';
 import { assertNtasksShadowActivation } from './test/customer-shadow-activation.mjs';
 
 const tools = process.env.NOTICEOS_NTASKS_ROOT;
@@ -129,6 +130,8 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     assert.ok(wall.workProjects[0]?.capturedAt);
     assert.equal(wall.workProjects[0].open, 0);
     assert.equal((await http(`/api/tasks/${id}/respond`, { headers: elm.board, body: { projectId: elm.projectId, response: 'A fixture answer' } })).status, 401);
+    await t.test('one analysis handoff and one explicitly consented result stay in the selected workspace', () =>
+      assertAnalysisAssignment({ origin, http, owner: elm, otherOwner: oak, ntasks: client(elm), cluster: postgres.cluster }));
     const { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(postgres.customer, 'settings.json'), 'utf8'));
     const attachedConfig = path.join(root, 'attached.json');
     writeFileSync(attachedConfig, JSON.stringify({ format: 'noticeos-customer-operating/1', database: {

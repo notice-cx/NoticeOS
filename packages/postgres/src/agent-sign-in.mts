@@ -13,7 +13,7 @@ import { sql } from 'kysely';
 import { oauthProviderAuthServerMetadata, verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 import { isValidIP, normalizeIP } from '@better-auth/core/utils/ip';
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
-import { AGENT_ACCESS_PATHS, AGENT_OAUTH_ROUTES, AGENT_QUERY, AGENT_SCOPES, AUTHORIZATION_SERVER_METADATA_PATH,
+import { AGENT_ACCESS_PATHS, AGENT_DEFAULT_SCOPES, AGENT_OAUTH_ROUTES, AGENT_QUERY, AGENT_SCOPES, OFFLINE_ACCESS, AUTHORIZATION_SERVER_METADATA_PATH,
   PROTECTED_RESOURCE_METADATA_PATH, protectedResourceMetadata } from '../../../scripts/agent-access.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused,
@@ -97,6 +97,11 @@ export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
   }
   async function library(request: Request, url: URL): Promise<Response> {
     if (request.method !== AGENT_OAUTH_ROUTES[url.pathname]) return json({ error: 'method_not_allowed' }, 405);
+    // Registration stores allowed scopes. An authorization that omits scope
+    // retains the original defaults, so review requires an explicit request.
+    if (url.pathname === '/api/auth/oauth2/authorize' && !url.searchParams.has('scope')) {
+      url.searchParams.set('scope', [...AGENT_DEFAULT_SCOPES, OFFLINE_ACCESS].join(' '));
+    }
     let body: string | undefined;
     if (request.method === 'POST') {
       const type = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();

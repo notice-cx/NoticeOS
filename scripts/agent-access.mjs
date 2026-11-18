@@ -54,13 +54,16 @@ export function parseAgentAccessLanding(input) {
 /** The one MCP endpoint, and so the one protected resource. */
 export const AGENT_RESOURCE_PATH = '/api/mcp';
 export const AGENT_RESOURCE_NAME = 'NoticeOS';
+export const ANALYSIS_REVIEW_SCOPE = 'analysis:review';
 /** The workspace actions each scope grants. Write implies read: a token that
  * may change tasks may also see them. */
 export const AGENT_SCOPES = Object.freeze({
     'tasks:read': Object.freeze(['tasks.read']),
     'tasks:write': Object.freeze(['tasks.read', 'tasks.write']),
     'evidence:read': Object.freeze(['evidence.read']),
+    [ANALYSIS_REVIEW_SCOPE]: Object.freeze(['analysis.read', 'analysis.complete']),
 });
+export const AGENT_DEFAULT_SCOPES = Object.freeze(Object.keys(AGENT_SCOPES).filter(scope => scope !== ANALYSIS_REVIEW_SCOPE));
 /** Requested by clients that want a refresh token; it grants no action. */
 export const OFFLINE_ACCESS = 'offline_access';
 export const AGENT_ACCESS_SECONDS = 3600;
@@ -96,6 +99,8 @@ export function agentActions(scopes) {
     for (const scope of scopes)
         for (const action of AGENT_SCOPES[scope] ?? [])
             actions.add(action);
+    if (actions.has('evidence.read') || actions.has('analysis.read'))
+        actions.add('mcp.connect');
     return Object.freeze([...actions].sort());
 }
 export function scopesSatisfy(granted, required) {
@@ -107,7 +112,7 @@ function quoted(value) { return `"${value.replace(/["\\]/gu, '')}"`; }
  * invalid, 403 when it lacks a scope. The body is JSON for humans; clients
  * read the header. */
 export function bearerChallenge(origin, failure) {
-    const scope = (failure?.scopes ?? Object.keys(AGENT_SCOPES)).join(' ');
+    const scope = (failure?.scopes ?? AGENT_DEFAULT_SCOPES).join(' ');
     const parts = [
         ...(failure ? [`error=${quoted(failure.error)}`] : []),
         `resource_metadata=${quoted(origin + PROTECTED_RESOURCE_METADATA_PATH)}`,

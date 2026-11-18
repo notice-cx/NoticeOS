@@ -8,6 +8,7 @@ import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
 import { REPORT_EFFECT_LIMIT_MS } from './local-customer-reports.mjs';
+import { scheduledAnalysisId } from './local-customer-analysis-workflows.mjs';
 import { isCustomerTaskFiler } from './local-customer-task-followups.mjs';
 import { CUSTOMER_BACKUP_EFFECT_MS } from './customer-backup.mjs';
 
@@ -103,11 +104,12 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
           const restartSince = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
           const since = recoverGoogle ?? (entry.initial ? restartSince : undefined);
           const resuming = Number.isFinite(since);
-          if (resuming || entry.initial && item.job === 'panel-refresh') {
+          const newlyScheduledAnalysis = scheduledAnalysisId(item.job) !== null && !matching;
+          if (resuming || entry.initial && item.job === 'panel-refresh' || newlyScheduledAnalysis) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;
-            if (previous >= earliest) due = previous;
+            if (previous >= Math.max(earliest, item.availableFrom ?? -Infinity)) due = previous;
           }
           return { ...item, due };
         });
@@ -140,9 +142,10 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
     status(workspaceId) {
       const entry = entries.find(item => item.binding.workspaceId === workspaceId);
       if (stopped || !entry) return null;
-      return { onlyListedJobs: true, hostLanes: false, registeredJobs: entry.jobs.map(item => item.job),
+      const operations = entry.jobs.filter(item => scheduledAnalysisId(item.job) === null);
+      return { onlyListedJobs: true, hostLanes: false, registeredJobs: operations.map(item => item.job),
         updatedAt: new Date(now()).toISOString(), error: entry.planned ? null : 'waiting', overrides: null,
-        jobs: entry.jobs.map(({ job, schedule, due }) => ({ id: job, ...schedule,
+        jobs: operations.map(({ job, schedule, due }) => ({ id: job, ...schedule,
           nextRun: Number.isFinite(due) ? new Date(due).toISOString() : null })) };
     },
     tick() {
@@ -164,7 +167,7 @@ async function readBackupSchedule(store) {
 }
 
 export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, paidWorker, reports, now = Date.now,
-  resumeSince, backupResumeSince, collection, backup, taskFollowups }) {
+  resumeSince, backupResumeSince, collection, backup, taskFollowups, analysis }) {
   if (collection?.paidDataForSeo?.length && !paidWorker) throw new Error('Paid DataForSEO requires its private scheduling Worker.');
   const ids = new Set();
   for (const binding of workspaces) {
@@ -204,6 +207,10 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
               try { scheduled.push(...await reports.targets(store)); }
               catch { console.warn('Customer report settings could not be read. Check the report configuration.'); }
             }
+            if (analysis) {
+              try { scheduled.push(...await analysis.targets(store)); }
+              catch { console.warn('Saved analysis schedules are unavailable.'); }
+            }
             return { jobs: scheduled, googleScopePending };
           });
       } finally { await Promise.all([store.close(), grant.close()]); }
@@ -211,6 +218,19 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
     run,
   });
   async function run({ binding, job, asset, archive, scheduledAt, manual }) {
+    const workflowId = scheduledAnalysisId(job);
+    if (workflowId !== null) {
+      const { store, grant } = resources(binding);
+      try {
+        const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('customer analysis'),
+          authority: () => grant.facts() });
+        await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
+          new Request(privateUrl, { method: 'POST' }), context => analysis.run({
+            store, principalId: context.principalId, workflowId, scheduledAt,
+          }));
+      } finally { await Promise.all([store.close(), grant.close()]); }
+      return;
+    }
     const occurrence = manual ? `manual/${randomUUID()}`
       : scheduledAt + '/' + (asset === null ? 'workspace' : createHash('sha256').update(customerJobSubject(asset, archive)).digest('hex'));
     const filing = isCustomerTaskFiler(job);

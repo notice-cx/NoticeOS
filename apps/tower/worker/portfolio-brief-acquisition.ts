@@ -37,11 +37,24 @@ function paired(trends: readonly SignalTrend[], now: Date, lag: number, cadenceH
   return null;
 }
 
-export async function loadPortfolioBriefAcquisition(store: WorkspaceStore, { now, assets }: {
-  now: Date; assets: readonly { id: string; displayName: string }[];
-}): Promise<{ facts: PortfolioBriefFact[]; insightEvidenceIds: string[] }> {
-  const trends = await loadSignalTrends(store, 14, { assets: assets.map(asset => asset.id), nowMs: now.getTime(), includeWebSearch: true, includeSecondarySeries: true });
-  const facts: PortfolioBriefFact[] = [];
+type AcquisitionFact = PortfolioBriefFact & {
+  observedAt: string;
+  comparison: NonNullable<PortfolioBriefFact["comparison"]>;
+  data: {
+    asset: string;
+    provider: "google" | "bing" | "ga4";
+    metrics: Partial<Record<"clicks" | "impressions" | "sessions" | "pageViews" | "ctr" | "pageViewsPerSession", {
+      current: number | null; previous: number | null; changePercent: number | null;
+    }>>;
+    caution: string;
+  };
+};
+
+export async function loadPortfolioBriefAcquisition(store: WorkspaceStore, { now, assets, collectedThrough }: {
+  now: Date; collectedThrough?: string; assets: readonly { id: string; displayName: string }[];
+}): Promise<{ facts: AcquisitionFact[]; insightEvidenceIds: string[] }> {
+  const trends = await loadSignalTrends(store, 14, { assets: assets.map(asset => asset.id), nowMs: now.getTime(), collectedThrough, includeWebSearch: true, includeSecondarySeries: true });
+  const facts: AcquisitionFact[] = [];
   const insightEvidenceIds: string[] = [];
   for (const asset of assets) {
     const set = trends.get(asset.id);
@@ -57,7 +70,7 @@ export async function loadPortfolioBriefAcquisition(store: WorkspaceStore, { now
         changePercent: current !== null && previous !== null && previous > 0 ? metric(current, previous).changePercent : null });
       const metrics = search ? { clicks: first, impressions: second, ctr: derived(ratio(first.current, second.current), ratio(first.previous, second.previous)) }
         : { sessions: first, pageViews: second, pageViewsPerSession: derived(ratio(second.current, first.current), ratio(second.previous, first.previous)) };
-      const fact: PortfolioBriefFact = { id: `acquisition:${asset.id}:${provider}`, domain: 'acquisition', label: `${asset.displayName.slice(0, 80)} · ${provider === 'ga4' ? 'GA4 usage' : provider === 'google' ? 'Google search' : 'Bing search'}`,
+      const fact: AcquisitionFact = { id: `acquisition:${asset.id}:${provider}`, domain: 'acquisition', label: `${asset.displayName.slice(0, 80)} · ${provider === 'ga4' ? 'GA4 usage' : provider === 'google' ? 'Google search' : 'Bing search'}`,
         href: `/assets/${encodeURIComponent(asset.id)}`, observedAt: pair.observedAt, period: pair.comparison.current, comparison: pair.comparison,
         data: { asset: asset.id, name: asset.displayName.slice(0, 80), provider, metrics, lagDays: pair.lagDays,
           caution: search ? 'Clicks and impressions belong to this provider only.' : 'Page views per session is a usage ratio, not an engagement rate.' } };

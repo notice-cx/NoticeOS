@@ -45,6 +45,8 @@ import {
   towerConfigResolver,
 } from "./config-source";
 import { handleIntegrationHealthRequest } from "./connection-status-daily";
+import { handleHostedAnalysisWorkflow } from "./analysis-workflow-route";
+import { analysisAssignmentRequest } from '../../../scripts/analysis-workflow-request.mjs';
 import { type CallContext, type StoreBinding, type WorkspaceStore, withWorkspaceStore } from "@noticeos/postgres";
 import { handleDecisionsRequest } from "./decision-route";
 import { handleFlagRequest } from "./flag-route";
@@ -76,7 +78,7 @@ import {
   handleGoogleOAuthStartRequest,
   handleGooglePropertiesRequest,
 } from "./integrations-oauth-route";
-import { type McpIngest, handleMcpRequest, mcpDependencies } from "./mcp-route";
+import { type McpIngest, handleMcpRequest, isAnalysisMcpTool, mcpDependencies } from "./mcp-route";
 import { portfolioSummaryStore, type PortfolioSummaryBucket } from './portfolio-summary';
 import { type RuleBacktester, handleRuleBacktestRequest } from "./rule-backtest-route";
 import { type RunnerIngest, handleRunnerRequest } from "./runner-route";
@@ -140,6 +142,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
       cloudflareD1?(original: Request): Promise<Response>;
       backupCloudflareD1?(original: Request): Promise<Response>;
       hostedTaskRequest?(original: Request): Promise<Response>;
+      analysisAssignment?(original: Request): Promise<Response>;
       refreshHostedTaskSummary?(original: Request): Promise<boolean>;
       siteReport?(original: Request): Promise<Response>;
       siteReportGrant?(original: Request): Promise<Response>;
@@ -470,6 +473,15 @@ const towerHandler = {
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
     const path = new URL(request.url).pathname;
+    if (analysisAssignmentRequest(request)) {
+      if (profile !== 'hosted' || env.NOTICEOS_CUSTOMER_SHADOW || !env.INGEST.analysisAssignment) return jsonError('not_found', 404);
+      try {
+        return await withWorkspaceEntry(env, request.clone(), call => call.context.principalKind === 'person' && call.context.sessionId
+          ? env.INGEST.analysisAssignment!(request.clone()) : Promise.resolve(jsonError('person_required', 403)));
+      } catch { return jsonError('workspace_entry_unavailable', 403); }
+    }
+    const analysisWorkflow = await handleHostedAnalysisWorkflow(request, env, ctx, profile);
+    if (analysisWorkflow) return analysisWorkflow;
     if (profile === 'hosted' && path === SITE_REPORT_INTAKE_PATH) {
       if (!localSiteReportsEnabled(env) || !env.INGEST.siteReport) return jsonError('not_found', 404);
       try { return await env.INGEST.siteReport(request.clone()); }
@@ -686,6 +698,12 @@ const towerHandler = {
           const research = await storedResearchReadRequest(proof);
           if (!research) throw new Error('Stored question unavailable.');
           return await withWorkspaceEntry(env, proof, async call => {
+            if (research.method === 'mcp' && (research.tool === null || isAnalysisMcpTool(research.tool))) {
+              if (research.tool !== null && (profile !== 'hosted' || env.NOTICEOS_CUSTOMER_SHADOW || call.context.principalKind !== 'agent')) {
+                return jsonError('analysis_review_unavailable', 403);
+              }
+              return call.withStore(ctx, store => handleMcpRequest(request, store, null, viewer, call.context));
+            }
             let receiverFailed = false;
             const ingest = {
               async getConfigDocuments(files: string[]) {
