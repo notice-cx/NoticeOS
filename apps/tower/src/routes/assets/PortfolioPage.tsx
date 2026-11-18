@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { Tabs, TabPanel, type TabSpec } from "@/components/Tabs";
-import { ASSETS_ROUTE } from "@/components/nav-items";
+import { ASSETS_ROUTE, PORTFOLIO_MONEY_ROUTE } from "@/components/nav-items";
 
 const TAB_IDS = "portfolio-tab";
 const PANEL_ID = "portfolio-panel";
 const tabs: TabSpec[] = [
   { key: "assets", to: ASSETS_ROUTE, label: "Assets", end: true },
-  { key: "money", to: "/financials", label: "Money", end: true },
+  { key: "money", to: PORTFOLIO_MONEY_ROUTE, label: "Money", end: true },
 ];
 
 export function PortfolioPage({ tab, actions, meta, children }: {
