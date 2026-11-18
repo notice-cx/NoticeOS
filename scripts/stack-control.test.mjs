@@ -152,7 +152,9 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
     image: 'noticeos-local:synthetic' };
   const updates = [];
   const controller = new AbortController();
-  let current = normal, appId = rows()[0].ID, healthy = true, failure, standalone = false;
+  const [app, postgres] = rows();
+  let current = normal, appId = app.ID, databaseId = postgres.ID, healthy = true, failure, standalone = false, saved;
+  const recovery = { read: () => saved, save: record => { saved = record; }, clear: () => { saved = undefined; } };
   const run = async (command, args, { env }) => {
     assert.equal(command, 'docker');
     assert.deepEqual(args.slice(0, 2), ['--host', selector.dockerHost]);
@@ -163,8 +165,9 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
       return answer(`${image} ${current}`);
     }
     const [action, ...rest] = args.slice(9);
-    if (action === 'ps') return answer(JSON.stringify(rows().map(row => row.Service === 'noticeos'
-      ? { ...row, ID: appId, Health: healthy ? 'healthy' : 'unhealthy' } : row)));
+    if (action === 'ps') return answer(JSON.stringify(rows().flatMap(row => row.Service === 'noticeos'
+      ? (appId ? [{ ...row, ID: appId, State: healthy ? 'running' : 'exited', Health: healthy ? 'healthy' : '' }] : [])
+      : [{ ...row, ...(row.Service === 'postgres' ? { ID: databaseId } : {}) }])));
     if (action === 'config') return rest[0] === '--hash'
       ? answer(`noticeos ${env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal}`)
       : answer(JSON.stringify({ services: { noticeos: model } }));
@@ -172,35 +175,63 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
     assert.equal(action, 'up');
     assert.deepEqual(rest, ['--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos']);
     updates.push([env.NOTICEOS_CUSTOMER_GOOGLE_SETUP, env.NOTICEOS_TOWER_BIND]);
-    appId = String(updates.length + 3).repeat(64).slice(0, 64);
-    current = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal;
+    const opening = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1';
+    if (failure === 'gone') {
+      appId = null;
+      return { code: 1, stdout: '' };
+    }
+    if (failure === 'stopped' && opening) {
+      healthy = false;
+      return { code: 1, stdout: '' };
+    }
+    appId = (updates.length + 3).toString(16).repeat(64).slice(0, 64);
+    current = opening ? setup : normal;
     healthy = !(failure === 'unhealthy' && current === setup);
     if (failure === 'interrupt' && current === setup) controller.abort();
     return { code: healthy ? 0 : 1, stdout: '', stderr: 'private login' };
   };
   let output = '';
-  const command = (verb, signal) => stackControl('customer-google-setup', selector, { args: [verb], run, signal,
+  const command = (verb, signal) => stackControl('customer-google-setup', selector, { args: [verb], run, signal, recovery,
     out: { write: line => { output += line; } } });
   await command('open');
   assert.match(output, /http:\/\/127\.0\.0\.1:25173\/integrations/u);
+  assert.ok(saved, 'keep the recovery record while setup is open');
   await command('open');
   assert.deepEqual(updates, [['1', '127.0.0.1']]);
   healthy = false;
   await command('close');
   await command('close');
   assert.deepEqual(updates, [['1', '127.0.0.1'], ['0', undefined]]);
+  assert.equal(saved, undefined);
+  failure = 'stopped';
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
   failure = 'unhealthy';
   await assert.rejects(command('open'), /usual Tower address is available again/u);
   failure = 'interrupt';
   await assert.rejects(command('open', controller.signal), /usual Tower address is available again/u);
   assert.equal(current, normal);
-  assert.deepEqual(updates.slice(2), [['1', '127.0.0.1'], ['0', undefined], ['1', '127.0.0.1'], ['0', undefined]]);
+  assert.deepEqual(updates.slice(2), Array.from({ length: 3 }, () => [['1', '127.0.0.1'], ['0', undefined]]).flat());
+  failure = 'gone';
+  await assert.rejects(command('open'), /close to restore it/u);
+  assert.ok(saved, 'a failed recovery retains the verified installation');
+  failure = undefined;
+  databaseId = '9'.repeat(64);
+  await assert.rejects(command('close'), /supporting containers changed/u);
+  assert.equal(appId, null);
+  databaseId = postgres.ID;
+  await command('close');
+  assert.equal(saved, undefined);
+  assert.equal(current, normal);
+  const recoveredApp = appId;
+  appId = null;
+  await assert.rejects(command('close'), /missing and there is no Google setup recovery record/u);
+  appId = recoveredApp;
   model.ports.push({ ...model.ports[0], host_ip: '0.0.0.0' });
   await assert.rejects(command('open'), /one loopback-only Tower port/u);
   model.ports.pop();
   standalone = true;
   await assert.rejects(command('open'), /Customer profile check failed/u);
-  assert.equal(updates.length, 6);
+  assert.equal(updates.length, 11);
   assert.throws(() => actionArgs('customer-google-setup', ['--port', '15400']), /Usage/u);
 });
 

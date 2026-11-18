@@ -385,6 +385,8 @@ test('the application container runs its schedules with no task service, preserv
         const opened = await control('open');
         assert.equal(opened.code, 0, opened.stderr);
         assert.ok(opened.stdout.includes(`http://${loopback}/integrations`));
+        const recovery = path.join(path.dirname(selectorFile), 'stack-deploy', 'google-setup-recovery.json');
+        assert.equal(fs.statSync(recovery).mode & 0o077, 0);
         const openedId = (await compose(['ps', '--quiet', 'noticeos'])).stdout.trim();
         assert.notEqual(openedId, currentContainer);
         assert.equal(await db(), dbId);
@@ -399,6 +401,7 @@ test('the application container runs its schedules with no task service, preserv
         assert.equal(await status(lanHost), 200);
         assert.equal(await status(loopback), 400);
         assert.deepEqual(fs.readFileSync(settingsFile), savedSettings);
+        assert.equal(fs.existsSync(recovery), false);
         assert.match((await ownerSql("SELECT count(*) FROM pg_stat_activity WHERE application_name='noticeos-local-customer-scheduler'")).stdout, /^\s*1\s*$/mu);
       }
       fs.unlinkSync(marker);

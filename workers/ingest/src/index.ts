@@ -793,7 +793,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     if (profile !== 'standalone') {
       if (profile !== 'hosted' || !(proof instanceof Request)) throw new WorkspaceEntryRefused();
       const { origin, provider } = await googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'start');
-      if (this.env.NOTICEOS_GOOGLE_SETUP_REQUIRED === true || !googleRedirectVerdict(origin).usable) {
+      if (!googleRedirectVerdict(origin).usable || this.env.NOTICEOS_GOOGLE_SETUP_REQUIRED === true) {
         createBrowserRequestPolicy(origin, localTowerOrigin(this.env)).assertEffect(proof);
         return { ok: false, error: 'redirect_unusable' };
       }

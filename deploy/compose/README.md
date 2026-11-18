@@ -348,12 +348,16 @@ hostname.
 
 Customer mode opens a temporary Google setup window on the Mac running NoticeOS. Other devices lose Tower access until you close setup.
 
+The running app and its Compose settings must both include Google setup. On an older release, follow [the normal update procedure](#update-the-app-from-main). With a mounted checkout, use [the settings review](#change-a-setting) to apply the new app declaration once before opening setup.
+
 1. With the customer Tower running, open Terminal on that Mac. From the installation folder run `./noticeos customer-google-setup open`. From an attached checkout run `pnpm os:customer-google-setup -- open`.
 2. Open the printed `127.0.0.1` address in your browser. It uses your existing Tower port. Sign in with your usual Tower account and choose the same workspace.
 3. Open **Integrations**, choose **Google** or **AdSense**, and follow the setup steps. If you need to register a Google client, use the redirect address shown in this setup window.
 4. Restore normal Tower access with `./noticeos customer-google-setup close` from the installation folder or `pnpm os:customer-google-setup -- close` from the checkout. Close setup even if Google denies access or setup is interrupted.
 
-Close Google setup before updating NoticeOS or changing the installation settings. Google service accounts remain available through **Service account instead** in the Google connection panel.
+If the usual Tower address does not come back after an interruption, wait until Docker is running, then run the same close command again. It can restore the original app from the saved setup record. Finish closing setup before updating NoticeOS or changing its installation settings.
+
+Google service accounts remain available through **Service account instead** in the Google connection panel.
 
 #### Deliver sign-in codes to an inbox
 
