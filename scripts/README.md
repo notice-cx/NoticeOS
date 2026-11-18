@@ -26,6 +26,7 @@
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
+| `os:customer-archive` | Estimate scoped copies of the running standalone installation's historical archive. | `scripts/stack-control.mjs customer-archive` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 | `os:codebase-history` | Preview Git-history snapshots and release records offline; measure a pinned image, or explicitly import a prepared bundle. | `scripts/codebase-history.mjs` |

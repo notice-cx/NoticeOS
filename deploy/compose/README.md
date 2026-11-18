@@ -87,6 +87,32 @@ checkout command is `pnpm os:refresh-anomalies -- --asset example.com`.
 describes eligibility, preserved decisions, limits and retry behavior. Both
 preview and apply require specific operator approval for an existing installation.
 
+### Prepare existing signal archives for customer mode
+
+Run this step in the running standalone app before switching its profile.
+Use an app image that includes `customer-archive` and verify a complete
+[installation backup](backup.README.md) before preparing copies.
+
+```sh
+~/noticeos/noticeos customer-archive --plan
+~/noticeos/noticeos customer-archive --prepare <workspace-id> --backup-bytes <verified-backup-size-in-bytes>
+```
+
+With a checkout, use `pnpm os:customer-archive --` with the same arguments.
+The plan reports the workspace, the number and compressed size of its
+historical objects, and estimates for additional archive and backup space.
+Use the verified backup's total size for `--backup-bytes`. Leave room on the
+backup destination for another set that includes the added archive bytes.
+Preparation checks capacity on the archive volume before writing and
+processes a bounded batch at a time. If interrupted, rerun the same command
+to resume. Wait for `complete: true` for the selected workspace before switching.
+
+The command verifies the historical objects against their recorded report
+identities and copies the compressed bytes into the workspace's own prefix
+in the same local archive. The existing reports, database rows and original
+archive objects stay in place for standalone rollback. Customer report
+processing uses the completed copies. Preparation makes no provider calls.
+
 Setup from the image pins the app to that same image, tests each host port by
 having Docker publish it, and adds to the folder the launcher, its
 selector `stack.json` and `stack/`, a copy of the stack definition taken from

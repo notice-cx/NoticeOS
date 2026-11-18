@@ -16,6 +16,7 @@ export async function signalObjectScope(env: ObjectOwner) {
     throw new Error('Signal object owner is unavailable.');
   }
   const prefix = `workspaces/${workspaceId}/`;
+  const legacyCopyPrefix = `${prefix}raw/legacy/`;
   const owns = (key: string): boolean => safeKey(key) && key.startsWith(prefix);
   let legacyOwner: Promise<boolean> | undefined;
   const proveLegacyOwner = async (): Promise<boolean> => {
@@ -36,6 +37,16 @@ export async function signalObjectScope(env: ObjectOwner) {
       return prefix + relative;
     },
     owns,
+    legacyArchiveReceipt: `${prefix}checkpoints/archive-legacy/v1.json`,
+    legacyArchiveCopy(key: string): string | null {
+      const copy = legacyCopyPrefix + key;
+      return isLegacyArchiveKey(key) && owns(copy) ? copy : null;
+    },
+    legacyArchiveSource(key: string): string | null {
+      if (!owns(key) || !key.startsWith(legacyCopyPrefix)) return null;
+      const source = key.slice(legacyCopyPrefix.length);
+      return isLegacyArchiveKey(source) ? source : null;
+    },
     /** Old paid checkpoints have no SQL manifest. Only a freshly proven sole
      * standalone owner may adopt one; never use this after an invalid object or
      * failed namespaced read. No rows or old objects are migrated/deleted. */
@@ -50,13 +61,16 @@ export async function signalObjectScope(env: ObjectOwner) {
      * store's RLS manifest membership, including standalone legacy objects. */
     canReadArchive(key: string): boolean {
       if (owns(key)) return key.slice(prefix.length).startsWith('raw/');
-      return profile === 'standalone' && safeKey(key)
-        && (key.startsWith('raw/') || key.startsWith('signals/'));
+      return profile === 'standalone' && isLegacyArchiveKey(key);
     },
   });
 }
 
 export type SignalObjectScope = Awaited<ReturnType<typeof signalObjectScope>>;
+
+export function isLegacyArchiveKey(key: string): boolean {
+  return safeKey(key) && (key.startsWith('raw/') || key.startsWith('signals/'));
+}
 
 function safeKey(key: string): boolean {
   if (typeof key !== 'string' || key.length === 0 || new TextEncoder().encode(key).byteLength > 1024) return false;
