@@ -7,8 +7,6 @@ description: "How the business is doing, what is broken and what needs your atte
 
 **Home** is the page the Tower opens on: one page that sums up every asset, so you can tell in a minute whether anything needs your attention. New to the Tower? Start with [The Tower](/tower/).
 
-Home shows how the business is doing, what is broken, and what needs your attention. Which parts of Home show them depends on your view; see [Your view](#your-view).
-
 
 ## What you see
 
@@ -16,11 +14,7 @@ Home shows how the business is doing, what is broken, and what needs your attent
 
 **Refresh AI insights** requests a new briefing and animates while generation runs. Generation runs only on request. Saved insights persist in Postgres through restarts; reading Home never starts a model request. A failed refresh keeps the last useful findings visible with a warning and a link to the execution details. Outdated results are labelled. A disconnected model has a **Connect a model** link to Integrations.
 
-**The summary.** A small grey line shows the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence sums up the page, such as **October is projected at $1,020, 9% under September. 2 things are broken.**
-
-In the **Reliability** view, the sentence starts with the assets' health once at least one asset is measured: **All 3 assets are fine.**, or **2 of 3 assets are fine.** followed by the asset that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when an asset is down and amber when an asset is worth a look. The count of broken things is shown only when there is at least one.
-
-**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate. **Yesterday** shows the previous day's revenue with cents inside the same card, including how many assets reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by asset. **Visitors in the last 28 days** is a separate card. Its figure sums reported daily visitor counts over the 28 calendar days ending on the latest settled reading. Days still being counted are excluded; missing days remain gaps and incomplete coverage is labelled. The visitor and revenue bars are split by asset, with matching named colour legends and each asset's contribution on hover. In the **Overview** view, Visitors shares a two-column group with Problems, Decisions and Agents. With no revenue source on any asset, this group comes first and no money figure is drawn.
+**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate. **Yesterday** shows the previous day's revenue with cents inside the same card, including how many assets reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by asset. **Visitors in the last 28 days** is a separate card. Its figure sums reported daily visitor counts over the 28 calendar days ending on the latest settled reading. Days still being counted are excluded; missing days remain gaps and incomplete coverage is labelled. The visitor and revenue bars are split by asset, with matching named colour legends and each asset's contribution on hover. Visitors shares a two-column group with Problems, Decisions and Agents. With no revenue source on any asset, this group comes first and no money figure is drawn.
 
 **Problems.** A compact card shows the three highest-ranked issues, with errors before warnings and the newest first within each severity. Its header counts all broken and at-risk conditions, including source failures and backup failures. Titles use at most two lines; open a row for its details, or **All alerts →** for Alerts. Source failures open the asset's **Data sources** tab, and an overdue review opens its review task. Data source details remain on the asset pages and Integrations.
 
@@ -28,50 +22,21 @@ In the **Reliability** view, the sentence starts with the assets' health once at
 
 **Agents.** A compact card shows **Closed in 7 days** and **In progress**, summed across the agents' task projects. Up to three named workers show their closes as bars beside their agent icons, with a link to the full Agents page. Claude uses a light spark on an orange tile. A worker counts as an agent only when it has named a model. Missing, partial or outdated activity is labelled rather than shown as a measured zero.
 
-**Portfolio.** Immediately below the four-card overview in the **Overview** view, one row per listed asset, in your order (set with **Arrange** on the Portfolio page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one asset, Home shows that asset's own numbers and chart instead.
+**Portfolio.** Immediately below the four-card overview there is one row per listed asset, in your order (set with **Arrange** on the Portfolio page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one asset, Home shows that asset's own numbers and chart instead.
 
 **Problems and activity · Last 24 hours.** One row per listed asset and one for the System, on a time axis that ends at **Now**. Open problems are bars from when they started; a problem older than the day starts at the left edge with its age written on it. Shipped changes, wins and recoveries are marks on their asset's row; a finished task's mark opens that task's page. The shaded part is the time since 6 PM yesterday.
-
-**Asset health.** One row per listed asset, with five dots under **Up**, **Speed**, **Errors**, **Search** and **Code**, and the row's problems in words beside it, such as **The home page did not load · Slow for some visitors**, or **Fine**, or **Nothing measured yet**. An asset whose nightly report is late shows **No report for 2 days** (or the hours, under two days) first, and is never **Fine**. On a phone the asset's name takes its own line and the five dots share the width under the header. A dot is red when the asset is down, amber when the fact is worth a look, grey when it is fine, and an empty dashed ring when it is not measured yet. The line under the grid names where the dots come from: the hourly home-page check, what visitors' browsers recorded, four weeks of visits from search and each asset's code report. Each fact is described under [the asset's **Health** tab](/tower/sites#the-health-tab).
-
-**The agents · this week.** Three figures joined by **›**: **Building** (tasks in progress across the assets with a task project), **Finished** (tasks done so far this week) and **Proven to work** (assets whose newest measured change worked). **N being watched** beside the title counts the changes still being measured. Under the figures, up to three of the newest lines: a finished task with what it did, its title a link to its page, or an asset's **Latest bet** with its result.
-
-**Where visitors come from · 4 weeks.** Every listed asset's visits by channel, added up by channel name, largest first, each as a bar and its percent of all visits; channels after the first five are added into **Other**. Beside it (under it on a phone), the funnel that loses the most people at one step, across the listed assets: the asset and funnel name, every step as a bar with the step after the largest loss in amber, and a sentence naming the two steps, such as **120 people left between “Opened a recipe” and “Saved it”.** The part is as tall as its content.
-
-**Worth a look.** Up to eight things the assets are missing, in this order: an asset that earns nothing (**Example Shop earns nothing**), an asset with no data feeds, an asset with no task project, an asset that sends no code report, then the opportunities the newest readings found, each with its asset's name under it. Retired assets are left out, and an asset not launched yet is not listed as earning nothing.
 
 **Listed assets.** An asset is listed while its **Home and Portfolio** switch is on. An asset with the switch off has no row in Asset health, Portfolio or the timeline; its problems are still counted in the summary and listed under **Problems**, and its money and visitors are still in the month's figures. An archived asset stays hidden until restored. See [Where each asset shows](/tower/sites#where-each-asset-shows).
 
 **Until the first asset has its first number**, Home shows one sentence and three steps: **Add your first asset**, **Connect a source** and **See your first number**. The current step is shown as a button, and each finished step is marked done. Home also shows **Use \<zone>**, which saves your device's time zone in one press.
 
-Above the steps, Home shows the optional **What do you want to focus on?** prompt until you choose a purpose or select **Skip**. The five choices are **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. One press saves your personal choice without a second question. **Skip** dismisses the prompt without writing a preference or changing the workspace default.
-
-The setup steps work before you choose a view. Until you choose one, pages use the workspace default, or **Overview** when none is saved.
-
-## Your view
-
-The **View** bar, Home's first-run prompt and **Settings** → **General** → **Your view** all change the same personal preference. The bar is available on every Tower page and becomes a picker on a phone. Navigation and asset tabs keep the same order in every view.
-
-| View | Parts of Home, in order |
-|---|---|
-| **Overview** | **Money**, visitors and overview cards, **Portfolio**, **Problems and activity** |
-| **Growth** | **Where visitors come from · 4 weeks**, visitors, **Worth a look**, **Problems**, **Decisions**, **Portfolio** |
-| **Revenue** | **Money**, **Problems**, **Decisions**, **Portfolio**, **Problems and activity** |
-| **Delivery** | **The agents · this week**, **Decisions**, **Agents**, **Problems**, **Problems and activity** |
-| **Reliability** | **Asset health**, **Problems**, **Decisions**, **Problems and activity** |
-
-Previously saved **At the top of Home** picks still move matching modules to the top. Settings keeps these optional advanced preferences separate from the single purpose choice. See [Choose your view](/guides/choose-your-view).
-
 ## What you can do
 
-- Open an asset from Asset health, Portfolio or the timeline.
+- Open an asset from Portfolio or the timeline.
 - Open a problem from its row in **Problems**; **All alerts →** opens Alerts.
 - Open a decision to read the full request and use its actions on Tasks.
 - Open Money from **Yesterday** in the revenue card, and the Portfolio page from **Visitors in the last 28 days** or **All assets →**.
-- In **Asset health**, open an asset from its name; point at or focus a dot to show its word and its problem. The asset's **Health** tab shows the readings behind each dot.
-- In **Agents** or **The agents · this week**, **Agents →** opens the Agents page.
-- In **Worth a look**, **Make a task** on a row opens the task form with the row's title filled in and the asset's task project chosen when it has one.
-- On the first run, select one purpose under **What do you want to focus on?**, or **Skip** without saving.
+- In **Agents**, **Agents →** opens the Agents page.
 - **Add your first asset**, on the first run, opens the **Add an asset** dialog.
 - **Use \<zone>** saves your device's time zone for every daily figure.
 
@@ -81,10 +46,6 @@ Previously saved **At the top of Home** picks still move matching modules to the
 - **est.** marks revenue as an estimate until it is reconciled.
 - A missing figure is shown as a label, never drawn as zero: **not reported yet**, **no revenue**, **no visitors reported**.
 - **Nothing is broken.** means there is no open problem anywhere. Monitoring is still running.
-- In **Asset health**, a fact is red only when the asset is **Down**. Amber words are **Not checked lately**, **Slow**, **Some** (errors), **Falling**, **Sitemap failing** and **Growing fast**. A fine fact is grey: **Up**, **Fast**, **OK**, **None**, **Few**, **Steady** or **Growing**. A dashed ring is **not measured yet**, **too few visits yet** or **too early to tell**. A retired asset and one not launched yet have every fact **not measured yet**.
-- In **The agents · this week**, a figure that cannot be counted shows **not counted yet**: **Building** until an asset has a task project, **Finished** while any task project cannot report its week. A **Latest bet** reads **Worked**, **Did not help**, **Changed nothing** or **Could not be measured** once measured, and **We'll know in N days**, **We'll know soon** or **Still being watched** before.
-- **Where visitors come from · 4 weeks** shows **Not joined yet** while no asset sends visits by channel. Its funnel side shows **No funnel declared yet** when product analytics is read but no funnel is declared, and **Not joined yet** when no product analytics is read.
-- **Worth a look** shows **Nothing is missing.** when it has no rows.
 - Home's layout depends on its width: one column on a phone or a narrow window, two on a portrait monitor, the full layout on a wide screen.
 
 ## Related guides

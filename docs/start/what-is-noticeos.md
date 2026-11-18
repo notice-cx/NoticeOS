@@ -22,7 +22,7 @@ It shows four things:
 
 ## The Tower and the Wall
 
-The **Tower** is the web app you work in, in your browser. Its pages with a sidebar are Home, Workflows, Portfolio, Alerts, Tasks, Money, System health, Integrations and Settings, and every asset you add gets a page of its own. [The Tower](/tower/) describes each one.
+The **Tower** is the web app you use to review your portfolio and manage your workspace. Open **Portfolio** to compare your assets or review their combined finances on **Money**. Each asset also has its own page. See [the Tower’s pages](/tower/).
 
 The **Wall** is a Tower view built for a TV or a second screen. It fits one 1920×1080 screen with nothing to scroll. Open it at `/wall` and lay it out at `/wall/edit`.
 
@@ -51,7 +51,7 @@ It is **not** a public hosted service. A standalone installation has no user log
 - A **public demo package** with synthetic assets and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 - A **Tasks** page shared by people and agents, usable before you add your first asset.
-- Five purpose **views** of the Tower: **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. The global view bar changes each page's emphasis and context while keeping navigation and asset tabs stable. The Wall uses a separate layout. See [Choose your view](/guides/choose-your-view).
+- **Portfolio** lists each asset and its reports. **Money**, **Tasks**, **Workflows**, **Agents**, **Alerts** and **System health** cover the whole portfolio. See [Find a report](/guides/choose-your-view).
 - An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads asset reports. See [Connect an agent](/guides/connect-an-agent).
 
 ## What is not available yet

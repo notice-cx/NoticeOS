@@ -1,4 +1,4 @@
-import { useBrowserRuntime, useDemoReadonly } from '@/lib/browser-context';
+import { useBrowserRuntime, useCanEditWorkspace } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { ArrowLeft, Check, TriangleAlert } from "lucide-react";
@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { IntegrationProvider } from "@noticeos/contract";
 import { acceptedAs } from "@noticeos/contract/integrations";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { GOOGLE_OAUTH_RESULT_PARAM, GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
@@ -24,6 +24,7 @@ import {
   type IntegrationProviderStatus,
 } from "@shared/integrations-page";
 import { ProviderConnectPanel, providerPanelOpening, type ProviderPanelOpening } from "@/routes/integrations/ProviderConnectPanel";
+import { sourceReportPath } from "@/routes/asset-detail/ReportSourceNext";
 import { ConnectBlockers } from "@/components/ConnectBlockers";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
@@ -47,10 +48,7 @@ import {
 } from "@/hooks/useIntegrationProviders";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
-import { useView } from "@/hooks/useView";
-import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
-import { connectionCoverage, connectionUrgency, providerInView, SOURCE_CONTEXT } from "@/routes/operating-views";
-import type { ViewId } from "@shared/views";
+import { connectionCoverage, connectionUrgency } from "@/routes/operating-views";
 import { TempoMppIntegration } from '@/routes/integrations/TempoMppIntegration';
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
 
@@ -63,8 +61,6 @@ import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
  * Replace and Disconnect at its top.
  */
 export function IntegrationsRoute() {
-  const { choice } = useView();
-  const demoReadonly = useDemoReadonly();
   const offerLoopback = useBrowserRuntime().owner.mode === 'standalone';
   const toast = useOwnerToast();
   const { importEnvCredentials, deleteProviderCredential, saveProviderCredential, testProviderCredential, saveProviderExpiry } = useTowerApi();
@@ -72,10 +68,16 @@ export function IntegrationsRoute() {
   const googleStart = useGoogleOAuthStart();
   const { data, isError, error, isFetching, refetch } = useIntegrationProviders();
   const queryClient = useQueryClient();
-  const readOnly = demoReadonly;
+  const readOnly = !useCanEditWorkspace();
   const now = useNow();
   const monitoring = useIntegrationHealth();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const reportPath = sourceReportPath(params);
+  const serviceAccountParams = new URLSearchParams(params);
+  serviceAccountParams.delete("connect");
+  serviceAccountParams.set("provider", "google");
+  serviceAccountParams.set("setup", "page");
   const [returnedFromGoogle] = useState(() => params.get(GOOGLE_OAUTH_RESULT_PARAM) === "connected");
   // The open panel: which provider, whether it opened on the key form, its
   // sites or Replace, and the site it was opened for. A site's Data sources
@@ -189,7 +191,7 @@ export function IntegrationsRoute() {
         const next = new URLSearchParams(previous);
         next.delete("connect");
         next.delete("provider");
-        next.delete("asset");
+        if (!reportPath) next.delete("asset");
         return next;
       },
       { replace: true },
@@ -231,6 +233,7 @@ export function IntegrationsRoute() {
         breadcrumb={selected || tempoSelected ? [{ label: "Integrations", to: catalogHref }] : undefined}
         documentTitle={tempoSelected ? "Tempo MPP" : selected ? providerName(selected.provider) : "Integrations"}
       />
+      {reportPath && (!panel || readOnly) ? <Button asChild size="sm" variant="outline" className="self-start"><Link to={reportPath}>Return to report</Link></Button> : null}
       {tempoSelected ? <TempoMppIntegration /> : isError ? (
         <ReadFailed title="Couldn't load integrations" subject="read:integrations" error={error} retrying={isFetching} onRetry={() => void refetch()} />
       ) : !data ? (
@@ -298,15 +301,13 @@ export function IntegrationsRoute() {
           ) : (
             <>
             <IntegrationsAnswer cards={cards} items={monitoring.status.items} />
-            {choice.view !== "overview" ? <IntegrationViewCoverage cards={cards} items={monitoring.status.items} view={choice.view} /> : null}
             <section data-surface-hero aria-label="Providers" className="flex flex-col gap-6">
-              {integrationGroups(cards, monitoring.status.items, choice.view).map((group) => {
-                // Failures stay ahead of purpose emphasis, within each group
-                // and when choosing which group appears first.
+              {integrationGroups(cards, monitoring.status.items).map((group) => {
+                // Failures lead each provider group.
                 const members = cards
                   .filter((status) => groupOf(status) === group)
                   .map((status, order) => ({ status, order, urgency: providerUrgency(status, monitoring.status.items) }))
-                  .sort((a, b) => b.urgency - a.urgency || Number(providerInView(b.status.provider, choice.view)) - Number(providerInView(a.status.provider, choice.view)) || a.order - b.order)
+                  .sort((a, b) => b.urgency - a.urgency || a.order - b.order)
                   .map(({ status }) => status);
                 const showTempo = group === "Revenue" && !readOnly;
                 if (members.length === 0 && !showTempo) return null;
@@ -321,6 +322,7 @@ export function IntegrationsRoute() {
                           status={status}
                           nowMs={now}
                           items={monitoring.status.items}
+                          readOnly={readOnly}
                           href={`?${withProvider(params, status.provider.id)}`}
                           onOpen={(opened) => open(status, opened)}
                         />
@@ -344,10 +346,15 @@ export function IntegrationsRoute() {
               opened={connecting.opened}
               asset={connecting.asset}
               googleSetup={connecting.googleSetup}
+              googleServiceAccountHref={reportPath ? `/integrations?${serviceAccountParams}` : undefined}
+              onOpenGoogleServiceAccount={() => setConnecting(null)}
               canConnect={blockers.length === 0}
               items={monitoring.status.items}
               names={siteNames}
-              onClose={() => setConnecting(null)}
+              onClose={() => {
+                setConnecting(null);
+                if (reportPath) navigate(reportPath, { replace: true });
+              }}
               onChanged={refresh}
             />
           ) : null}
@@ -357,37 +364,15 @@ export function IntegrationsRoute() {
   );
 }
 
-function IntegrationViewCoverage({ cards, items, view }: { cards: readonly IntegrationProviderStatus[]; items: IntegrationHealthItem[]; view: ViewId }) {
-  const relevant = cards.filter((status) => providerInView(status.provider, view));
-  const coverage = connectionCoverage(relevant.map((status) => connectionStatus(status.provider.id, status.credential, items)));
-  const context = SOURCE_CONTEXT[view];
-  return (
-    <section data-integration-view={view} aria-label={context.title} className="overflow-hidden rounded-xl bg-card ring-1 ring-inset ring-border">
-      <SectionLabel title={context.title} className="px-5 pt-4 pb-3" />
-      <KpiStrip columns={3}>
-        <Kpi label="Working connections" value={`${coverage.working} / ${coverage.total}`} explanation="Observed collection, not just saved keys" />
-        <Kpi label="Need attention" value={coverage.attention} valueTone={coverage.attention > 0 ? "warn" : "default"} />
-        <Kpi label="Unverified" value={coverage.unverified} />
-      </KpiStrip>
-      <p className="px-5 py-3 text-xs text-muted-foreground">{relevant.length > 0 ? relevant.map((status) => providerName(status.provider)).join(" · ") : "No matching providers are in this installation’s catalog."}</p>
-    </section>
-  );
-}
-
 function providerUrgency(status: IntegrationProviderStatus, items: IntegrationHealthItem[]): number {
   const shown = connectionStatus(status.provider.id, status.credential, items);
   return connectionUrgency(shown.kind, shown.sitesFailing);
 }
 
-export function integrationGroups(cards: readonly IntegrationProviderStatus[], items: IntegrationHealthItem[], view: ViewId): (typeof GROUPS)[number][] {
-  const score = (group: (typeof GROUPS)[number]) => {
-    const members = cards.filter((status) => groupOf(status) === group);
-    return {
-      urgency: Math.max(0, ...members.map((status) => providerUrgency(status, items))),
-      relevant: members.some((status) => providerInView(status.provider, view)),
-    };
-  };
-  return [...GROUPS].sort((a, b) => score(b).urgency - score(a).urgency || Number(score(b).relevant) - Number(score(a).relevant));
+export function integrationGroups(cards: readonly IntegrationProviderStatus[], items: IntegrationHealthItem[]): (typeof GROUPS)[number][] {
+  const urgency = (group: (typeof GROUPS)[number]) =>
+    Math.max(0, ...cards.filter((status) => groupOf(status) === group).map((status) => providerUrgency(status, items)));
+  return [...GROUPS].sort((a, b) => urgency(b) - urgency(a));
 }
 
 /** A connection the operator has to act on: it fails, is overdue, or fails on a site. */
@@ -420,8 +405,14 @@ export function integrationsAnswer(rows: readonly { name: string; shown: Connect
 }
 
 function IntegrationsAnswer({ cards, items }: { cards: readonly IntegrationProviderStatus[]; items: IntegrationHealthItem[] }) {
-  const answer = integrationsAnswer(cards.map((status) => ({ name: providerName(status.provider), shown: connectionStatus(status.provider.id, status.credential, items) })));
-  return <PageAnswer answer={answer.answer} detail={answer.detail} marks={{ "data-integrations-answer": answer.mark }} />;
+  const rows = cards.map((status) => ({ name: providerName(status.provider), shown: connectionStatus(status.provider.id, status.credential, items) }));
+  const answer = integrationsAnswer(rows);
+  const coverage = connectionCoverage(rows.map(({ shown }) => shown));
+  return <PageAnswer answer={answer.answer} detail={answer.detail} marks={{ "data-integrations-answer": answer.mark }}
+    figures={answer.mark === "none" ? undefined : [
+      { label: "Working", value: `${coverage.working} / ${coverage.total}`, note: "observed collection" },
+      { label: "Unverified", value: String(coverage.unverified) },
+    ]} />;
 }
 
 /** The catalog's groups, in the order a founder looks for them. */
@@ -459,16 +450,17 @@ function IntegrationRow({
   status,
   nowMs,
   items,
+  readOnly,
   href,
   onOpen,
 }: {
   status: IntegrationProviderStatus;
   nowMs: number;
   items: IntegrationHealthItem[];
+  readOnly: boolean;
   href: string;
   onOpen: (opened: "form" | "sites") => void;
 }) {
-  const demoReadonly = useDemoReadonly();
   const name = providerName(status.provider);
   const shown = connectionStatus(status.provider.id, status.credential, items);
   const expiry = credentialExpiry(status.credential.metadata, nowMs);
@@ -502,20 +494,19 @@ function IntegrationRow({
           <ConnectionFacts status={shown} subject={subject} />
         </span>
       </div>
-      {inPanel && !demoReadonly ? (
+      {inPanel && !readOnly ? (
         <Button
           type="button"
           size="sm"
           variant={verb === "Reconnect" ? "default" : verb === "Connect" ? "outline" : "ghost"}
           aria-label={assignStripe ? "Map Stripe products" : `${verb} ${name}`}
-          disabled={demoReadonly}
           onClick={() => onOpen(verb === "Manage" || assignStripe ? "sites" : "form")}
         >
           {verb}
         </Button>
       ) : (
         <Button asChild size="sm" variant={verb === "Connect" ? "outline" : "ghost"}>
-          <Link to={href} aria-label={`${demoReadonly ? 'View' : verb} ${name}`}>{demoReadonly ? 'View' : verb}</Link>
+          <Link to={href} aria-label={`${readOnly ? 'View' : verb} ${name}`}>{readOnly ? 'View' : verb}</Link>
         </Button>
       )}
     </li>

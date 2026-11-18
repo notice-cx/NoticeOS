@@ -1,10 +1,10 @@
-import { useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserRuntime, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { AccountMenu } from '@/components/AccountMenu';
 import { BrandLockup } from "@/components/BrandLockup";
-import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
-import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
+import { ChevronRight, Moon, PanelLeft, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Sun, X } from "lucide-react";
+import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import {
   expiringCredentialSeverity,
   expiringCredentialSummary,
@@ -23,23 +23,24 @@ import {
 } from "@/lib/palette-launch";
 import {
   ASSETS_ROUTE,
+  PORTFOLIO_MONEY_ROUTE,
   INTEGRATIONS_ROUTE,
   TV_EDIT_ITEM,
   TV_ITEM,
-  sidebarItems,
+  NAV_ITEMS,
+  SETTINGS_ITEM,
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { WorkspaceDataStatus } from '@/components/DemoViewerStatus';
-import { ViewBar } from "@/components/ViewBar";
 import { SeverityDot } from "@/components/SeverityDot";
 import { openAlertsLabel } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
 import { useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useTheme, type Theme } from "@/hooks/useTheme";
-import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
+import { containDialogTab, SHORTCUT_MODIFIER } from "@/lib/keyboard-shortcuts";
 import { storageKey } from "@/lib/browser-storage";
 import { useBootSplashRelease } from "@/lib/boot-splash";
 
@@ -124,6 +125,8 @@ function useLinkIntent(): (to: string) => { onPointerEnter?: () => void; onFocus
 }
 
 export interface SidebarProps {
+  compact?: boolean;
+  onToggleWidth?: () => void;
   theme: Theme;
   onToggleTheme: () => void;
   /** Called after any navigation, so the mobile drawer can close itself. */
@@ -144,11 +147,11 @@ export interface SidebarProps {
 }
 
 /**
- * The desk's one navigation surface, on every desk page. The footer holds
- * what is not a page: search, the TV and the theme. The dev gallery is
- * reached by URL only.
+ * Desk navigation and the phone drawer share the same Settings footer.
  */
 export function Sidebar({
+  compact = false,
+  onToggleWidth,
   theme,
   onToggleTheme,
   onNavigate,
@@ -159,26 +162,34 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const intent = useLinkIntent();
-  const { view } = useView();
+  const readOnly = useWorkspaceReadOnlyReason();
+  const navId = useId();
+  const toggleName = compact ? "Expand sidebar" : "Collapse sidebar";
   return (
     <div
-      className={cn("flex w-sidebar shrink-0 flex-col border-r border-border bg-sidebar", className)}
+      className={cn("flex shrink-0 flex-col border-r border-border bg-sidebar", compact ? "w-sidebar-compact" : "w-sidebar", className)}
       data-app-sidebar
+      data-sidebar-compact={compact || undefined}
     >
-      <Link
-        to="/"
-        onClick={onNavigate}
-        className="flex flex-col gap-0.5 px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <BrandLockup />
-      </Link>
+      <div className={cn("flex min-h-13 items-center", compact ? "justify-center" : "justify-between")}>
+        {!compact && <Link to="/" onClick={onNavigate} className="px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <BrandLockup />
+        </Link>}
+        {onToggleWidth && <Button type="button" variant="ghost" size="icon" className={compact ? undefined : "mr-2"}
+          aria-expanded={!compact} aria-controls={navId} aria-label={toggleName} title={compact ? undefined : toggleName} onClick={onToggleWidth}>
+          {compact ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
+          {compact && <span data-sidebar-label>{toggleName}</span>}
+        </Button>}
+      </div>
 
-      <AccountMenu className="mx-2 mb-2 hidden justify-start md:flex" />
-      <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-        {sidebarItems(view.nav).map((item) =>
+      <AccountMenu compact={compact} className={cn("mx-2 mb-2 hidden md:flex", compact ? "justify-center px-0" : "justify-start")} />
+      <nav id={navId} aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+        {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
           item.to === ASSETS_ROUTE ? (
-            assets === undefined ? (
+            compact ? (
+              <PortfolioNavLink key={item.to} item={item} onNavigate={onNavigate} />
+            ) : assets === undefined ? (
               <LiveAssetNav
                 key={item.to}
                 item={item}
@@ -212,7 +223,7 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="flex flex-col gap-1 border-t border-border p-2">
+      <div className="flex shrink-0 flex-col gap-1 border-t border-border p-2">
         <button
           type="button"
           onClick={() => {
@@ -222,30 +233,30 @@ export function Sidebar({
           // The palette's code arrives on first open; hover or focus fetches it early.
           onPointerEnter={() => void preloadCommandPalette()}
           onFocus={() => void preloadCommandPalette()}
-          className={cn(ITEM_BASE, ITEM_IDLE, "w-full text-left")}
+          className={cn(ITEM_BASE, ITEM_IDLE, "w-full text-left", compact && "justify-center")}
         >
           <Search className="size-4" />
-          Search…
-          <span className="ml-auto text-xs tracking-widest text-muted-foreground">⌘K</span>
+          <span data-sidebar-label>Search…</span>
+          {!compact && <span aria-hidden className="ml-auto hidden text-xs text-muted-foreground md:inline">{SHORTCUT_MODIFIER}K</span>}
         </button>
-        <div className="flex items-center gap-0.5">
+        <div className={cn("flex gap-0.5", compact ? "flex-col" : "items-center")}>
           <NavLink
             to={TV_ITEM.to}
             // `end`: the editor at /wall/edit lights its own Edit, not the TV.
             end
             onClick={onNavigate}
             {...intent(TV_ITEM.to)}
-            className={({ isActive }) => cn(ITEM_BASE, "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)}
+            className={({ isActive }) => cn(ITEM_BASE, compact ? "justify-center" : "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)}
           >
             <TV_ITEM.icon className="size-4" />
-            {TV_ITEM.label}
+            <span data-sidebar-label>{TV_ITEM.label}</span>
           </NavLink>
-          <NavLink
+          {readOnly ? null : <NavLink
             to={TV_EDIT_ITEM.to}
             onClick={onNavigate}
             {...intent(TV_EDIT_ITEM.to)}
             aria-label={TV_EDIT_ITEM.label}
-            title={TV_EDIT_ITEM.label}
+            title={compact ? undefined : TV_EDIT_ITEM.label}
             data-tv-edit
             className={({ isActive }) =>
               cn(
@@ -255,10 +266,14 @@ export function Sidebar({
             }
           >
             <Pencil aria-hidden className="size-4" />
-          </NavLink>
+            {compact && <span data-sidebar-label>{TV_EDIT_ITEM.label}</span>}
+          </NavLink>}
         </div>
-        <div className="flex items-center gap-2 px-0.5 pt-1">
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <nav aria-label="Workspace">
+          <PageNav item={SETTINGS_ITEM} onNavigate={onNavigate} />
+        </nav>
+        <div className={cn("flex items-center gap-2 px-0.5 pt-1", compact && "justify-center")}>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} compact={compact} />
         </div>
       </div>
     </div>
@@ -272,6 +287,20 @@ interface AssetNavProps {
   defaultOpen: boolean;
 }
 
+function PortfolioNavLink({ item, onNavigate, className }: Pick<AssetNavProps, "item" | "onNavigate"> & { className?: string }) {
+  const intent = useLinkIntent();
+  const assets = useMatch(`${ASSETS_ROUTE}/*`);
+  const money = useMatch(PORTFOLIO_MONEY_ROUTE);
+  const active = Boolean(assets || money);
+  return (
+    <Link to={item.to} onClick={onNavigate} {...intent(item.to)} aria-current={active ? "page" : undefined}
+      className={cn(ITEM_BASE, className, active ? ITEM_ACTIVE : ITEM_IDLE)}>
+      <item.icon className="size-4" />
+      <span data-sidebar-label>{item.label}</span>
+    </Link>
+  );
+}
+
 function PageNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const intent = useLinkIntent();
   return (
@@ -283,7 +312,7 @@ function PageNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       className={({ isActive }) => cn(ITEM_BASE, isActive ? ITEM_ACTIVE : ITEM_IDLE)}
     >
       <item.icon className="size-4" />
-      {item.label}
+      <span data-sidebar-label>{item.label}</span>
     </NavLink>
   );
 }
@@ -326,12 +355,12 @@ function IntegrationsNav({
       className={({ isActive }) => cn(ITEM_BASE, isActive ? ITEM_ACTIVE : ITEM_IDLE)}
     >
       <item.icon className="size-4" />
-      {item.label}
+      <span data-sidebar-label>{item.label}</span>
       {severity ? (
         <SeverityDot
           severity={severity}
           size="sm"
-          className="ml-auto"
+          className="ml-auto nav-credential-dot"
           title={expiringCredentialSummary(rows) ?? ""}
         />
       ) : null}
@@ -362,6 +391,7 @@ function AssetNav({
   remember: boolean;
 }) {
   const preferences = useOwnerPreferences();
+  const readOnly = useWorkspaceReadOnlyReason();
   const [memory] = useState<NavAssetsMemory>(() => (remember ? readNavAssets(preferences) : { seen: 0 }));
   const [open, setOpen] = useState(memory.open ?? defaultOpen);
   // Both sidebars can be in the DOM at once, so the list needs an id per instance.
@@ -390,18 +420,7 @@ function AssetNav({
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-0.5">
-        <NavLink
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          {...intent(item.to)}
-          className={({ isActive }) =>
-            cn(ITEM_BASE, "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)
-          }
-        >
-          <item.icon className="size-4" />
-          {item.label}
-        </NavLink>
+        <PortfolioNavLink item={item} onNavigate={onNavigate} className="min-w-0 flex-1" />
         <button
           type="button"
           aria-expanded={open}
@@ -478,7 +497,7 @@ function AssetNav({
             </li>
           ) : null}
 
-          <li>
+          {readOnly ? null : <li>
             <NavLink
               to={`${ASSETS_ROUTE}/new`}
               onClick={onNavigate}
@@ -490,14 +509,14 @@ function AssetNav({
               <Plus aria-hidden className="size-4 shrink-0" />
               Add an asset
             </NavLink>
-          </li>
+          </li>}
         </ul>
       ) : null}
     </div>
   );
 }
 
-function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+function ThemeToggle({ theme, onToggle, compact }: { theme: Theme; onToggle: () => void; compact?: boolean }) {
   const next = theme === "dark" ? "light" : "dark";
   return (
     <Button
@@ -506,9 +525,10 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
       size="icon"
       onClick={onToggle}
       aria-label={`Switch to ${next} theme`}
-      title={`Switch to ${next} theme`}
+      title={compact ? undefined : `Switch to ${next} theme`}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      {compact && <span data-sidebar-label>{`Switch to ${next} theme`}</span>}
     </Button>
   );
 }
@@ -528,9 +548,26 @@ export function AppShell({
   onPrefetch?: (to: string) => void;
 } = {}) {
   const { theme, toggle } = useTheme();
-  const { pathname } = useLocation();
+  const preferences = useOwnerPreferences();
+  const [compact, setCompact] = useState(() => preferences.readSidebarCollapsed());
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteVisible, setPaletteVisible] = useState(false);
+  const returnToMenu = useRef(false);
+  function changePalette(open: boolean) {
+    if (open && menuOpen) {
+      returnToMenu.current = true;
+      setMenuOpen(false);
+    }
+    setPaletteOpen(open);
+  }
+  useEffect(() => {
+    if (!paletteOpen && !paletteVisible && !menuOpen && returnToMenu.current) {
+      returnToMenu.current = false;
+      menuButton.current?.focus();
+    }
+  }, [menuOpen, paletteOpen, paletteVisible]);
   // The shell mounts with the first desk page under it, so this is the desk's
   // first screen drawn.
   useBootSplashRelease();
@@ -543,21 +580,33 @@ export function AppShell({
 
   useEffect(() => {
     if (!menuOpen) return;
+    const desktop = window.matchMedia?.("(min-width: 48rem)");
+    const onResize = () => { if (desktop?.matches) setMenuOpen(false); };
+    desktop?.addEventListener("change", onResize);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape" && !event.defaultPrevented) setMenuOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      desktop?.removeEventListener("change", onResize);
+      window.removeEventListener("keydown", onKey);
+      if (!desktop?.matches) menuButton.current?.focus();
+    };
   }, [menuOpen]);
 
   return (
     <RoutePrefetch.Provider value={onPrefetch}>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen" inert={menuOpen || (paletteOpen && paletteVisible)}>
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}
-          onOpenPalette={() => setPaletteOpen(true)}
-          className="sticky top-0 hidden h-screen md:flex"
+          onOpenPalette={() => changePalette(true)}
+          compact={compact}
+          onToggleWidth={() => {
+            preferences.setSidebarCollapsed(!compact);
+            setCompact(!compact);
+          }}
+          className="sticky top-0 z-20 hidden h-screen md:flex"
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -567,8 +616,11 @@ export function AppShell({
                 type="button"
                 variant="ghost"
                 size="icon"
+                ref={menuButton}
                 aria-label="Open navigation"
-                onClick={() => setMenuOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={menuOpen}
+                onClick={() => { setPaletteOpen(false); setMenuOpen(true); }}
               >
                 <PanelLeft className="size-4" />
               </Button>
@@ -586,7 +638,6 @@ export function AppShell({
           </div>
 
           <WorkspaceDataStatus />
-          {!pathname.startsWith("/wall") ? <ViewBar /> : null}
           {/* `page-arrive`: each page fades in as it replaces the last. */}
           <main className="page-arrive min-w-0 flex-1">
             <Outlet />
@@ -598,14 +649,14 @@ export function AppShell({
               <NavDrawer
                 theme={theme}
                 onToggleTheme={toggle}
-                onOpenPalette={() => setPaletteOpen(true)}
+                onOpenPalette={() => changePalette(true)}
                 onClose={() => setMenuOpen(false)}
               />,
               document.body,
             )
           : null}
 
-        <PaletteLauncher open={paletteOpen} onOpenChange={setPaletteOpen} />
+        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} onVisibilityChange={setPaletteVisible} />
       </div>
     </RoutePrefetch.Provider>
   );
@@ -620,15 +671,21 @@ export function AppShell({
 function PaletteLauncher({
   open,
   onOpenChange,
+  onVisibilityChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onVisibilityChange: (visible: boolean) => void;
 }) {
   const [wanted, setWanted] = useState(open);
   if (open && !wanted) setWanted(true);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (open && event.key === "Escape" && !event.defaultPrevented) {
+        onOpenChange(false);
+        return;
+      }
       if (isPaletteModifier(event)) {
         void preloadCommandPalette();
         return;
@@ -645,8 +702,18 @@ function PaletteLauncher({
   return (
     <Suspense fallback={<RouteLoading surface="palette" />}>
       <LazyCommandPalette open={open} onOpenChange={onOpenChange} />
+      {open ? <PaletteVisibility onChange={onVisibilityChange} /> : null}
     </Suspense>
   );
+}
+
+/** Keep the desk interactive until Search or its recovery panel is visible. */
+function PaletteVisibility({ onChange }: { onChange: (visible: boolean) => void }) {
+  useLayoutEffect(() => {
+    onChange(true);
+    return () => onChange(false);
+  }, [onChange]);
+  return null;
 }
 
 /**
@@ -687,6 +754,7 @@ function NavDrawer({
     <div className="fixed inset-0 z-50 flex md:hidden">
       <button
         type="button"
+        tabIndex={-1}
         aria-label="Close navigation"
         onClick={onClose}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm"
@@ -695,6 +763,7 @@ function NavDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
+        onKeyDown={containDialogTab}
         className="relative flex h-full"
       >
         <Sidebar
@@ -712,6 +781,7 @@ function NavDrawer({
           variant="ghost"
           size="icon"
           aria-label="Close"
+          autoFocus
           onClick={onClose}
           className="absolute right-2 top-2"
         >

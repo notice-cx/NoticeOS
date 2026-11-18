@@ -116,6 +116,27 @@ describe('an explicit browser lifetime', () => {
     expect(readStored(localStorage, 'theme')).toBe('light');
   });
 
+  it('remembers the sidebar across logins for only the same person and workspace', () => {
+    const first = runtime(A);
+    expect(first.preferences.readSidebarCollapsed()).toBe(false);
+    first.preferences.setSidebarCollapsed(true);
+    first.freeze();
+    expect(first.preferences.readSidebarCollapsed()).toBe(true);
+    expect(() => first.preferences.setSidebarCollapsed(false)).toThrow(BrowserRetiredError);
+    first.retire();
+    expect(() => first.preferences.readSidebarCollapsed()).toThrow(BrowserRetiredError);
+
+    expect(runtime(B).preferences.readSidebarCollapsed()).toBe(false);
+    expect(runtime({ ...A, principalId: B.workspaceId }).preferences.readSidebarCollapsed()).toBe(false);
+    expect(runtime({ mode: 'demo', workspaceId: A.workspaceId, clientGeneration: 1 }).preferences.readSidebarCollapsed()).toBe(false);
+    expect(runtime({ mode: 'standalone', clientGeneration: 1 }).preferences.readSidebarCollapsed()).toBe(false);
+
+    const returned = runtime({ ...A, sessionId: B.workspaceId, clientGeneration: 2 });
+    expect(returned.preferences.readSidebarCollapsed()).toBe(true);
+    returned.preferences.setSidebarCollapsed(false);
+    expect(runtime({ ...A, clientGeneration: 3 }).preferences.readSidebarCollapsed()).toBe(false);
+  });
+
   it('session or permission refresh receives a fresh instance/generation, not old cache or drafts', () => {
     const a = runtime(A);
     a.queries.setQueryData(['role'], { writable: true });

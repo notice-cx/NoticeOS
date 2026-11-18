@@ -5,7 +5,7 @@ import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 
@@ -728,122 +728,6 @@ describe("Home — an asset still being set up", () => {
   });
 });
 
-/** Home is drawn from the person's view: its modules, in the view's order. */
-describe("Home drawn from the person's view", () => {
-  /** The board's modules in the order drawn, read off each region's own
-   * markers; a stacked column contributes its members in order. */
-  function modulesDrawn(container: HTMLElement): string[] {
-    const grid = container.querySelector("[data-home-layout]")!;
-    // Every view but Everything marks each module it stacks.
-    if (grid.getAttribute("data-home-layout") === "stacks") {
-      return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
-    }
-    return [...grid.querySelectorAll("[data-surface-hero], [data-home-visitors], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
-      if (element.hasAttribute("data-surface-hero")) return "money";
-      if (element.hasAttribute("data-home-visitors")) return "yesterday";
-      if (element.hasAttribute("data-home-sites")) return "sites";
-      if (element.hasAttribute("data-incident-list")) return "problems";
-      if (element.hasAttribute("data-decision-queue")) return "decide";
-      if (element.hasAttribute("data-home-agents")) return "agents";
-      return "timeline";
-    });
-  }
-
-  beforeEach(() => {
-    workState.data = workPayload([
-      { ...project("Meadow", [waiting({ id: "m-1", title: "Approve the new page" })]), workers: [{ id: "Mara", model: "a-model", closedRecent: 4, inProgress: 0 }] } as WorkProject,
-    ]);
-  });
-
-  it("draws every module in today's order with no choice stored", () => {
-    const { container } = renderHome();
-
-    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"]);
-    // Visitors and Agents sit above Decisions and Problems in one responsive group.
-    const column = container.querySelector("[data-incident-list]")!.parentElement!;
-    expect(column.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
-    expect(column.querySelector(":scope > [data-home-agents]")).not.toBeNull();
-    expect(column).toHaveAttribute("data-home-overview");
-    expect(column.querySelector(":scope > [data-home-visitors]")).not.toBeNull();
-    expect(column.nextElementSibling).toHaveAttribute("data-home-sites");
-  });
-
-  it.each([
-    ["growth", ["channels", "gaps", "problems", "yesterday", "decide", "sites"]],
-    ["revenue", ["money", "problems", "decide", "sites", "timeline"]],
-    ["delivery", ["factory", "problems", "decide", "agents", "timeline"]],
-    ["reliability", ["health", "problems", "decide", "timeline"]],
-  ])("draws the %s purpose with decisions and alerts", (view, modules) => {
-    storeView(view as string);
-    const { container } = renderHome();
-    expect(modulesDrawn(container)).toEqual(modules);
-    expect(container.querySelector("[data-material-condition]")?.getAttribute("data-material-condition")).toContain("open-flags");
-    expect(container.querySelector("[data-decision-queue]")).not.toBeNull();
-    expect(container.querySelector("[data-incident-list]")).not.toBeNull();
-  });
-
-  it("keeps a saved focus supported within the chosen purpose", () => {
-    storeView("delivery", ["agents"]);
-    const { container } = renderHome();
-    expect(modulesDrawn(container)).toEqual(["factory", "problems", "decide", "agents", "timeline"]);
-  });
-});
-
-/** Onboarding chooses one personal purpose without editing shared settings. */
-describe("Home — first-run purpose choice", () => {
-  beforeEach(() => {
-    payload.assets = [];
-    payload.attention = [];
-  });
-
-  const question = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-first-run] [data-first-run-question]");
-  const stored = () => JSON.parse(window.localStorage.getItem(storageKey("view")) ?? "null");
-
-  it("offers the five purposes above the setup steps, with setup available immediately", () => {
-    const { container } = renderHome();
-    const block = question(container)!;
-    expect(within(block).getByRole("heading", { name: "What do you want to focus on?" })).toBeInTheDocument();
-    expect([...block.querySelectorAll("[data-view-choice]")].map((card) => card.getAttribute("data-view-choice")))
-      .toEqual(["overview", "growth", "revenue", "delivery", "reliability"]);
-    expect(block.compareDocumentPosition(container.querySelector("[data-first-run-step='1']")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Add your first asset" })).toHaveAttribute("data-add-site-open");
-  });
-
-  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("saves %s only as a personal choice in one press", (view) => {
-    const { container } = renderHome();
-    fireEvent.click(container.querySelector(`[data-view-choice="${view}"]`)!);
-    expect(stored()).toEqual({ view, focus: [] });
-    expect(clockState.ops).toEqual([]);
-    expect(question(container)).toBeNull();
-    expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
-  });
-
-  it("can skip without saving a personal preference or changing shared settings", () => {
-    const { container } = renderHome();
-    fireEvent.click(container.querySelector("[data-view-skip]")!);
-    expect(stored()).toBeNull();
-    expect(clockState.ops).toEqual([]);
-    expect(question(container)).toBeNull();
-  });
-
-  it("is not drawn once the person has a choice", () => {
-    storeView("growth");
-    const { container } = renderHome();
-    expect(container.querySelector("[data-first-run]")).not.toBeNull();
-    expect(question(container)).toBeNull();
-  });
-
-  it("leaves a saved workspace default unchanged", () => {
-    payload.dashboard = { ...SEEDED_DASHBOARD, view: { default: "growth" } };
-    const { container } = renderHome();
-    expect(question(container)).toHaveAttribute("data-first-run-question", "view");
-    fireEvent.click(container.querySelector('[data-view-choice="revenue"]')!);
-    expect(stored()).toEqual({ view: "revenue", focus: [] });
-    expect(clockState.ops).toEqual([]);
-  });
-});
-
 // Missing core hub readings are unknown, never an absent capability or all-clear.
 describe("Home and the Wall with an unread core task hub", () => {
   afterEach(resetTaskSourceMock);
@@ -1012,7 +896,8 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(document.activeElement).toBe(container.querySelector("#home-problems"));
   });
 
-  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("opens a bookmarked activity destination in %s without changing preferences", view => {
+  it("opens a bookmarked activity destination with a legacy preference", () => {
+    const view = "delivery";
     storeView(view);
     payload.attention = [alert({ severity: "error" })];
     const { container } = renderHome("/#home-timeline");

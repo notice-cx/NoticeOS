@@ -12,7 +12,7 @@ The Wall shows current work, each asset's activity, revenue progress, problems t
 ## What you see
 
 The Wall is drawn from a layout you arrange in the Tower. Its links open Home, a problem or a named task. The attention strip has a pause control. The default shows the header across the top, then Work this week, Attention ticker and Portfolio on the left, beside Revenue this month and Live feed on the right. Portfolio and Live feed use the remaining height. A saved standard composition moves its attention strip between Work and Portfolio while keeping its metric and appearance settings. Custom compositions keep their positions.
-Until a layout is saved, the Wall uses the default composition above. Its saved layout and presentation are independent of personal views, workspace defaults and `?view=` parameters, including in the [public demo](/start/try-the-demo#switch-the-view). The Wall and its editor do not show the global view bar.
+Until a layout is saved, the Wall uses the default composition above. The [public demo](/start/try-the-demo) has its own saved layout.
 
 The editor offers three independent starting layouts: **Health and decisions**, **Revenue and visitors** and **Portfolio overview**. Choosing one changes only the draft until **Save**. A saved layout remains in use when anyone changes a Tower view.
 

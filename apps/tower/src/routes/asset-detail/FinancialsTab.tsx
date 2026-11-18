@@ -1,6 +1,5 @@
 import { MediavineSettings } from "./MediavineSettings";
 import { StripeReport } from "./StripeReport";
-import { PurposeSections } from "./purpose-presentation";
 import { useId } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { revenueCalendarDate, revenueNoun, revenueTimeZone, siteRevenueWindow } from "@shared/daily-revenue";
@@ -13,6 +12,7 @@ import type { MonthDays, MonthEquation } from "@/lib/money-page";
 import { Equation } from "@/routes/financials/MonthHero";
 import { AssetLedger } from "./AssetLedger";
 import { ledgerMonth, type LedgerMonth } from "./overview-metrics";
+import { ReportSourceNext } from "./ReportSourceNext";
 import { siteEquation, siteEstimatePace, siteLastMonth, siteMonthDays, type EstimatePace } from "./site-money";
 import { useRange } from "./useRange";
 
@@ -37,9 +37,9 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
     catalog.id === "ad-network" && (cell.mapped || cell.effective === "live" || cell.effective === "degraded"))
     || history.bySource?.some(({ provider }) => provider === "mediavine");
   return (
-    <PurposeSections surface="financials" className="flex min-w-0 flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5">
       {money && equation ? (
-        <SiteMonth key="month"
+        <SiteMonth
           money={money}
           equation={equation}
           forecast={forecastBeside(data, money)}
@@ -49,16 +49,17 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
           lastMonth={siteLastMonth(data.ledger, equation)}
         />
       ) : (
-        <PageAnswer key="month" answer="No money recorded yet" marks={{ "data-surface-hero": "", "data-site-money-answer": "none" }} />
+        <PageAnswer answer="No money recorded yet" marks={{ "data-surface-hero": "", "data-site-money-answer": "none" }} />
       )}
       {/* The month's figures are the hero's; the panel draws the range. */}
-      <DailyRevenuePanel key="daily" history={history} range={days} totals={false} splitSources partialDates={history.partialDates?.filter(date => date >= history.from && date <= history.to)} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
-      {hasMediavine ? <MediavineSettings key="mediavine" asset={data.asset.id} /> : null}
-      <StripeReport key="stripe" report={data.stripeSubscriptions} history={history} days={days} nowMs={nowMs} />
-      <div key="ledger" id="pnl"><div id="ledger">
+      <DailyRevenuePanel history={history} range={days} totals={false} splitSources partialDates={history.partialDates?.filter(date => date >= history.from && date <= history.to)}
+        emptyDetail={<ReportSourceNext report="revenue" assetTab="financials" data={data} nowMs={nowMs} />} />
+      {hasMediavine ? <MediavineSettings asset={data.asset.id} /> : null}
+      <StripeReport report={data.stripeSubscriptions} history={history} days={days} nowMs={nowMs} />
+      <div id="pnl"><div id="ledger">
         <AssetLedger ledger={data.ledger} ledgerRecordedAt={data.freshness.ledgerRecordedAt} nowMs={nowMs} />
       </div></div>
-    </PurposeSections>
+    </div>
   );
 }
 

@@ -5,7 +5,7 @@ import { NO_CHANGE_STREAM } from './change-stream';
 import type { BrowserEntry, BrowserUiRuntime } from './browser-entry';
 import type { WorkspaceChoice } from './browser-session';
 import type { TowerApi } from './api';
-import { createOwnerStorage, readStored, forgetStored, storageKey } from './browser-storage';
+import { createOwnerStorage, createSidebarPreferences, readStored, forgetStored, storageKey } from './browser-storage';
 import type { ScheduledAnswer } from './answer-queue';
 import { useMutation, type UseMutationOptions, type MutateOptions, type QueryClient, type DefaultError } from '@tanstack/react-query';
 import { BrowserRetiredError } from './browser-runtime';
@@ -41,6 +41,22 @@ export function useBackupPreview() { return useContext(BrowserContext)?.backupPr
 /** The existing immutable viewer and hosted synthetic workspace share only
  * presentation restrictions. Server admission remains the write authority. */
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
+/** Read-only customer scopes are known before a capabilities request. */
+export function useWorkspaceReadOnlyReason(): string | null {
+  const access = useContext(BrowserContext);
+  if (access?.backupPreview) return "Read-only backup";
+  return access?.runtime.owner.mode === "hosted" && access.workspaceRole === "viewer" ? "Your workspace role is view-only." : null;
+}
+export function useCanManageMembers() {
+  const { runtime, workspaceRole, backupPreview } = useBrowserContext();
+  return runtime.owner.mode === "hosted" && workspaceRole === "owner" && !backupPreview;
+}
+export function useCanEditWorkspace() {
+  const { runtime, workspaceRole, backupPreview } = useBrowserContext();
+  const demoReadonly = useDemoReadonly();
+  return !demoReadonly && !backupPreview && (runtime.owner.mode === 'standalone'
+    || (runtime.owner.mode === 'hosted' && (workspaceRole === 'owner' || workspaceRole === 'operator')));
+}
 export function useTowerApi(): TowerApi { return useBrowserRuntime().api; }
 /** Whether the change stream is delivering this page's pushed reads now
  * (`shared/change-topics.ts`); their polling stops while it is. */
@@ -101,6 +117,7 @@ export function useOwnerPreferences() {
       return createOwnerStorage({ ...runtime.owner, clientGeneration: 0 }, storage, assertActive, runtime.assertReadable);
     }
     return Object.freeze({
+      ...createSidebarPreferences(runtime.owner, storage, assertActive, runtime.assertReadable),
       read(name: string) { runtime.assertReadable(); return readStored(storage, name); },
       write(name: string, value: string) { assertActive(); try { storage?.setItem(storageKey(name), value); } catch { /* No preference stored. */ } },
       forget(name: string) { assertActive(); forgetStored(storage, name); },

@@ -58,16 +58,10 @@ certified. Live auth activation remains an explicit operator action under
 Every Tower page except the Wall renders inside one layout route: a persistent
 left sidebar and one page header.
 
-- **The sidebar** keeps the same pages in the same order for every purpose:
-  Home, Workflows, Portfolio, Alerts, Tasks, Agents, Money, System health,
-  Integrations and Settings. A View bar below the header offers Overview,
-  Growth, Revenue, Delivery and Reliability on every normal and demo page;
-  on a phone it becomes a picker. Switching changes the current page's
-  presentation while preserving its route, filters and open details. All
-  asset tabs and feature access remain available. The initial view is the
-  person's choice, else the workspace default, else Overview. The
-  sidebar's footer holds the items that are not pages — Search…, the TV dashboard with an Edit pencil to
-  `/wall/edit`, and the light/dark toggle. A setting saves in the field
+- **The sidebar** lists Home, Portfolio, Alerts, Tasks, Workflows, Agents,
+  System health and Integrations. Portfolio contains the Assets and Money tabs.
+  The footer holds Search, the TV dashboard and its layout editor, Settings,
+  and the light/dark toggle. A setting saves in the field
   being edited, so the sidebar and header hold no save controls. `/dev/kitchen-sink`
   and `/dev/asset-states` stay dev-only routes reached by URL and are not in the
   nav: they are for reviewers, and the nav lists only the pages an operator
@@ -122,17 +116,12 @@ left sidebar and one page header.
   Ctrl+K anywhere inside the shell opens a palette, and so does a **Search…**
   button in the sidebar footer, because a shortcut with no visible control is
   found only by people who already know it, and a touch screen has no modifier
-  key. The palette lists every
-  page in every view (the sidebar's pages of "Everything", plus the TV, its
-  layout editor and Arrange the assets) and every asset by display name, with its
+  key. The palette lists sidebar pages, the TV and each asset by display name, with its
   favicon, its domain and a severity dot when it has an open warning or error.
   Typing filters, Enter navigates, Escape closes, and focus returns to the
   element that had it. The items the operator opened last are stored and listed first while
   the query is empty. With a task source connected, a query shaped like a task
-  id adds one extra row that opens `/tasks/<id>`. A **Views** group lists
-  "Switch to · \<view>" for each view the person is not in; selecting one
-  saves it as the person's view, keeps their "What matters most?" picks and
-  the page they are on. So far **principle 4 is only
+  id adds one extra row that opens `/tasks/<id>`. So far **principle 4 is only
   partly built**: the palette
   navigates but does not run actions. Running commands from it — approve, snooze, file —
   is [doc 16](16-replacing-the-chat-workflow.md) § L (the Ask console), which needs a list of verbs and
@@ -152,31 +141,6 @@ rule as every other surface (`monthRevenue`, `portfolioHeadline`), so Home
 can never show a different month total than the Portfolio page or the Wall; the
 decision rows exist only with a task source connected.
 
-- **Home is a list of modules, and the person's view picks them**
-  (`HOME_MODULES` and `VIEW_LIBRARY` in `packages/contract/src/views.mts`,
-  drawn by `routes/home/modules.tsx`). The paragraph above is the
-  Overview view. Growth starts with channels, Revenue with money, Delivery
-  with the agents' week and Reliability with Asset health. Optional advanced
-  Home-order picks promote matching modules already included in that purpose.
-  - **Asset health** (`HealthModule`) is one row per listed asset with five
-    dots, Up, Speed, Errors, Search and Code, from `techHealth`
-    (`src/lib/tech-health.ts`), the calculation the asset's Health tab and the
-    TV's Asset health widget also use.
-  - **The agents · this week** (`FactoryModule`, `agentsWeek`) shows Building
-    › Finished › Proven to work and the three newest lines.
-  - **Where visitors come from · 4 weeks** (`ChannelsModule`) sums the listed
-    assets' visits by channel, beside the funnel step that loses the most
-    people.
-  - **Worth a look** (`GapsModule`, `businessGaps`) ranks what the assets lack
-    as a business (no income source, no data feeds, no task project, no code
-    report, then the newest readings' opportunities), each row with "Make a
-    task".
-  - In Reliability the summary sentence starts with the assets' health
-    (`healthWords`: "2 of 3 assets are fine." and the asset most in need of a
-    look with its first problem) and states the count of broken things only
-    when there is one.
-  The card fields these modules read (`product`, `codebase`, `watches`,
-  `channels`, `findings`) are filled by `apps/tower/worker/card-readings.ts`.
 - **With one asset**, Home starts with that asset's own numbers and chart
   (`OneSiteLead`, the top section of the Overview) and draws no one-row table.
 - **Home has none of the TV-only panels**: no clock, no countdown, no meetings
@@ -187,11 +151,6 @@ decision rows exist only with a task source connected.
   a sentence describing what NoticeOS does, then three steps for the newest asset
   (add an asset, connect its first source, see the first number) — and no tile,
   list or table around it, because a zero would imply that something was measured.
-  Above the steps, until the person has a view of their own, the card shows
-  "What do you want to focus on?" with five purpose choices and Skip
-  (`routes/home/ViewSteps.tsx`). One choice saves a personal preference;
-  Skip dismisses without writes. The setup steps work before a choice and
-  onboarding never changes the workspace default.
 - **Every quantity on the page has a small visual beside it that makes it quick
   to read** (doc 14's rule): each visual shows something the number alone does not
   (direction, share, shape, or which is worst); none is decoration.
@@ -208,12 +167,11 @@ standalone installation and **Members** to a hosted workspace's owner. Each
 tab is one column of panels — a small label, then rows divided by thin lines —
 and an address from before the tabs (`/settings#task-hub`, `#entities`,
 `#alert-rules` and the rest) opens the tab that holds its section.
-`#view`, `#clock` and `#budget` are General's three panels. The rows below
+General contains Clock and Budget. The rows below
 describe each tab:
 
 | Tab | Holds | Shown most prominently |
 |---|---|---|
-| **General → Your view** (`/settings#view`) | Overview, Growth, Revenue, Delivery and Reliability, matching the global View bar, saved personally on change with Undo; optional advanced At the top of Home picks; Workspace default · for new people, saved only through an explicit workspace setting | the five purpose choices with descriptions and the selected choice filled |
 | **General → Clock** (`/settings#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | the current time in that zone, because two neighbouring zone names look equally plausible until you see the time each one gives |
 | **General → Budget** (`/settings#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. Local briefing computation is not metered; agent provider bills are imported as costs. There is no inference spending cap |
 | **Alert rules** (`/settings/alert-rules`) | a replay of the rules against an asset's last 30 days, how often the operator responded to each rule by tuning it, then the thresholds: anomaly sensitivity, longest window | sensitivity against the conventional 0.05 ceiling; the longest window as its share of four weeks, with the quietest daily average it still tests |

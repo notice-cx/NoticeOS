@@ -1,4 +1,5 @@
-import { useNavigate } from "react-router-dom";
+import { useWorkspaceReadOnlyReason } from "@/lib/browser-context";
+import { Navigate, useNavigate } from "react-router-dom";
 import { AddSiteSheet } from "@/components/AddSite";
 import { AssetsRoute } from "@/routes/AssetsRoute";
 
@@ -11,6 +12,7 @@ import { AssetsRoute } from "@/routes/AssetsRoute";
  */
 export function AssetNewRoute() {
   const navigate = useNavigate();
+  if (useWorkspaceReadOnlyReason()) return <Navigate to="/assets" replace />;
   return (
     <>
       <AssetsRoute />

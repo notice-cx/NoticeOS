@@ -1,7 +1,6 @@
 import { minorToMajorUnits } from "@noticeos/contract/money";
 import { dailyChartSources } from "@/lib/money-chart";
 import { useId, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import type { DailyRevenueHistory } from '@shared/daily-revenue';
 import { revenueNoun } from '@shared/daily-revenue';
 import { HeroChart } from '@/components/surface/HeroChart';
@@ -12,10 +11,10 @@ import { formatCalendarDate, formatMoney } from '@/lib/format';
 
 /**
  * Daily observations are estimates; monthly accounting owns booked money.
- * A partial day is an outlined bar and an empty window links to setup, so the
- * panel carries no explanatory paragraph.
+ * A partial day is an outlined bar. The caller can provide a next step for
+ * an empty history.
  */
-export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside, totals = true, splitSources = false }: {
+export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], emptyDetail, aside, totals = true, splitSources = false }: {
   history: DailyRevenueHistory;
   range: number;
   title?: string;
@@ -25,8 +24,8 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   context?: ReactNode;
   notesByDate?: Readonly<Record<string, string>>;
   partialDates?: readonly string[];
-  /** Where ad revenue is connected, offered when nothing has ever reported. */
-  setupHref?: string;
+  /** Report-specific guidance when nothing has ever reported. */
+  emptyDetail?: ReactNode;
   /** The panel's own three figures. A page that states the month elsewhere
    * passes false, so no total appears twice. */
   totals?: boolean;
@@ -66,9 +65,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
       <p className="text-sm font-medium">{range === 0 ? 'No completed reporting days yet' : 'No daily revenue reports in this period'}</p>
       {history.reportedThrough
         ? <p className="mt-1 text-sm tabular-nums text-muted-foreground">Last report {formatCalendarDate(history.reportedThrough)}</p>
-        : setupHref
-          ? <Link to={setupHref} className="mt-1 inline-flex text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:min-h-11 max-sm:items-center">Ad revenue setup →</Link>
-          : null}
+        : range > 0 && emptyDetail ? <div className="mt-2">{emptyDetail}</div> : null}
     </div>}
   </section>;
 }

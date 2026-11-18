@@ -1,5 +1,4 @@
-import { PurposeSections } from "./purpose-presentation";
-import { useDemoReadonly } from '@/lib/browser-context';
+import { useCanEditWorkspace } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { Ban, Check } from "lucide-react";
 import { useState } from "react";
@@ -103,35 +102,35 @@ export function SourcesTab({
     />
   );
   return (
-    <PurposeSections surface="sources" className="flex flex-col gap-3.5">
-      <SavesPaused key="paused" />
+    <div className="flex flex-col gap-3.5">
+      <SavesPaused />
       {/* The hero is whichever block answers the tab's question TODAY. While the
           asset is still being set up that is what is still owed; once it is live
           there is no checklist at all, and the question becomes "are my sources
           working". */}
-      <Hero key="sources">{sources}</Hero>
+      <Hero>{sources}</Hero>
       {/* Closed on arrival, a new site's included: each source row above
           already carries its own Connect, so the checklist is the count, not
           the next step. */}
-      {setup ? <SetupChecklistPanel key="setup" setup={setup} /> : null}
+      {setup ? <SetupChecklistPanel setup={setup} /> : null}
       {data.scheduledLanes !== null ? (
-        <ScheduledLanesPanel key="scheduled" lanes={data.scheduledLanes} nowMs={nowMs} />
+        <ScheduledLanesPanel lanes={data.scheduledLanes} nowMs={nowMs} />
       ) : null}
       {/* Only a site whose report the OS fetches has fetches to fail. */}
-      {data.wiring.pull ? <FetchFailuresPanel key="failures" failures={data.fetchFailures} nowMs={nowMs} /> : null}
+      {data.wiring.pull ? <FetchFailuresPanel failures={data.fetchFailures} nowMs={nowMs} /> : null}
       {/* Nothing to show until the first nightly report: its absence is the
           header's "Nightly report · never" and the Nightly report source row,
           so an empty panel here would say it a third time. */}
       {data.metrics.length > 0 || data.freshness.pulseReceivedAt !== null ? (
-        <PulseMetricsSection key="metrics"
+        <PulseMetricsSection
           metrics={data.metrics}
           reportDate={data.wiring.lastPulseDate}
           pulseReceivedAt={data.freshness.pulseReceivedAt}
           nowMs={nowMs}
         />
       ) : null}
-      <SiteHealthSection key="health" hygiene={data.hygiene} nowMs={nowMs} />
-    </PurposeSections>
+      <SiteHealthSection hygiene={data.hygiene} nowMs={nowMs} />
+    </div>
   );
 }
 
@@ -176,7 +175,7 @@ function IntegrationsSection({
   ga4Config: AssetGa4Config;
   nowMs: number;
 }) {
-  const demoReadonly = useDemoReadonly();
+  const canEdit = useCanEditWorkspace();
   const { credentials, items } = useConnections();
   // The connect panel opens over this page, with this site first; every other
   // provider still links to its own page.
@@ -190,7 +189,7 @@ function IntegrationsSection({
   const blockers = providers.data ? connectBlockers(providers.data) : [];
   // Until the providers are read, a row's Connect is the link to the same
   // panel on Integrations — never a press that does nothing.
-  const openPanel = providers.data && !demoReadonly ? (provider: string) => {
+  const openPanel = providers.data && canEdit ? (provider: string) => {
     const status = providers.data.providers.find((entry) => entry.provider.id === provider);
     if (status) setConnecting({ provider, opened: providerPanelOpening(status) });
   } : undefined;
@@ -245,7 +244,7 @@ function IntegrationsSection({
           <NotApplicableLanes lanes={notApplicable} asset={asset} isOs={isOs} />
         </div>
       ) : null}
-      {panel && connecting ? (
+      {canEdit && panel && connecting ? (
         <ProviderConnectPanel
           status={panel}
           opened={connecting.opened}
@@ -283,7 +282,7 @@ function LaneRow({
   /** Open a provider's connect panel over this page. */
   onConnect?: (provider: string) => void;
 }) {
-  const demoReadonly = useDemoReadonly();
+  const canEdit = useCanEditWorkspace();
   const { catalog, cell } = lane;
   const { kind, site, provider } = reading;
   const subject: StatusSubject = `source:${asset}:${catalog.id}`;
@@ -309,9 +308,9 @@ function LaneRow({
   const central = spec?.id === "google" || spec?.id === "posthog" || spec?.id === "mediavine" || spec?.id === "adsense" || stripe;
   const manage = central && spec && !connectable(reading) ? (
     <Button asChild size="sm" variant="ghost">
-      <Link to={demoReadonly ? `/integrations?provider=${spec.id}` : connectHref(spec.id, asset)}
-        aria-label={`${demoReadonly ? "View" : "Manage"} ${providerName(spec)}`}>
-        {demoReadonly ? "View" : "Manage"}
+      <Link to={canEdit ? connectHref(spec.id, asset) : `/integrations?provider=${spec.id}`}
+        aria-label={`${canEdit ? "Manage" : "View"} ${providerName(spec)}`}>
+        {canEdit ? "Manage" : "View"}
       </Link>
     </Button>
   ) : undefined;
@@ -319,18 +318,18 @@ function LaneRow({
   // Connect where its status would be, and it goes straight to the connect
   // panel for this asset without opening the row first. It carries the status
   // it stands for, so every status reader still finds this source Not connected.
-  const stands = { "aria-label": `${demoReadonly ? 'View' : 'Connect'} ${spec ? providerName(spec) : ""}`, "data-source-connect": catalog.id, "data-status-for": subject, "data-connection": "not-connected" };
-  const connect = spec && connectable(reading) ? (
+  const stands = { "aria-label": `Connect ${spec ? providerName(spec) : ""}`, "data-source-connect": catalog.id, "data-status-for": subject, "data-connection": "not-connected" };
+  const connect = canEdit && spec && connectable(reading) ? (
     // A provider that connects in the panel opens it over this page; any
     // other opens its own page on Integrations.
     !central && connectsInPanel(spec) && onConnect ? (
-      <Button type="button" size="sm" variant={primary ? "default" : "outline"} disabled={demoReadonly} onClick={() => onConnect(spec.id)} {...stands}>
+      <Button type="button" size="sm" variant={primary ? "default" : "outline"} onClick={() => onConnect(spec.id)} {...stands}>
         Connect
       </Button>
     ) : (
       <Button asChild size="sm" variant={primary ? "default" : "outline"}>
         <Link to={connectHref(spec.id, asset)} {...stands}>
-          {demoReadonly ? 'View' : 'Connect'}
+          Connect
         </Link>
       </Button>
     )
@@ -338,7 +337,7 @@ function LaneRow({
   // A failing source's one action is Fix, beside its Failing chip: the
   // connection itself, in the panel over this page for a provider that
   // connects there, else the provider's own page.
-  const fix = kind === "failing" && spec ? (
+  const fix = canEdit && kind === "failing" && spec ? (
     !central && connectsInPanel(spec) && onConnect ? (
       <Button type="button" size="sm" variant="outline" onClick={() => onConnect(spec.id)} aria-label={`Fix ${providerName(spec)}`} data-source-fix={catalog.id}>
         Fix
@@ -351,11 +350,11 @@ function LaneRow({
   ) : undefined;
   const action = connect ?? fix ?? manage;
   const declined = kind === "not-using" && cell.note ? declineReason(cell.note) ?? cell.note : null;
-  const mediavineMoney = spec?.id === "mediavine" && cell.mapped && !connect && kind !== "failing"
+  const mediavineMoney = canEdit && spec?.id === "mediavine" && cell.mapped && !connect && kind !== "failing"
     ? <Link className="w-fit text-sm underline-offset-4 hover:underline" to={`/assets/${encodeURIComponent(asset)}/financials#mediavine`}>Revenue controls</Link>
     : null;
-  const mapping = !central && cell.since !== "" && lane.mapping.length > 0 ? <LaneConfig lane={lane} asset={asset} /> : null;
-  const measurement = cell.laneId === GA4_LANE_ID ? (
+  const mapping = canEdit && !central && cell.since !== "" && lane.mapping.length > 0 ? <LaneConfig lane={lane} asset={asset} /> : null;
+  const measurement = canEdit && cell.laneId === GA4_LANE_ID ? (
     <details className="text-sm">
       <summary className="min-h-9 cursor-pointer text-muted-foreground">Measurement settings</summary>
       <Ga4LaneConfig asset={asset} config={ga4Config} />
@@ -382,7 +381,7 @@ function LaneRow({
       // The one decision the file owns, in use or Not using with a reason
       // chip, as the expanded row's action. A derived source has no cell to
       // decide on.
-      actions={stripe || cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
+      actions={!canEdit || stripe || cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
     >
       {mediavineMoney || mapping || measurement || nightly ? <>{mediavineMoney}{mapping}{measurement}{nightly}</> : null}
     </ListRow>

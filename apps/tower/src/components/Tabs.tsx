@@ -1,5 +1,5 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import { NavLink, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 /** One tab. The active tab is a location, not component state, so a tab can
@@ -37,6 +37,7 @@ export interface TabsProps {
   idBase: string;
   /** The panel every tab controls (one panel, swapped by the router). */
   panelId: string;
+  retainKeyboardFocus?: boolean;
   className?: string;
 }
 
@@ -73,10 +74,18 @@ function revealTab(strip: HTMLElement, tab: HTMLElement) {
  * and Home/End move focus, Enter or Space opens, because panels mount charts
  * and tables.
  */
-export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
-  const { pathname } = useLocation();
+export function Tabs({ label, tabs, idBase, panelId, retainKeyboardFocus = false, className }: TabsProps) {
+  const { pathname, key, state } = useLocation();
+  const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const list = useRef<HTMLDivElement | null>(null);
   const revealedPath = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!retainKeyboardFocus || navigationType !== "PUSH" || document.activeElement !== document.body) return;
+    const selected = list.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (selected && state?.focusTab === selected.id) selected.focus();
+  }, [key, navigationType, retainKeyboardFocus, state]);
 
   // The scroll below must re-run when a count changes, not only the route:
   // counts arrive a beat after first paint and move every tab to their right.
@@ -149,6 +158,12 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
               onPointerEnter={tab.onIntent}
               onFocus={tab.onIntent}
               onKeyDown={(event) => {
+                if (retainKeyboardFocus && !selected && (event.key === "Enter" || event.key === " ")
+                  && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                  event.preventDefault();
+                  void navigate(tab.to, { state: { focusTab: tabId(idBase, tab.key) } });
+                  return;
+                }
                 // An anchor opens on Enter by itself; Space is the other half of
                 // the APG contract and does nothing on a link without this.
                 if (event.key === " ") {

@@ -1,4 +1,3 @@
-import { PurposeSections } from "./purpose-presentation";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -56,7 +55,6 @@ import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
 import { useConnections } from "@/hooks/useConnections";
 import { useDecisionWriters } from "@/hooks/useDecisionWriters";
-import { useView } from "@/hooks/useView";
 import {
   formatCalendarDate,
   formatCalendarRange,
@@ -74,7 +72,7 @@ import {
   rankedFlags,
   sourceHistory,
 } from "@/routes/asset-detail/overview-measures";
-import { OverviewNumbers, overviewMeasuresForView } from "./OverviewNumbers";
+import { OverviewNumbers, overviewMeasuresForSite } from "./OverviewNumbers";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import { SourceHistory } from "@/components/viz/SourceHistory";
 import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history-presentation";
@@ -102,7 +100,6 @@ export function OverviewTab({
   const assetTabPath = useAssetTabPath();
   const [allFindings, setAllFindings] = useState(false);
   const { credentials, items } = useConnections();
-  const { view } = useView();
   // Tasks is core; missing readings stay unknown rather than hiding the inbox.
 
   const setup = assetSetupChecklist({
@@ -126,7 +123,7 @@ export function OverviewTab({
   const sourceRow = siteHealthRow(card, { credentials, items }, nowMs);
   const history = sourceHistory(data, sourceRow, sourceColumns([card]), revenueCalendarDate(new Date(nowMs), data.osTimeZone));
 
-  const measures = overviewMeasuresForView(data, days, nowMs, { credentials, items }, view.id);
+  const measures = overviewMeasuresForSite(data, days, nowMs, { credentials, items });
   // A site with no daily traffic, revenue or product analytics but a rolling
   // session report or a weekly ranking keeps that report beside its numbers.
   const report = siteLead(data, days, nowMs);
@@ -150,11 +147,11 @@ export function OverviewTab({
     }));
 
   return (
-    <PurposeSections surface="overview" className="@container flex flex-col gap-5" data-site-overview="">
+    <div className="@container flex flex-col gap-5" data-site-overview="">
       {/* `#setup` lands here (`HASH_TAB`): the checklist is on Sources, so the
           banner saying where it is is what a deep link scrolls to. */}
       {setup ? (
-        <div key="setup" id="setup" className="scroll-mt-4">
+        <div id="setup" className="scroll-mt-4">
           <StatusBanner
             lead="Data setup"
             subject={`asset-setup:${data.asset.id}`}
@@ -176,19 +173,19 @@ export function OverviewTab({
       {/* The verdict line: three facts joined by dots under the header's
           verdict word, money, alerts, bets, each from the read this tab
           already makes. Never a sentence. */}
-      <VerdictLine key="verdict" money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
+      <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
 
       {measures.length > 0 || (report.kind !== "clarity" && report.kind !== "rankings") ? (
-        <OverviewNumbers key="numbers"
+        <OverviewNumbers
           data={data}
           measures={measures}
           days={days}
           nowMs={nowMs}
         />
       ) : null}
-      {report.kind === "clarity" || report.kind === "rankings" ? <SiteLead key="lead" data={data} days={days} nowMs={nowMs} /> : null}
+      {report.kind === "clarity" || report.kind === "rankings" ? <SiteLead data={data} days={days} nowMs={nowMs} /> : null}
 
-      <div key="sources" className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
+      <div className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
         <SourceHistory
           rows={history.rows.map((row) => ({ ...row, summary: sourceHistoryRowSummary(row) }))}
           headline={sourceHistoryHeadline(history.rows, nowMs)}
@@ -210,7 +207,7 @@ export function OverviewTab({
         ) : null}
       </div>
 
-      <div key="work" className="grid gap-5 @4xl:grid-cols-2 [&>*]:min-w-0">
+      <div className="grid gap-5 @4xl:grid-cols-2 [&>*]:min-w-0">
         <NeedsYou assetId={data.asset.id} operator={data.operator} nowMs={nowMs} />
         {/* `#insights` is the findings' saved anchor; it names the panel. */}
         <div id="insights" className="min-w-0 scroll-mt-4">
@@ -223,20 +220,20 @@ export function OverviewTab({
         </div>
       </div>
 
-      <div key="bets" className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
+      <div className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
         <Bets watches={data.watches} handoffs={data.handoffTasks} assetId={data.asset.id} nowMs={nowMs} />
         <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
       </div>
 
       {/* The product figure the hero row leads with is not stated twice. */}
-      <ProductUse key="product" assetId={data.asset.id}
+      <ProductUse assetId={data.asset.id}
         metrics={data.metrics.filter((metric) => metric.name !== product?.metric)}
         reportDate={data.wiring.lastPulseDate} receivedAt={data.wiring.lastPulseReceivedAt} nowMs={nowMs} />
 
-      <SiteTotals key="totals" counters={data.counters} nowMs={nowMs} />
+      <SiteTotals counters={data.counters} nowMs={nowMs} />
 
       {data.executive && data.executive.items.length > 0 ? (
-        <details key="findings"
+        <details
           open={allFindings}
           onToggle={(event) => setAllFindings(event.currentTarget.open)}
           data-all-findings
@@ -263,7 +260,7 @@ export function OverviewTab({
 
       {/* No "about these numbers": each fact is drawn on the surface that
           owns it. */}
-    </PurposeSections>
+    </div>
   );
 }
 

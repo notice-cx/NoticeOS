@@ -18,17 +18,17 @@ const notifications = vi.hoisted(() => ({
 vi.mock('sonner', () => ({ toast: Object.assign(notifications.plain, notifications) }));
 const runtimes: ReturnType<typeof createBrowserRuntime>[] = [];
 const id = '11111111-1111-4111-8111-111111111111';
-function owned(workspaceId = id) {
+function owned(workspaceId = id, fetch: typeof globalThis.fetch = vi.fn()) {
   const runtime = createBrowserRuntime<(keepalive: boolean) => Promise<void>>({ mode: 'hosted', principalId: id, sessionId: id, workspaceId, clientGeneration: 1 }, {
-    origin: window.location.origin, fetch: vi.fn(), storage: window.localStorage,
+    origin: window.location.origin, fetch, storage: window.localStorage,
     sendAnswer: async () => {},
   });
   runtimes.push(runtime);
   return runtime;
 }
-function wrapper(runtime: ReturnType<typeof owned>) {
+function wrapper(runtime: ReturnType<typeof owned>, access: { workspaceRole?: "owner" | "viewer"; backupPreview?: true } = {}) {
   return function Owner({ children }: { children: ReactNode }) {
-    return <BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Workspace' }}><QueryClientProvider client={runtime.queries}>{children}</QueryClientProvider></BrowserRuntimeProvider>;
+    return <BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Workspace', ...access }}><QueryClientProvider client={runtime.queries}>{children}</QueryClientProvider></BrowserRuntimeProvider>;
   };
 }
 afterEach(() => {
@@ -127,3 +127,16 @@ it('a demo generation poll retains the owner desk and last successful evidence a
   expect(screen.getByRole('textbox', { name: 'Fixture draft' })).toHaveValue('Unsubmitted draft');
   expect(fetch).toHaveBeenCalledTimes(2); expect(runtime.guard(() => 'active')()).toBe('active');
 });
+
+
+it.each([{ workspaceRole: 'viewer' }, { workspaceRole: 'owner', backupPreview: true }] as const)(
+  'keeps known read-only workspace settings locked before transport and after cached write access', access => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const runtime = owned(id, fetch);
+    runtime.queries.setQueryData(['config-writable'], { writable: true, reason: null, sources: {} });
+    const hook = renderHook(useConfigWritable, { wrapper: wrapper(runtime, access) });
+    expect(hook.result.current.writable).toBe(false);
+    expect(hook.result.current.reason).not.toBe('Config store unreachable');
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);

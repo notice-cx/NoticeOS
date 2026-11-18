@@ -1,14 +1,13 @@
-import { useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
-import { Eye, ListTodo } from "lucide-react";
+import { useBrowserRuntime, useCanManageMembers, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
+import { ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sitePath } from "@shared/first-run";
 import { isRetired } from "@shared/asset-setup";
-import { VIEW_LIBRARY } from "@shared/views";
 import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
-import { PAGE_ITEMS, shownPages } from "@/components/nav-items";
+import { MEMBERS_ITEM, PAGE_ITEMS, TV_EDIT_ITEM, SITES_ARRANGE_ITEM } from "@/components/nav-items";
 import { ACCOUNT_PROFILE_PAGE } from "@/components/AccountMenu";
 import {
   Command,
@@ -20,7 +19,6 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { storageKey } from "@/lib/browser-storage";
 
@@ -158,11 +156,12 @@ function PaletteBody({
   const preferences = useOwnerPreferences();
   const hosted = useBrowserRuntime().owner.mode === 'hosted';
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
-  const pages = useMemo(() => shownPages(hosted ? [...PAGE_ITEMS, ACCOUNT_PROFILE_PAGE] : PAGE_ITEMS), [hosted]);
-  const { choice, setChoice } = useView();
-  // Switching keeps the person on the page they are on and keeps their picks.
-  const otherViews = VIEW_LIBRARY.filter((spec) => spec.id !== choice.view);
-
+  const managesMembers = useCanManageMembers();
+  const readOnly = useWorkspaceReadOnlyReason();
+  const pages = useMemo(() => {
+    const items = readOnly ? PAGE_ITEMS.filter(item => item !== TV_EDIT_ITEM && item !== SITES_ARRANGE_ITEM) : PAGE_ITEMS;
+    return [...items, ...(managesMembers ? [MEMBERS_ITEM] : []), ...(hosted ? [ACCOUNT_PROFILE_PAGE] : [])];
+  }, [hosted, managesMembers, readOnly]);
   const destinations = useMemo(() => {
     const map = new Map<string, { to: string; label: string }>();
     for (const page of pages) {
@@ -270,25 +269,6 @@ function PaletteBody({
               ))}
           </CommandGroup>
         ) : null}
-
-        <CommandGroup heading="Views">
-          {otherViews.map((spec) => (
-            <CommandItem
-              key={spec.id}
-              value={`view:${spec.id}`}
-              // The row's shown words, so typing its label ("Switch to")
-              // keeps every view row, not only those whose label has an "o".
-              keywords={["view", "switch", "to", "switch to", spec.label, spec.detail]}
-              onSelect={() => {
-                setChoice({ view: spec.id, focus: choice.focus });
-                onClose();
-              }}
-            >
-              <Eye className="size-4" />
-              <span className="text-foreground">Switch to · {spec.label}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
 
         {taskId ? (
           // A typed id opens its task page. `forceMount` on both, because cmdk

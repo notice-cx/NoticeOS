@@ -1,4 +1,3 @@
-import type { WordLevel } from "@shared/views";
 import { Link } from "react-router-dom";
 import { SegmentBar } from "@/components/SegmentBar";
 import { BarStrip } from "@/components/viz/BarStrip";
@@ -20,7 +19,7 @@ export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "b
  * usual day dashed, and which sites earned it. Raised, because it is the one
  * region the screen leads with.
  */
-export function MoneyHero({ money, yesterday, className, wordLevel = "operational", assetSharesInTable = false }: { money: HomeMoney; yesterday: YesterdayTotal | null; className?: string; wordLevel?: WordLevel; assetSharesInTable?: boolean }) {
+export function MoneyHero({ money, yesterday, className, assetSharesInTable = false }: { money: HomeMoney; yesterday: YesterdayTotal | null; className?: string; assetSharesInTable?: boolean }) {
   const month = formatPeriodMonthLong(money.period);
   const total = money.bySite.reduce((sum, site) => sum + site.amount, 0);
   const shareFill = (id: string, index: number) => money.contributors?.find((source) => source.id === id)?.tone ?? SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]!;
@@ -32,19 +31,18 @@ export function MoneyHero({ money, yesterday, className, wordLevel = "operationa
     >
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div className="flex min-w-0 flex-col gap-1">
-          {/* The business word level says "so far" once, beside the figure. */}
-          <span className="text-xs font-medium text-muted-foreground">{wordLevel === "business" ? `Revenue, ${month}` : `Revenue, ${month} so far`}</span>
+          <span className="text-xs font-medium text-muted-foreground">Revenue, {month} so far</span>
           {money.soFar === null ? (
             <span className="text-figure-sm text-muted-foreground" data-money-figure="">not reported yet</span>
           ) : (
             <span className="flex flex-wrap items-baseline gap-x-2" data-money-figure="">
               <span className="text-display tabular-nums text-foreground">{usd(money.soFar)}</span>
               {money.estimated ? (
-                <span className="text-sm font-medium text-muted-foreground">{wordLevel === "business" ? "so far" : "est."}</span>
+                <span className="text-sm font-medium text-muted-foreground">est.</span>
               ) : null}
             </span>
           )}
-          <YesterdayRevenue total={yesterday} business={wordLevel === "business"} />
+          <YesterdayRevenue total={yesterday} />
           {money.projected === null && money.waiting ? <span className="text-xs text-muted-foreground">{money.waiting}</span> : null}
         </div>
         {money.days.length >= 3 ? (
@@ -96,14 +94,14 @@ export function MoneyHero({ money, yesterday, className, wordLevel = "operationa
   );
 }
 
-function YesterdayRevenue({ total, business }: { total: YesterdayTotal | null; business: boolean }) {
+function YesterdayRevenue({ total }: { total: YesterdayTotal | null }) {
   const basis = total?.basis;
   const title = basis ? `${formatSeriesDate(basis.date)} · ${basis.label ?? basis.timeZone}` : undefined;
   return (
     <Link to="/financials" title={title} className="text-sm tabular-nums text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-home-yesterday="">
       Yesterday {total?.amount != null ? (
         <>
-          <b className="font-semibold text-foreground">{cents(total.amount)}</b> {business ? "so far" : "est."}
+          <b className="font-semibold text-foreground">{cents(total.amount)}</b> est.
           {total.reported < total.sites ? ` · ${total.reported} of ${total.sites} assets` : null}
         </>
       ) : "· not reported yet"}

@@ -54,6 +54,10 @@ A count under the list shows how many of the installed workflows are listed.
 - **No workflows run here yet.** means none is installed; **No workflows match these filters.** means your filters hide them.
 - **This run is not in the retained execution history.** means a link pointed to a run old enough to have been dropped from the page's history.
 
+## Weekly search review
+
+**Search review tasks** checks hourly for a fresh DataForSEO collection. It files one Ntasks assignment after the published panel includes that collection and skips reviews already filed for the same asset and collection date. A successful execution records the filing check. Open the assignment to see its report version, the reviewer’s findings and any follow-up. The workflow detail links to the [four-step search runbook](../20-signal-panels.md#weekly-search-review-workflow).
+
 ## Notification delivery
 
 **Operator notifications** runs when an error alert opens or a data source changes

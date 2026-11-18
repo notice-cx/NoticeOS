@@ -1075,9 +1075,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "AppShell / Sidebar",
     file: "components/AppShell.tsx",
     purpose:
-      "The desk's one chrome: a persistent left sidebar with the eight desk nouns as NavLinks (aria-current, an asset page lighting Portfolio), one row per asset beneath Portfolio (favicon, a severity dot for open attention, a stage glyph where not live; collapsible and remembered in localStorage), a footer holding the TV, the theme toggle and the Search button, and below `md` a top bar whose menu button opens the same content as a drawer. The Integrations entry and the top bar wear the expiring-credential dot. AppShell applies `.light` to the document and removes it on unmount.",
+      "Desktop sidebar and phone navigation drawer. Portfolio is selected on its Assets and Money tabs and on each asset's page. The asset list and desktop sidebar can be collapsed separately. Search, TV dashboard, Settings and theme controls appear in the footer. Integrations shows expiring credentials.",
     variants: [
       "sidebar (md and up)",
+      "compact desktop sidebar with labeled icons",
       "active item (aria-current)",
       "asset route lights Portfolio",
       "asset rows (favicon + severity dot + stage glyph)",
@@ -1503,12 +1504,5 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "The TV's Visitors by channel widget: each asset's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every asset that loses the most people (largestFunnelDrop).",
     variants: ["channels and the largest drop", "no channel split yet"],
-  },
-  {
-    name: "ViewBar",
-    file: "components/ViewBar.tsx",
-    purpose:
-      "Five purpose choices above desk pages, with the active choice pressed. Mobile uses a labeled popover with purpose descriptions. A choice preserves the current page and focus preferences.",
-    variants: ["desktop view bar", "mobile compact picker", "active selection"],
   },
 ];

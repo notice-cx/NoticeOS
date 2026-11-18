@@ -99,7 +99,6 @@ function fixture({ sites = 1, mode = 'hosted' }: { sites?: number; mode?: 'hoste
           performance: { activeUsers: empty, sessions: empty, webSearchClicks: { google: empty, bing: empty },
             webSearchImpressions: { google: empty, bing: empty } },
         });
-        case '/api/me/preferences/view': return Response.json({ choice: null });
         case '/api/tasks/capabilities': return Response.json({ live: true });
         case '/api/tasks/projects': return Response.json({ projects: [{ projectId, logicalKey: 'fixture', prefix: 'fix', displayName: 'Fixture' }] });
         case '/api/tasks':
@@ -143,7 +142,7 @@ it.each([1, 2])('keeps customer Home and both navigation layouts quiet with %i a
     expect(ui.container.querySelector('[data-nav-alarm]')).toHaveAttribute('data-nav-alarm', 'warn');
     expect(ui.container.querySelector('[data-health-snapshot] time')).toHaveAttribute('datetime', initialTime);
     const paths = sites === 1 ? [...watched, detail] : watched;
-    expect(paths.map(f.count)).toEqual(paths.map(path => path === wall ? 2 : 1));
+    expect(paths.map(f.count)).toEqual(paths.map(() => 1));
     expect(f.deniedOrUnknown).toEqual([]);
     expect(f.count(detail)).toBe(sites === 1 ? 1 : 0);
     if (sites === 1) expect(ui.container.querySelector('[data-overview-numbers]')).not.toBeNull();
@@ -152,7 +151,7 @@ it.each([1, 2])('keeps customer Home and both navigation layouts quiet with %i a
     // from the measurement of the other Home and shell read paths.
     const core = () => f.reads.filter(path => path !== briefing);
     const entry = core();
-    expect(entry).toHaveLength(sites === 1 ? 9 : 8);
+    expect(entry.slice().sort()).toEqual([...paths, '/api/tasks/capabilities'].sort());
     await elapsed(windowMs);
     expect(core()).toEqual(entry);
     focusManager.setFocused(false);

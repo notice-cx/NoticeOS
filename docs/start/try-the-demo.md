@@ -26,11 +26,9 @@ The demo package runs the compiled app, Postgres and the demo's own [Ntasks](htt
 
 Only the app's HTTP port is published, on the host's loopback. Postgres has no host port.
 
-## Switch the view
+## Explore the reports
 
-The **View** bar below the header offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. On a phone, open the **View** picker. A choice updates the current page's emphasis, context and supporting details while preserving its route, filters and open details. All pages and asset tabs stay available in the same order. The choice is saved in this browser and changes nothing for other visitors.
-
-The TV dashboard at `/wall` uses the demo's own saved composition. Personal views, workspace defaults and `?view=` parameters do not change it. The Wall and its editor have no global view bar.
+Open an asset in **Portfolio** to see its traffic and journeys. **Money** shows portfolio earnings and costs. **TV dashboard** opens the demo’s saved Wall layout.
 
 ## Configure
 

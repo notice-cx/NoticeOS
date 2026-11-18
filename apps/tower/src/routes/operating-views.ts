@@ -1,31 +1,4 @@
 import type { ConnectionKind, ConnectionStatus } from "@shared/connection-status";
-import type { ViewId } from "@shared/views";
-
-/** Display emphasis only. Applicability and connection health still come
- * from the source register and the shared connection-status selector. */
-const SOURCES: Record<ViewId, readonly string[]> = {
-  overview: [],
-  growth: ["gsc", "ga4", "bing-webmaster", "dataforseo", "clarity", "posthog"],
-  revenue: ["ad-network", "adsense", "affiliate-cj", "affiliate-amazon", "subscriptions", "stripe", "nightly-report"],
-  delivery: ["github-app", "deploy-annotations", "nightly-report", "calendar", "discord-webhooks"],
-  reliability: ["uptime", "egress", "nightly-report", "crux", "cloudflare"],
-};
-
-export const SOURCE_CONTEXT: Record<ViewId, { title: string }> = {
-  overview: { title: "Source coverage" },
-  growth: { title: "Acquisition and conversion inputs" },
-  revenue: { title: "Financial inputs" },
-  delivery: { title: "Work and release inputs" },
-  reliability: { title: "Availability and freshness inputs" },
-};
-
-export function sourceInView(id: string, view: ViewId): boolean {
-  return view === "overview" || SOURCES[view].includes(id);
-}
-
-export function providerInView(provider: { id: string; lanes: readonly string[] }, view: ViewId): boolean {
-  return sourceInView(provider.id, view) || provider.lanes.some((lane) => sourceInView(lane, view));
-}
 
 export function connectionUrgency(kind: ConnectionKind | "not-applicable", sitesFailing = 0): number {
   if (kind === "failing" || sitesFailing > 0) return 2;

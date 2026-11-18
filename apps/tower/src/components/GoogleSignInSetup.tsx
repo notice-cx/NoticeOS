@@ -21,6 +21,8 @@ export interface GoogleSignInSetupProps {
   selfHosted: boolean;
   /** Where Continue with Google starts the sign-in. */
   startHref: string;
+  serviceAccountHref?: string;
+  onOpenServiceAccount?: () => void;
   onStart?: () => void;
   starting?: boolean;
   /** Where the consent screen is published, ending the seven-day expiry. */
@@ -52,14 +54,14 @@ type Upload =
  * sits beside that chip; on an address Google will not return to, the press
  * uses the loopback address.
  */
-export function GoogleSignInSetup({ card, provider = 'google', selfHosted, startHref, onStart, starting, publish, canConnect = true, onSaveClient }: GoogleSignInSetupProps) {
+export function GoogleSignInSetup({ card, provider = 'google', selfHosted, startHref, onStart, starting, publish, canConnect = true, onSaveClient, serviceAccountHref = '/integrations?provider=google&setup=page', onOpenServiceAccount }: GoogleSignInSetupProps) {
   const inputId = useId();
   const [upload, setUpload] = useState<Upload>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
   const [editingClient, setEditingClient] = useState(false);
   const adsense = provider === 'adsense';
   const clientReady = card.state !== "app-missing";
-  const serviceAccount = <Link to="/integrations?provider=google&setup=page" className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
+  const serviceAccount = <Link to={serviceAccountHref} onClick={onOpenServiceAccount} className="w-fit text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground max-sm:min-h-11" data-google-service-account>
     Service account instead
   </Link>;
   if (card.localSignInBlocked) return (

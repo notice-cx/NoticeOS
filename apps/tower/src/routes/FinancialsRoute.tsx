@@ -19,7 +19,6 @@ import { CollectionEditor } from "@/components/CollectionEditor";
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { EmptyState } from "@/components/EmptyState";
 import { InfoTooltip } from "@/components/InfoTooltip";
-import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
 import { SavesPaused } from "@/components/SavesPaused";
@@ -47,7 +46,6 @@ import { useFinancials } from "@/hooks/useFinancials";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
-import { useView } from "@/hooks/useView";
 import { FinancialsPeriodError } from "@/lib/api";
 import {
   formatMoney,
@@ -62,12 +60,12 @@ import {
 import { lastMonthRevenue, monthDays, monthEquation, monthsThrough, siteMoneyRows } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
 import { monthRevenue } from "@/lib/wall-revenue";
+import { PortfolioPage } from "@/routes/assets/PortfolioPage";
 import { CostComposition } from "@/routes/financials/CostComposition";
 import { MonthHero } from "@/routes/financials/MonthHero";
 import { RevenueComposition } from "@/routes/financials/RevenueComposition";
 import { SiteMoneyRows, TooShortForATrend, TrendDates } from "@/routes/financials/SiteMoneyRows";
-import { MoneyViewContext } from "@/routes/financials/MoneyViewContext";
-import { moneyRowsForView } from "@/routes/financials/view-money";
+import { MoneyReporting } from "@/routes/financials/MoneyReporting";
 import { Banking } from '@/routes/financials/Banking';
 
 /** Cents, everywhere on this page: it exists to be reconciled against a
@@ -108,7 +106,7 @@ export default function FinancialsRoute() {
       : null;
   const banking = missingPeriod?.banking ?? data?.banking;
 
-  /** What the header's selector offers, from whichever answer arrived. */
+  /** The selector keeps the requested month visible even when it was unavailable. */
   const picker = missingPeriod
     ? missingPeriod.periods.length > 0 && requestedPeriod !== null
       ? { period: requestedPeriod, periods: missingPeriod.periods }
@@ -128,39 +126,30 @@ export default function FinancialsRoute() {
   const lastRead = dataUpdatedAt > 0 ? new Date(dataUpdatedAt).toISOString() : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
-      <PageHeader
-        title="Money"
-        /* The page's one question, not a fact about how the payload chose a
-           period. */
-        actions={
-          /* The selector survives a bad month: its value is the month that is
-             not there, which `PeriodPicker` tolerates, so picking any month in
-             the list fires a change. */
-          picker ? (
-            <span className="flex flex-wrap items-center gap-2">
-              {loadingPeriod ? (
-                <span role="status" data-status-for={`period:${loadingPeriod}`} data-period-loading={loadingPeriod}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden />
-                  {`Loading ${requestedPeriodLabel(loadingPeriod)}`}
-                </span>
-              ) : null}
-              {monthToDate ? (
-                <span data-month-to-date>
-                  <StateChip label="Month to date" tone="na" dot="hollow" subject={`period:${picker.period}`} />
-                </span>
-              ) : null}
-              <PeriodPicker
-                period={picker.period}
-                periods={picker.periods}
-                onSelect={(next) => setSearchParams({ period: next })}
-              />
+    <PortfolioPage
+      tab="money"
+      actions={picker ? (
+        <span className="flex flex-wrap items-center gap-2">
+          {loadingPeriod ? (
+            <span role="status" data-status-for={`period:${loadingPeriod}`} data-period-loading={loadingPeriod}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden />
+              {`Loading ${requestedPeriodLabel(loadingPeriod)}`}
             </span>
-          ) : null
-        }
-      />
-
+          ) : null}
+          {monthToDate ? (
+            <span data-month-to-date>
+              <StateChip label="Month to date" tone="na" dot="hollow" subject={`period:${picker.period}`} />
+            </span>
+          ) : null}
+          <PeriodPicker
+            period={picker.period}
+            periods={picker.periods}
+            onSelect={(next) => setSearchParams({ period: next })}
+          />
+        </span>
+      ) : undefined}
+    >
       {refreshFailed ? (
         <StatusBanner lead="Refresh failed" subject={`period:${data.period}`} severity="warn">
           <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -197,7 +186,7 @@ export default function FinancialsRoute() {
         </div>
       )}
       {banking ? <Banking data={banking} /> : null}
-    </div>
+    </PortfolioPage>
   );
 }
 
@@ -454,7 +443,6 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
   const partialDates = portfolioPartialDates(history);
   return <DailyRevenuePanel history={history} range={revenueWindowDays(history.from, history.to)}
     title="Daily revenue" notesByDate={notesByDate} partialDates={partialDates} totals={false}
-    setupHref="/integrations"
     context={coverage ? <SourceCoverage history={history} /> : null} />;
 }
 
@@ -503,7 +491,6 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
  * time is a collapsed panel underneath.
  */
 function Ledger({ data }: { data: FinancialsPayload }) {
-  const { choice } = useView();
   // How many sites the installation has, from the sidebar's own read already
   // in the cache, so a month in which only one of several sites earned keeps
   // its by-site rows. Null until that read answers.
@@ -535,7 +522,6 @@ function Ledger({ data }: { data: FinancialsPayload }) {
 
   return (
     <div className="@container flex flex-col gap-5" data-money-ledger="">
-      {choice.view !== "overview" ? <MoneyViewContext data={data} rows={rows} view={choice.view} /> : null}
       <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
         <MonthHero
           equation={equation}
@@ -564,8 +550,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           />
         ) : null}
         <SiteMoneyRows
-          rows={moneyRowsForView(rows, choice.view)}
-          view={choice.view}
+          rows={rows}
           overhead={data.overhead}
           period={data.period}
           openPeriod={openPeriod}
@@ -599,6 +584,12 @@ function Ledger({ data }: { data: FinancialsPayload }) {
       {data.dailyRevenue ? (
         <Panel title="Day by day" count={formatPeriodMonthYear(data.period)} mark="days">
           <PortfolioRevenue history={data.dailyRevenue} sites={sites} />
+        </Panel>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <Panel title="Reporting and coverage" count={formatPeriodMonthYear(data.period)} mark="coverage">
+          <MoneyReporting data={data} rows={rows} />
         </Panel>
       ) : null}
 

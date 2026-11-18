@@ -1,12 +1,11 @@
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render, screen } from './render';
 import { everyTabPayload } from './asset-detail-fixture';
 import { AlertsTab } from '@/routes/asset-detail/AlertsTab';
 import type { Severity } from '@shared/wall';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-vi.mock('@/hooks/useView', () => ({ useView: () => ({ view: { id: 'overview' } }) }));
 
 describe('asset alert severity summary', () => {
   it.each<[Severity[], string]>([

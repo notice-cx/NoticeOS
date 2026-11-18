@@ -28,7 +28,7 @@ For other networks, NoticeOS’s data receiver has an import route for revenue r
 
 ### Where the tables are
 
-Open **Money** in the sidebar. It starts with a one-line summary of the month, such as **October net +$135 so far**, and three figures: **Revenue**, **Cost** and **Confirmed**. A **Month to date** chip marks an open month. Use **Accounting period** to pick another month.
+Open **Portfolio** in the sidebar and select **Money**. The report starts with a monthly summary such as **October net +$135 so far**, followed by **Revenue**, **Cost** and **Confirmed**. A **Month to date** chip marks an open month. Use **Accounting period** to pick another month.
 
 Under the summary, each panel opens when you select it: **Daily revenue**, **Month by month**, **Where the cost comes from**, **By asset**, and **Declared costs**, which holds the two tables you edit. An asset's own **Money** tab shows the same for one asset. See [Money](/tower/financials).
 

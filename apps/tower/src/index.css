@@ -613,6 +613,7 @@
   --color-task-done: var(--task-done);
   --color-secondary-foreground: var(--secondary-foreground);
   --spacing-sidebar: 236px;
+  --spacing-sidebar-compact: 3.5rem;
 
   /* The desk's type scale above Tailwind's own steps. Numbers own the top of
      it: `display` is a screen's lead figure, `figure` a stat tile's, and
@@ -767,6 +768,39 @@
 }
 .brand-lockup--text {
   font-size: 1em;
+}
+
+[data-sidebar-compact] nav a {
+  justify-content: center;
+}
+/* Fixed labels extend past the scrolling navigation and keep the link's accessible name. */
+[data-sidebar-compact] [data-sidebar-label] {
+  position: fixed;
+  inset-inline-start: calc(var(--spacing-sidebar-compact) + var(--spacing) * 2);
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+  max-inline-size: calc(100vw - var(--spacing-sidebar-compact) - var(--spacing) * 4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing) calc(var(--spacing) * 2);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-xs);
+}
+[data-sidebar-compact] :is(a, button):is(:hover, :focus-visible) > [data-sidebar-label] {
+  opacity: 1;
+}
+[data-sidebar-compact] .nav-credential-dot {
+  position: absolute;
+  inset-inline-end: var(--spacing);
+}
+[data-sidebar-compact] nav a:has(.nav-credential-dot) {
+  position: relative;
 }
 
 /* One two-row rhythm; dividers follow whole widgets as the strip reflows. */

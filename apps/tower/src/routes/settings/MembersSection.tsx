@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { ReadFailed } from '@/components/ReadFailed';
-import { useBrowserContext } from '@/lib/browser-context';
+import { useBrowserContext, useCanManageMembers } from '@/lib/browser-context';
 import { SettingsPanel } from '@/routes/settings/SettingsPanel';
 import { ApiError } from '@/lib/api';
 import { MembershipRefused, type MemberCommand, type MemberRole, type MembershipPage, type WorkspaceMember, type WorkspaceInvitation } from '@/lib/membership-client';
@@ -14,9 +14,7 @@ type Roster = { members: MembershipPage<WorkspaceMember>; invitations: Membershi
 const accessDenied = (error: unknown) => error instanceof MembershipRefused && error.status === 403;
 const rosterRefused = new ApiError('Could not verify access to members.', 403);
 export function MembersSection() {
-  const context = useBrowserContext();
-  if (context.runtime.owner.mode !== 'hosted' || context.workspaceRole !== 'owner') return null;
-  return <OwnerMembers />;
+  return useCanManageMembers() ? <OwnerMembers /> : null;
 }
 
 /** Administration uses the captured runtime; bootstrap role only hides controls.

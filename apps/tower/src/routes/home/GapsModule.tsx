@@ -10,26 +10,31 @@ import { formatInt } from "@/lib/format";
  * Each row files a task through the same composer a finding files one with,
  * opened on the gap's site's project with the gap as its title.
  */
-export function GapsModule({ cards, onFileTask }: { cards: readonly AssetCard[]; onFileTask?: (prefill: TaskComposerPrefill) => void }) {
+export function GapsModule({ cards, readOnly = false, onFileTask }: {
+  cards: readonly AssetCard[];
+  readOnly?: boolean;
+  onFileTask?: (prefill: TaskComposerPrefill) => void;
+}) {
   const gaps = businessGaps(cards);
+  if (gaps.length === 0) return null;
   return (
     <div data-home-gaps={gaps.length}>
-      <ListPanel title="Worth a look" count={formatInt(gaps.length)} empty="Nothing is missing.">
+      <ListPanel title="Worth a look" count={formatInt(gaps.length)}>
         {gaps.map((gap) => (
           <ListRow
             key={gap.key}
             glyph="↗"
             title={gap.title}
-            caption={gap.detail ?? undefined}
+            caption={readOnly && !gap.key.startsWith("finding:") ? undefined : gap.detail ?? undefined}
             marks={{ "data-business-gap": gap.key }}
-            rowActions={
+            rowActions={readOnly ? undefined : (
               <FileTaskButton
                 label="Make a task"
                 subject={gap.title}
                 prefill={{ ...(gap.siteId ? { project: gap.siteId } : {}), title: gap.title }}
                 onOpen={onFileTask ? () => onFileTask({ ...(gap.siteId ? { project: gap.siteId } : {}), title: gap.title }) : undefined}
               />
-            }
+            )}
           />
         ))}
       </ListPanel>

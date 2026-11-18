@@ -1,4 +1,4 @@
-import { useDemoReadonly } from '@/lib/browser-context';
+import { useDemoReadonly, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { CONFIG_READ_ONLY_FALLBACK, useConfigWritable } from "@/hooks/useConfigWritable";
 import type { ConfigWritability } from "@/lib/api";
@@ -18,9 +18,10 @@ export function SavesPaused({
   className?: string;
 }) {
   const demoReadonly = useDemoReadonly();
+  const restriction = useWorkspaceReadOnlyReason();
   const live = useConfigWritable();
   const { writable, reason } = state ?? live;
-  if (writable || (!state && demoReadonly && reason === DEMO_READ_ONLY)) return null;
+  if (writable || (!state && (restriction || (demoReadonly && reason === DEMO_READ_ONLY)))) return null;
   return (
     <div data-saves-paused className={className}>
       <StatusBanner lead="Saves paused" subject="config:saves" severity="warn">

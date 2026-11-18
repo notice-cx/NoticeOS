@@ -259,7 +259,7 @@ or remove components that repeat the same data without adding a comparison,
 relationship or action. A different chart shape alone does not add information.
 Place supporting readbacks and methods under Details; keep material failures,
 missing-data states and action controls visible. Review the complete screen,
-including purpose views and empty states, rather than each component alone.
+including first-run and empty states, rather than each component alone.
 
 **Annotate in place.** Put labels on the marks instead of in a legend: the
 newest value at the line's end, a named reference point ("Busiest day · Jul 11
@@ -383,25 +383,7 @@ primary component already presents the same conclusion or data.
 only line, so an empty list and a finished list look the same, and neither is
 a blank panel.
 
-**A person's view changes presentation throughout the Tower.** The five
-purposes are "Overview", "Growth", "Revenue", "Delivery" and "Reliability".
-A horizontal View bar below the header appears on every normal and demo
-page; on a phone it becomes a picker. It updates the current route in place,
-preserving the asset, selected tab, filters and open details. Every page
-changes its emphasis, summary context or supporting detail for the purpose.
-Navigation and asset tabs keep the same entries and order. View selection
-never gates features or vocabulary by skill level. The registry is
-`packages/contract/src/views.mts` (`VIEW_LIBRARY`); `useView` reads the personal
-choice, else the workspace default (`config/tower.json` `/view`), else
-"Overview". Hosted preferences belong to the person; standalone and demo
-preferences belong to the browser. Legacy choices normalize to Overview
-without rewriting stored workspace values until an explicit save.
-
-Home's optional "What do you want to focus on?" offers one purpose choice;
-"Skip" dismisses it without writing preferences. Onboarding never changes the
-workspace default. Settings retains optional advanced Home-order picks,
-independent of purpose. Search (⌘K) lists every page and the other four views.
-The Wall and its editor use an independent layout and have no View bar.
+**Each report has one address.** The sidebar lists workspace pages, and an asset’s tabs list its reports. Settings stays in the sidebar footer while the list of assets scrolls. The phone menu uses the same layout. Search opens the same destinations. When a report requires setup, link to the source or mapping that supplies it. A measured zero, a pending collection and an unavailable source have different meanings.
 
 **Home shows how the business is doing, what is broken and what needs the
 operator's attention**, in that order, each as a chart or graphic. The month's money is the main figure
@@ -432,13 +414,7 @@ squeezed desktop one.
 
 **Home's executive briefing** precedes the modules when a saved result contains useful findings. One full-width component shows one finding and its next action, with supporting observations and reasoning under **Details**. There is no separate overall headline or summary. Cited sources identify the assets whose icons appear beside a finding; findings without an asset-specific source use a portfolio icon. Up to three findings rotate every 7 seconds; vertical dots select a finding and pause rotation. **Refresh AI insights** requests a new briefing and animates while generation is running. A new result resets rotation. Rotation pauses during interaction, while Details is open and while the page is hidden; reduced-motion preferences disable automatic changes. The full briefing can contain 360 words. Time context appears in the narrative. One contextual action link can open the relevant page; source inventories, model metadata and routine timestamps do not appear. The model receives a bounded packet covering finance, acquisition, product performance, delivery, measured outcomes and operational health. Recent observations can support judgment across these areas without a prescribed finding pattern. Missing evidence and unchanged revenue concentration do not establish insights. An empty result leaves the observed metrics and problem list as the primary components. Failed refreshes retain useful prior guidance with a concise warning; outdated results are labelled. Generation runs only on request. Saved insights persist in Postgres through restarts; reading Home never starts generation or delays the first screen. When no model is connected, Home also shows a **Connect a model** link. First-run setup remains separate.
 
-**Home is drawn from modules, in the order the person's view lists them**
-(`HOME_MODULES`, `routes/home/modules.tsx`). Overview shows the combined
-performance, work and decisions summary. Growth starts with visitors by
-channel; Revenue starts with money; Delivery starts with the agents' week;
-Reliability starts with Asset health. Existing advanced Home-order picks
-promote modules already included in that purpose. Each module retains its
-own column span and the grid fills available space.
+The detailed reports use the following components.
 
 - **Asset health** (`HealthModule`) is one row per asset with five dots under
   "Up", "Speed", "Errors", "Search" and "Code", from `techHealth`
@@ -611,9 +587,8 @@ Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It sc
 `scripts/wall-layout.mts`). "Health and decisions" places the strip, Next up,
 Asset health, revenue, Attention ticker and The agents. "Revenue and visitors"
 places the strip, revenue, Visitors by channel, Portfolio and Work.
-"Portfolio overview" is the default composition above. Their stable
-`WallPresetId` keys are separate from the five purpose views. With no saved
-layout, the TV and editor use `DEFAULT_WALL_LAYOUT`. Personal preferences,
+"Portfolio overview" is the default composition above. With no saved layout,
+the TV and editor use `DEFAULT_WALL_LAYOUT`. Personal preferences,
 workspace defaults and `?view=` never change the Wall, including in the demo.
 "Add a widget" → "Start from" lists these layouts and checks the current
 match. A selection replaces the draft as one undoable step; Save applies it.
@@ -812,15 +787,8 @@ from its starting point to its result:
   a reason, set a market.
 - **File a task from a finding** — the asset page: File task on the finding,
   prefilled.
-- **Choose a view on the first run** — fresh install, Home: one choice under
-  "What do you want to focus on?" saves the personal purpose. Skip dismisses
-  it without writes.
-- **Switch the view** — the global View bar or phone picker changes the
-  current page in place, with navigation and asset tabs preserved.
-- **Read an asset's health in Reliability** — choose Reliability; Home's Asset
-  health row opens the asset; expanding a Health card displays its readings.
-- **See visitor opportunities in Growth** — choose Growth; Home shows visitors
-  by channel and Worth a look; Make a task on a row, File task.
+- **Read an asset’s health** — open the asset’s Health tab and expand a reading.
+- **File a task from a portfolio opportunity** — open Portfolio, select the opportunity and review the prefilled task.
 - **Change the time zone** — Settings → General: saved on change, then Undo.
 - **Change a portfolio setting** — Settings: the monthly data budget.
 - **Change how often data is collected** — Integrations → a source's Manage
@@ -880,10 +848,7 @@ technical one, never a more technical one: a business surface shows "being
 watched · verdict in 3 days", not "watch window"; "still counting", not
 "provisional"; "people a day", not "GA4 users". A provider's name appears on a
 business surface only as a key beside its own mark: a chart key beside its
-line, or the header of its own column in a data-source grid. Purpose views
-do not change this vocabulary policy or classify a person by skill. Every
-view keeps the same words for the same facts. The purpose controls use plain
-labels and short descriptions.
+line, or the header of its own column in a data-source grid.
 
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the operational and technical

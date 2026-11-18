@@ -1,4 +1,4 @@
-import { useDemoReadonly } from '@/lib/browser-context';
+import { useDemoReadonly, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { useTowerApi, useBrowserRuntime } from '@/lib/browser-context';
 import { useQuery } from "@tanstack/react-query";
 import { type ConfigWritability } from "@/lib/api";
@@ -21,10 +21,12 @@ export const CONFIG_READ_ONLY_FALLBACK =
  * lane still checks every Save; this read only keeps the controls truthful. */
 export function useConfigWritable(): ConfigWritability {
   const demoReadonly = useDemoReadonly();
+  const restriction = useWorkspaceReadOnlyReason();
   const demo = useBrowserRuntime().owner.mode === 'demo' || demoReadonly;
   const { fetchConfigWritable } = useTowerApi();
   const { data, isError } = useQuery<ConfigWritability>({
     queryKey: ["config-writable"],
+    enabled: restriction === null,
     queryFn: ({ signal }) => fetchConfigWritable(signal),
     staleTime: 15_000,
     gcTime: Infinity,
@@ -33,6 +35,7 @@ export function useConfigWritable(): ConfigWritability {
     refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
+  if (restriction) return { writable: false, reason: restriction, sources: data?.sources ?? {} };
   if (isError) {
     return { writable: false, reason: "Config store unreachable", sources: data?.sources ?? {} };
   }

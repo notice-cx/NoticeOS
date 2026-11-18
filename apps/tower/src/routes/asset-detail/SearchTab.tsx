@@ -1,4 +1,3 @@
-import { PurposeSections } from "./purpose-presentation";
 import type { ReactNode } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { Link } from "react-router-dom";
@@ -9,18 +8,12 @@ import type {
   SearchQueryTrends,
   SerpCompetitor,
 } from "@shared/asset-detail";
-import { connectable, connectHref, firstToConnect } from "@shared/connect-panel";
-import { sourceReadings } from "@shared/connection-status";
-import { integrationLabel } from "@shared/integrations";
-import type { SignalTrend } from "@shared/wall";
 import type { WatchSeed } from "@shared/watch-windows";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
 import { EmptyState } from "@/components/EmptyState";
 import { PageDecisions } from "@/components/PageDecisions";
 import { QueryVisibilityRankings } from "@/components/QueryVisibilityRankings";
 import { SerpPanelBoard } from "@/components/SerpPanelBoard";
-import { Button } from "@/components/ui/button";
-import { useConnections } from "@/hooks/useConnections";
 import { formatCalendarDate, formatCalendarRange, formatInt, formatPercent, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SectionLabel } from "@/components/surface/SectionLabel";
@@ -28,6 +21,7 @@ import { ChangeRows, type ChangeRow } from "@/components/viz/ChangeRows";
 import { FunnelBars } from "@/components/viz/FunnelBars";
 import { useAssetTabPath } from "@/routes/asset-detail/AssetTabs";
 import { timelineAnnotations } from "@/routes/asset-detail/shared";
+import { hasRecordedTrend, ReportSourceNext } from "@/routes/asset-detail/ReportSourceNext";
 import { SearchPair } from "@/routes/asset-detail/trend-panels";
 import { useRange } from "@/routes/asset-detail/useRange";
 
@@ -71,10 +65,10 @@ export function SearchTab({
   const hero = moved ? "moves" : panel ? "panel" : hasDecisions ? "decisions" : "context";
 
   return (
-    <PurposeSections surface="search" id="search-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
-      {data.executive ? <AnalysisEvidence key="analysis" snapshot={data.executive} /> : null}
+    <div id="search-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      {data.executive ? <AnalysisEvidence snapshot={data.executive} /> : null}
       {moved ? (
-        <div key="moves" data-surface-hero="">
+        <div data-surface-hero="">
           <ChangeRows
             id="search-moves"
             title="Queries that moved"
@@ -89,7 +83,7 @@ export function SearchTab({
         // and its own collection line. The one thing this tab owes it that
         // the board cannot know is where the panel's trend lives, and that
         // goes beside the board rather than over it.
-        <section key="panel" id="serp-panel" {...(hero === "panel" ? { "data-surface-hero": "" } : {})} className="scroll-mt-4 min-w-0">
+        <section id="serp-panel" {...(hero === "panel" ? { "data-surface-hero": "" } : {})} className="scroll-mt-4 min-w-0">
           <SerpPanelBoard panel={panel} collapsed />
           <Link
             to={`${pathFor(data.asset.id, "growth")}#panel-scoreboard`}
@@ -103,7 +97,7 @@ export function SearchTab({
       {hasDecisions ? (
         // No card around the pair: both lists already carry their own rules
         // and their own hairlines.
-        <div key="decisions" className="grid min-w-0 gap-3.5" {...(hero === "decisions" ? { "data-surface-hero": "" } : {})}>
+        <div className="grid min-w-0 gap-3.5" {...(hero === "decisions" ? { "data-surface-hero": "" } : {})}>
           <QueryVisibilityRankings
             trends={data.executive?.searchQueries ?? null}
             asset={data.asset}
@@ -126,12 +120,12 @@ export function SearchTab({
         </div>
       ) : null}
 
-      <SearchContext key="context" snapshot={intelligence} hero={hero === "context"} />
+      <SearchContext snapshot={intelligence} hero={hero === "context"} />
 
       {/* What the panel buys is on Settings, with the spend meter. Search keeps
           the board, the evidence, which is what this tab is for. */}
 
-    </PurposeSections>
+    </div>
   );
 }
 
@@ -226,10 +220,6 @@ function PositionMove({ previous, current, deepest }: { previous: number; curren
 // --- before the site tracks anything ---------------------------------------
 
 /** The sources a site's search clicks and impressions come from. */
-const SEARCH_SOURCES = new Set(["gsc", "bing-webmaster"]);
-
-const hasPoints = (trend: SignalTrend) => trend.series.length > 0 || (trend.contextSeries?.length ?? 0) > 0;
-
 /**
  * The Search tab before any tracked term, and its one next step: with search
  * numbers, Growth's search pair (one rendering, so clicks are one fact on both
@@ -239,22 +229,16 @@ const hasPoints = (trend: SignalTrend) => trend.series.length > 0 || (trend.cont
 function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: number }) {
   const { days } = useRange();
   const pathFor = useAssetTabPath();
-  const connections = useConnections();
   const id = data.asset.id;
   const { performance } = data;
-  const readings = sourceReadings(id, data.integrations.sources, connections, nowMs);
   const searched = [
     performance.webSearchClicks.google,
     performance.webSearchClicks.bing,
     performance.webSearchImpressions.google,
     performance.webSearchImpressions.bing,
-  ].some(hasPoints);
+  ].some(hasRecordedTrend);
 
   if (searched) {
-    const dataforseo = readings.find((reading) => reading.id === "dataforseo") ?? null;
-    const step = dataforseo === null || connectable(dataforseo)
-      ? { label: "Connect DataForSEO", to: connectHref("dataforseo", id) }
-      : { label: "Track search terms", to: `${pathFor(id, "settings")}#tracked-panels` };
     return (
       <div id="search-evidence" data-search-start="numbers" className="flex scroll-mt-4 flex-col gap-3.5">
         <div data-surface-hero>
@@ -267,15 +251,12 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
         </div>
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3" data-search-next>
           <SectionLabel title="Tracked terms" caption="none yet" />
-          <Button asChild size="sm">
-            <Link to={step.to}>{step.label}</Link>
-          </Button>
+          <ReportSourceNext report="trackedSearch" assetTab="search" data={data} nowMs={nowMs} configuredHref={`${pathFor(id, "settings")}#tracked-panels`} />
         </section>
       </div>
     );
   }
 
-  const source = firstToConnect(readings.filter((reading) => SEARCH_SOURCES.has(reading.id)));
   return (
     <section
       id="search-evidence"
@@ -284,13 +265,7 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3"
     >
       <EmptyState title="No search numbers yet" />
-      <Button asChild size="sm">
-        {source !== null && source.provider !== null ? (
-          <Link to={connectHref(source.provider, id)}>Connect {integrationLabel(source.id, source.label)}</Link>
-        ) : (
-          <Link to={pathFor(id, "sources")}>Open Data sources</Link>
-        )}
-      </Button>
+      <ReportSourceNext report="search" assetTab="search" data={data} nowMs={nowMs} />
     </section>
   );
 }

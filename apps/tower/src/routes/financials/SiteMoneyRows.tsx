@@ -2,7 +2,6 @@ import { sumMoneyFigures } from "@noticeos/contract/money";
 import { useId, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { FinancialProperty, MoneyFigure } from "@shared/financials";
-import type { ViewId } from "@shared/views";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -12,7 +11,7 @@ import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { formatMoney, formatPercent, formatPeriodMonth, formatPeriodMonthLong, formatPeriodMonthYear, formatSeriesDate, formatSignedMoney } from "@/lib/format";
 import { siteNetSeries, type SiteChange, type SiteMoneyRow } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
-import { financialMargin, MONEY_VIEW_CONTEXT } from "./view-money";
+import { financialMargin } from "./financial-margin";
 
 /** Cents: these rows are reconciled against receipts, and a column of rounded
  * figures does not add up to its own total. */
@@ -46,7 +45,6 @@ export function SiteMoneyRows({
   openPeriod,
   sites,
   className,
-  view = "overview",
 }: {
   rows: readonly SiteMoneyRow[];
   overhead: MoneyFigure;
@@ -57,7 +55,6 @@ export function SiteMoneyRows({
   /** The installation's site count, or null before it is known. */
   sites: number | null;
   className?: string;
-  view?: ViewId;
 }) {
   const id = useId();
   const owned = rows.map((row) => row.property);
@@ -72,11 +69,11 @@ export function SiteMoneyRows({
 
   return (
     <section aria-labelledby={id} data-money-sites="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}>
-      <SectionLabel id={id} title="By asset" caption={`${formatPeriodMonthYear(period)} · ${MONEY_VIEW_CONTEXT[view].order}`} className="px-5 pt-4 pb-2" />
+      <SectionLabel id={id} title="By asset" caption={`${formatPeriodMonthYear(period)} · Revenue, largest first`} className="px-5 pt-4 pb-2" />
       <div role="table" aria-labelledby={id} className="flex flex-col pb-1">
         <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS)}>
           <span role="columnheader">Asset</span>
-          <span role="columnheader" className="hidden @3xl:block">{MONEY_VIEW_CONTEXT[view].column}</span>
+          <span role="columnheader" className="hidden @3xl:block">Margin · net by month</span>
           <span role="columnheader" className="text-end">
             Revenue<span className="@lg:hidden"> · net</span>
           </span>
@@ -85,7 +82,7 @@ export function SiteMoneyRows({
           <span role="columnheader" className="hidden text-end @lg:block">Net</span>
         </div>
         {rows.map((row, index) => (
-          <SiteRow key={row.property.asset} row={row} index={index} period={period} openPeriod={openPeriod} view={view} />
+          <SiteRow key={row.property.asset} row={row} index={index} period={period} openPeriod={openPeriod} />
         ))}
         {subtotal ? <SummaryRow label="Assets, direct" figure={direct} mark="direct" strong /> : null}
         {overheadExists ? (
@@ -104,9 +101,10 @@ export function SiteMoneyRows({
   );
 }
 
-function SiteRow({ row, index, period, openPeriod, view }: { row: SiteMoneyRow; index: number; period: string; openPeriod: string; view: ViewId }) {
+function SiteRow({ row, index, period, openPeriod }: { row: SiteMoneyRow; index: number; period: string; openPeriod: string }) {
   const { property, share, change } = row;
   const { figure } = property;
+  const margin = financialMargin(row);
   const iconsOf = useSiteIcons();
   return (
     <div
@@ -129,11 +127,8 @@ function SiteRow({ row, index, period, openPeriod, view }: { row: SiteMoneyRow; 
           {property.displayName}
         </Link>
       </span>
-      <span role="cell" className="hidden min-w-0 flex-col gap-1 @3xl:flex" data-money-context={view}>
-        {view === "growth" ? (change ? <Change change={change} /> : <span className="text-micro text-muted-foreground">No revenue comparison</span>) : null}
-        {view === "revenue" ? <span className="text-micro tabular-nums text-muted-foreground">{financialMargin(row) === null ? "Margin unavailable" : `${formatPercent(financialMargin(row)!)}% margin`}</span> : null}
-        {view === "delivery" ? <span className="text-micro tabular-nums text-muted-foreground">{formatMoney(figure.cost, figure.currency, CENTS)} direct cost</span> : null}
-        {view === "reliability" ? <span className="text-micro text-muted-foreground">{property.revenueReported ? "Revenue reported" : "No revenue report"}</span> : null}
+      <span role="cell" className="hidden min-w-0 flex-col gap-1 @3xl:flex">
+        {margin === null ? null : <span className="text-micro tabular-nums text-muted-foreground">{formatPercent(margin)}% margin</span>}
         <NetTrend property={property} period={period} openPeriod={openPeriod} />
       </span>
       <span role="cell" className="flex flex-col items-end gap-0.5 tabular-nums">

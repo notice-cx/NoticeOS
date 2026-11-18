@@ -1,3 +1,4 @@
+import { useBackupPreview, useDemoReadonly, useWorkspaceReadOnlyReason } from "@/lib/browser-context";
 import { ArrowDownUp, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -8,7 +9,6 @@ import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { sitePath } from "@shared/first-run";
 import { AddSiteButton } from "@/components/AddSite";
 import { EmptyState } from "@/components/EmptyState";
-import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
 import { LiveSiteArrange } from "@/components/SiteArrange";
 import { ASSETS_ROUTE, SITES_ARRANGE_PARAM } from "@/components/nav-items";
@@ -21,8 +21,6 @@ import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { useConnections } from "@/hooks/useConnections";
 import { useNow } from "@/hooks/useNow";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
-import { useView } from "@/hooks/useView";
-import { portfolioPresentation } from "@/routes/assets/presentation";
 import { useWall } from "@/hooks/useWall";
 import { formatInt } from "@/lib/format";
 import { monthFigure } from "@/lib/home-brief";
@@ -38,8 +36,12 @@ import {
   type SitesOrder,
 } from "@/lib/sites-index";
 import { cn } from "@/lib/utils";
+import { tabPath } from "@/routes/asset-detail/AssetTabs";
 import { AssetsTable } from "@/routes/assets/AssetsTable";
 import { HealthSplit } from "@/routes/assets/HealthSplit";
+import { PortfolioPage } from "@/routes/assets/PortfolioPage";
+import { ChannelsModule } from "@/routes/home/ChannelsModule";
+import { GapsModule } from "@/routes/home/GapsModule";
 
 type HealthFilter = "all" | SiteHealthKey;
 
@@ -60,8 +62,6 @@ const ORDERS: { value: SitesOrder; label: string }[] = [
 export function AssetsRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const now = useNow();
-  const { view } = useView();
-  const presentation = portfolioPresentation(view.id);
   const connections = useConnections();
   // Each site's one health word, from the same open problems Home and the
   // site's own header read.
@@ -70,14 +70,15 @@ export function AssetsRoute() {
 
   const status = params.get("status") ?? "all";
   const health = readKey<HealthFilter>(params.get("health"), ["all", ...HEALTH_KEYS]);
-  const explicitSort = params.get("sort");
-  const sort = explicitSort === null ? presentation.order : readKey<SitesOrder>(explicitSort, ORDERS.map((option) => option.value));
+  const sort = readKey<SitesOrder>(params.get("sort"), ORDERS.map((option) => option.value));
 
-  const arranging = params.get(SITES_ARRANGE_PARAM) === "1";
+  const readOnly = useWorkspaceReadOnlyReason();
+  const backupPreview = useBackupPreview();
+  const demoReadonly = useDemoReadonly();
+  const arranging = !readOnly && params.get(SITES_ARRANGE_PARAM) === "1";
 
   function setFilter(name: string, value: string) {
     const next = new URLSearchParams(params);
-    // An explicit order survives a view change, including Your order.
     if (value === "all") next.delete(name);
     else next.set(name, value);
     // `replace`: Back should leave Sites, not walk every control touched.
@@ -127,13 +128,25 @@ export function AssetsRoute() {
     ? [...split, { key: health, word: SITE_HEALTH[health].word, count: 0 }]
     : split;
   const answer = sitesAnswer(lines);
-  const figures = data ? (view.id === "growth"
-    ? [visitorsAnswerFigure(all), monthFigure(data.portfolio, all)]
-    : [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)]).filter((figure) => figure !== null) : [];
-  if (view.id === "delivery") {
-    const measured = assets.flatMap((asset) => asset.work ? [asset.work] : []);
-    if (measured.length > 0) figures.unshift({ label: "Blocked tasks", value: formatInt(measured.reduce((sum, work) => sum + work.blocked, 0)), note: `${measured.length} of ${assets.length} assets measured` });
-  }
+  const figures = data ? [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)].filter((figure) => figure !== null) : [];
+  const hasChannels = assets.some((asset) => asset.channels != null);
+  const sourcesAsset = hasChannels ? undefined : assets.find((asset) => asset.status !== "retired");
+  const showChannels = hasChannels || sourcesAsset || assets.some((asset) => asset.product?.funnel?.largestDrop);
+  const reports = (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {showChannels ? <ChannelsModule cards={assets} missing={sourcesAsset ? (
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>No channel totals are available for the listed assets.</p>
+          {backupPreview || demoReadonly ? null : readOnly
+            ? <p>An owner or operator can check Google Analytics in the asset’s data sources.</p>
+            : <Link className="font-medium underline underline-offset-4" to={tabPath(sourcesAsset.id, "sources")}>
+              Review data sources for {sourcesAsset.displayName}
+            </Link>}
+        </div>
+      ) : undefined} /> : null}
+      <GapsModule cards={assets} readOnly={demoReadonly || readOnly !== null} />
+    </div>
+  );
 
   const narrowing = [
     narrowed
@@ -144,25 +157,19 @@ export function AssetsRoute() {
   ].join(" · ");
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
-      <PageHeader
-        title="Portfolio"
-        actions={
-          // Opens Add a site over this page: adding a site is one question,
-          // not a page of its own.
-          <AddSiteButton>
-            <Plus aria-hidden /> Add an asset
-          </AddSiteButton>
-        }
-        meta={
-          data && all.length > 0 ? (
-            <span className="text-xs text-muted-foreground" data-assets-age>
-              updated {formatAge(ageMs(now, data.generatedAt))} ago
-            </span>
-          ) : undefined
-        }
-      />
-
+    <PortfolioPage
+      tab="assets"
+      actions={
+        <AddSiteButton>
+          <Plus aria-hidden /> Add an asset
+        </AddSiteButton>
+      }
+      meta={data && all.length > 0 ? (
+        <span className="text-xs text-muted-foreground" data-assets-age>
+          updated {formatAge(ageMs(now, data.generatedAt))} ago
+        </span>
+      ) : undefined}
+    >
       {/* The machinery arrives with something to compare: over no sites the
           answer, split and controls would surround an empty state, and over
           one they would sort a single row. So no sites is the header's Add a
@@ -194,14 +201,15 @@ export function AssetsRoute() {
         </section>
       ) : assets.length === 0 ? (
         <section data-surface-hero data-assets-all-hidden className="rounded-xl border border-border bg-card px-4 py-3">
-          <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={arrangeHref(true)} />} />
+          <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} />} />
         </section>
       ) : assets.length === 1 ? (
         <div data-surface-hero className="flex flex-col gap-3">
-          <AssetsTable lines={lines} view={view.id} />
+          <AssetsTable lines={lines} />
+          {reports}
           {hidden > 0 ? (
             <p className="m-0 text-sm text-muted-foreground" data-assets-summary>
-              <HiddenSites count={hidden} to={arrangeHref(true)} />
+              <HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} />
             </p>
           ) : null}
         </div>
@@ -246,11 +254,11 @@ export function AssetsRoute() {
                       </option>
                     ))}
                   </select>
-                  <Button asChild variant="outline" size="sm">
+                  {readOnly ? null : <Button asChild variant="outline" size="sm">
                     <Link to={arrangeHref(true)} replace data-assets-arrange-open>
                       <ArrowDownUp aria-hidden /> Arrange
                     </Link>
-                  </Button>
+                  </Button>}
                 </FilterControls>
               </div>
             </FilterFold>
@@ -259,7 +267,7 @@ export function AssetsRoute() {
               <p className="m-0 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground" data-assets-summary>
                 <span>{narrowing}</span>
                 {hidden > 0 ? <span aria-hidden>·</span> : null}
-                {hidden > 0 ? <HiddenSites count={hidden} to={arrangeHref(true)} /> : null}
+                {hidden > 0 ? <HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} /> : null}
                 {narrowed ? <Link
                   to={{ search: clearedFilters(params) }}
                   replace
@@ -277,12 +285,13 @@ export function AssetsRoute() {
                 <EmptyState title="No assets match these filters" />
               </section>
             ) : (
-              <AssetsTable lines={visible} view={view.id} />
+              <AssetsTable lines={visible} />
             )}
           </div>
+          {reports}
         </>
       )}
-    </div>
+    </PortfolioPage>
   );
 }
 
@@ -323,7 +332,8 @@ function sitesAnswer(listed: readonly SiteLine[]): { key: string; line: string; 
 
 /** How many sites the list leaves out because their Home and Sites list
  * switch is off, opening Arrange, where they are listed. */
-function HiddenSites({ count, to }: { count: number; to: string }) {
+function HiddenSites({ count, to }: { count: number; to: string | null }) {
+  if (!to) return <span>{formatInt(count)} hidden</span>;
   return (
     <Link
       to={to}

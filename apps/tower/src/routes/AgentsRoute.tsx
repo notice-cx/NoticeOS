@@ -1,6 +1,4 @@
-import { Fragment, type ReactNode } from "react";
-import { useView } from "@/hooks/useView";
-import { AGENT_SECTION_ORDER, agentOutcome, agentViewPresentation, type AgentSection } from "./agents/agent-view";
+import { agentOutcome, agentReport } from "./agents/agent-report";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RouteLoading } from "@/components/RouteLoading";
@@ -10,6 +8,10 @@ import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { StackedWeeks } from "@/components/viz/StackedWeeks";
 import { useAgentWork } from "@/hooks/useAgentWork";
+import { useNow } from "@/hooks/useNow";
+import { useWall } from "@/hooks/useWall";
+import { useWork } from "@/hooks/useWork";
+import { FactoryModule } from "@/routes/home/FactoryModule";
 import { useNeedsNtasks } from "@/hooks/useTaskService";
 import { type AgentStats } from "@noticeos/contract/agent-stats";
 import { Link } from "react-router-dom";
@@ -42,8 +44,7 @@ export function AgentsRoute() {
 function AgentsBoard({ work, broken, complete, failed }: {
   work: AgentStats; broken: readonly string[]; complete: boolean; failed: boolean;
 }) {
-  const { view } = useView();
-  const presentation = agentViewPresentation(view.id, work);
+  const presentation = agentReport(work);
   const outcome = agentOutcome(work);
   const change = outcome.count - outcome.before;
   return (
@@ -58,33 +59,38 @@ function AgentsBoard({ work, broken, complete, failed }: {
       <div data-surface-hero="" className="flex flex-col gap-5">
         <PageAnswer
           answer={presentation.answer}
-          detail={complete && (view.id === "overview" || view.id === "growth") ? change === 0 ? "As many as the 7 days before"
+          detail={complete ? change === 0 ? "As many as the 7 days before"
             : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(outcome.before)})` : undefined}
           figures={presentation.figures}
           marks={{ "data-agents-answer": "" }}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2" data-agent-evidence="">
+      <div className="flex items-center">
         <Link to="/tasks" className="text-sm font-medium underline-offset-2 hover:underline">Review tasks →</Link>
-        {view.id === 'growth' ? <Link to="/assets" className="text-sm font-medium underline-offset-2 hover:underline">View asset journeys and measurements →</Link> : null}
-        {view.id === 'revenue' ? <Link to="/financials" className="text-sm font-medium underline-offset-2 hover:underline">View recorded financials →</Link> : null}
       </div>
-      <div className="grid gap-4 lg:grid-cols-2" data-agent-section-order={view.id}>
-        {AGENT_SECTION_ORDER[view.id].map(section => <Fragment key={section}>{({
-          velocity: work.velocity.weeks.some(week => week.total > 0) ? <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "", (view.id === "overview" || work.workers.length === 0) && "lg:col-span-2")}>
-          <header className="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className={cn("m-0", eyebrowClass)}>Velocity · tasks closed a week</h2>
-            <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · incomplete read"}</span>
-          </header>
-          <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
-            ariaLabel="Tasks closed a week, by model" className="min-h-56" />
-        </section> : null,
-          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers}
-            className={view.id === "overview" || !work.velocity.weeks.some(week => week.total > 0) ? "lg:col-span-2" : undefined} /> : null,
-        } satisfies Record<AgentSection, ReactNode>)[section]}</Fragment>)}
+      <div className="flex flex-col gap-4">
+        {work.velocity.weeks.some(week => week.total > 0) ? (
+          <section aria-label="Velocity" data-agent-velocity="" className={PANEL}>
+            <header className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className={cn("m-0", eyebrowClass)}>Velocity · tasks closed a week</h2>
+              <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · incomplete read"}</span>
+            </header>
+            <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
+              ariaLabel="Tasks closed a week, by model" className="min-h-56" />
+          </section>
+        ) : null}
+        {work.workers.length > 0 ? <WorkerRows workers={work.workers} /> : null}
+        <AgentWorkOutcomes />
       </div>
     </>
   );
+}
+
+function AgentWorkOutcomes() {
+  const now = useNow();
+  const wall = useWall();
+  const work = useWork({ watch: false });
+  return <FactoryModule cards={wall.data?.assets ?? []} work={work.data ?? null} nowMs={now} />;
 }
 
 export default AgentsRoute;

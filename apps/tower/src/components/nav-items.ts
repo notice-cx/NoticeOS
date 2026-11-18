@@ -12,6 +12,8 @@ import {
   Settings,
   Tv,
   Wallet,
+  UsersRound,
+  Activity,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -35,6 +37,7 @@ export interface NavItem {
  * would detach silently when the path changes.
  */
 export const ASSETS_ROUTE = "/assets";
+export const PORTFOLIO_MONEY_ROUTE = "/financials";
 
 /**
  * The Integrations page. Named for the same reason as `ASSETS_ROUTE`: the
@@ -48,44 +51,27 @@ export const TASKS_ROUTE = "/tasks";
 export const AGENTS_ROUTE = "/agents";
 
 /**
- * The desk's navigation, in the operator's order: where they land, what they
- * own, what is shouting, what is queued and who is working it, what it earned,
- * whether the inputs are trustworthy, what they are plugged into, and finally
- * the knobs.
- *
- * Health answers "is everything working" from collector evidence; Integrations
- * answers "what am I connected with" from the credential store. `/properties`
- * and `/work` stay as aliases. NavLink matches by prefix, so an asset page
- * lights Sites and a task page lights Tasks.
- *
- * It lives in its own module rather than in `AppShell.tsx` so the command
- * palette can read it without importing the shell that mounts the palette.
+ * The sidebar and command palette share these destinations. Keeping them here
+ * lets the palette load independently of the shell that mounts it.
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
-  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs"] },
   {
     to: ASSETS_ROUTE,
     label: "Portfolio",
     icon: Globe,
-    keywords: ["assets", "sites", "properties", "domains"],
+    keywords: ["assets", "sites", "properties", "domains", "growth", "traffic", "journeys"],
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
+  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["runbooks", "analysis", "automation", "runs", "delivery"] },
   { to: AGENTS_ROUTE, label: "Agents", icon: Bot, keywords: ["agents", "models", "velocity", "leaderboard", "who closed"] },
-  {
-    to: "/financials",
-    // The route, the payload and the asset tab's id keep `financials`.
-    label: "Money",
-    icon: Wallet,
-    keywords: ["revenue", "cost", "ledger", "financials", "p&l"],
-  },
   {
     to: "/health",
     label: "System health",
     icon: HeartPulse,
     // Not "integrations": that word belongs to its own page.
-    keywords: ["sources", "connections", "unblock"],
+    keywords: ["sources", "connections", "unblock", "reliability"],
   },
   {
     to: INTEGRATIONS_ROUTE,
@@ -93,8 +79,15 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Plug,
     keywords: ["integrations", "connected accounts", "connect", "credentials", "api key", "providers", "secrets"],
   },
-  { to: "/settings", label: "Settings", icon: Settings, keywords: ["config", "knobs", "preferences"] },
 ];
+
+export const SETTINGS_ITEM: NavItem = {
+  to: "/settings", label: "Settings", icon: Settings, keywords: ["workspace settings", "configuration", "preferences", "notifications"],
+};
+
+const PORTFOLIO_MONEY_ITEM: NavItem = {
+  to: PORTFOLIO_MONEY_ROUTE, label: "Money", icon: Wallet, keywords: ["portfolio", "revenue", "cost", "ledger", "financials", "p&l"],
+};
 
 /**
  * The television renders outside the desk shell. Its entry sits in the
@@ -133,16 +126,12 @@ export const SITES_ARRANGE_ITEM: NavItem = {
   keywords: ["order", "reorder", "drag", "hide", "show", "sites", "tv"],
 };
 
+export const MEMBERS_ITEM: NavItem = {
+  to: "/settings/members", label: "Members", icon: UsersRound, keywords: ["invite", "people", "team", "roles", "permissions"],
+};
+const OPERATIONS_ITEM: NavItem = {
+  to: "/health/operations", label: "Background operations", icon: Activity, keywords: ["jobs", "schedules", "collection", "sync history"],
+};
+
 /** Every page the palette can jump to, in the sidebar's order. */
-export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
-
-/** Every core page remains reachable even when its service is unavailable,
- * and in every view. */
-export function shownPages(items: readonly NavItem[]): NavItem[] {
-  return [...items];
-}
-
-/** Stable navigation order shared by every purpose view. */
-export function sidebarItems(nav: readonly string[]): NavItem[] {
-  return NAV_ITEMS.filter((item) => nav.includes(item.to));
-}
+export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, PORTFOLIO_MONEY_ITEM, SETTINGS_ITEM, OPERATIONS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];

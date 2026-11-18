@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { ConnectionReads } from "@shared/connection-status";
 import type { RangeDays, SurfaceSpan } from "@shared/surface";
-import type { ViewId } from "@shared/views";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { DailyMeasureChart } from "@/components/viz/DailyMeasureChart";
 import { StatTile, type StatRole } from "@/components/viz/StatTile";
@@ -13,18 +12,17 @@ import { siteHealthRow } from "@/lib/viz-adapters";
 import { useAssetTabPath } from "./AssetTabs";
 import { ledgerMonth } from "./overview-metrics";
 import { chartedMeasure, landmarks, overviewMeasures, partialDays, type Measure, type MeasureKey } from "./overview-measures";
-import { MEASURE_PRIORITY, prioritize } from "./purpose-presentation";
 import { timelineAnnotations, watchSpans } from "./shared";
 import { watchSeriesLabel } from "@shared/watch-windows";
 
 const quietLink = "whitespace-nowrap rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring";
 
-export function overviewMeasuresForView(data: AssetDetailFor<"overview">, days: RangeDays, nowMs: number,
-  connections: ConnectionReads, view: ViewId): Measure[] {
+export function overviewMeasuresForSite(data: AssetDetailFor<"overview">, days: RangeDays, nowMs: number,
+  connections: ConnectionReads): Measure[] {
   const row = siteHealthRow({ id: data.asset.id, displayName: data.asset.displayName, dataSources: data.integrations.sources }, connections, nowMs);
   const report = row.cells.find((cell) => cell.column === "nightly-report");
   const reportLate = report?.state === "failing" || report?.state === "overdue";
-  return prioritize(overviewMeasures(data, days, nowMs, reportLate), MEASURE_PRIORITY[view]);
+  return overviewMeasures(data, days, nowMs, reportLate);
 }
 
 // --- the site's numbers ------------------------------------------------------

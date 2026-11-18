@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -10,6 +10,22 @@ const state = vi.hoisted(() => ({
   assets: undefined as AssetCard[] | undefined,
   credentials: undefined as unknown,
 }));
+
+const paletteLoad = vi.hoisted(() => {
+  let start!: () => void;
+  let finish!: () => void;
+  const started = new Promise<void>(resolve => { start = resolve; });
+  const pending = new Promise<void>(resolve => { finish = resolve; });
+  return { start, started, finish, pending };
+});
+vi.mock("@/components/CommandPalette", async () => {
+  paletteLoad.start();
+  await paletteLoad.pending;
+  return {
+    CommandPalette: ({ open }: { open: boolean }) => open
+      ? <div role="dialog" aria-label="Search pages and assets" /> : null,
+  };
+});
 
 // Tasks is listed once a task source is connected. Mocked for the same reason
 // `useWall` is.
@@ -42,7 +58,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { AliasRedirect } from "@/routes/AliasRedirect";
 import { PropertyRedirect } from "@/routes/PropertyRedirect";
 import { THEME_STORAGE_KEY } from "@/hooks/useTheme";
-import { validateDemoViewer } from "@shared/demo-viewer";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
 /** Only the fields the nav reads. */
@@ -123,12 +138,11 @@ describe("the sidebar is the desk's only navigation", () => {
 
     const expected: [string, string][] = [
       ["Home", "/"],
-      ["Workflows", "/workflows"],
       ["Portfolio", "/assets"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
+      ["Workflows", "/workflows"],
       ["Agents", "/agents"],
-      ["Money", "/financials"],
       ["System health", "/health"],
       ["Integrations", "/integrations"],
       ["Settings", "/settings"],
@@ -170,9 +184,8 @@ describe("the sidebar is the desk's only navigation", () => {
     ).toHaveLength(1);
   });
 
-  it("lights Portfolio on an asset page, because an asset page IS an asset", () => {
-    renderSidebar("/assets/meadow.example");
-
+  it.each(["/assets/meadow.example", "/financials?period=2026-09"])("marks Portfolio on %s", (path) => {
+    renderSidebar(path);
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -455,13 +468,41 @@ describe("the small-screen drawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
-    expect(within(drawer).getByRole("link", { name: "Money" })).toHaveAttribute(
+    expect(within(drawer).getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "href",
-      "/financials",
+      "/assets",
     );
 
+    expect(within(drawer).getByRole("button", { name: "Close" })).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Open navigation" })).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
+  });
+
+  it("cancels pending Search when the drawer opens and keeps the page inert", async () => {
+    renderShell("/");
+    const opener = screen.getByRole("button", { name: "Open navigation" });
+    const main = screen.getByRole("main");
+    try {
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+      await paletteLoad.started;
+      expect(main.closest("[inert]")).toBeNull();
+      fireEvent.click(opener);
+      expect(screen.getByRole("dialog", { name: "Navigation" })).toBeVisible();
+
+      await act(async () => {
+        paletteLoad.finish();
+        await import("@/components/CommandPalette");
+      });
+      expect(screen.queryByRole("dialog", { name: "Search pages and assets" })).toBeNull();
+      expect(main.closest("[inert]")).not.toBeNull();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(opener).toHaveFocus();
+      expect(main.closest("[inert]")).toBeNull();
+    } finally {
+      paletteLoad.finish();
+    }
   });
 
   it("closes on the backdrop and on any navigation, so it is never a dead end", () => {
@@ -473,7 +514,8 @@ describe("the small-screen drawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
-    fireEvent.click(within(drawer).getByRole("link", { name: "Tasks" }));
+    const utilities = within(drawer).getByRole("navigation", { name: "Workspace" });
+    fireEvent.click(within(utilities).getByRole("link", { name: "Settings" }));
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();
   });
 });
@@ -736,46 +778,5 @@ describe("the nav fetches a page's code before it is clicked", () => {
     expect(() =>
       fireEvent.pointerEnter(screen.getByRole("link", { name: "Alerts" })),
     ).not.toThrow();
-  });
-});
-
-describe("the global purpose view bar", () => {
-  const viewer = () => validateDemoViewer({ version: 1, synthetic: true, release: "1".repeat(40),
-    scenarioHash: "2".repeat(64), workspaceId: "11111111-1111-4111-8111-111111111111",
-    cutoff: "2026-09-15T12:00:00.000Z", generatedAt: null });
-  afterEach(() => vi.unstubAllGlobals());
-
-  it.each([false, true])("shows one shared five-purpose control and preserves navigation in demo mode: %s", (demo) => {
-    if (demo) vi.stubGlobal("__DEMO_VIEWER__", viewer());
-    const { container } = renderShell("/");
-    const bars = container.querySelectorAll<HTMLElement>("[data-view-bar]");
-    expect(bars).toHaveLength(1);
-    const bar = bars[0]!;
-    const demoBar = container.querySelector<HTMLElement>("[data-demo-viewer]");
-    if (demo) {
-      expect(demoBar).not.toBeNull();
-      expect(demoBar?.nextElementSibling).toBe(bar);
-      expect(demoBar?.querySelector("[data-view-bar]")).toBeNull();
-    } else expect(demoBar).toBeNull();
-    const group = within(bar).getByRole("group", { name: "View" });
-    expect(within(group).getAllByRole("button").map(option => option.textContent)).toEqual([
-      "Overview", "Growth", "Revenue", "Delivery", "Reliability",
-    ]);
-    expect(within(group).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true");
-    const column = container.querySelector<HTMLElement>("[data-app-sidebar]");
-    if (!column) throw new Error("no sidebar");
-    fireEvent.click(within(group).getByRole("button", { name: "Growth" }));
-    expect(within(group).getByRole("button", { name: "Growth" })).toHaveAttribute("aria-pressed", "true");
-    for (const item of NAV_ITEMS) expect(within(column).getByRole("link", { name: item.label })).toHaveAttribute("href", item.to);
-    expect(container.querySelector("[data-demo-view-switch]")).toBeNull();
-  });
-
-  it.each([false, true])("keeps the TV editor exempt from the global view bar in demo mode: %s", (demo) => {
-    if (demo) vi.stubGlobal("__DEMO_VIEWER__", viewer());
-    const { container } = renderShell("/wall/edit");
-    expect(container.querySelector("[data-view-bar]")).toBeNull();
-    expect(container.querySelector("[data-demo-view-switch]")).toBeNull();
-    expect(screen.getByText("page")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Portfolio" })).toBeInTheDocument();
   });
 });

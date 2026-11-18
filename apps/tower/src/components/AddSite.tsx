@@ -1,5 +1,5 @@
 import { ASSET_TYPES, ASSET_TYPE_LABEL, DEFAULT_ASSET_TYPE, isAssetType, type AssetType } from "@noticeos/contract/configuration";
-import { useDemoReadonly } from '@/lib/browser-context';
+import { useDemoReadonly, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CircleSlash, Loader2, Plus, TriangleAlert } from "lucide-react";
@@ -439,6 +439,7 @@ export function AddSiteButton({ children, ...props }: Omit<ButtonProps, "onClick
   const demoReadonly = useDemoReadonly();
   const [open, setOpen] = useState(false);
   const readOnly = demoReadonly;
+  if (useWorkspaceReadOnlyReason()) return null;
   return (
     <>
       <Button type="button" {...props} disabled={readOnly || props.disabled} title={readOnly ? DEMO_READ_ONLY : props.title} onClick={() => { if (!readOnly) setOpen(true); }} data-add-site-open>

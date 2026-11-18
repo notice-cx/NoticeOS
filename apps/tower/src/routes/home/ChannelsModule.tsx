@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { AssetCard, CardFunnelDrop, CardFunnelStep } from "@shared/wall";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { FunnelBars, type FunnelStep } from "@/components/viz/FunnelBars";
@@ -145,14 +145,16 @@ function FunnelSide({ cards }: { cards: readonly AssetCard[] }) {
  * Where visitors came from across the listed sites, each channel as its share
  * of the total, beside the one funnel that loses the most people at a step.
  */
-export function ChannelsModule({ cards }: { cards: readonly AssetCard[] }) {
+export function ChannelsModule({ cards, missing }: { cards: readonly AssetCard[]; missing?: ReactNode }) {
   const shares = channelShares(cards);
   return (
     <section aria-label="Where visitors come from" className="grid content-start gap-5 rounded-xl bg-card p-5 ring-1 ring-inset ring-border @container" data-home-channels="">
       <SectionLabel title="Where visitors come from · 4 weeks" />
       <div className="grid gap-5 @2xl:grid-cols-2">
         {shares === null || shares.length === 0 ? (
-          <p className="m-0 text-sm text-muted-foreground" data-channels-empty="">Not joined yet</p>
+          missing ?? <p className="m-0 text-sm text-muted-foreground" data-channels-empty="">
+            {shares === null ? "Not joined yet" : "No visits were recorded in this period."}
+          </p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0" data-channels="">
             {shares.map((row, index) => (

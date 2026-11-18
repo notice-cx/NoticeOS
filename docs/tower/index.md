@@ -20,26 +20,27 @@ Both show the same data from the same installation.
 
 ## The pages
 
-The sidebar keeps the same pages and order in every view. The **View** bar below the header offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. On a phone it becomes a picker. Choosing one updates the current page's presentation while preserving its route, filters and open details. See [Choose your view](/guides/choose-your-view).
+Use the sidebar to open a portfolio-wide report. Choose an asset to see its reports. See [Find a report](/guides/choose-your-view).
+
+On desktop, **Collapse sidebar** gives reports more room. Hover or focus an icon to see its name. **Expand sidebar** restores the asset list. The browser remembers the width for each person and workspace.
 
 | Page | What it shows |
 |---|---|
 | [Home](/tower/home) | How the business is doing, what is broken and what needs your attention. The Tower opens here. |
-| [Workflows](/tower/workflows) | What NoticeOS runs on its own, on what schedule, and how each run went. |
-| [Portfolio](/tower/sites) | Which assets need your attention. Each asset also has its own page. |
+| [Portfolio](/tower/sites) | **Assets** compares your assets. [**Money**](/tower/financials) shows their combined revenue, costs and net, including shared costs. |
 | [Alerts](/tower/alerts) | What needs attention right now, and how serious it is. |
 | [Tasks](/tower/tasks) | How big the work queue is, and which tasks in it are waiting for you. |
+| [Workflows](/tower/workflows) | Analysis runbooks and their results. |
 | [Agents](/tower/agents) | What your agents did and how fast they closed tasks. |
-| [Money](/tower/financials) | The month's net, and where the money comes from and goes. |
 | [System health](/tower/health) | Whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend. |
 | [Integrations](/tower/integrations) | Which provider accounts are connected, and how to connect another. |
 | [Settings](/tower/settings) | The settings that apply to the whole installation. |
 
-At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, asset or task by name. Its **Views** group lists **Switch to · \<view>** for the other four views.
+At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, asset or task by name.
 
 ## An asset's own page
 
-An **asset** is one website or product you added. Its name on Home or Portfolio opens its own page, with tabs: **Overview**, **Growth**, **Journeys**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; every view keeps the same tabs. Most of what concerns one asset happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Portfolio](/tower/sites).
+An **asset** is one website or product you added. Its name on Home or Portfolio opens its own page, with tabs: **Overview**, **Growth**, **Journeys**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. Most of what concerns one asset happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Portfolio](/tower/sites).
 
 ## How to read a page
 

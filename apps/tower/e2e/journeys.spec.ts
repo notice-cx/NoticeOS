@@ -3353,14 +3353,20 @@ test("a one-asset install hides redundant comparisons and filters with one choic
   await expect(main.getByRole("group", { name: "Traffic period" })).toHaveCount(0);
   // Financials states the one site's money without a by-site table repeating
   // it: nothing is shared, so there is nothing to allocate.
-  await page.goto("/financials");
+  await main.getByRole("tab", { name: "Money", exact: true }).click();
+  await expect(page).toHaveURL(/\/financials$/);
   await expect(main.locator("[data-money-answer]")).toBeVisible();
   await expect(main.getByRole("heading", { name: "By asset" })).toHaveCount(0);
+  await page.goBack();
+  await expect(main.getByRole("tab", { name: "Assets", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.goForward();
+  await expect(main.getByRole("tab", { name: "Money", exact: true })).toHaveAttribute("aria-selected", "true");
   // The site's Search tab opens on its Bing numbers and the one step to
   // tracking terms, never a blank page.
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   await expect(main.locator('[data-search-start="numbers"] [data-growth-chart="Clicks"]')).toBeVisible();
-  await expect(main.locator("[data-search-next]").getByRole("link")).toHaveCount(1);
+  await main.locator('[data-search-next]').getByRole('link', { name: 'Track search terms' }).click();
+  await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET}/settings#tracked-panels$`));
 
   // A filter with one answer is not drawn.
   await page.goto("/alerts");
@@ -3847,73 +3853,125 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   expect(await live.locator('[data-live-count]').boundingBox()).toEqual(before);
 });
 
-// The shared fixture supplies every read; changing purpose stays a personal
-// presentation preference and never changes the stored TV document.
-test("global purpose switching preserves routes, filters and asset tabs while the Wall stays separate", { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
+test("an asset bookmark opens its selected report with legacy workspace preferences", { tag: PR_SMOKE }, async ({ page }) => {
   await addAssetByApi(page);
-  expect((await request.post("/__journey/task-source")).ok()).toBe(true);
-  expect((await request.post("/__journey/tasks-snapshot")).ok()).toBe(true);
-  // The Agents page reads its statistics from the installation's Ntasks.
-  expect((await request.post("/__journey/ntasks")).ok()).toBe(true);
-  const documentsBefore = (await (await request.get("/__journey/status")).json()).documents;
-  const wallBefore = documentsBefore["config/tower.json"]?.wall ?? null;
-  const workspaceBefore = documentsBefore["config/tower.json"]?.view ?? null;
-  const phone = testInfo.project.name === "mobile";
-  async function choose(label: string) {
-    const bar = page.locator("[data-view-bar]");
-    await expect(bar).toBeVisible();
-    if (phone) {
-      await bar.getByRole("button", { name: /^View:/ }).click();
-      await page.getByRole("group", { name: "Views", exact: true }).getByRole("button", { name: new RegExp(`^${label}`) }).click();
-      await expect(bar.getByRole("button", { name: `View: ${label}`, exact: true })).toBeVisible();
-    } else {
-      await bar.getByRole("button", { name: label, exact: true }).click();
-      await expect(bar.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
-    }
-  }
-
-  // The Tasks pages keep their address, filters and all, under every purpose.
-  for (const taskUrl of [`/tasks?view=active&project=${JOURNEY_ASSET}`, "/tasks/jt-review"]) {
-    await page.goto(taskUrl);
-    for (const purpose of ["Growth", "Delivery", "Overview"]) {
-      await choose(purpose);
-      expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(taskUrl);
-      await assertNoPageOverflow(page);
-    }
-  }
-
+  await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   const tabs = page.locator('main [role="tablist"]').first();
   await expect(tabs.getByRole("tab", { name: "Search", exact: true })).toHaveAttribute("aria-selected", "true");
-  const tabPaths = () => tabs.getByRole("tab").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
-  const pathsBefore = await tabPaths();
-  await choose("Reliability");
-  await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replaceAll(".", "\\.")}/search$`));
-  expect(await tabPaths()).toEqual(pathsBefore);
-  await choose("Growth");
-  expect(await tabPaths()).toEqual(pathsBefore);
+  await tabs.getByRole("tab", { name: "Journeys", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp("/journeys$"));
+  await expect(tabs.getByRole("tab", { name: "Journeys", exact: true })).toHaveAttribute("aria-selected", "true");
+  await assertNoPageOverflow(page);
+});
 
-  await page.goto('/agents');
-  const agents = page.locator('[data-agents-page]');
-  await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
-  for (const purpose of ['Revenue', 'Delivery', 'Reliability']) {
-    await choose(purpose);
-    await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
-    await assertNoPageOverflow(page);
+
+test("Settings stays within reach while the portfolio navigation scrolls", { tag: PR_SMOKE }, async ({ page }, info) => {
+  await wallScene(page, "six", { layout: WALL_PRESETS.product });
+  await page.goto("/integrations");
+  await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1200, height: 560 });
+  const opener = page.getByRole("button", { name: "Open navigation" });
+  if (info.project.name === "mobile") {
+    await opener.click();
+    const dialog = page.getByRole("dialog", { name: "Navigation" });
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("link").first()).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(opener).toBeFocused();
+    await opener.click();
+    await dialog.getByRole("button", { name: /Search/ }).click();
+    await expect(page.getByRole("dialog", { name: "Search pages and assets" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(opener).toBeFocused();
+    await opener.click();
+  } else {
+    const search = page.locator("[data-app-sidebar]").getByRole("button", { name: /^Search/u });
+    await keyboardActivate(page, search);
+    await expect(page.getByRole("dialog", { name: "Search pages and assets" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(search).toBeFocused();
   }
-  await page.evaluate(() => document.fonts.ready);
-  await testInfo.attach('agents-reliability', { body: await page.screenshot({ fullPage: true, animations: 'disabled' }), contentType: 'image/png' });
+  const main = page.getByRole("navigation", { name: "Main", exact: true });
+  await expect(main.getByRole("link", { name: "Integrations" })).toHaveAttribute("aria-current", "page");
+  const expand = main.getByRole("button", { name: "Expand the asset list" });
+  if (await expand.isVisible()) await expand.click();
+  const settings = page.getByRole("navigation", { name: "Workspace", exact: true }).getByRole("link", { name: "Settings" });
+  const position = await settings.boundingBox();
+  await main.evaluate(nav => { nav.scrollTop = nav.scrollHeight; });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+  expect(await settings.boundingBox()).toEqual(position);
+  await settings.click();
+  await expect(page).toHaveURL(/\/settings$/);
+  if (info.project.name === "mobile") {
+    await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(0);
+    await opener.click();
+  }
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  await expect(main.getByRole("link", { name: "Integrations" })).not.toHaveAttribute("aria-current", "page");
+});
 
-  await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
-  await page.goto("/wall?view=business");
-  await expect(page.locator("[data-wall-canvas]")).toBeVisible();
-  await expect(page.locator("[data-view-bar], [data-demo-view-switch]")).toHaveCount(0);
-  await expect(page.locator('[data-wall-slot="channels"]')).toHaveCount(1);
-  await expect(page.locator('[data-wall-slot="health"]')).toHaveCount(0);
-  await page.goto("/wall/edit");
-  await expect(page.getByRole("heading", { name: /TV layout|Wall layout/ })).toBeVisible();
-  await expect(page.locator("[data-view-bar]")).toHaveCount(0);
-  const after = (await (await request.get("/__journey/status")).json()).documents["config/tower.json"];
-  expect(after?.wall ?? null).toEqual(wallBefore);
-  expect(after?.view ?? null).toEqual(workspaceBefore);
+test("keyboard navigation keeps focus on the new Portfolio tab", desktopOnly("keyboard focus is the same across viewport widths", PR_SMOKE), async ({ page }) => {
+  await page.goto("/assets");
+  const portfolio = page.getByRole("tablist", { name: "Portfolio", exact: true });
+  const assets = portfolio.getByRole("tab", { name: "Assets", exact: true });
+  const money = portfolio.getByRole("tab", { name: "Money", exact: true });
+  await assets.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(money).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(money).toHaveAttribute("aria-selected", "true");
+  await expect(money).toBeFocused();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(assets).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(assets).toHaveAttribute("aria-selected", "true");
+  await expect(assets).toBeFocused();
+  await page.goBack();
+  await expect(money).toHaveAttribute("aria-selected", "true");
+  await expect(money).not.toBeFocused();
+});
+
+test("the desktop sidebar remembers its width and the phone drawer keeps full labels", desktopOnly("the same saved desktop choice is checked at phone and desktop widths", PR_SMOKE), async ({ page }) => {
+  await wallScene(page, "six", { layout: WALL_PRESETS.product });
+  await page.setViewportSize({ width: 1200, height: 720 });
+  await page.goto("/integrations");
+  const sidebar = page.locator("[data-app-sidebar]").first();
+  const collapse = sidebar.getByRole("button", { name: "Collapse sidebar" });
+  const expand = sidebar.getByRole("button", { name: "Expand sidebar" });
+  const portfolio = sidebar.getByRole("link", { name: "Portfolio", exact: true });
+  const settings = sidebar.getByRole("link", { name: "Settings", exact: true });
+  const full = await sidebar.boundingBox();
+  await expect(sidebar.locator("[data-nav-asset]").first()).toBeVisible();
+  await collapse.focus();
+  await page.keyboard.press("Enter");
+  await expect(expand).toBeFocused();
+  await expect(expand).toHaveAttribute("aria-expanded", "false");
+  expect((await sidebar.boundingBox())!.width).toBeLessThan(full!.width);
+  await expect(sidebar.locator("[data-nav-asset]")).toHaveCount(0);
+  await settings.focus();
+  await expect(settings.locator("[data-sidebar-label]")).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/settings$/);
+  await page.reload();
+  await expect(expand).toBeVisible();
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  await portfolio.hover();
+  await expect(portfolio.locator("[data-sidebar-label]")).toHaveCSS("opacity", "1");
+  await page.setViewportSize({ width: 390, height: 720 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const drawer = page.getByRole("dialog", { name: "Navigation" });
+  await expect(drawer.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+  await expect(drawer.locator("[data-sidebar-compact]")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1200, height: 720 });
+  await expand.click();
+  await expect(collapse).toBeFocused();
+  await expect(sidebar.locator("[data-nav-asset]").first()).toBeVisible();
+  expect((await sidebar.boundingBox())!.width).toBe(full!.width);
+  await page.reload();
+  await expect(collapse).toBeVisible();
 });

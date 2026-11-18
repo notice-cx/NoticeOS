@@ -11,7 +11,7 @@ export const ACCOUNT_PROFILE_PAGE: NavItem = {
   to: '/profile', label: 'Profile', icon: UserRound, keywords: ['account', 'personal details'],
 };
 
-export function AccountMenu({ className, align }: { className?: string; align?: 'start' | 'end' }) {
+export function AccountMenu({ className, align, compact = false }: { className?: string; align?: 'start' | 'end'; compact?: boolean }) {
   const { workspaceLabel, switchWorkspace, logout } = useBrowserContext();
   const [open, setOpen] = useState(false);
   const firstAction = useRef<HTMLAnchorElement>(null);
@@ -20,11 +20,11 @@ export function AccountMenu({ className, align }: { className?: string; align?: 
   const item = 'min-h-11 w-full justify-start gap-2';
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
-      <Button type="button" variant="outline" aria-label="Account menu" title={workspaceLabel}
+      <Button type="button" variant="outline" aria-label="Account menu" aria-description={compact ? workspaceLabel : undefined} title={compact ? undefined : workspaceLabel}
         className={cn('min-h-11 min-w-0 gap-2', className)}>
         <CircleUserRound aria-hidden className="size-5 shrink-0" />
-        <span>Account</span>
-        <span className="ml-auto hidden min-w-0 truncate text-xs text-muted-foreground md:block">{workspaceLabel}</span>
+        <span data-sidebar-label>{compact ? `Account · ${workspaceLabel}` : 'Account'}</span>
+        {!compact && <span className="ml-auto hidden min-w-0 truncate text-xs text-muted-foreground md:block">{workspaceLabel}</span>}
       </Button>
     </PopoverTrigger>
     <PopoverContent align={align} aria-label="Account" className="w-56 p-1"
