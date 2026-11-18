@@ -64,6 +64,7 @@ export function containerCommand(argv, profile = 'standalone') {
   if (job === 'customer-check' && rest.length === 0) return ['deploy/compose/customer-entry.mjs', '--check'];
   if (profile === 'customer') {
     if (job === undefined) return ['deploy/compose/customer-entry.mjs'];
+    if (job === 'backup' && rest.length === 0) return ['deploy/compose/customer-entry.mjs', '--backup'];
     if (job !== 'capacity') return null;
   }
   if (job === undefined) return ['scripts/os-up.mjs'];

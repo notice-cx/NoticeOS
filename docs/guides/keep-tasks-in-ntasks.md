@@ -24,16 +24,17 @@ A new installation from `pnpm os:setup` has no task service; setup takes no Ntas
 ## Before you begin
 
 - Ntasks has a project for each site whose tasks this installation shows, with the site's task prefix.
-- From Ntasks, a **service credential** made after the tasks are loaded, with access to each project this installation uses and the backup choice (`"backup": true`), which the nightly backup needs to read the whole store. Ntasks fixes a credential's projects and choices when it is made. A project the credential does not reach does not exist for this installation, and a site added later needs a new credential that also reaches its project.
+- From Ntasks, a **service credential** made after the tasks are loaded, with access to each project this installation uses. Ntasks fixes the credential's project access when it is made. A site added later needs a credential that also reaches its project.
+- For a local customer profile with backups configured, the Ntasks workspace ID and a second credential with only the backup choice (`"backup": true`). A standalone installation can continue using one credential with project access and the backup choice.
 - The address Ntasks answers at. HTTPS is required, except for a local address such as `http://host.docker.internal:8787`.
 
 ## Connect
 
 1. In **Settings** > **Task projects**, choose **Connect** beside **Ntasks**.
-2. Enter the **Ntasks address** and the **Service credential**, then choose **Connect**. The credential is kept only when Ntasks accepts it and it was made with the backup choice; without that choice the panel shows **Credential cannot read backups · Make one with "backup": true**. The panel then shows how many projects the credential reaches.
+2. Enter the **Ntasks address** and the **Service credential**. With a separate backup credential, also enter the **Ntasks workspace ID** and the **Backup credential**. Choose **Connect**. The panel shows how many projects the service credential reaches.
 3. In **Projects**, each row's **Ntasks project** column shows the Ntasks project that holds that site's tasks. A site maps to the Ntasks project with the same task prefix. **No project with this prefix** means the credential reaches no project with that prefix: make a new credential in Ntasks that also reaches that project and replace the old one with **Manage**, or correct the row's **Task prefix**.
 
-The credential is kept encrypted in the installation's store, like every other connection on **Integrations**, and only the ingest Worker opens it. **Manage** replaces or disconnects it. A disconnected installation has no tasks until an Ntasks is connected again, and its **Tasks** pages show **Connect Ntasks**.
+The credentials are kept encrypted in the installation's store, like every other connection on **Integrations**. The app opens each credential for the operation it authorizes. **Manage** replaces or disconnects the connection. The **Tasks** pages show **Connect Ntasks** when the service is disconnected.
 
 ## Agents
 
@@ -81,7 +82,7 @@ The copies are kept under `.local/task-cache` in the installation's home folder.
 
 ## The nightly backup
 
-While Ntasks is connected, the nightly backup and `pnpm os:backup` read Ntasks's whole store through its backup route and keep it in the backup set as `ntasks/backup.json`. The set's `RESTORE.md` and the backup report list the rows of each table.
+While Ntasks is connected, the nightly backup and `pnpm os:backup` export the connected Ntasks workspace and keep it in the backup set as `ntasks/backup.json`. The set's `RESTORE.md` and the backup report list the rows of each table.
 
 The backup is incomplete, with its **Task hub** part failed, when:
 

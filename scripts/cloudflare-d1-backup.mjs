@@ -66,7 +66,7 @@ async function jsonResponse(response, signal) {
 /** Only the selected installation's loopback door, or the protected Compose
  * worker's fixed app service, may receive the bootstrap bearer. */
 export function createCloudflareD1BackupClient({ repoRoot, transport, env = process.env, fetchImpl = fetch,
-  readBootstrap = file => JSON.parse(privateBackupFile(file).text), requestMs = 240_000 } = {}) {
+  readBootstrap = file => JSON.parse(privateBackupFile(file).text), requestMs = 240_000, requestId } = {}) {
   if (!path.isAbsolute(repoRoot ?? '') || (transport !== undefined && transport !== 'container')
     || !Number.isFinite(requestMs) || requestMs < 1 || requestMs > 240_000) refuse('the backup client settings are invalid');
   const origin = new URL(transport === 'container' ? BACKUP_APP_ORIGIN : doorFromEnv(env));
@@ -90,7 +90,8 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
     const url = new URL(CLOUDFLARE_D1_BACKUP_PATH, origin);
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
     return bounded(fetchImpl(url.href, { method: body ? 'POST' : 'GET', redirect: 'error', signal,
-      headers: { authorization: `Bearer ${token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      headers: { authorization: `Bearer ${token()}`, ...(requestId ? { 'x-noticeos-backup-request': requestId } : {}),
+        ...(body ? { 'content-type': 'application/json' } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}) }), signal);
   }
   return {

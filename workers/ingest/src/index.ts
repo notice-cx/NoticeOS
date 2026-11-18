@@ -31,6 +31,7 @@ async function assertCollectionAssets(store: WorkspaceStore, assets: readonly st
 
 import { WorkerEntrypoint } from 'cloudflare:workers';
 export { CustomerSchedule } from './customer-schedule.js';
+export { CustomerBackup } from './customer-backup.js';
 import type {
   AssetStateRead,
   AssetStateWriteResult,

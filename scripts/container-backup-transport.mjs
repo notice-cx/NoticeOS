@@ -7,18 +7,32 @@ import { createHash } from 'node:crypto';
 import { runCommand } from './run-command.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile, backupWorkerEnvironment } from './container-backup-profile.mjs';
 import { FILES as POSTGRES_SECRET_FILES, VERIFIERS } from './postgres-secrets.mjs';
+import { RESOURCE_NAMES_FILE } from './installation.mjs';
+import { resourceNamesRefusal } from './resource-names.mjs';
 
 const refusal = () => { throw new Error('The declared container snapshot failed; no complete backup was published.'); };
+const customerDeclaration = ['customer-runtime.json', '/state/installation/customer-runtime.json', true];
 const recoverySources = [
   ['bootstrap.json', '/state/workers/ingest/.dev.secrets.json', true],
   ['worker-profile.json', BACKUP_PATHS.profile, true],
   ...POSTGRES_SECRET_FILES.map(name => [`postgres/${name}`, path.join(BACKUP_PATHS.postgresSecrets, name), !VERIFIERS.includes(name)]),
 ];
+function recoveryText(name, source, privateMode, io) {
+  const { text } = privateBackupFile(source, io, privateMode, name);
+  if (name === RESOURCE_NAMES_FILE) {
+    try { if (resourceNamesRefusal(JSON.parse(text))) throw new Error(); }
+    catch { throw new Error(`${RESOURCE_NAMES_FILE}: resource names are invalid.`); }
+  }
+  return text;
+}
 /** The recovery set: every fixed source, and the declarations an installation keeps only when it has them.
- * The saved task projects are a settings export the Tower writes with any mode; their copy is private. */
-function recoveryInputs(io) {
+ * Installation settings may be broadly readable. Their copies are private. */
+function recoveryInputs(io, customer) {
   const inputs = [...recoverySources];
-  for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true], ['beads.json', '/state/installation/beads.json', false]]) {
+  if (customer) inputs.push(customerDeclaration);
+  for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true],
+    ['beads.json', '/state/installation/beads.json', false], [RESOURCE_NAMES_FILE, `/state/installation/${RESOURCE_NAMES_FILE}`, false],
+    ...(!customer ? [customerDeclaration] : [])]) {
     try {
       io.lstatSync(source);
       inputs.push([name, source, privateMode]);
@@ -98,14 +112,14 @@ export async function copyContainerRecovery(output, options = {}) {
   const io = options.fs ?? fs;
   const sync = options.fsSync ?? fsSync;
   outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync);
+  const inputs = recoveryInputs(sync, options.customer);
   const inventory = {};
   await io.mkdir(output, { mode: 0o700 });
   for (const [name, source, privateMode] of inputs) {
-    const value = privateBackupFile(source, sync, privateMode, name).text;
+    const value = recoveryText(name, source, privateMode, sync);
     await io.mkdir(path.dirname(path.join(output, name)), { recursive: true, mode: 0o700 });
     await io.writeFile(path.join(output, name), value, { flag: 'wx', mode: 0o600 });
-    if (privateBackupFile(source, sync, privateMode, name).text !== value) throw new Error(`${name}: file changed during backup.`);
+    if (recoveryText(name, source, privateMode, sync) !== value) throw new Error(`${name}: file changed during backup.`);
     inventory[name] = { bytes: Buffer.byteLength(value), sha256: createHash('sha256').update(value).digest('hex') };
   }
   await io.writeFile(path.join(output, 'recovery.json'), JSON.stringify({ format: 'noticeos-container-recovery-v1', files: inventory }) + '\n', { flag: 'wx', mode: 0o600 });
@@ -115,7 +129,7 @@ export async function copyContainerRecovery(output, options = {}) {
 export async function verifyContainerRecovery(output, options = {}) {
   const sync = options.fsSync ?? fsSync;
   outputChecked(output); readBackupWorker({ fs: sync, reportFiles: true });
-  const inputs = recoveryInputs(sync);
+  const inputs = recoveryInputs(sync, options.customer);
   const inventory = privateBackupFile(path.join(output, 'recovery.json'), sync, true, 'recovery.json').text;
   let marker;
   try { marker = JSON.parse(inventory); }
@@ -128,7 +142,7 @@ export async function verifyContainerRecovery(output, options = {}) {
     const value = privateBackupFile(path.join(output, name), sync, true, name).text;
     const expected = marker.files[name];
     if (expected?.bytes !== Buffer.byteLength(value) || expected?.sha256 !== createHash('sha256').update(value).digest('hex') ||
-      privateBackupFile(source, sync, privateMode, name).text !== value) throw new Error(`${name}: file changed during backup.`);
+      recoveryText(name, source, privateMode, sync) !== value) throw new Error(`${name}: file changed during backup.`);
   }
 }
 

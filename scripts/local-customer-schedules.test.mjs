@@ -128,16 +128,17 @@ test('discovery retries only the affected workspace and resumes its current targ
   }
 });
 
-test('restart resumes only the latest eligible free collection since activation', async () => {
+test('restart resumes only the latest eligible collection or backup since that schedule was activated', async () => {
   const at = Date.parse('2026-11-17T10:07:00Z');
   const selected = [
     { job: 'counters', schedule: { enabled: true, cron: '0 * * * *' }, assets: ['site'] },
     { job: 'signal-dumps', schedule: { enabled: true, cron: '45 9 * * *' }, assets: ['site'] },
     { job: 'freshness', schedule: { enabled: true, cron: '0 * * * *' }, assets: [null] },
+    { job: 'backup', schedule: { enabled: true, cron: '0 4 * * *' }, assets: [null] },
   ];
-  async function resumed(since) {
+  async function resumed(since, backupResumeSince) {
     const calls = [];
-    const clock = customerScheduleClock({ workspaces: ['one'], now: () => at, resumeSince: since,
+    const clock = customerScheduleClock({ workspaces: ['one'], now: () => at, resumeSince: since, backupResumeSince,
       read: async () => selected, run: async call => calls.push([call.job, call.scheduledAt]) });
     try { await clock.tick(); await clock.whenIdle(); }
     finally { await clock.close(); }
@@ -148,6 +149,8 @@ test('restart resumes only the latest eligible free collection since activation'
   ]);
   assert.deepEqual(await resumed(at - 10 * 60_000), [['counters', '2026-11-17T10:00:00.000Z']]);
   assert.deepEqual(await resumed(undefined), []);
+  assert.deepEqual(await resumed(undefined, at - 25 * 3_600_000), [['backup', '2026-11-17T04:00:00.000Z']]);
+  assert.deepEqual(await resumed(undefined, at - 3_600_000), []);
 });
 
 test('a paused report stays listed and resumes at its next scheduled time', async () => {

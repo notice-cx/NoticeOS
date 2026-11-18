@@ -4,6 +4,7 @@
 
 import type { ConnectionFailure, ProbeResult } from '@noticeos/contract';
 import { isLocalAddress } from './local-model.js';
+import { NTASKS_BACKUP_SCOPE_QUERY, NTASKS_BACKUP_TOKEN, ntasksBackupAccess, ntasksBackupCredential, ntasksEndpoint } from '../../../scripts/ntasks-backup-access.mjs';
 
 export const NTASKS_URL = 'NTASKS_URL';
 export const NTASKS_TOKEN = 'NTASKS_TOKEN';
@@ -87,10 +88,8 @@ export class TaskServiceError extends Error {
 
 /** HTTPS, or HTTP to a local address; no password, path, query or fragment. */
 export function ntasksOrigin(value: string): string {
-  let url: URL;
-  try { url = new URL(value.trim()); } catch { throw new TaskServiceError({ kind: 'configuration' }); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
-    || url.pathname.replace(/\/+$/u, '') !== '' || (url.protocol === 'http:' && !isLocalAddress(url.hostname))) {
+  const url = ntasksEndpoint(value);
+  if (!url || (url.protocol === 'http:' && !isLocalAddress(url.hostname))) {
     throw new TaskServiceError({ kind: 'configuration' });
   }
   return url.origin;
@@ -183,17 +182,21 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
   } finally { clearTimeout(timer); }
 }
 
-/** The scopes the credential holds in its workspace, as Ntasks's list_workspaces
- * answers them; null when the answer is not one. */
-async function credentialScopes(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<string[] | null> {
-  const { status, body } = await callNtasks(fields, { method: 'POST', path: '/api/mcp',
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_workspaces', arguments: {} } }) }, fetchImpl);
-  const workspaces = (body as { result?: { structuredContent?: { workspaces?: unknown } } } | null)?.result?.structuredContent?.workspaces;
-  if (status !== 200 || !Array.isArray(workspaces)) return null;
-  return workspaces.flatMap(workspace => {
-    const access = (workspace as { access?: unknown } | null)?.access;
-    return Array.isArray(access) ? access.filter((scope): scope is string => typeof scope === 'string') : [];
-  });
+/** The workspaces Ntasks lists for the current credential. */
+async function credentialWorkspaces(fields: Record<string, string>, fetchImpl: typeof fetch) {
+  const { status, body } = await callNtasks(fields, { method: 'POST', path: '/api/mcp', body: NTASKS_BACKUP_SCOPE_QUERY }, fetchImpl);
+  const result = (body as { result?: { isError?: boolean; structuredContent?: { workspaces?: unknown } } } | null)?.result;
+  const workspaces = result?.structuredContent?.workspaces;
+  return status === 200 && result?.isError !== true && Array.isArray(workspaces)
+    ? workspaces as ({ status?: unknown; workspaceId?: unknown; access?: unknown } | null)[] : null;
+}
+
+async function checkBackupOnlyCredential(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<boolean> {
+  const backup = ntasksBackupCredential(fields);
+  if (!backup) return false;
+  const reply = await callNtasks({ ...fields, [NTASKS_TOKEN]: backup.token },
+    { method: 'POST', path: '/api/mcp', workspaceId: backup.workspaceId, body: NTASKS_BACKUP_SCOPE_QUERY }, fetchImpl);
+  return ntasksBackupAccess(reply.status, reply.body, backup.workspaceId);
 }
 
 /** The connection test and the connect panel's proof: the projects the
@@ -206,9 +209,17 @@ export async function checkNtasks(fields: Record<string, string>, fetchImpl: typ
     const projects = (body as { projects?: unknown } | null)?.projects;
     if (status !== 200 || !Array.isArray(projects)) return { outcome: 'unreachable', failure: { kind: status === 200 ? 'invalid-response' : 'http', status } };
     const facts = { projects: projects.length };
-    const scopes = await credentialScopes(fields, fetchImpl);
-    if (scopes === null) return { outcome: 'unreachable', facts, failure: { kind: 'invalid-response' } };
-    if (!scopes.includes('tasks:backup')) return { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } };
+    const workspaces = await credentialWorkspaces(fields, fetchImpl);
+    if (!workspaces) return { outcome: 'unreachable', facts, failure: { kind: 'invalid-response' } };
+    const refused = { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } } as const;
+    if (fields[NTASKS_BACKUP_TOKEN] !== undefined) {
+      const active = workspaces.filter(workspace => workspace?.status === 'active');
+      if (active.length !== 1 || active[0]?.workspaceId !== fields[NTASKS_WORKSPACE_ID] || !await checkBackupOnlyCredential(fields, fetchImpl)) {
+        return refused;
+      }
+      return { outcome: 'answered', facts };
+    }
+    if (!workspaces.some(workspace => Array.isArray(workspace?.access) && workspace.access.includes('tasks:backup'))) return refused;
     return { outcome: 'answered', facts };
   } catch (error) {
     if (error instanceof TaskServiceError && error.failure.kind === 'configuration') return { outcome: 'invalid', failing: ['Ntasks address'], failure: error.failure };
@@ -246,7 +257,10 @@ export async function readHostedNtasksProjects(env: IngestEnv, fields: Record<st
 export async function checkHostedNtasks(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<ProbeResult> {
   try {
     const { projects } = await readHostedNtasksProjects(env, fields, fetchImpl);
-    return { outcome: 'answered', facts: { projects: projects.length } };
+    const facts = { projects: projects.length };
+    return fields[NTASKS_BACKUP_TOKEN] === undefined || await checkBackupOnlyCredential(fields, fetchImpl)
+      ? { outcome: 'answered', facts }
+      : { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } };
   } catch (error) {
     if (error instanceof TaskServiceError && error.failure.kind === 'configuration') {
       return { outcome: 'invalid', failing: ['Ntasks connection'], failure: error.failure };
