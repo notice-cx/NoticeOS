@@ -988,6 +988,22 @@ attached runtime uses that saved connection and its existing encryption key.
 The runtime permits Google access during due collection and stops redirects.
 Customer backups and paid research require their separate controls.
 
+To schedule the existing Mediavine, Stripe and Bing Webmaster collectors,
+include their names in `collectorProviders`, using `mediavine`, `stripe` and
+`bing-webmaster`. Each uses the workspace’s saved connection, saved source
+settings and schedule. The schedule keeps the single Mediavine or Stripe
+account read for the workspace, and keeps Bing under **Nightly reports**.
+A Stripe account waits when an active mapped site's collection is disabled, so a
+later run can still record that site's receipts.
+
+For a site that the standalone app already pulls, add a `sitePulls` entry
+with its `workspaceId`, asset ID in `asset`, existing bearer in `token` and the
+approved HTTPS endpoints in `urls`. Use the exact URLs saved under the
+site’s enabled pull settings, including enabled supplemental URLs. A saved
+URL edit needs the same change in this private configuration before the
+pull sends its bearer. Both the Prometheus and JSON report formats use the
+same importer as standalone.
+
 Set `siteReports` to `true` to allow site credentials and report intake on
 the exact loopback Tower address. From the site's settings, a workspace
 owner can issue and revoke a credential scoped to that site. Send the report

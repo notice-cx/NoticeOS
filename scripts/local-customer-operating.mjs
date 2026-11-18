@@ -5,13 +5,15 @@ import { isIP } from 'node:net';
 import path from 'node:path';
 import { holdLock } from './history-files.mjs';
 import { MANAGED_START_PORTS } from './start-ports.mjs';
+import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 
 const FORMAT = 'noticeos-customer-operating/1';
 const MARK = '.noticeos-customer-operating';
 const ROLES = { app: 'noticeos_app', identity: 'noticeos_identity', grant: 'noticeos_service_grant' };
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/iu;
-const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'ntasksOrigin', 'googleDaily', 'siteReports']);
+const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'ntasksOrigin',
+  'googleDaily', 'collectorProviders', 'sitePulls', 'siteReports']);
 
 export class CustomerOperatingRefused extends Error {}
 function refused() { return new CustomerOperatingRefused('Use a private customer config for one separately provisioned loopback Postgres database.'); }
@@ -53,7 +55,6 @@ export function readCustomerOperating(file, plan) {
       || !config.database || Object.keys(config.database).length !== 3
       || typeof config.identitySecret !== 'string' || config.identitySecret.length < 32 || config.identitySecret.length > 512
       || typeof config.credentialsKey !== 'string' || !/^[A-Za-z0-9+/]{43}=$/u.test(config.credentialsKey)
-      || config.googleDaily !== undefined && typeof config.googleDaily !== 'boolean'
       || config.siteReports !== undefined && typeof config.siteReports !== 'boolean'
       || !Array.isArray(config.mailRecipients) || config.mailRecipients.length < 1 || config.mailRecipients.length > 64
       || config.mailRecipients.some(email => typeof email !== 'string' || email.length > 320 || !EMAIL.test(email))
@@ -69,10 +70,12 @@ export function readCustomerOperating(file, plan) {
     if ([identity, grant].some(url => url.host + url.pathname !== target)) throw refused();
     const workspaces = config.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId }))
       .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
+    const collection = customerCollectionPolicy(config);
+    if (collection.sitePulls.some(site => !workspaces.some(workspace => workspace.workspaceId === site.workspaceId))) throw refused();
     return { target, address: app.href, identityAddress: identity.href, grantAddress: grant.href,
       mailRecipients: config.mailRecipients.map(email => email.toLowerCase()), workspaces,
       identitySecret: config.identitySecret, credentialsKey: config.credentialsKey,
-      ntasksOrigin: taskOrigin(config.ntasksOrigin, plan, Number(app.port)), googleDaily: config.googleDaily === true,
+      ntasksOrigin: taskOrigin(config.ntasksOrigin, plan, Number(app.port)), ...collection,
       siteReports: config.siteReports === true };
   } catch { throw refused(); }
 }

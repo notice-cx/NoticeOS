@@ -525,13 +525,14 @@ async function collectDailyRevenue(
   return history;
 }
 
-export async function runMediavine(env: IngestEnv, options: MediavineOptions = {}): Promise<ScheduledRunResult> {
+export async function runMediavine(env: IngestEnv, options: MediavineOptions & { assets?: readonly string[] } = {}): Promise<ScheduledRunResult> {
   const skipped: ScheduledRunResult = { outcome: 'skipped', detail: 'No Mediavine report is due.' };
   const now = options.nowMs ?? Date.now();
   const clock = pacificDay(now);
   if (!clock.ready) return skipped;
   const config = await register(env);
-  const targets = Object.entries(config.assets ?? {}).filter(([, lanes]) => enabled(lanes['ad-network'] ?? {}));
+  const targets = Object.entries(config.assets ?? {}).filter(([asset, lanes]) =>
+    (!options.assets || options.assets.includes(asset)) && enabled(lanes['ad-network'] ?? {}));
   if (targets.length === 0 || (await credentialSummary(env, 'mediavine'))?.source !== 'store') return skipped;
   const [connection] = await env.STORE.read((tx) => tx.query<{ auth_blocked: boolean }>(
     'SELECT auth_blocked FROM noticeos.integration_leases WHERE lease_key = $1', [MEDIAVINE_LEASE]));

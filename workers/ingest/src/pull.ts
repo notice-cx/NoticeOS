@@ -459,6 +459,8 @@ export interface PullAdapterResult {
 export interface PullOptions {
   /** Override the built-in config/pull.json (tests inject their own entries). */
   entries?: PullAssetConfig[];
+  /** Token from a scoped deployment binding for one selected configured asset. */
+  credential?: { asset: string; token: string };
   /** Override the outbound fetcher (tests stub the self-report responses). */
   fetchImpl?: typeof fetch;
   nowMs?: number;
@@ -475,6 +477,7 @@ async function pullOne(
   fetchImpl: typeof fetch,
   gate: EgressGate,
   nowMs: number,
+  selectedToken?: string,
 ): Promise<PullAssetOutcome> {
   const at = iso(nowMs);
   let status: number | null = null;
@@ -485,7 +488,7 @@ async function pullOne(
   // must still flag while the house internet is out.
   let attempted = false;
   try {
-    const token = tokenFor(env.ASSET_TOKENS, entry.asset);
+    const token = selectedToken ?? tokenFor(env.ASSET_TOKENS, entry.asset);
     if (!token) throw new Error('no pull token configured for asset');
 
     const accept = entry.format === 'envelope' ? 'application/json' : 'text/plain';
@@ -612,7 +615,8 @@ export async function runPullAdapter(env: IngestEnv, opts: PullOptions = {}): Pr
 
   const outcomes: PullAssetOutcome[] = [];
   for (const entry of entries) {
-    outcomes.push(await pullOne(env, entry, fetchImpl, gate, nowMs));
+    outcomes.push(await pullOne(env, entry, fetchImpl, gate, nowMs,
+      opts.credential?.asset === entry.asset ? opts.credential.token : undefined));
   }
   const succeeded = outcomes.filter((o) => o.ok).length;
   const result = {

@@ -6,7 +6,7 @@ import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
 
 /** Start the same customer app without provisioning, rotating logins or
  * changing database ownership. This controller owns the single scheduler. */
-export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport } = {}) {
+export async function startAttachedCustomer(plan, file, { startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport } = {}) {
   const db = await openCustomerOperating(plan, file);
   const { operating, signal } = db;
   let app, closing;
@@ -30,7 +30,8 @@ export async function startAttachedCustomer(plan, file, { startSchedules = start
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
-      startSchedules, resumeSince: db.resumeSince, operating: { googleDaily: operating.googleDaily, googleTransport,
+      startSchedules, resumeSince: db.resumeSince, operating: { googleDaily: operating.googleDaily, collectorTransport,
+        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteReports: operating.siteReports, signal } });
     db.ready();
     return Object.freeze({ ...app, whenLost, close });
