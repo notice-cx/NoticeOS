@@ -20,7 +20,7 @@ const archiveRoute = '/api/legacy-archives';
 const manifestRoute = `/api/signal-archives?asset=${asset}`;
 const checksum = value => createHash('sha256').update(value).digest('hex');
 
-function sample(workspace, offset, prefix) {
+function sample(workspace, offset, prefix, originalGoogleDigest = false) {
   const date = new Date(Date.now() - offset * 86400_000).toISOString().slice(0, 10);
   const at = `${date}T01:00:00.000Z`;
   const pages = [{ request: { dimensions: ['query'] }, response: { rows: [
@@ -30,8 +30,12 @@ function sample(workspace, offset, prefix) {
     credentialRef: 'fixture', propertyRef: 'fixture', reportDate: date, dataState: 'provider-final',
     providerRows: 1, providerTruncated: false, pages };
   const body = JSON.stringify({ ...canonical, collectedAt: at });
-  const hash = checksum(JSON.stringify(canonical)), bytes = gzipSync(body);
-  return { workspace, key: `${prefix}/${asset}/${date}-${hash}.json.gz`, date, at, hash, body, bytes };
+  const { credentialRef: _credentialRef, ...original } = canonical;
+  const hash = checksum(JSON.stringify(originalGoogleDigest ? original : canonical));
+  const compress = text => gzipSync(text, originalGoogleDigest ? { level: 0 } : {});
+  const metadata = originalGoogleDigest ? { asset, contentSha256: hash, integration: 'gsc', report: 'query',
+    reportDate: date, schemaVersion: '1' } : undefined;
+  return { workspace, key: `${prefix}/${asset}/${date}-${hash}.json.gz`, date, at, hash, body, bytes: compress(body), compress, metadata };
 }
 
 function storeArchive(db, archive) {
@@ -67,7 +71,7 @@ test('same-store preparation survives restart and enables only the selected work
     const { workspaceId } = bootstrapWorkspace(db, { slug: 'source' });
     installAsset(db, workspaceId);
     const foreign = randomUUID();
-    const originals = Array.from({ length: 6 }, (_, index) => sample(workspaceId, index + 2, index % 2 ? 'signals' : 'raw'));
+    const originals = Array.from({ length: 6 }, (_, index) => sample(workspaceId, index + 2, index % 2 ? 'signals' : 'raw', index === 5));
     const modern = sample(workspaceId, 1, `workspaces/${workspaceId}/raw`);
     for (const archive of [...originals, modern]) storeArchive(db, archive);
     const rows = () => db.sql('SELECT * FROM noticeos.archive_objects ORDER BY object_seq');
@@ -93,7 +97,7 @@ test('same-store preparation survives restart and enables only the selected work
     const list = async () => (await bucket.list()).objects.map(({ key, etag, size }) => ({ key, etag, size }));
     const archiveAlias = key => `workspaces/${workspaceId}/raw/legacy/${key}`;
     const bad = originals.at(-1);
-    for (const entry of [...originals, modern]) await bucket.put(entry.key, entry.bytes);
+    for (const entry of [...originals, modern]) await bucket.put(entry.key, entry.bytes, { customMetadata: entry.metadata });
     await bucket.put(bad.key, bad.bytes, { customMetadata: { workspaceId: foreign } });
     const unrelated = `workspaces/${foreign}/raw/unrelated.json.gz`;
     await bucket.put(unrelated, modern.bytes);
@@ -131,7 +135,17 @@ test('same-store preparation survives restart and enables only the selected work
     assert.equal(interrupted.verified, 4);
     assert.equal(interrupted.stagedObjects, 1);
     assert.equal(interrupted.stagedBytes, originals[4].bytes.byteLength);
-    await bucket.put(bad.key, bad.bytes);
+    const changedCredential = bad.compress(bad.body.replace('"credentialRef":"fixture"', '"credentialRef":"changed"'));
+    assert.equal(changedCredential.byteLength, bad.bytes.byteLength);
+    await bucket.put(bad.key, changedCredential, { customMetadata: bad.metadata });
+    await assert.rejects(transitionCustomerArchive(preparation(workspaceId), fixtureOptions()), /belongs to a different report/u);
+    const changedContent = bad.compress(bad.body.replace('"impressions":40', '"impressions":41'));
+    assert.equal(changedContent.byteLength, bad.bytes.byteLength);
+    await bucket.put(bad.key, changedContent, { customMetadata: bad.metadata });
+    await assert.rejects(transitionCustomerArchive(preparation(workspaceId), fixtureOptions()), /content hash does not match/u);
+    await bucket.put(bad.key, bad.bytes, { customMetadata: { ...bad.metadata, provider: 'google' } });
+    await assert.rejects(transitionCustomerArchive(preparation(workspaceId), fixtureOptions()), /content hash does not match/u);
+    await bucket.put(bad.key, bad.bytes, { customMetadata: bad.metadata });
     await app.dispose(); app = undefined;
     app = start();
     door = (await app.ready).origin;
