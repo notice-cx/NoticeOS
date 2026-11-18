@@ -34,6 +34,7 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
+| `db:prepare-customer-roles` | Preview, enable or reverse the dedicated Postgres logins for a local customer workspace. | `scripts/customer-postgres-roles.mjs` |
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
@@ -755,6 +756,67 @@ update can load it (`scripts/postgres-migrate.test.mjs`).
 `pnpm os:migrate -- --bootstrap --slug main --name "My portfolio"` creates the
 installation's one workspace, once. The rest is in
 [db/postgres/README.md](../db/postgres/README.md#applying-it-to-an-installations-own-database).
+
+## Prepare the Postgres logins on the existing local stack
+
+`db:prepare-customer-roles` prepares the three dedicated logins for the selected
+local Compose project. The platform login is for enrollment. The identity and
+service grant logins are for customer mode. The command leaves active or
+independently prepared credentials in place and stops if it finds them.
+
+1. Replace the example paths with the absolute stack selector and a new plan
+   directory under an existing private folder. `prepare` previews the target
+   and writes a copy of the host access file and the new credentials into the
+   plan.
+
+   ```sh
+   role_stack=/absolute/path/to/stack.json
+   role_plan=/absolute/private/folder/customer-role-plan
+   pnpm db:prepare-customer-roles -- prepare --config "$role_stack" --plan "$role_plan"
+   ```
+
+2. Verify a complete, restorable backup using the existing procedure. Review
+   the target project, the three roles and the private plan before requesting
+   approval for changes to the installation.
+
+3. If `privateMountPrepared` is `true`, the original stack uses a checkout
+   template. After approval, use the plan's `stack.with-private-hba.json`
+   as the explicit selector for `pnpm os:apply`. The resulting Postgres bind
+   starts with the original rules. The apply plan shows the Postgres service
+   recreation and dependent service restart. Keep the original selector.
+   Set `role_stack` to the staged selector for subsequent stack commands.
+   An installation with its own HBA file keeps using its existing selector.
+
+4. Replace `your-compose-project` with the name from the preview. Apply,
+   then read back all three logins. This
+   updates only the selected database's dedicated roles and adds a SCRAM rule
+   for those roles on its directly connected networks. The command reloads
+   the file in the existing bind and checks the local logins. If interrupted,
+   use `status` and retry the same reviewed plan. Do not generate different
+   credentials for a partially applied plan.
+
+   ```sh
+   role_project=your-compose-project
+   pnpm db:prepare-customer-roles -- apply --config "$role_stack" --plan "$role_plan" --confirm "$role_project"
+   pnpm db:prepare-customer-roles -- status --config "$role_stack" --plan "$role_plan"
+   ```
+
+5. Read `credentials.json` privately. Use the loopback URLs for the enrollment
+   command on the host. Use the identity and service grant internal URLs for
+   the customer application. Keep the platform credential in the operator plan.
+
+To reverse this preparation after separately approving the rollback, return the
+app to standalone and close sessions using the new logins. Then run the
+following with the same plan and selector. Rollback removes the access added
+by the plan, reloads the original HBA and verifies the three new logins are
+closed. It keeps the original database, stored data and old credentials. If a
+private mount was added, an approved `os:apply` using the saved original
+selector returns to the original mount afterward.
+
+```sh
+pnpm db:prepare-customer-roles -- rollback --config "$role_stack" --plan "$role_plan" --confirm "$role_project"
+pnpm db:prepare-customer-roles -- status --config "$role_stack" --plan "$role_plan"
+```
 
 ## Enroll the owner of an existing standalone workspace
 
