@@ -2,7 +2,7 @@ import { scheduleFor, schedulesRefusal, SCHEDULED_JOBS, type JobSchedule, type S
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
-const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull'] as const;
+const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero'] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
 const ARCHIVE_REPORTS = {
@@ -37,10 +37,10 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
 /** Read only configuration, asset IDs and the presence of a credential. The caller
  * must already hold a fresh service grant for this store. */
 export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]> {
-  const rows = await store.read(tx => tx.query<{
-    workspace: string; overrides: string; asset: string; domain: string | null; connected: string[]; sources: string; pulls: string;
+  const enrolled = await store.read(tx => tx.query<{
+    workspace: string; overrides: string; asset: string; isOs: boolean; domain: string | null; connected: string[]; sources: string; pulls: string;
   }>(`SELECT COALESCE(c.body->'schedules','{}'::json)::text AS overrides,
-      a.workspace_id::text AS workspace,a.asset_id AS asset,a.domain,
+      a.workspace_id::text AS workspace,a.asset_id AS asset,a.is_os AS "isOs",a.domain,
       COALESCE(i.body->'assets'->a.asset_id,'{}'::json)::text AS sources, COALESCE(p.body,'[]'::json)::text AS pulls,
       ARRAY (SELECT DISTINCT g.provider FROM noticeos.integration_connections g
         JOIN noticeos.connection_secrets s USING(workspace_id,connection_id)
@@ -49,17 +49,24 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
     JOIN noticeos.config_documents c ON c.workspace_id=a.workspace_id AND c.document_key='constants'
     LEFT JOIN noticeos.config_documents i ON i.workspace_id=a.workspace_id AND i.document_key='integrations'
     LEFT JOIN noticeos.config_documents p ON p.workspace_id=a.workspace_id AND p.document_key='pull'
-    WHERE a.status<>'retired' AND NOT a.is_os AND ($1::text IS NULL OR a.asset_id=$1)
+    WHERE (a.is_os AND $1::text IS NULL)
+       OR (NOT a.is_os AND a.status<>'retired' AND ($1::text IS NULL OR a.asset_id=$1))
     ORDER BY a.asset_id COLLATE "C"`, [asset]));
-  if (!rows.length) return [];
-  const overrides: ScheduleOverrides = JSON.parse(rows[0]!.overrides);
+  if (!enrolled.length) return [];
+  const overrides: ScheduleOverrides = JSON.parse(enrolled[0]!.overrides);
   if (!overrides || schedulesRefusal(overrides)) throw new Error('Invalid saved collection schedule.');
   const planned: CustomerSchedule[] = [];
-  const connected = new Set(rows[0]!.connected);
   const settings = (job: CustomerJob) => {
     const released = SCHEDULED_JOBS.find(entry => entry.id === job)!;
     return scheduleFor(job === 'counters' ? { ...released, cron: '0 * * * *' } : released, overrides);
   };
+  const selfReport = settings('asset-zero');
+  if (selfReport.enabled && enrolled.some(row => row.isOs)) {
+    planned.push({ job: 'asset-zero', schedule: selfReport, assets: [null] });
+  }
+  const rows = enrolled.filter(row => !row.isOs);
+  if (!rows.length) return planned;
+  const connected = new Set(rows[0]!.connected);
   for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
     if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false)) continue;
     const schedule = settings(job);

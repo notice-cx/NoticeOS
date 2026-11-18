@@ -9,7 +9,7 @@ import { customerArchive, customerJobSubject, customerSchedules, isCustomerJob }
 import { customerCollectionPolicy, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
-import { ruleConfigFromConstants, runFreshnessCheck } from './db.js';
+import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { checkSearchTraffic } from './search-traffic-alerts.js';
 import { eligibleAssets, runUptimeChecks } from './hygiene.js';
 import { runGoogleSignals } from './google-signals.js';
@@ -77,9 +77,13 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           if (!plan || !new Cron(plan.schedule.cron, { timezone: plan.schedule.timezone ?? 'UTC', paused: true }).match(new Date(time))) {
             return Response.json({ outcome: 'skipped' });
           }
-          const env = { ...this.env, STORE: store };
           const signal = request.signal;
           signal?.throwIfAborted();
+          if (job === 'asset-zero') {
+            const report = await runAssetZeroPulse({ STORE: store });
+            return Response.json({ outcome: report ? 'ran' : 'skipped' });
+          }
+          const env = { ...this.env, STORE: store };
           const fetchImpl: typeof fetch = (input, init) => {
             const signals = [signal, init?.signal].filter((s): s is AbortSignal => Boolean(s));
             return fetch(input, { ...init, ...(signals.length ? { signal: AbortSignal.any(signals) } : {}) });

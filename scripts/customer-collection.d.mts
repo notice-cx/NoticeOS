@@ -2,7 +2,7 @@
 import { type JobSchedule } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
-declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "signal-dumps", "mediavine", "stripe", "pull"];
+declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero"];
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export declare const isCustomerJob: (value: unknown) => value is CustomerJob;
 declare const ARCHIVE_REPORTS: {
