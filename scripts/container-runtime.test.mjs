@@ -167,6 +167,7 @@ test('the same container explicitly selects one customer clock, exact loopback i
   };
   const prepared = read();
   assert.equal(prepared.target, 'postgres:5432/product');
+  assert.deepEqual(prepared.mailRecipients, ['owner@example.test']);
   assert.equal(prepared.googleDaily, false);
   assert.equal(prepared.ntasksOrigin, null);
   assert.throws(() => read({ database: { ...database, grant: database.grant.replace('/product', '/different') } }), /existing database/u);
@@ -184,9 +185,18 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.throws(() => read({ sitePulls: [{ ...site, token: 'replacement-bearer' }] }, bound), /existing database/u);
   assert.throws(() => read({ sitePulls: [{ ...site, workspaceId: options.workspaces[0].serviceId }] }, bound), /existing database/u);
   assert.throws(() => read({ mailDelivery: 'relay.json' }), /Restore the private SMTP mail file/u);
+  assert.throws(() => read({ mailRecipients: undefined }), { name: 'Error' });
+  assert.throws(() => read({ mailRecipients: undefined, mailDelivery: 'relay.json' }), /Restore the private SMTP mail file/u);
   fs.writeFileSync(path.join(root, 'relay.json'), JSON.stringify({ format: 'noticeos-identity-smtp/1', url: 'smtps://relay.example.test:465',
     from: 'tower@example.test', username: 'relay', password: 'synthetic' }), { mode: 0o600 });
-  assert.equal(read({ mailDelivery: 'relay.json' }).mailDelivery.from, 'tower@example.test');
+  const scopedRelay = read({ mailDelivery: 'relay.json', mailRecipients: ['Allowed@example.test'] });
+  assert.deepEqual(scopedRelay.mailRecipients, ['allowed@example.test']);
+  const membershipRelay = read({ mailDelivery: 'relay.json', mailRecipients: undefined });
+  assert.equal(membershipRelay.mailDelivery.from, 'tower@example.test');
+  assert.equal(membershipRelay.mailRecipients, undefined);
+  for (const mailRecipients of [null, [], ['invalid']]) {
+    assert.throws(() => read({ mailDelivery: 'relay.json', mailRecipients }), /existing database/u);
+  }
 });
 
 test('customer readiness does not fall back to stale standalone state or ignore a declared backup', async () => {

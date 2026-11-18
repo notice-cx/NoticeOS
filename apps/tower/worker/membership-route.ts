@@ -5,7 +5,7 @@ import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSI
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
-import { captureIdentityMail, type IdentityMailBindings } from './identity-mail';
+import { captureIdentityMail, identityMailWorkspaces, type IdentityMailBindings } from './identity-mail';
 
 type Bindings = WorkspaceEntryBindings & IdentityMailBindings;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
@@ -50,7 +50,12 @@ export async function handleMembershipRequest(request: Request, env: Bindings,
     if (accept) {
       if (Object.keys(input).length !== 1 || typeof input.invitationId !== 'string' || !UUID.test(input.invitationId)) refuse();
     } else if (input.kind === 'accept') refuse();
-    const send = !accept && (input.kind === 'invite' || input.kind === 'resend') ? captureIdentityMail(env) : null;
+    let send: ReturnType<typeof captureIdentityMail> | null = null;
+    if (!accept && (input.kind === 'invite' || input.kind === 'resend')) {
+      const mailWorkspaceIds = identityMailWorkspaces(env);
+      if (mailWorkspaceIds && !mailWorkspaceIds.includes(workspace!)) refuse();
+      send = captureIdentityMail(env);
+    }
     const connectionString = env[PRODUCT_ENV.identityDatabase.name], sessionSecret = env[PRODUCT_ENV.identitySecret.name];
     if (typeof connectionString !== 'string' || typeof sessionSecret !== 'string') refuse();
     client = open({ connectionString, sessionSecret, trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),

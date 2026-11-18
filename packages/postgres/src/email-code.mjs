@@ -67,10 +67,19 @@ async function input(request) {
         throw new IdentityRefused('Identity input refused');
     return { email: value.email.toLowerCase(), ...(typeof value.otp === 'string' ? { otp: value.otp } : {}) };
 }
-async function eligibility(trx, email, enrollment, standaloneOwnerWorkspaceId) {
+async function eligibility(trx, email, enrollment, { standaloneOwnerWorkspaceId, mailWorkspaceIds }) {
     if (standaloneOwnerWorkspaceId !== undefined && enrollment?.kind !== 'platform')
         return { allowed: false };
     if (!enrollment) {
+        if (mailWorkspaceIds) {
+            const result = await sql `SELECT EXISTS (
+        SELECT 1 FROM noticeos_identity.auth_user u
+        JOIN noticeos_identity.auth_member m ON m.user_id=u.id
+        JOIN LATERAL noticeos_identity.workspace_summary(m.organization_id) w ON w.status='active'
+        WHERE u.email=${email} AND u.email_verified=true AND m.organization_id=ANY(${mailWorkspaceIds}::uuid[])
+      ) AS allowed`.execute(trx);
+            return { allowed: result.rows[0]?.allowed === true };
+        }
         const result = await sql `SELECT id FROM noticeos_identity.auth_user WHERE email=${email}`.execute(trx);
         return { allowed: result.rows.length === 1 };
     }
@@ -78,7 +87,8 @@ async function eligibility(trx, email, enrollment, standaloneOwnerWorkspaceId) {
         ? await sql `SELECT workspace_id FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid`.execute(trx)
         : await sql `SELECT organization_id AS workspace_id FROM noticeos_identity.auth_invitation WHERE id=${enrollment.id}::uuid`.execute(trx);
     const workspaceId = target.rows[0]?.workspace_id;
-    if (!workspaceId || (standaloneOwnerWorkspaceId !== undefined && workspaceId !== standaloneOwnerWorkspaceId)) {
+    if (!workspaceId || (standaloneOwnerWorkspaceId !== undefined && workspaceId !== standaloneOwnerWorkspaceId)
+        || (mailWorkspaceIds !== undefined && !mailWorkspaceIds.includes(workspaceId))) {
         return { allowed: false };
     }
     // All later invitation/provisioning lifecycle operations must use this same
@@ -116,7 +126,8 @@ async function eligibility(trx, email, enrollment, standaloneOwnerWorkspaceId) {
 export function openEmailCodeLogin(options) {
     options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin,
         sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
-        ...(options.standaloneOwnerWorkspaceId === undefined ? {} : { standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId }) });
+        standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId,
+        mailWorkspaceIds: options.mailWorkspaceIds === undefined ? undefined : Object.freeze([...options.mailWorkspaceIds]) });
     const trustedOrigin = validateIdentityOptions(options);
     if (typeof options.peerAddress !== 'string' || !isValidIP(options.peerAddress) || typeof options.deliver !== 'function') {
         throw new IdentityRefused('Identity requires a trusted peer and delivery adapter');
@@ -164,7 +175,7 @@ export function openEmailCodeLogin(options) {
             await sql `SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
             if (body)
                 await sql `SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-            const eligible = body ? await eligibility(trx, body.email, enrollment, options.standaloneOwnerWorkspaceId) : { allowed: true };
+            const eligible = body ? await eligibility(trx, body.email, enrollment, options) : { allowed: true };
             const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
                 ...(action === 'logout' ? { readOnlySession: true } : {}),
                 peer, eligible: eligible.allowed, deliver: (message) => { mail.push(message); } });

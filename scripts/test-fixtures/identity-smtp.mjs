@@ -64,7 +64,7 @@ export async function identitySmtpFixture(root) {
     declaration: { format: 'noticeos-identity-smtp/1', from, url: `smtps://127.0.0.1:${server.address().port}`, username, password },
     inbox, recipients,
     launch: (executable, args, options) => spawn(executable, [...args, '--cacert', cert], options),
-    reject() { rejecting = true; },
+    reject(value = true) { rejecting = value; },
     async close() {
       for (const socket of connections) socket.destroy();
       await new Promise(resolve => server.close(resolve));
