@@ -139,7 +139,6 @@ describe("the sidebar is the desk's only navigation", () => {
     const expected: [string, string][] = [
       ["Home", "/"],
       ["Portfolio", "/assets"],
-      ["Money", "/financials"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
       ["Workflows", "/workflows"],
@@ -185,9 +184,8 @@ describe("the sidebar is the desk's only navigation", () => {
     ).toHaveLength(1);
   });
 
-  it("lights Portfolio on an asset page, because an asset page IS an asset", () => {
-    renderSidebar("/assets/meadow.example");
-
+  it.each(["/assets/meadow.example", "/financials?period=2026-09"])("marks Portfolio on %s", (path) => {
+    renderSidebar(path);
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -470,9 +468,9 @@ describe("the small-screen drawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
-    expect(within(drawer).getByRole("link", { name: "Money" })).toHaveAttribute(
+    expect(within(drawer).getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "href",
-      "/financials",
+      "/assets",
     );
 
     expect(within(drawer).getByRole("button", { name: "Close" })).toHaveFocus();

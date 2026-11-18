@@ -37,6 +37,7 @@ export interface NavItem {
  * would detach silently when the path changes.
  */
 export const ASSETS_ROUTE = "/assets";
+export const PORTFOLIO_MONEY_ROUTE = "/financials";
 
 /**
  * The Integrations page. Named for the same reason as `ASSETS_ROUTE`: the
@@ -50,18 +51,8 @@ export const TASKS_ROUTE = "/tasks";
 export const AGENTS_ROUTE = "/agents";
 
 /**
- * The desk's navigation, in the operator's order: where they land, what they
- * own, what is shouting, what is queued and who is working it, what it earned,
- * whether the inputs are trustworthy, what they are plugged into, and finally
- * the knobs.
- *
- * Health answers "is everything working" from collector evidence; Integrations
- * answers "what am I connected with" from the credential store. `/properties`
- * and `/work` stay as aliases. NavLink matches by prefix, so an asset page
- * lights Sites and a task page lights Tasks.
- *
- * It lives in its own module rather than in `AppShell.tsx` so the command
- * palette can read it without importing the shell that mounts the palette.
+ * The sidebar and command palette share these destinations. Keeping them here
+ * lets the palette load independently of the shell that mounts it.
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
@@ -70,13 +61,6 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Portfolio",
     icon: Globe,
     keywords: ["assets", "sites", "properties", "domains", "growth", "traffic", "journeys"],
-  },
-  {
-    to: "/financials",
-    // The route, the payload and the asset tab's id keep `financials`.
-    label: "Money",
-    icon: Wallet,
-    keywords: ["revenue", "cost", "ledger", "financials", "p&l"],
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
@@ -99,6 +83,10 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const SETTINGS_ITEM: NavItem = {
   to: "/settings", label: "Settings", icon: Settings, keywords: ["workspace settings", "configuration", "preferences", "notifications"],
+};
+
+const PORTFOLIO_MONEY_ITEM: NavItem = {
+  to: PORTFOLIO_MONEY_ROUTE, label: "Money", icon: Wallet, keywords: ["portfolio", "revenue", "cost", "ledger", "financials", "p&l"],
 };
 
 /**
@@ -146,4 +134,4 @@ const OPERATIONS_ITEM: NavItem = {
 };
 
 /** Every page the palette can jump to, in the sidebar's order. */
-export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, SETTINGS_ITEM, OPERATIONS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
+export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, PORTFOLIO_MONEY_ITEM, SETTINGS_ITEM, OPERATIONS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];

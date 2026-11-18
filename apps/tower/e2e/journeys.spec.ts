@@ -3353,9 +3353,14 @@ test("a one-asset install hides redundant comparisons and filters with one choic
   await expect(main.getByRole("group", { name: "Traffic period" })).toHaveCount(0);
   // Financials states the one site's money without a by-site table repeating
   // it: nothing is shared, so there is nothing to allocate.
-  await page.goto("/financials");
+  await main.getByRole("tab", { name: "Money", exact: true }).click();
+  await expect(page).toHaveURL(/\/financials$/);
   await expect(main.locator("[data-money-answer]")).toBeVisible();
   await expect(main.getByRole("heading", { name: "By asset" })).toHaveCount(0);
+  await page.goBack();
+  await expect(main.getByRole("tab", { name: "Assets", exact: true })).toHaveAttribute("aria-selected", "true");
+  await page.goForward();
+  await expect(main.getByRole("tab", { name: "Money", exact: true })).toHaveAttribute("aria-selected", "true");
   // The site's Search tab opens on its Bing numbers and the one step to
   // tracking terms, never a blank page.
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);

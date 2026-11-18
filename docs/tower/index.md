@@ -27,8 +27,7 @@ On desktop, **Collapse sidebar** gives reports more room. Hover or focus an icon
 | Page | What it shows |
 |---|---|
 | [Home](/tower/home) | How the business is doing, what is broken and what needs your attention. The Tower opens here. |
-| [Portfolio](/tower/sites) | Which assets need your attention. Each asset also has its own page. |
-| [Money](/tower/financials) | The month's net, and where the money comes from and goes. |
+| [Portfolio](/tower/sites) | **Assets** compares your assets. [**Money**](/tower/financials) shows their combined revenue, costs and net, including shared costs. |
 | [Alerts](/tower/alerts) | What needs attention right now, and how serious it is. |
 | [Tasks](/tower/tasks) | How big the work queue is, and which tasks in it are waiting for you. |
 | [Workflows](/tower/workflows) | Analysis runbooks and their results. |

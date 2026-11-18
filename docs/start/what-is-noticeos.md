@@ -22,7 +22,7 @@ It shows four things:
 
 ## The Tower and the Wall
 
-The **Tower** is the web app you work in, in your browser. Its pages with a sidebar are Home, Workflows, Portfolio, Alerts, Tasks, Money, System health, Integrations and Settings, and every asset you add gets a page of its own. [The Tower](/tower/) describes each one.
+The **Tower** is the web app you use to review your portfolio and manage your workspace. Open **Portfolio** to compare your assets or review their combined finances on **Money**. Each asset also has its own page. See [the Tower’s pages](/tower/).
 
 The **Wall** is a Tower view built for a TV or a second screen. It fits one 1920×1080 screen with nothing to scroll. Open it at `/wall` and lay it out at `/wall/edit`.
 

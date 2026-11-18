@@ -4,7 +4,7 @@ import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import {
   expiringCredentialSeverity,
   expiringCredentialSummary,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/palette-launch";
 import {
   ASSETS_ROUTE,
+  PORTFOLIO_MONEY_ROUTE,
   INTEGRATIONS_ROUTE,
   TV_EDIT_ITEM,
   TV_ITEM,
@@ -185,8 +186,10 @@ export function Sidebar({
       <nav id={navId} aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
-          item.to === ASSETS_ROUTE && !compact ? (
-            assets === undefined ? (
+          item.to === ASSETS_ROUTE ? (
+            compact ? (
+              <PortfolioNavLink key={item.to} item={item} onNavigate={onNavigate} />
+            ) : assets === undefined ? (
               <LiveAssetNav
                 key={item.to}
                 item={item}
@@ -282,6 +285,20 @@ interface AssetNavProps {
   onNavigate?: () => void;
   /** The state when the operator has never said (the desk yes, the drawer no). */
   defaultOpen: boolean;
+}
+
+function PortfolioNavLink({ item, onNavigate, className }: Pick<AssetNavProps, "item" | "onNavigate"> & { className?: string }) {
+  const intent = useLinkIntent();
+  const assets = useMatch(`${ASSETS_ROUTE}/*`);
+  const money = useMatch(PORTFOLIO_MONEY_ROUTE);
+  const active = Boolean(assets || money);
+  return (
+    <Link to={item.to} onClick={onNavigate} {...intent(item.to)} aria-current={active ? "page" : undefined}
+      className={cn(ITEM_BASE, className, active ? ITEM_ACTIVE : ITEM_IDLE)}>
+      <item.icon className="size-4" />
+      <span data-sidebar-label>{item.label}</span>
+    </Link>
+  );
 }
 
 function PageNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
@@ -403,18 +420,7 @@ function AssetNav({
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-0.5">
-        <NavLink
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          {...intent(item.to)}
-          className={({ isActive }) =>
-            cn(ITEM_BASE, "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)
-          }
-        >
-          <item.icon className="size-4" />
-          {item.label}
-        </NavLink>
+        <PortfolioNavLink item={item} onNavigate={onNavigate} className="min-w-0 flex-1" />
         <button
           type="button"
           aria-expanded={open}

@@ -58,10 +58,10 @@ certified. Live auth activation remains an explicit operator action under
 Every Tower page except the Wall renders inside one layout route: a persistent
 left sidebar and one page header.
 
-- **The sidebar** lists Home, Workflows, Portfolio, Alerts, Tasks, Agents, Money,
-  System health, Integrations and Settings. The
-  sidebar's footer holds the items that are not pages — Search…, the TV dashboard with an Edit pencil to
-  `/wall/edit`, and the light/dark toggle. A setting saves in the field
+- **The sidebar** lists Home, Portfolio, Alerts, Tasks, Workflows, Agents,
+  System health and Integrations. Portfolio contains the Assets and Money tabs.
+  The footer holds Search, the TV dashboard and its layout editor, Settings,
+  and the light/dark toggle. A setting saves in the field
   being edited, so the sidebar and header hold no save controls. `/dev/kitchen-sink`
   and `/dev/asset-states` stay dev-only routes reached by URL and are not in the
   nav: they are for reviewers, and the nav lists only the pages an operator
