@@ -90,6 +90,12 @@ export async function useCustomerProfileBrowser({ origin, outbox, email, workspa
   await expect(drawer).toBeHidden();
   await page.getByRole('link', { name: 'Back to workspace', exact: true }).click();
   await expect(page).toHaveURL(origin + '/');
+  await page.keyboard.press((await page.evaluate(() => /Mac/u.test(navigator.platform))) ? 'Meta+k' : 'Control+k');
+  const search = page.getByRole('dialog', { name: 'Search pages and assets', exact: true });
+  await search.getByRole('combobox').fill('personal details');
+  await search.getByRole('option', { name: 'Profile', exact: true }).click();
+  await expect(page).toHaveURL(origin + '/profile');
+  await page.getByRole('link', { name: 'Back to workspace', exact: true }).click();
   await account.click();
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, kind + '-account-menu.png'), animations: 'disabled' });
   await page.getByRole('button', { name: 'Switch workspace', exact: true }).click();

@@ -3,8 +3,13 @@ import { ArrowLeftRight, CircleUserRound, LogOut, UserRound } from 'lucide-react
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { NavItem } from '@/components/nav-items';
 import { useBrowserContext } from '@/lib/browser-context';
 import { cn } from '@/lib/utils';
+
+export const ACCOUNT_PROFILE_PAGE: NavItem = {
+  to: '/profile', label: 'Profile', icon: UserRound, keywords: ['account', 'personal details'],
+};
 
 export function AccountMenu({ className, align }: { className?: string; align?: 'start' | 'end' }) {
   const { workspaceLabel, switchWorkspace, logout } = useBrowserContext();
@@ -26,7 +31,9 @@ export function AccountMenu({ className, align }: { className?: string; align?: 
       onOpenAutoFocus={event => { event.preventDefault(); firstAction.current?.focus(); }}>
       <div className="px-3 py-2 text-xs break-words text-muted-foreground">{workspaceLabel}</div>
       <Button asChild variant="ghost" className={item}>
-        <Link ref={firstAction} to="/profile" onClick={() => setOpen(false)}><UserRound aria-hidden />Profile</Link>
+        <Link ref={firstAction} to={ACCOUNT_PROFILE_PAGE.to} onClick={() => setOpen(false)}>
+          <UserRound aria-hidden />{ACCOUNT_PROFILE_PAGE.label}
+        </Link>
       </Button>
       <Button type="button" variant="ghost" className={item} onClick={() => { setOpen(false); switchWorkspace(); }}>
         <ArrowLeftRight aria-hidden />Switch workspace
