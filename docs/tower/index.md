@@ -22,6 +22,8 @@ Both show the same data from the same installation.
 
 Use the sidebar to open a portfolio-wide report. Choose an asset to see its reports. See [Find a report](/guides/choose-your-view).
 
+On desktop, **Collapse sidebar** gives reports more room. Hover or focus an icon to see its name. **Expand sidebar** restores the asset list. The browser remembers the width for each person and workspace.
+
 | Page | What it shows |
 |---|---|
 | [Home](/tower/home) | How the business is doing, what is broken and what needs your attention. The Tower opens here. |

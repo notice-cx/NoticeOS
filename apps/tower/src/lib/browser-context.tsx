@@ -5,7 +5,7 @@ import { NO_CHANGE_STREAM } from './change-stream';
 import type { BrowserEntry, BrowserUiRuntime } from './browser-entry';
 import type { WorkspaceChoice } from './browser-session';
 import type { TowerApi } from './api';
-import { createOwnerStorage, readStored, forgetStored, storageKey } from './browser-storage';
+import { createOwnerStorage, createSidebarPreferences, readStored, forgetStored, storageKey } from './browser-storage';
 import type { ScheduledAnswer } from './answer-queue';
 import { useMutation, type UseMutationOptions, type MutateOptions, type QueryClient, type DefaultError } from '@tanstack/react-query';
 import { BrowserRetiredError } from './browser-runtime';
@@ -117,6 +117,7 @@ export function useOwnerPreferences() {
       return createOwnerStorage({ ...runtime.owner, clientGeneration: 0 }, storage, assertActive, runtime.assertReadable);
     }
     return Object.freeze({
+      ...createSidebarPreferences(runtime.owner, storage, assertActive, runtime.assertReadable),
       read(name: string) { runtime.assertReadable(); return readStored(storage, name); },
       write(name: string, value: string) { assertActive(); try { storage?.setItem(storageKey(name), value); } catch { /* No preference stored. */ } },
       forget(name: string) { assertActive(); forgetStored(storage, name); },

@@ -1078,6 +1078,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The desk's one chrome: a persistent left sidebar with the eight desk nouns as NavLinks (aria-current, an asset page lighting Portfolio), one row per asset beneath Portfolio (favicon, a severity dot for open attention, a stage glyph where not live; collapsible and remembered in localStorage), a footer holding the TV, the theme toggle and the Search button, and below `md` a top bar whose menu button opens the same content as a drawer. The Integrations entry and the top bar wear the expiring-credential dot. AppShell applies `.light` to the document and removes it on unmount.",
     variants: [
       "sidebar (md and up)",
+      "compact desktop sidebar with labeled icons",
       "active item (aria-current)",
       "asset route lights Portfolio",
       "asset rows (favicon + severity dot + stage glyph)",

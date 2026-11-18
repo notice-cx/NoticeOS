@@ -1,7 +1,7 @@
 import { useBrowserRuntime, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { AccountMenu } from '@/components/AccountMenu';
 import { BrandLockup } from "@/components/BrandLockup";
-import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
+import { ChevronRight, Moon, PanelLeft, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
@@ -124,6 +124,8 @@ function useLinkIntent(): (to: string) => { onPointerEnter?: () => void; onFocus
 }
 
 export interface SidebarProps {
+  compact?: boolean;
+  onToggleWidth?: () => void;
   theme: Theme;
   onToggleTheme: () => void;
   /** Called after any navigation, so the mobile drawer can close itself. */
@@ -147,6 +149,8 @@ export interface SidebarProps {
  * Desk navigation and the phone drawer share the same Settings footer.
  */
 export function Sidebar({
+  compact = false,
+  onToggleWidth,
   theme,
   onToggleTheme,
   onNavigate,
@@ -158,24 +162,30 @@ export function Sidebar({
 }: SidebarProps) {
   const intent = useLinkIntent();
   const readOnly = useWorkspaceReadOnlyReason();
+  const navId = useId();
+  const toggleName = compact ? "Expand sidebar" : "Collapse sidebar";
   return (
     <div
-      className={cn("flex w-sidebar shrink-0 flex-col border-r border-border bg-sidebar", className)}
+      className={cn("flex shrink-0 flex-col border-r border-border bg-sidebar", compact ? "w-sidebar-compact" : "w-sidebar", className)}
       data-app-sidebar
+      data-sidebar-compact={compact || undefined}
     >
-      <Link
-        to="/"
-        onClick={onNavigate}
-        className="flex flex-col gap-0.5 px-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <BrandLockup />
-      </Link>
+      <div className={cn("flex min-h-13 items-center", compact ? "justify-center" : "justify-between")}>
+        {!compact && <Link to="/" onClick={onNavigate} className="px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <BrandLockup />
+        </Link>}
+        {onToggleWidth && <Button type="button" variant="ghost" size="icon" className={compact ? undefined : "mr-2"}
+          aria-expanded={!compact} aria-controls={navId} aria-label={toggleName} title={toggleName} onClick={onToggleWidth}>
+          {compact ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
+          {compact && <span data-sidebar-label>{toggleName}</span>}
+        </Button>}
+      </div>
 
-      <AccountMenu className="mx-2 mb-2 hidden justify-start md:flex" />
-      <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+      <AccountMenu className={cn("mx-2 mb-2 hidden md:flex", compact ? "justify-center px-0" : "justify-start")} />
+      <nav id={navId} aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
-          item.to === ASSETS_ROUTE ? (
+          item.to === ASSETS_ROUTE && !compact ? (
             assets === undefined ? (
               <LiveAssetNav
                 key={item.to}
@@ -220,23 +230,23 @@ export function Sidebar({
           // The palette's code arrives on first open; hover or focus fetches it early.
           onPointerEnter={() => void preloadCommandPalette()}
           onFocus={() => void preloadCommandPalette()}
-          className={cn(ITEM_BASE, ITEM_IDLE, "w-full text-left")}
+          className={cn(ITEM_BASE, ITEM_IDLE, "w-full text-left", compact && "justify-center")}
         >
           <Search className="size-4" />
-          Search…
-          <span aria-hidden className="ml-auto hidden text-xs text-muted-foreground md:inline">{SHORTCUT_MODIFIER}K</span>
+          <span data-sidebar-label>Search…</span>
+          {!compact && <span aria-hidden className="ml-auto hidden text-xs text-muted-foreground md:inline">{SHORTCUT_MODIFIER}K</span>}
         </button>
-        <div className="flex items-center gap-0.5">
+        <div className={cn("flex gap-0.5", compact ? "flex-col" : "items-center")}>
           <NavLink
             to={TV_ITEM.to}
             // `end`: the editor at /wall/edit lights its own Edit, not the TV.
             end
             onClick={onNavigate}
             {...intent(TV_ITEM.to)}
-            className={({ isActive }) => cn(ITEM_BASE, "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)}
+            className={({ isActive }) => cn(ITEM_BASE, compact ? "justify-center" : "min-w-0 flex-1", isActive ? ITEM_ACTIVE : ITEM_IDLE)}
           >
             <TV_ITEM.icon className="size-4" />
-            {TV_ITEM.label}
+            <span data-sidebar-label>{TV_ITEM.label}</span>
           </NavLink>
           {readOnly ? null : <NavLink
             to={TV_EDIT_ITEM.to}
@@ -253,13 +263,14 @@ export function Sidebar({
             }
           >
             <Pencil aria-hidden className="size-4" />
+            {compact && <span data-sidebar-label>{TV_EDIT_ITEM.label}</span>}
           </NavLink>}
         </div>
         <nav aria-label="Workspace">
           <PageNav item={SETTINGS_ITEM} onNavigate={onNavigate} />
         </nav>
-        <div className="flex items-center gap-2 px-0.5 pt-1">
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <div className={cn("flex items-center gap-2 px-0.5 pt-1", compact && "justify-center")}>
+          <ThemeToggle theme={theme} onToggle={onToggleTheme} compact={compact} />
         </div>
       </div>
     </div>
@@ -284,7 +295,7 @@ function PageNav({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       className={({ isActive }) => cn(ITEM_BASE, isActive ? ITEM_ACTIVE : ITEM_IDLE)}
     >
       <item.icon className="size-4" />
-      {item.label}
+      <span data-sidebar-label>{item.label}</span>
     </NavLink>
   );
 }
@@ -327,12 +338,12 @@ function IntegrationsNav({
       className={({ isActive }) => cn(ITEM_BASE, isActive ? ITEM_ACTIVE : ITEM_IDLE)}
     >
       <item.icon className="size-4" />
-      {item.label}
+      <span data-sidebar-label>{item.label}</span>
       {severity ? (
         <SeverityDot
           severity={severity}
           size="sm"
-          className="ml-auto"
+          className="ml-auto nav-credential-dot"
           title={expiringCredentialSummary(rows) ?? ""}
         />
       ) : null}
@@ -499,7 +510,7 @@ function AssetNav({
   );
 }
 
-function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+function ThemeToggle({ theme, onToggle, compact }: { theme: Theme; onToggle: () => void; compact?: boolean }) {
   const next = theme === "dark" ? "light" : "dark";
   return (
     <Button
@@ -511,6 +522,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
       title={`Switch to ${next} theme`}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      {compact && <span data-sidebar-label>{`Switch to ${next} theme`}</span>}
     </Button>
   );
 }
@@ -530,6 +542,8 @@ export function AppShell({
   onPrefetch?: (to: string) => void;
 } = {}) {
   const { theme, toggle } = useTheme();
+  const preferences = useOwnerPreferences();
+  const [compact, setCompact] = useState(() => preferences.readSidebarCollapsed());
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -581,7 +595,12 @@ export function AppShell({
           theme={theme}
           onToggleTheme={toggle}
           onOpenPalette={() => changePalette(true)}
-          className="sticky top-0 hidden h-screen md:flex"
+          compact={compact}
+          onToggleWidth={() => {
+            preferences.setSidebarCollapsed(!compact);
+            setCompact(!compact);
+          }}
+          className="sticky top-0 z-20 hidden h-screen md:flex"
         />
 
         <div className="flex min-w-0 flex-1 flex-col">

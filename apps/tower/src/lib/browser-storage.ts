@@ -1,4 +1,4 @@
-import { browserOwnerKey, captureBrowserOwner } from './browser-owner';
+import { browserOwnerKey, captureBrowserOwner, type BrowserOwner } from './browser-owner';
 
 // What one browser remembers for the desk, under the product's name. Every
 // key is namespaced `noticeos:` so it cannot collide with anything else the
@@ -35,14 +35,34 @@ export function forgetStored(storage: KeyValueStorage | null | undefined, name: 
   }
 }
 
+/** Sidebar layout follows the person and workspace across browser sessions. */
+export function createSidebarPreferences(owner: BrowserOwner, storage: KeyValueStorage | null | undefined,
+  assertActive: () => void, assertReadable: () => void) {
+  const principal = owner.mode === 'hosted' ? owner.principalId : null;
+  const workspace = owner.mode === 'standalone' ? null : owner.workspaceId;
+  const name = `sidebar-collapsed:${JSON.stringify([owner.mode, principal, workspace])}`;
+  return {
+    readSidebarCollapsed(): boolean {
+      assertReadable();
+      return readStored(storage, name) === 'true';
+    },
+    setSidebarCollapsed(value: boolean): void {
+      assertActive();
+      try { storage?.setItem(storageKey(name), String(value)); } catch { /* Storage refusal leaves no preference. */ }
+    },
+  };
+}
+
 /** Owner preferences never import the origin's standalone values. Device
  * theme keeps using the existing unscoped functions. A frozen owner may still
  * render its preferences; mutation and final retirement remain separate. */
 export function createOwnerStorage(identity: unknown, storage: KeyValueStorage | null | undefined,
   assertActive: () => void = () => {}, assertReadable = assertActive) {
-  const ownerKey = browserOwnerKey(captureBrowserOwner(identity));
+  const owner = captureBrowserOwner(identity);
+  const ownerKey = browserOwnerKey(owner);
   const key = (name: string) => `${STORAGE_PREFIX}owner:${JSON.stringify([ownerKey, name])}`;
   return Object.freeze({
+    ...createSidebarPreferences(owner, storage, assertActive, assertReadable),
     read(name: string): string | null {
       assertReadable();
       try { return storage?.getItem(key(name)) ?? null; } catch { return null; }

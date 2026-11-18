@@ -23,8 +23,8 @@ export function AccountMenu({ className, align }: { className?: string; align?: 
       <Button type="button" variant="outline" aria-label="Account menu" title={workspaceLabel}
         className={cn('min-h-11 min-w-0 gap-2', className)}>
         <CircleUserRound aria-hidden className="size-5 shrink-0" />
-        <span>Account</span>
-        <span className="ml-auto hidden min-w-0 truncate text-xs text-muted-foreground md:block">{workspaceLabel}</span>
+        <span data-sidebar-label>Account</span>
+        <span data-sidebar-detail className="ml-auto hidden min-w-0 truncate text-xs text-muted-foreground md:block">{workspaceLabel}</span>
       </Button>
     </PopoverTrigger>
     <PopoverContent align={align} aria-label="Account" className="w-56 p-1"
