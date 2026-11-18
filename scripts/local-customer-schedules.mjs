@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { customerJobStep, customerJobSubject, customerSchedules } from './customer-collection.mjs';
+import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerJobStep, customerJobSubject, customerSchedules } from './customer-collection.mjs';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleFor, scheduleTimezone, schedulesRefusal, manualScheduledJob } from './scheduled-jobs.mjs';
@@ -14,6 +14,18 @@ const privateUrl = 'https://scheduler.internal/collect';
 const POSTHOG_LIMIT_MS = 4 * MINUTE;
 const GOOGLE_ARCHIVE_LIMIT_MS = 10 * MINUTE;
 const BING_ARCHIVE_LIMIT_MS = 3 * MINUTE;
+
+export async function readCustomerGoogleArchiveScope(worker, workspaceId) {
+  const response = await worker.fetch(new Request(CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId }),
+    signal: AbortSignal.timeout(10_000),
+  }));
+  if (!response.ok) throw new Error('Google archive targets unavailable.');
+  const targets = await response.json();
+  if (!Array.isArray(targets) || !targets.every(target => target && typeof target.asset === 'string'
+    && (target.provider === 'ga4' || target.provider === 'gsc'))) throw new Error('Google archive targets unavailable.');
+  return targets;
+}
 
 function next(schedule, after) {
   return new Cron(schedule.cron, { timezone: scheduleTimezone(schedule), paused: true })
@@ -159,7 +171,12 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
           authority: () => grant.facts() });
         return await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
           new Request(privateUrl, { method: 'POST' }), async () => {
-            const scheduled = await customerSchedules(store, null, collection);
+            const googleScope = collection?.extendedArchives && collection.googleDaily
+              ? await readCustomerGoogleArchiveScope(worker, binding.workspaceId).catch(() => {
+                console.warn('Saved Google archive targets could not be read.');
+                return undefined;
+              }) : undefined;
+            const scheduled = await customerSchedules(store, null, collection, googleScope);
             if (backup) {
               scheduled.push({ job: 'backup', schedule: await readBackupSchedule(store), assets: [null] });
             }
