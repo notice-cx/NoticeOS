@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { holdLock } from './history-files.mjs';
-import { MANAGED_START_PORTS } from './start-postgres.mjs';
+import { MANAGED_START_PORTS } from './start-ports.mjs';
 
 const FORMAT = 'noticeos-customer-operating/1';
 const MARK = '.noticeos-customer-operating';
