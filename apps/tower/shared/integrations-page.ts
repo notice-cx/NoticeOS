@@ -362,6 +362,7 @@ export function googleOAuthCardState(
   app: IntegrationProviderStatus | null,
   origin: string,
   offerLoopback = true,
+  googleSetupRequired = false,
 ): GoogleOAuthCardState {
   const verdict = googleRedirectVerdict(origin);
   const metadata = google.credential.metadata;
@@ -374,8 +375,8 @@ export function googleOAuthCardState(
     scopes: grantedScopes(metadata?.scopes ?? []),
     connectedAt: metadata?.connectedAt ?? null,
   };
-  if (!verdict.usable && !offerLoopback) {
-    return { ...base, state: connected ? 'connected' : 'redirect-unusable', localSignInBlocked: true };
+  if (googleSetupRequired || (!verdict.usable && !offerLoopback)) {
+    return { ...base, loopbackUrl: null, state: connected ? 'connected' : 'redirect-unusable', localSignInBlocked: true };
   }
   if (google.provider.id === 'adsense' && (app === null || app.credential.source === 'none')) {
     return { ...base, state: 'app-missing' };
@@ -469,14 +470,14 @@ function oauthFailureAction(code: string, origin: string, provider: 'google' | '
   return undefined;
 }
 
-export const LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP = 'Connect from the standalone Tower on the computer running NoticeOS.';
+export const LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP = 'Connect on the Mac running NoticeOS. Open Google setup from the installation commands, then sign in to the Tower at the address it prints. Other devices lose access until you close setup.';
 
-export function googleOAuthNotice(value: string | null, origin = '', provider: 'google' | 'adsense' = 'google', offerLoopback = true): GoogleOAuthNotice | null {
+export function googleOAuthNotice(value: string | null, origin = '', provider: 'google' | 'adsense' = 'google', offerLoopback = true, googleSetupRequired = false): GoogleOAuthNotice | null {
   if (value === null || value === "") return null;
   if (value === GOOGLE_OAUTH_CONNECTED) {
     return { tone: "ok", message: "Signed in to Google." };
   }
-  if (value === 'redirect_unusable' && !offerLoopback) {
+  if (value === 'redirect_unusable' && (googleSetupRequired || !offerLoopback)) {
     return { tone: 'bad', message: LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP };
   }
   const action = oauthFailureAction(value, origin, provider);

@@ -3,7 +3,7 @@ import { ArrowRight, Check, ExternalLink, FileKey2, KeyRound, Loader2, TriangleA
 import { type DragEvent, type ReactNode, useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { GOOGLE_CONSOLE, readGoogleClientFile, type GoogleClientFile } from "@shared/google-client-file";
-import { LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP, type GoogleOAuthCardState } from "@shared/integrations-page";
+import type { GoogleOAuthCardState } from "@shared/integrations-page";
 import { CopyCommand } from "@/components/CopyCommand";
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,32 @@ type Upload =
   | { phase: "saved"; redirectListed: boolean }
   | { phase: "refused"; label: string };
 
+export function LocalGoogleSignInHelp() {
+  return (
+    <div className="flex min-w-0 flex-col gap-3 text-sm text-muted-foreground">
+      <p>Tower is available only on the Mac running NoticeOS until you close Google setup.</p>
+      <ol className="list-decimal space-y-3 ps-5">
+        <li className="space-y-2">
+          <p>On that Mac, open Terminal in the NoticeOS installation folder. Run this command to open setup.</p>
+          <CopyCommand command="./noticeos customer-google-setup open" label="the command to open Google setup" mark={{ "data-google-setup-open": "" }} />
+        </li>
+        <li>Open the <code>127.0.0.1</code> address it prints. Sign in to Tower with your usual account, choose the same workspace, then return to this connection in Integrations.</li>
+        <li className="space-y-2">
+          <p>Restore normal Tower access when you finish, including if you cancel or setup is interrupted.</p>
+          <CopyCommand command="./noticeos customer-google-setup close" label="the command to close Google setup" mark={{ "data-google-setup-close": "" }} />
+        </li>
+      </ol>
+      <details>
+        <summary className="cursor-pointer text-foreground">Commands from a source checkout</summary>
+        <div className="mt-2 grid gap-2">
+          <CopyCommand command="pnpm os:customer-google-setup -- open" label="the checkout command to open Google setup" mark={{ "data-google-setup-checkout-open": "" }} />
+          <CopyCommand command="pnpm os:customer-google-setup -- close" label="the checkout command to close Google setup" mark={{ "data-google-setup-checkout-close": "" }} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
 /**
  * `ConnectPanel`'s body for Google, which connects on its own consent screen.
  * With the host's OAuth client it is one button. Self-hosted, it is the
@@ -66,7 +92,7 @@ export function GoogleSignInSetup({ card, provider = 'google', selfHosted, start
   </Link>;
   if (card.localSignInBlocked) return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">{LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP}</p>
+      <LocalGoogleSignInHelp />
       {adsense ? null : serviceAccount}
     </div>
   );

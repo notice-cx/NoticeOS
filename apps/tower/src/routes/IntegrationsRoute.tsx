@@ -1,4 +1,4 @@
-import { useBrowserRuntime, useCanEditWorkspace } from '@/lib/browser-context';
+import { useBrowserContext, useCanEditWorkspace } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { ArrowLeft, Check, TriangleAlert } from "lucide-react";
@@ -62,7 +62,7 @@ import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
  * Replace and Disconnect at its top.
  */
 export function IntegrationsRoute() {
-  const { owner } = useBrowserRuntime();
+  const { runtime: { owner }, googleSetupRequired } = useBrowserContext();
   const offerLoopback = owner.mode === 'standalone';
   const toast = useOwnerToast();
   const { importEnvCredentials, deleteProviderCredential, saveProviderCredential, testProviderCredential, saveProviderExpiry } = useTowerApi();
@@ -135,7 +135,7 @@ export function IntegrationsRoute() {
   }, [wrongReturnWorkspace, setParams]);
   useEffect(() => {
     if (readOnly) return;
-    const notice = googleOAuthNotice(oauthResult, window.location.origin, params.get('connect') === 'adsense' ? 'adsense' : 'google', offerLoopback);
+    const notice = googleOAuthNotice(oauthResult, window.location.origin, params.get('connect') === 'adsense' ? 'adsense' : 'google', offerLoopback, googleSetupRequired);
     if (notice === null) return;
     if (notice.tone === "ok") {
       // Signed in: the connect panel opens on the account's sites with Signed
@@ -270,7 +270,7 @@ export function IntegrationsRoute() {
                   // Why not is the banner's, said once above.
                   canConnect={!readOnly && blockers.length === 0}
                   readOnly={readOnly}
-                  oauth={googlePanel(selected, googleApp, refresh, api, toast, googleStart, offerLoopback)}
+                  oauth={googlePanel(selected, googleApp, refresh, api, toast, googleStart, offerLoopback, googleSetupRequired)}
                   envImport={importPanel}
                   className="shadow-none"
                   onConnect={async (fields) => {
@@ -551,14 +551,15 @@ function googlePanel(
   toast: typeof import('sonner').toast,
   start: ReturnType<typeof useGoogleOAuthStart>,
   offerLoopback: boolean,
+  googleSetupRequired?: boolean,
 ): ProviderOAuthPanel | undefined {
   const { saveProviderCredential, fetchGoogleProperties } = api;
   if (status.provider.id !== "google" || app === null) return undefined;
+  const card = googleOAuthCardState(status, app, window.location.origin, offerLoopback, googleSetupRequired);
   return {
-    card: googleOAuthCardState(status, app, window.location.origin, offerLoopback),
+    card,
     app,
-    startHref: GOOGLE_OAUTH_START_PATH,
-    ...start,
+    ...(card.localSignInBlocked ? {} : { startHref: GOOGLE_OAUTH_START_PATH, ...start }),
     onSaveApp: async (fields) => {
       await saveProviderCredential(app.provider.id, fields);
       await refresh();
