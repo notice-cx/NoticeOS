@@ -1913,12 +1913,16 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
 describe("/financials — New price", () => {
   it("keeps the month’s reporting coverage alongside the existing price editor", async () => {
     stubLane();
-    const { container } = renderPage(withCosts(), "/financials?period=2026-08");
+    const base = withCosts();
+    const site = base.properties[0]!;
+    const costOnly = { ...site, asset: 'expenses.example', displayName: 'Expenses', revenueReported: false,
+      figure: { currency: 'USD', revenue: 0, cost: 25, net: -25 }, months: [] };
+    const { container } = renderPage({ ...base, properties: [...base.properties, costOnly] }, "/financials?period=2026-08");
     const net = container.querySelector("[data-money-net]")?.textContent;
     const coverage = container.querySelector<HTMLElement>('[data-panel="coverage"]')!;
     fireEvent.click(within(coverage).getByRole("button"));
-    expect(coverage).toHaveTextContent("Revenue reports");
-    expect(coverage).toHaveTextContent("missing");
+    expect(coverage).toHaveTextContent("1 of 2 assets · 1 missing");
+    expect(coverage).toHaveTextContent("1 positive · 1 negative");
     const form = await openPrice();
     fillPrice(form);
     expect(picker()).toHaveValue("2026-08");

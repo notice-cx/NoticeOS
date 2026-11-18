@@ -1,4 +1,4 @@
-import { useCanManageMembers, useOwnerPreferences } from '@/lib/browser-context';
+import { useCanManageMembers, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +7,7 @@ import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
-import { MEMBERS_ITEM, PAGE_ITEMS, shownPages } from "@/components/nav-items";
+import { MEMBERS_ITEM, PAGE_ITEMS, TV_EDIT_ITEM, SITES_ARRANGE_ITEM } from "@/components/nav-items";
 import {
   Command,
   CommandDialog,
@@ -155,7 +155,11 @@ function PaletteBody({
   const preferences = useOwnerPreferences();
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
   const managesMembers = useCanManageMembers();
-  const pages = useMemo(() => shownPages(managesMembers ? [...PAGE_ITEMS, MEMBERS_ITEM] : PAGE_ITEMS), [managesMembers]);
+  const readOnly = useWorkspaceReadOnlyReason();
+  const pages = useMemo(() => {
+    const items = readOnly ? PAGE_ITEMS.filter(item => item !== TV_EDIT_ITEM && item !== SITES_ARRANGE_ITEM) : PAGE_ITEMS;
+    return managesMembers ? [...items, MEMBERS_ITEM] : items;
+  }, [managesMembers, readOnly]);
   const destinations = useMemo(() => {
     const map = new Map<string, { to: string; label: string }>();
     for (const page of pages) {

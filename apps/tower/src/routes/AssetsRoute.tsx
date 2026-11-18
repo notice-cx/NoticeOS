@@ -1,3 +1,4 @@
+import { useWorkspaceReadOnlyReason } from "@/lib/browser-context";
 import { ArrowDownUp, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -70,7 +71,8 @@ export function AssetsRoute() {
   const health = readKey<HealthFilter>(params.get("health"), ["all", ...HEALTH_KEYS]);
   const sort = readKey<SitesOrder>(params.get("sort"), ORDERS.map((option) => option.value));
 
-  const arranging = params.get(SITES_ARRANGE_PARAM) === "1";
+  const readOnly = useWorkspaceReadOnlyReason();
+  const arranging = !readOnly && params.get(SITES_ARRANGE_PARAM) === "1";
 
   function setFilter(name: string, value: string) {
     const next = new URLSearchParams(params);
@@ -191,7 +193,7 @@ export function AssetsRoute() {
         </section>
       ) : assets.length === 0 ? (
         <section data-surface-hero data-assets-all-hidden className="rounded-xl border border-border bg-card px-4 py-3">
-          <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={arrangeHref(true)} />} />
+          <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} />} />
         </section>
       ) : assets.length === 1 ? (
         <div data-surface-hero className="flex flex-col gap-3">
@@ -199,7 +201,7 @@ export function AssetsRoute() {
           {reports}
           {hidden > 0 ? (
             <p className="m-0 text-sm text-muted-foreground" data-assets-summary>
-              <HiddenSites count={hidden} to={arrangeHref(true)} />
+              <HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} />
             </p>
           ) : null}
         </div>
@@ -244,11 +246,11 @@ export function AssetsRoute() {
                       </option>
                     ))}
                   </select>
-                  <Button asChild variant="outline" size="sm">
+                  {readOnly ? null : <Button asChild variant="outline" size="sm">
                     <Link to={arrangeHref(true)} replace data-assets-arrange-open>
                       <ArrowDownUp aria-hidden /> Arrange
                     </Link>
-                  </Button>
+                  </Button>}
                 </FilterControls>
               </div>
             </FilterFold>
@@ -257,7 +259,7 @@ export function AssetsRoute() {
               <p className="m-0 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground" data-assets-summary>
                 <span>{narrowing}</span>
                 {hidden > 0 ? <span aria-hidden>·</span> : null}
-                {hidden > 0 ? <HiddenSites count={hidden} to={arrangeHref(true)} /> : null}
+                {hidden > 0 ? <HiddenSites count={hidden} to={readOnly ? null : arrangeHref(true)} /> : null}
                 {narrowed ? <Link
                   to={{ search: clearedFilters(params) }}
                   replace
@@ -322,7 +324,8 @@ function sitesAnswer(listed: readonly SiteLine[]): { key: string; line: string; 
 
 /** How many sites the list leaves out because their Home and Sites list
  * switch is off, opening Arrange, where they are listed. */
-function HiddenSites({ count, to }: { count: number; to: string }) {
+function HiddenSites({ count, to }: { count: number; to: string | null }) {
+  if (!to) return <span>{formatInt(count)} hidden</span>;
   return (
     <Link
       to={to}

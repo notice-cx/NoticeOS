@@ -1,3 +1,4 @@
+import { useWorkspaceReadOnlyReason } from "@/lib/browser-context";
 import { Lock } from "lucide-react";
 import { type ReactNode } from "react";
 import { Panel, type PanelDataMarks } from "@/components/surface/Panel";
@@ -41,10 +42,11 @@ export function SettingsPanel({
  * own heading the panel replaces. The page says why once (`SavesPaused`); the
  * panel shows the state as a lock, and says it to a screen reader. */
 export function PanelLock(marks: PanelDataMarks) {
+  const restriction = useWorkspaceReadOnlyReason();
   return (
     <span className="inline-flex items-center text-muted-foreground" {...marks}>
       <Lock aria-hidden className="size-3.5" />
-      <span className="sr-only">Saves paused</span>
+      <span className="sr-only">{restriction ?? "Saves paused"}</span>
     </span>
   );
 }

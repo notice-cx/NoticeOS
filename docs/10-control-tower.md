@@ -116,17 +116,12 @@ left sidebar and one page header.
   Ctrl+K anywhere inside the shell opens a palette, and so does a **Search…**
   button in the sidebar footer, because a shortcut with no visible control is
   found only by people who already know it, and a touch screen has no modifier
-  key. The palette lists every
-  page in every view (the sidebar's pages of "Everything", plus the TV, its
-  layout editor and Arrange the assets) and every asset by display name, with its
+  key. The palette lists sidebar pages, the TV and each asset by display name, with its
   favicon, its domain and a severity dot when it has an open warning or error.
   Typing filters, Enter navigates, Escape closes, and focus returns to the
   element that had it. The items the operator opened last are stored and listed first while
   the query is empty. With a task source connected, a query shaped like a task
-  id adds one extra row that opens `/tasks/<id>`. A **Views** group lists
-  "Switch to · \<view>" for each view the person is not in; selecting one
-  saves it as the person's view, keeps their "What matters most?" picks and
-  the page they are on. So far **principle 4 is only
+  id adds one extra row that opens `/tasks/<id>`. So far **principle 4 is only
   partly built**: the palette
   navigates but does not run actions. Running commands from it — approve, snooze, file —
   is [doc 16](16-replacing-the-chat-workflow.md) § L (the Ask console), which needs a list of verbs and

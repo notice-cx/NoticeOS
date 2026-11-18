@@ -589,9 +589,8 @@ Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It sc
 `scripts/wall-layout.mts`). "Health and decisions" places the strip, Next up,
 Asset health, revenue, Attention ticker and The agents. "Revenue and visitors"
 places the strip, revenue, Visitors by channel, Portfolio and Work.
-"Portfolio overview" is the default composition above. Their stable
-With no saved
-layout, the TV and editor use `DEFAULT_WALL_LAYOUT`. Personal preferences,
+"Portfolio overview" is the default composition above. With no saved layout,
+the TV and editor use `DEFAULT_WALL_LAYOUT`. Personal preferences,
 workspace defaults and `?view=` never change the Wall, including in the demo.
 "Add a widget" → "Start from" lists these layouts and checks the current
 match. A selection replaces the draft as one undoable step; Save applies it.

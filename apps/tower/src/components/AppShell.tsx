@@ -1,4 +1,4 @@
-import { useBrowserContext, useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserContext, useBrowserRuntime, useOwnerPreferences, useWorkspaceReadOnlyReason } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useRef, useState } from "react";
@@ -156,6 +156,7 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const intent = useLinkIntent();
+  const readOnly = useWorkspaceReadOnlyReason();
   return (
     <div
       className={cn("flex w-sidebar shrink-0 flex-col border-r border-border bg-sidebar", className)}
@@ -236,7 +237,7 @@ export function Sidebar({
             <TV_ITEM.icon className="size-4" />
             {TV_ITEM.label}
           </NavLink>
-          <NavLink
+          {readOnly ? null : <NavLink
             to={TV_EDIT_ITEM.to}
             onClick={onNavigate}
             {...intent(TV_EDIT_ITEM.to)}
@@ -251,7 +252,7 @@ export function Sidebar({
             }
           >
             <Pencil aria-hidden className="size-4" />
-          </NavLink>
+          </NavLink>}
         </div>
         <nav aria-label="Workspace">
           <PageNav item={SETTINGS_ITEM} onNavigate={onNavigate} />
@@ -361,6 +362,7 @@ function AssetNav({
   remember: boolean;
 }) {
   const preferences = useOwnerPreferences();
+  const readOnly = useWorkspaceReadOnlyReason();
   const [memory] = useState<NavAssetsMemory>(() => (remember ? readNavAssets(preferences) : { seen: 0 }));
   const [open, setOpen] = useState(memory.open ?? defaultOpen);
   // Both sidebars can be in the DOM at once, so the list needs an id per instance.
@@ -477,7 +479,7 @@ function AssetNav({
             </li>
           ) : null}
 
-          <li>
+          {readOnly ? null : <li>
             <NavLink
               to={`${ASSETS_ROUTE}/new`}
               onClick={onNavigate}
@@ -489,7 +491,7 @@ function AssetNav({
               <Plus aria-hidden className="size-4 shrink-0" />
               Add an asset
             </NavLink>
-          </li>
+          </li>}
         </ul>
       ) : null}
     </div>
@@ -530,6 +532,20 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const returnToMenu = useRef(false);
+  function changePalette(open: boolean) {
+    if (open && menuOpen) {
+      returnToMenu.current = true;
+      setMenuOpen(false);
+    }
+    setPaletteOpen(open);
+  }
+  useEffect(() => {
+    if (!paletteOpen && returnToMenu.current) {
+      returnToMenu.current = false;
+      menuButton.current?.focus();
+    }
+  }, [paletteOpen]);
   // The shell mounts with the first desk page under it, so this is the desk's
   // first screen drawn.
   useBootSplashRelease();
@@ -562,7 +578,7 @@ export function AppShell({
         <Sidebar
           theme={theme}
           onToggleTheme={toggle}
-          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenPalette={() => changePalette(true)}
           className="sticky top-0 hidden h-screen md:flex"
         />
 
@@ -606,17 +622,14 @@ export function AppShell({
               <NavDrawer
                 theme={theme}
                 onToggleTheme={toggle}
-                onOpenPalette={() => setPaletteOpen(true)}
+                onOpenPalette={() => changePalette(true)}
                 onClose={() => setMenuOpen(false)}
               />,
               document.body,
             )
           : null}
 
-        <PaletteLauncher open={paletteOpen} onOpenChange={open => {
-          if (open) setMenuOpen(false);
-          setPaletteOpen(open);
-        }} />
+        <PaletteLauncher open={paletteOpen} onOpenChange={changePalette} />
       </div>
     </RoutePrefetch.Provider>
   );

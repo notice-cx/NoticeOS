@@ -147,8 +147,3 @@ const OPERATIONS_ITEM: NavItem = {
 
 /** Every page the palette can jump to, in the sidebar's order. */
 export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, SETTINGS_ITEM, OPERATIONS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
-
-/** Every core page remains reachable even when its service is unavailable. */
-export function shownPages(items: readonly NavItem[]): NavItem[] {
-  return [...items];
-}

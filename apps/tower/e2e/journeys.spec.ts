@@ -3813,6 +3813,11 @@ test("Settings stays within reach while the portfolio navigation scrolls", { tag
     await page.keyboard.press("Escape");
     await expect(opener).toBeFocused();
     await opener.click();
+    await dialog.getByRole("button", { name: /Search/ }).click();
+    await expect(page.getByRole("dialog", { name: "Search pages and assets" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(opener).toBeFocused();
+    await opener.click();
   }
   const main = page.getByRole("navigation", { name: "Main", exact: true });
   await expect(main.getByRole("link", { name: "Integrations" })).toHaveAttribute("aria-current", "page");

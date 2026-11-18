@@ -65,7 +65,7 @@ import { useWall } from "@/hooks/useWall";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { backupStatus, lastGoodCopy } from "@/lib/backups";
 import { cn } from "@/lib/utils";
-import { useCanManageMembers, useBrowserContext } from "@/lib/browser-context";
+import { useCanManageMembers, useBrowserContext, useWorkspaceReadOnlyReason } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 import { NtasksConnection, ntasksProjectColumn } from "@/routes/settings/TaskServicePanel";
@@ -358,12 +358,13 @@ function TvDashboardSection({
   // figure sitting under the editor that changes it. Its own clock, so the
   // rest of Settings does not repaint with it.
   const nowMs = useNow(1_000);
+  const readOnly = useWorkspaceReadOnlyReason();
   const { writable } = useConfigWritable();
   return (
     <>
       <SettingsPanel
         title="Layout"
-        aside={
+        aside={readOnly ? <Button asChild variant="outline" size="sm"><Link to="/wall">View TV dashboard</Link></Button> :
           <Button asChild variant="outline" size="sm">
             <Link to="/wall/edit">
               <LayoutDashboard className="size-4" />

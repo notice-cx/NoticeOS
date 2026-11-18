@@ -156,7 +156,7 @@ function SiteRow({ row, formatMoney, index, columns, layout, showSources, showWo
           {/* Without room for the sources column, its count rides with the
               health word so a failing source still shows on a narrow screen. */}
           {showSources && owed > 0 ? (
-            <span aria-hidden className={cn("tabular-nums @3xl:hidden", failing ? "font-semibold text-error" : "text-muted-foreground")}>
+            <span aria-hidden className={cn("tabular-nums", showWork ? "@4xl:hidden" : "@3xl:hidden", failing ? "font-semibold text-error" : "text-muted-foreground")}>
               · {live}/{owed} sources
             </span>
           ) : null}

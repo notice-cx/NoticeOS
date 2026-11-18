@@ -4,7 +4,7 @@ import type { SiteMoneyRow } from "@/lib/money-page";
 export function MoneyReporting({ data, rows }: { data: FinancialsPayload; rows: readonly SiteMoneyRow[] }) {
   const comparisons = rows.flatMap((row) => row.change ? [row.change.percent] : []);
   const reported = rows.filter((row) => row.property.revenueReported);
-  const net = reported.flatMap((row) => row.property.figure.net === null ? [] : [row.property.figure.net]);
+  const net = rows.flatMap((row) => row.property.figure.net === null ? [] : [row.property.figure.net]);
   const partialDays = data.dailyRevenue?.coverage.filter((day) => day.missingAssets.length > 0).length;
   const facts = [
     { label: "Revenue reports", value: `${reported.length} of ${rows.length} assets · ${rows.length - reported.length} missing` },
