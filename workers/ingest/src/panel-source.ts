@@ -14,6 +14,8 @@ export const PANEL_SOURCE_MAX_WINDOW_DAYS = 400;
 
 import { ASSET_ID_RE } from '@noticeos/contract/configuration';
 import { javascriptInstant, type Transaction } from '@noticeos/postgres';
+import { workspaceProfile } from '../../../scripts/product-env.mjs';
+import { legacyArchiveThrough, matchesLegacyArchiveCopy } from './legacy-archive.js';
 import { signalObjectScope } from './signal-objects.js';
 export { ASSET_ID_RE } from '@noticeos/contract/configuration';
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -82,6 +84,22 @@ export interface PanelManifestFilters {
   report?: string | null;
 }
 
+function panelArchiveAccess(env: IngestEnv) {
+  let scope: ReturnType<typeof signalObjectScope> | undefined;
+  let receipt: ReturnType<typeof legacyArchiveThrough> | undefined;
+  const objects = () => (scope ??= signalObjectScope(env));
+  return { objects, legacyThrough: () => (receipt ??= objects().then(value => legacyArchiveThrough(env, value))) };
+}
+
+/** A report run checks the completed legacy receipt once, even when it reads many copies. */
+export function panelReportReader(env: IngestEnv) {
+  const access = panelArchiveAccess(env);
+  return {
+    source: (asset: string, windowDays: number, nowMs: number) => readPanelSource(env, asset, windowDays, nowMs, access),
+    object: (key: string) => readPanelObject(env, key, access),
+  };
+}
+
 /**
  * The newest surviving revision of every archived report the filters reach:
  * the collector re-archives a day inside its revision window, and a directory
@@ -93,8 +111,9 @@ export async function readPanelManifest(
   env: IngestEnv,
   asset: string,
   filters: PanelManifestFilters = {},
+  access = panelArchiveAccess(env),
 ): Promise<PanelSourceManifestRow[]> {
-  const objects = await signalObjectScope(env);
+  const objects = await access.objects();
   const params: string[] = [asset];
   // A stored run always names its object, so a success or unchanged run is a
   // run with bytes to hand back.
@@ -110,15 +129,16 @@ export async function readPanelManifest(
 
   // Of one day's revisions the newest finished, ties broken by the run's id.
   const rows = await env.STORE.read((tx) =>
-    tx.query<Omit<PanelSourceManifestRow, 'providerTruncated'> & { providerTruncated: boolean }>(
+    tx.query<Omit<PanelSourceManifestRow, 'providerTruncated'> & { objectSeq: string; providerTruncated: boolean }>(
       `SELECT integration, report, "reportDate", "finishedAt", "objectKey",
-              "contentSha256", "providerRows", "providerTruncated"
+              "contentSha256", "providerRows", "providerTruncated", "objectSeq"
          FROM (
            SELECT DISTINCT ON (r.integration, r.report, r.report_date)
                   r.integration, r.report,
                   r.report_date        AS "reportDate",
                   r.finished_at        AS "finishedAt",
                   o.object_key         AS "objectKey",
+                  o.object_seq::text   AS "objectSeq",
                   o.content_sha256     AS "contentSha256",
                   r.provider_rows      AS "providerRows",
                   r.provider_truncated AS "providerTruncated"
@@ -132,11 +152,16 @@ export async function readPanelManifest(
       params,
     ),
   );
-  return rows.filter((row) => objects.canReadArchive(row.objectKey)).map((row) => ({
-    ...row,
-    finishedAt: javascriptInstant(row.finishedAt),
-    providerTruncated: row.providerTruncated ? 1 : 0,
-  }));
+  const through = rows.some(row => !objects.canReadArchive(row.objectKey) && objects.legacyArchiveCopy(row.objectKey))
+    ? await access.legacyThrough()
+    : null;
+  return rows.flatMap(({ objectKey, objectSeq, ...row }) => {
+    const key = objects.canReadArchive(objectKey) ? objectKey
+      : through !== null && BigInt(objectSeq) <= through ? objects.legacyArchiveCopy(objectKey) : null;
+    if (!key) return [];
+    return [{ ...row, objectKey: key, finishedAt: javascriptInstant(row.finishedAt),
+      providerTruncated: row.providerTruncated ? 1 : 0 }];
+  });
 }
 
 /**
@@ -236,10 +261,11 @@ export async function readPanelSource(
   asset: string,
   windowDays: number,
   nowMs: number = Date.now(),
+  access = panelArchiveAccess(env),
 ): Promise<PanelSourceResult> {
   const from = panelSourceCutoff(nowMs, windowDays);
   const [manifest, trend] = await Promise.all([
-    readPanelManifest(env, asset, { from }),
+    readPanelManifest(env, asset, { from }, access),
     readPanelTrend(env, asset, from),
   ]);
   return { asset, from, windowDays, manifest, trend };
@@ -253,24 +279,27 @@ export async function readPanelSource(
 export async function readPanelObject(
   env: IngestEnv,
   objectKey: string,
+  access = panelArchiveAccess(env),
 ): Promise<string | null> {
-  const objects = await signalObjectScope(env);
+  const objects = await access.objects();
   if (!objects.canReadArchive(objectKey)) return null;
-  const known = await env.STORE.read((tx) =>
-    tx.query(`SELECT 1 AS ok FROM noticeos.archive_objects WHERE object_key = $1`, [objectKey]),
+  const source = workspaceProfile(env) === 'hosted' ? objects.legacyArchiveSource(objectKey) : null;
+  const [known] = await env.STORE.read((tx) =>
+    tx.query<{ seq: string; bytes: string; hash: string }>(
+      `SELECT object_seq::text AS seq, object_bytes::text AS bytes, content_sha256 AS hash
+         FROM noticeos.archive_objects WHERE object_key = $1`, [source ?? objectKey]),
   );
-  if (known.length === 0) return null;
-
-  return readRawSignalObject(env.RAW_SIGNALS, objectKey);
-}
-
-/** Byte decoding stays private behind workspace and manifest checks. */
-async function readRawSignalObject(
-  bucket: R2Bucket,
-  objectKey: string,
-): Promise<string | null> {
-  const object = await bucket.get(objectKey);
+  if (!known) return null;
+  if (source !== null) {
+    const through = await access.legacyThrough();
+    if (through === null || BigInt(known.seq) > through) return null;
+  }
+  const object = await env.RAW_SIGNALS.get(objectKey);
   if (!object) return null;
+  if (source !== null && (object.size !== Number(known.bytes) || !matchesLegacyArchiveCopy(object, objects.workspaceId, source, known.hash))) {
+    await object.body.cancel();
+    return null;
+  }
 
   // Stored gzipped; R2 does not decode it, so unwrap here and hand the caller
   // plain JSON.

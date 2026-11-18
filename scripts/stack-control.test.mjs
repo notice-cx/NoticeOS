@@ -137,6 +137,14 @@ test('the activity comparison refresh runs inside the running app with no argume
   assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','refresh-comparison']]);
   assert.throws(() => actionArgs('refresh-comparison', ['--asset', 'example.com']), /Usage/u);
 });
+test('historical archive preparation uses the existing app container and refuses invalid options before opening it', async () => {
+  const own = fixture();
+  const workspace = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const args = ['--prepare', workspace, '--backup-bytes', '10000'];
+  await stackControl('customer-archive', selector, { ...own, args });
+  assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','customer-archive', ...args]]);
+  assert.throws(() => actionArgs('customer-archive', ['--prepare', workspace, '--backup-bytes', '0']), /verified complete backup/u);
+});
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
   const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));

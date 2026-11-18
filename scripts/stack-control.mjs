@@ -20,6 +20,7 @@
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
 //   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
 //   pnpm os:refresh-comparison  Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site.
+//   pnpm os:customer-archive -- --plan  Estimate scoped copies of the running standalone installation's historical archive.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
 //   pnpm os:customer-check  Check the prepared customer configuration in the app container before switching profiles.
 //
@@ -36,8 +37,9 @@ import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 import { manualScheduledJob } from './scheduled-jobs.mjs';
+import { archiveTransitionArgs } from './customer-archive-transition.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp', 'customer-check'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'customer-archive', 'customer-check', 'mcp'];
 const SERVICES = ['postgres', 'backup', 'noticeos'];
 /** Services an earlier stack ran and this one does not: an installation set up
  * while its tasks were in Dolt keeps that stopped container and its volume,
@@ -46,10 +48,11 @@ export const RETIRED = ['dolt'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000,
-  'refresh-comparison': 180_000, mcp: Infinity, 'customer-check': 30_000 };
+  'refresh-comparison': 180_000, 'customer-archive': 3_600_000, 'customer-check': 30_000, mcp: Infinity };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs restart postgres|backup|noticeos
        stack-control.mjs refresh-comparison
+       stack-control.mjs customer-archive --plan | --prepare <workspace UUID> --backup-bytes <bytes>
        stack-control.mjs customer-check
        stack-control.mjs logs [--follow] [--lines N] [postgres|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>]
@@ -143,6 +146,7 @@ export function actionArgs(action, args) {
   }
   if (action === 'collect') return { job: ['collect', ...collectJobArgs(args)] };
   if (action === 'refresh-anomalies') { anomalyRefreshArgs(args); return { job: ['refresh-anomalies', ...args] }; }
+  if (action === 'customer-archive') { archiveTransitionArgs(args); return { job: ['customer-archive', ...args] }; }
   if (action === 'capacity') {
     if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
     return { job: ['capacity', ...args] };

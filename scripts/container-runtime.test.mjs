@@ -103,7 +103,7 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.deepEqual(actionArgs('customer-check', []), { job: ['customer-check'] });
   assert.deepEqual(containerCommand(['customer-check']), ['deploy/compose/customer-entry.mjs', '--check']);
   assert.throws(() => actionArgs('customer-check', ['--apply']));
-  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com']]) {
+  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
     assert.equal(containerCommand(command, 'customer'), null);
   }
 

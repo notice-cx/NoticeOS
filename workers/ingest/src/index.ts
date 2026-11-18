@@ -160,10 +160,13 @@ import { readWatchQueryHistory } from './watch-windows.js';
 import { runCollectNow, runCron, runScheduledCron, runSiteIconsNow } from './dispatch.js';
 import { withCallStore } from './call-store.js';
 import { discoverSites } from './site-discovery.js';
+import { LEGACY_ARCHIVE_PATH } from './legacy-archive.js';
+import { handleLegacyArchives } from './routes/legacy-archives.js';
 
 /** Every HTTP route, run with the call's env (withCallStore). */
 async function route(request: Request, env: IngestEnv): Promise<Response> {
   const { pathname } = new URL(request.url);
+  if (pathname === LEGACY_ARCHIVE_PATH) return handleLegacyArchives(request, env);
 
   if (request.method === 'POST' && pathname === '/api/anomaly-refresh') return handleAnomalyRefresh(request, env);
   if (request.method === 'POST' && pathname === '/api/ga4-comparison-refresh') return handleGa4ComparisonRefresh(request, env);

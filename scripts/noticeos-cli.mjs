@@ -26,6 +26,7 @@ export const COMMANDS = Object.freeze({
   'customer-check': ['./stack-control.mjs', ['customer-check']],
   'refresh-anomalies': ['./stack-control.mjs', ['refresh-anomalies']],
   'refresh-comparison': ['./stack-control.mjs', ['refresh-comparison']],
+  'customer-archive': ['./stack-control.mjs', ['customer-archive']],
   'run-job': ['./stack-control.mjs', ['run-job']],
   collect: ['./stack-control.mjs', ['collect']],
   apply: ['./stack-apply.mjs', []],

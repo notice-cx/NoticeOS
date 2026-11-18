@@ -36,6 +36,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:customer-check` | Check the prepared customer configuration in the app container before switching profiles. | `scripts/stack-control.mjs customer-check` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
+| `os:customer-archive` | Estimate scoped copies of the running standalone installation's historical archive. | `scripts/stack-control.mjs customer-archive` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 | `os:codebase-history` | Preview Git-history snapshots and release records offline; measure a pinned image, or explicitly import a prepared bundle. | `scripts/codebase-history.mjs` |
@@ -44,6 +45,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
+| `db:prepare-customer-roles` | Preview, enable or reverse the dedicated Postgres logins for a local customer workspace. | `scripts/customer-postgres-roles.mjs` |
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
