@@ -4,7 +4,7 @@
 // `.mjs` the Tower and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepDefinition, WorkflowStepKind } from '../packages/contract/src/workflows.js';
-import { SCHEDULED_JOBS, type ScheduledJob } from './scheduled-jobs.mjs';
+import { ALL_SCHEDULED_JOBS, type ScheduledJob } from './scheduled-jobs.mjs';
 
 export interface WorkflowDefinition extends ScheduledJob { version: number; triggerKind: 'schedule' | 'event' | 'manual'; stages: WorkflowStepDefinition[] }
 
@@ -35,6 +35,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
   'ga4-realtime': [action('traffic', 'Retain realtime traffic', 'Records per-minute activity and live user counts for connected properties.', 'collection')],
   counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
+  'site-counters': [action('counters', 'Refresh asset counters', 'Reads the configured counter feed.', 'collection')],
 };
 
 // What a local job's one stage does, where a hosted service runs it too and
@@ -44,7 +45,7 @@ const localSteps: Readonly<Record<string, string>> = {
   'watch-readbacks': 'Posts each closed outcome’s verdict on the task that owns its reading.',
 };
 
-export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = SCHEDULED_JOBS.map((job): WorkflowDefinition => {
+export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = ALL_SCHEDULED_JOBS.map((job): WorkflowDefinition => {
   const stages = job.local
     ? [action('execute', job.label, localSteps[job.id] ?? 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
     : [action('config', 'Load collection settings', 'Reads the saved configuration for this execution.', 'task', []), ...workerSteps[job.id]!];

@@ -4,6 +4,7 @@ import { boundWorkflowRunDiagnostics, isWorkflowStepDiagnostics } from './workfl
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
+const STANDALONE_WORKFLOWS = WORKFLOW_DEFINITIONS.filter(workflow => !workflow.customerOnly);
 const HOUR = 3_600_000;
 export const WORKFLOW_RECENT_RUN_LIMIT = 30;
 const isObject = (value) => Boolean(value && typeof value === 'object');
@@ -91,7 +92,7 @@ export function manualRecords(runs) {
 }
 // Only exact fixed briefing diagnostics survive coarse reconstruction; arbitrary
 // detail can contain subprocess/provider output and never enters this projection.
-export function buildWorkflowHistory(records, traces, active, now, selectedId, definitions = WORKFLOW_DEFINITIONS) {
+export function buildWorkflowHistory(records, traces, active, now, selectedId, definitions = STANDALONE_WORKFLOWS) {
     const byTrace = new Map(traces.flatMap(value => readTrace(value, definitions)).map((r) => [r.id, r]));
     const names = new Map(definitions.map((w) => [jobRunName(w), w.id]));
     const seenRuns = new Set();
@@ -153,7 +154,7 @@ export function workflowDailyHistory(records, now) {
 }
 /** Callers validate their source and can replace bucket counts with complete
  * database aggregates when the retained detail page is deliberately bounded. */
-export function summarizeWorkflowHistory(records, active, now, selectedId, definitions = WORKFLOW_DEFINITIONS) {
+export function summarizeWorkflowHistory(records, active, now, selectedId, definitions = STANDALONE_WORKFLOWS) {
     const runs = [...records].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     const completedIds = new Set(runs.map((run) => run.id));
     const activeRuns = active.filter((run) => run.state === 'running' && !run.finishedAt && !completedIds.has(run.id) && Date.parse(run.startedAt) <= now);

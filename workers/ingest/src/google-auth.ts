@@ -84,10 +84,11 @@ export async function googleAccessToken(
   scope: string,
   nowMs: number,
   fetchImpl: typeof fetch,
+  observeLifetime?: (seconds: number) => void,
 ): Promise<string> {
   return auth.kind === 'service-account'
-    ? mintGoogleAccessToken(auth.account, scope, nowMs, fetchImpl)
-    : refreshGoogleAccessToken(auth.grant, fetchImpl);
+    ? mintGoogleAccessToken(auth.account, scope, nowMs, fetchImpl, observeLifetime)
+    : refreshGoogleAccessToken(auth.grant, fetchImpl, undefined, observeLifetime);
 }
 
 /**
@@ -99,6 +100,7 @@ export async function mintGoogleAccessToken(
   scope: string,
   nowMs: number,
   fetchImpl: typeof fetch,
+  observeLifetime?: (seconds: number) => void,
 ): Promise<string> {
   const header: Record<string, string> = { alg: 'RS256', typ: 'JWT' };
   if (serviceAccount.privateKeyId) header.kid = serviceAccount.privateKeyId;
@@ -128,7 +130,7 @@ export async function mintGoogleAccessToken(
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       assertion,
     }),
-    fetchImpl,
+    fetchImpl, undefined, observeLifetime,
   );
 }
 
@@ -142,6 +144,7 @@ export async function refreshGoogleAccessToken(
   grant: GoogleOAuthGrant,
   fetchImpl: typeof fetch,
   onlyScope?: string,
+  observeLifetime?: (seconds: number) => void,
 ): Promise<string> {
   return tokenRequest(
     new URLSearchParams({
@@ -152,6 +155,7 @@ export async function refreshGoogleAccessToken(
     }),
     fetchImpl,
     onlyScope,
+    observeLifetime,
   );
 }
 
@@ -178,6 +182,7 @@ async function tokenRequest(
   body: URLSearchParams,
   fetchImpl: typeof fetch,
   onlyScope?: string,
+  observeLifetime?: (seconds: number) => void,
 ): Promise<string> {
   const response = await fetchImpl(TOKEN_URL, {
     method: 'POST',
@@ -201,6 +206,8 @@ async function tokenRequest(
     || returnedScopes.some(scope => scope !== onlyScope && !identityScopes.includes(scope)))) {
     throw new SignalError('google_oauth_scope', 'Authorize the requested read-only permission with a dedicated OAuth client.');
   }
+  const lifetime = asRecord(payload)?.expires_in;
+  if (typeof lifetime === 'number' && Number.isSafeInteger(lifetime) && lifetime > 0) observeLifetime?.(lifetime);
   return token;
 }
 

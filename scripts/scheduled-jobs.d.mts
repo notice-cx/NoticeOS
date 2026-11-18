@@ -8,6 +8,7 @@ export interface ScheduledJob {
     source?: string;
     keywords?: string[];
     local?: boolean;
+    customerOnly?: true;
     /** How System health's operations footer names this job's work, for a local
      * job an installation runs only once it is set up. */
     footer?: string;
@@ -110,6 +111,8 @@ export declare const WORKFLOW_GROUPS: {
     label: string;
 }[];
 export declare const SCHEDULED_JOBS: ScheduledJob[];
+export declare const CUSTOMER_SCHEDULED_JOBS: ScheduledJob[];
+export declare const ALL_SCHEDULED_JOBS: ScheduledJob[];
 /**
  * The job one scheduled fire names. A job the ingest runs
  * (not `local`) is fired by its `cron`, the dispatch key: the runner fires that

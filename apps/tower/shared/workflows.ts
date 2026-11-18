@@ -16,8 +16,8 @@ export function installedWorkflows(data?: Pick<ScheduledJobsPayload, 'runtime'> 
   if (!runtime && data?.workflows) return WORKFLOW_DEFINITIONS.filter(workflow => recorded(workflow.id));
   if (runtime?.onlyListedJobs) return WORKFLOW_DEFINITIONS.filter(workflow =>
     (runtime.registeredJobs?.includes(workflow.id) ?? runtime.jobs.some(job => job.id === workflow.id)) || (!scheduledOnly && recorded(workflow.id)));
-  if (runtime?.hostLanes !== false) return WORKFLOW_DEFINITIONS;
-  return WORKFLOW_DEFINITIONS.filter((workflow) => !workflow.local || runtime.jobs.some((job) => job.id === workflow.id));
+  if (runtime?.hostLanes !== false) return WORKFLOW_DEFINITIONS.filter(workflow => !workflow.customerOnly);
+  return WORKFLOW_DEFINITIONS.filter((workflow) => !workflow.customerOnly && (!workflow.local || runtime.jobs.some((job) => job.id === workflow.id)));
 }
 /**
  * What System health's footer says this installation runs in the background:

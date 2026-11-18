@@ -4,7 +4,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { stepResult } from './workflow-trace.mjs';
-import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
+import { ALL_SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
 import { hostedJobDefinitionHash } from './hosted-job-definition.mjs';
 export class HostedJobRefused extends Error {
     name = 'HostedJobRefused';
@@ -177,7 +177,7 @@ export function createHostedJobRunner(options) {
         const { input, hash: inputHash } = inputCopy(definition.parseInput(raw));
         const token = randomUUID(), correlation = token;
         const selected = [workspaceId, lane, occurrence];
-        const scheduledJob = SCHEDULED_JOBS.find(job => job.id === lane);
+        const scheduledJob = ALL_SCHEDULED_JOBS.find(job => job.id === lane);
         const publishAttempts = async (tx, row) => {
             if (!scheduledJob)
                 return;

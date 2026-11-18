@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { Cron } from 'croner';
-import { SCHEDULED_JOBS, cronIntervalMinutes, scheduleFor, schedulesRefusal, jobRunName } from './scheduled-jobs.mjs';
+import { CUSTOMER_SCHEDULED_JOBS, SCHEDULED_JOBS, cronIntervalMinutes, scheduleFor, schedulesRefusal, jobRunName } from './scheduled-jobs.mjs';
 import { createScheduledJobRunner, readStoredSchedules } from './scheduled-job-runner.mjs';
 import { scheduledCatchupPolicies } from './job-runs.mjs';
 import { CONFIG } from './runner/config.mjs';
@@ -45,6 +45,16 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
     const workflow = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === (id === 'portfolio-brief' ? 'portfolio-brief' : 'freshness'));
     assert.ok(workflow.stages.some((stage) => stage.id === id), `Tower step "${id}" has no workflow stage`);
   }
+});
+
+test('site counters preserve an existing counter pause until saved independently', () => {
+  const site = CUSTOMER_SCHEDULED_JOBS.find(item => item.id === 'site-counters');
+  assert.equal(SCHEDULED_JOBS.some(item => item.id === site.id), false);
+  assert.equal(scheduleFor(site).cron, '*/15 * * * *');
+  assert.deepEqual(scheduleFor(site, { counters: paused }), paused);
+  const settings = { counters: paused, [site.id]: changed };
+  assert.equal(schedulesRefusal(settings), null);
+  assert.deepEqual(scheduleFor(site, settings), changed);
 });
 
 test('settings saved for a retired job are accepted and register no scheduled work', async () => {

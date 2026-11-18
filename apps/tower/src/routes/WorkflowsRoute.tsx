@@ -234,7 +234,9 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
   const failedArchiveCount = archiveOutput?.metrics.find(metric => metric.key === 'failed')?.value;
   const failureLabel = definition?.stages.find(stage => stage.id === failedStep?.id)?.label ?? (id === 'portfolio-brief' ? 'Briefing generation failed' : 'Execution failed');
   const ExecutionContainer = id === 'backup' || failed ? BackupExecutionDetails : Fragment;
-  if (!definition) return <div className="p-6"><PageHeader title="Workflow not found" breadcrumb={breadcrumb} /></div>;
+  if (!definition || definition.customerOnly && data && !installedWorkflows(data).some(workflow => workflow.id === id)) {
+    return <div className="p-6"><PageHeader title="Workflow not found" breadcrumb={breadcrumb} /></div>;
+  }
   const saved = data ? scheduleFor(definition, data.overrides ?? {}) : null;
   const collection = isCollectionJob(definition);
   // A connection's panel opens from `?connect=` while it is connected and not
