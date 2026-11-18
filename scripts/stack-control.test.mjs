@@ -150,10 +150,10 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   const model = { ports: [{ host_ip: '127.0.0.1', published: '25173', target: 5173, protocol: 'tcp' }],
     environment: { NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' },
     image: 'noticeos-local:synthetic' };
-  const updates = [];
+  const updates = [], removed = [];
   const controller = new AbortController();
   const [app, postgres] = rows();
-  let current = normal, appId = app.ID, databaseId = postgres.ID, healthy = true, failure, standalone = false, saved;
+  let current = normal, appId = app.ID, databaseId = postgres.ID, healthy = true, failure, standalone = false, saved, staged;
   const recovery = { read: () => saved, save: record => { saved = record; }, clear: () => { saved = undefined; } };
   const run = async (command, args, { env }) => {
     assert.equal(command, 'docker');
@@ -161,12 +161,21 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
     const answer = stdout => ({ code: 0, stdout });
     if (args[2] === 'image') return answer(image);
     if (args[2] === 'inspect') {
+      if (staged && args.at(-1) === staged.id) return answer(`${image} ${staged.hash}`);
       assert.equal(args.at(-1), appId);
       return answer(`${image} ${current}`);
     }
+    if (args[2] === 'container') {
+      assert.deepEqual(args.slice(3), ['rm', staged.id]);
+      assert.equal(staged.state, 'created');
+      removed.push(staged.id);
+      staged = undefined;
+      return answer('');
+    }
     const [action, ...rest] = args.slice(9);
     if (action === 'ps') return answer(JSON.stringify(rows().flatMap(row => row.Service === 'noticeos'
-      ? (appId ? [{ ...row, ID: appId, State: healthy ? 'running' : 'exited', Health: healthy ? 'healthy' : '' }] : [])
+      ? [...(staged ? [{ ...row, ID: staged.id, State: staged.state, Health: '' }] : []),
+        ...(appId ? [{ ...row, ID: appId, State: healthy ? 'running' : 'exited', Health: healthy ? 'healthy' : '' }] : [])]
       : [{ ...row, ...(row.Service === 'postgres' ? { ID: databaseId } : {}) }])));
     if (action === 'config') return rest[0] === '--hash'
       ? answer(`noticeos ${env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal}`)
@@ -178,6 +187,11 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
     const opening = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1';
     if (failure === 'gone') {
       appId = null;
+      return { code: 1, stdout: '' };
+    }
+    if (failure === (opening ? 'opening-replacement' : 'closing-replacement')) {
+      staged = { id: (opening ? 'a2' : 'b2').repeat(32), hash: opening ? setup : normal, state: 'created' };
+      healthy = false;
       return { code: 1, stdout: '' };
     }
     if (failure === 'stopped' && opening) {
@@ -226,12 +240,31 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   appId = null;
   await assert.rejects(command('close'), /missing and there is no Google setup recovery record/u);
   appId = recoveredApp;
+  failure = 'opening-replacement';
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
+  assert.deepEqual(removed, ['a2'.repeat(32)]);
+  assert.equal(current, normal);
+  failure = undefined;
+  await command('open');
+  failure = 'closing-replacement';
+  await assert.rejects(command('close'), /Tower restart failed/u);
+  assert.equal(saved.previousApp, appId);
+  staged.state = 'running';
+  await assert.rejects(command('close'), /recovery is ambiguous/u);
+  assert.deepEqual(removed, ['a2'.repeat(32)]);
+  staged.state = 'created';
+  failure = undefined;
+  await command('close');
+  assert.deepEqual(removed, ['a2'.repeat(32), 'b2'.repeat(32)]);
+  assert.equal(current, normal);
+  assert.equal(saved, undefined);
+  const beforeBadInput = updates.length;
   model.ports.push({ ...model.ports[0], host_ip: '0.0.0.0' });
   await assert.rejects(command('open'), /one loopback-only Tower port/u);
   model.ports.pop();
   standalone = true;
   await assert.rejects(command('open'), /Customer profile check failed/u);
-  assert.equal(updates.length, 11);
+  assert.equal(updates.length, beforeBadInput);
   assert.throws(() => actionArgs('customer-google-setup', ['--port', '15400']), /Usage/u);
 });
 

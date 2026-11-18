@@ -88,7 +88,7 @@ export function readSelector(file, io = fs) {
     return value;
   } catch { refuse('Stack selector or declared files are invalid or missing.'); }
 }
-export function parseServices(stdout, project, { allowMissingApp = false } = {}) {
+export function parseServices(stdout, project, { allowPartialApp = false } = {}) {
   if (typeof stdout !== 'string' || stdout.length > 262144) refuse('Stack inventory is invalid.');
   let rows;
   try {
@@ -99,12 +99,13 @@ export function parseServices(stdout, project, { allowMissingApp = false } = {})
   const seen = new Map();
   for (const row of rows) {
     if (row?.Project === project && RETIRED.includes(row.Service)) continue;
-    if (!row || row.Project !== project || !SERVICES.includes(row.Service) || seen.has(row.Service) ||
+    const key = allowPartialApp && row?.Service === 'noticeos' && seen.has('noticeos') ? 'replacement' : row?.Service;
+    if (!row || row.Project !== project || !SERVICES.includes(row.Service) || seen.has(key) ||
       typeof row.ID !== 'string' || !/^[a-f0-9]{12,64}$/u.test(row.ID) || row.OneOff === true) refuse('Stack contains an unexpected or mismatched service.');
-    seen.set(row.Service, { id: row.ID, state: ['running','exited','created','restarting','paused','dead','removing'].includes(row.State) ? row.State : 'unknown',
+    seen.set(key, { id: row.ID, state: ['running','exited','created','restarting','paused','dead','removing'].includes(row.State) ? row.State : 'unknown',
       health: ['healthy','unhealthy','starting'].includes(row.Health) ? row.Health : null });
   }
-  if (!seen.has('postgres') || (!allowMissingApp && !seen.has('noticeos'))) refuse('Stack is missing a required existing service.');
+  if (!seen.has('postgres') || (!allowPartialApp && !seen.has('noticeos'))) refuse('Stack is missing a required existing service.');
   return seen;
 }
 /**
@@ -190,10 +191,12 @@ function googleSetupRecovery(selectorFile, atomicWrite) {
 }
 
 const siblingIds = rows => ['postgres', 'backup'].flatMap(name => rows.has(name) ? [rows.get(name).id] : []);
+const sameIds = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
 async function customerGoogleSetup(action, { original, inventory, call, docker, out, signal, recovery }) {
   const opening = action === 'open';
   const app = original.get('noticeos');
+  if (opening && original.has('replacement')) refuse('Google setup was interrupted. Run pnpm os:customer-google-setup -- close before opening it again.');
   if (opening && (app?.state !== 'running' || app.health !== 'healthy')) refuse('Start the customer Tower before opening Google setup.');
 
   const declared = async (env, label) => parseDeclaredHashes(await call(
@@ -230,18 +233,45 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
   };
   const verified = { normal, setup, image, siblings: siblingIds(original) };
   const known = recovery?.read();
-  if (known && JSON.stringify(known) !== JSON.stringify(verified)) {
-    refuse('The saved settings or supporting containers changed during Google setup. Restore the recorded installation before retrying.');
+  if (known) {
+    const { previousApp, ...scope } = known;
+    if (!/^[a-f0-9]{12,64}$/u.test(previousApp ?? '') || JSON.stringify(scope) !== JSON.stringify(verified)) {
+      refuse('The saved settings or supporting containers changed during Google setup. Restore the recorded installation before retrying.');
+    }
   }
-  const current = app ? await inspect(app.id) : null;
+  const latest = await inventory();
+  if (!sameIds([...latest.values()].map(row => row.id).sort(), [...original.values()].map(row => row.id).sort())) {
+    refuse('Stack containers changed before Google setup. Retry the command.');
+  }
+
+  async function removeUnstartedReplacement(rows, previousApp) {
+    if (!rows.has('replacement')) return rows.get('noticeos');
+    const pair = [rows.get('noticeos'), rows.get('replacement')];
+    const prior = pair.find(row => row.id === previousApp);
+    const staged = pair.find(row => row.id !== previousApp);
+    // Compose can create the replacement before stopping the original. Keep
+    // the original and remove only that exact, unstarted replacement.
+    if (!prior || !staged || staged.state !== 'created' || await inspect(prior.id) === await inspect(staged.id)) {
+      refuse('Two app containers remain and their recovery is ambiguous. Inspect the recorded installation before retrying.');
+    }
+    await docker(['container', 'rm', staged.id], 'Unstarted Tower replacement cleanup');
+    const after = await inventory();
+    if (after.has('replacement') || after.get('noticeos')?.id !== prior.id || !sameIds(siblingIds(after), verified.siblings)) {
+      refuse('The app changed during recovery. Inspect the installation before retrying.');
+    }
+    return after.get('noticeos');
+  }
+
+  const active = await removeUnstartedReplacement(latest, known?.previousApp);
+  const current = active ? await inspect(active.id) : null;
   const closeMessage = 'Google setup is closed. Use the usual Tower address.';
-  if (!opening && current === normal && app.health === 'healthy') {
+  if (!opening && current === normal && active.health === 'healthy') {
     recovery?.clear();
     out.write(closeMessage + '\n');
     return;
   }
   if (!opening && !known && current !== setup) {
-    refuse(app ? 'Google setup is closed. Use pnpm os:start to start the usual Tower.'
+    refuse(active ? 'Google setup is closed. Use pnpm os:start to start the usual Tower.'
       : 'The app container is missing and there is no Google setup recovery record. Restore the application from the installation’s verified release.');
   }
   if (opening && current !== setup) {
@@ -250,22 +280,18 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
       "import { runningContainerProfile, selectedCustomerProfile } from './deploy/compose/customer-entry.mjs'; process.exitCode = runningContainerProfile() === 'customer' && selectedCustomerProfile() === 'customer' ? 0 : 1;"],
     'Customer profile check', 20000);
   }
-  const latest = await inventory();
-  if (latest.size !== original.size || [...original].some(([service, row]) => latest.get(service)?.id !== row.id)) {
-    refuse('Stack containers changed before Google setup. Retry the command.');
-  }
   const replace = async (env, expected) => {
     await call(APP_REPLACE, 'Tower restart', 130000, env);
     const after = await inventory();
     const updated = after.get('noticeos');
-    if (!updated || updated.health !== 'healthy' || await inspect(updated.id) !== expected
-      || JSON.stringify(siblingIds(after)) !== JSON.stringify(verified.siblings)) {
+    if (!updated || after.has('replacement') || updated.health !== 'healthy' || await inspect(updated.id) !== expected
+      || !sameIds(siblingIds(after), verified.siblings)) {
       refuse('The installation did not return with the expected app and supporting containers.');
     }
   };
   if (opening && current !== setup) {
     if (signal?.aborted) refuse('Google setup was canceled before the Tower restarted.');
-    if (!known) recovery?.save(verified);
+    recovery?.save({ ...verified, previousApp: active.id });
     out.write('Opening Google setup. The usual Tower address will be unavailable on other devices.\n');
     try {
       await replace(SETUP_ENV, setup);
@@ -274,9 +300,9 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
       if (error.uncertain) refuse('The Tower restart did not finish. Once Docker responds, run pnpm os:customer-google-setup -- close.');
       try {
         const after = await inventory();
-        if (JSON.stringify(siblingIds(after)) !== JSON.stringify(verified.siblings)
+        if (!sameIds(siblingIds(after), verified.siblings)
           || await declared(NORMAL_ENV, 'Normal Tower recovery validation') !== normal || await declaredImage() !== image) throw new Error();
-        const replacement = after.get('noticeos');
+        const replacement = await removeUnstartedReplacement(after, active.id);
         if (!replacement || await inspect(replacement.id) !== normal || replacement.health !== 'healthy') {
           await replace(NORMAL_ENV, normal);
         }
@@ -287,6 +313,7 @@ async function customerGoogleSetup(action, { original, inventory, call, docker, 
       refuse('Google setup did not open. The usual Tower address is available again.');
     }
   } else if (!opening) {
+    if (active) recovery?.save({ ...verified, previousApp: active.id });
     await replace(NORMAL_ENV, normal);
     recovery?.clear();
   }
@@ -321,7 +348,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     if (result.code !== 0) refuse(`${label} failed (exit ${result.code}).`);
   };
   const inventory = () => call(['ps','--all','--format','json'], 'Stack inspection', 20000)
-    .then(text => parseServices(text, selector.project, { allowMissingApp: Boolean(own.googleSetup) }));
+    .then(text => parseServices(text, selector.project, { allowPartialApp: Boolean(own.googleSetup) }));
   const original = await inventory();
   if (own.googleSetup) {
     const docker = async (args, label) => {
