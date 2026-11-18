@@ -65,16 +65,12 @@ export const AGENTS_ROUTE = "/agents";
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
-  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["runbooks", "analysis", "automation", "runs", "delivery"] },
   {
     to: ASSETS_ROUTE,
     label: "Portfolio",
     icon: Globe,
     keywords: ["assets", "sites", "properties", "domains", "growth", "traffic", "journeys"],
   },
-  { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
-  { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
-  { to: AGENTS_ROUTE, label: "Agents", icon: Bot, keywords: ["agents", "models", "velocity", "leaderboard", "who closed"] },
   {
     to: "/financials",
     // The route, the payload and the asset tab's id keep `financials`.
@@ -82,6 +78,10 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wallet,
     keywords: ["revenue", "cost", "ledger", "financials", "p&l"],
   },
+  { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
+  { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "ntasks", "todo"] },
+  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["runbooks", "analysis", "automation", "runs", "delivery"] },
+  { to: AGENTS_ROUTE, label: "Agents", icon: Bot, keywords: ["agents", "models", "velocity", "leaderboard", "who closed"] },
   {
     to: "/health",
     label: "System health",

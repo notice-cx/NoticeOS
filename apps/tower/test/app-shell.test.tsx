@@ -138,12 +138,12 @@ describe("the sidebar is the desk's only navigation", () => {
 
     const expected: [string, string][] = [
       ["Home", "/"],
-      ["Workflows", "/workflows"],
       ["Portfolio", "/assets"],
+      ["Money", "/financials"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
+      ["Workflows", "/workflows"],
       ["Agents", "/agents"],
-      ["Money", "/financials"],
       ["System health", "/health"],
       ["Integrations", "/integrations"],
       ["Settings", "/settings"],

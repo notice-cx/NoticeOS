@@ -175,13 +175,13 @@ export function Sidebar({
           <BrandLockup />
         </Link>}
         {onToggleWidth && <Button type="button" variant="ghost" size="icon" className={compact ? undefined : "mr-2"}
-          aria-expanded={!compact} aria-controls={navId} aria-label={toggleName} title={toggleName} onClick={onToggleWidth}>
+          aria-expanded={!compact} aria-controls={navId} aria-label={toggleName} title={compact ? undefined : toggleName} onClick={onToggleWidth}>
           {compact ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}
           {compact && <span data-sidebar-label>{toggleName}</span>}
         </Button>}
       </div>
 
-      <AccountMenu className={cn("mx-2 mb-2 hidden md:flex", compact ? "justify-center px-0" : "justify-start")} />
+      <AccountMenu compact={compact} className={cn("mx-2 mb-2 hidden md:flex", compact ? "justify-center px-0" : "justify-start")} />
       <nav id={navId} aria-label="Main" className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {NAV_ITEMS.map((item) =>
           // Assets is the one noun whose objects are also destinations.
@@ -253,7 +253,7 @@ export function Sidebar({
             onClick={onNavigate}
             {...intent(TV_EDIT_ITEM.to)}
             aria-label={TV_EDIT_ITEM.label}
-            title={TV_EDIT_ITEM.label}
+            title={compact ? undefined : TV_EDIT_ITEM.label}
             data-tv-edit
             className={({ isActive }) =>
               cn(
@@ -519,7 +519,7 @@ function ThemeToggle({ theme, onToggle, compact }: { theme: Theme; onToggle: () 
       size="icon"
       onClick={onToggle}
       aria-label={`Switch to ${next} theme`}
-      title={`Switch to ${next} theme`}
+      title={compact ? undefined : `Switch to ${next} theme`}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
       {compact && <span data-sidebar-label>{`Switch to ${next} theme`}</span>}

@@ -773,9 +773,6 @@
 [data-sidebar-compact] nav a {
   justify-content: center;
 }
-[data-sidebar-compact] [data-sidebar-detail] {
-  display: none;
-}
 /* Fixed labels extend past the scrolling navigation and keep the link's accessible name. */
 [data-sidebar-compact] [data-sidebar-label] {
   position: fixed;
@@ -784,6 +781,9 @@
   pointer-events: none;
   opacity: 0;
   white-space: nowrap;
+  max-inline-size: calc(100vw - var(--spacing-sidebar-compact) - var(--spacing) * 4);
+  overflow: hidden;
+  text-overflow: ellipsis;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--spacing) calc(var(--spacing) * 2);
