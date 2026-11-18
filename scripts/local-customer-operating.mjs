@@ -14,7 +14,7 @@ const ROLES = { app: 'noticeos_app', identity: 'noticeos_identity', grant: 'noti
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/iu;
 const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'mailDelivery', 'ntasksOrigin',
-  'googleDaily', 'extendedArchives', 'collectorProviders', 'sitePulls', 'siteReports']);
+  'googleDaily', 'extendedArchives', 'collectorProviders', 'sitePulls', 'siteReports', 'paidDataForSeo']);
 
 export class CustomerOperatingRefused extends Error {}
 function refused() { return new CustomerOperatingRefused('Use a private customer config for one separately provisioned loopback Postgres database.'); }
@@ -124,6 +124,7 @@ function customerOperating(config, plan, compose = false) {
       .sort((left, right) => left.workspaceId.localeCompare(right.workspaceId));
     const collection = customerCollectionPolicy(config);
     if (collection.sitePulls.some(site => !workspaces.some(workspace => workspace.workspaceId === site.workspaceId))) throw refused();
+    if (collection.paidDataForSeo.some(paid => !workspaces.some(workspace => workspace.workspaceId === paid.workspaceId))) throw refused();
     return { target, address: app.href, identityAddress: identity.href, grantAddress: grant.href,
       mailRecipients: config.mailRecipients.map(email => email.toLowerCase()), workspaces,
       identitySecret: config.identitySecret, credentialsKey: config.credentialsKey,

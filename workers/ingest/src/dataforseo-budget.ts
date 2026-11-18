@@ -1,5 +1,6 @@
 import { METERED_ARCHIVE_COST, METERED_DATA_PROVIDER, RESEARCH_COLLECTOR_ACTOR, meteredSpendBounds } from '@noticeos/contract';
 import type { Transaction, WorkspaceStore } from '@noticeos/postgres';
+import { dataForSeoConnectionMatches, type DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
 
 const budgetName = 'noticeos.dataforseo-budget';
 
@@ -38,13 +39,18 @@ export function canReserveDataForSeo(store: WorkspaceStore, nowMs: number, reser
   return store.read(tx => canSpend(tx, nowMs, reserveUsd, capUsd, requireSavedCap));
 }
 
-export type DataForSeoReservation = { kind: 'reserved'; attemptId: string; reservedAtMs: number } | { kind: 'budget_exhausted' | 'dataforseo_uncertain' };
+export type DataForSeoReservation = { kind: 'reserved'; attemptId: string; reservedAtMs: number }
+  | { kind: 'budget_exhausted' | 'dataforseo_uncertain' | 'dataforseo_approval_changed' };
 
 export function reserveDataForSeo(store: WorkspaceStore, input: {
-  asset: string; requestKey: string; requestClock: () => number; reserveUsd: number; capUsd: number; fenceUnsettled: boolean; requireSavedCap?: boolean;
+  asset: string; requestKey: string; requestClock: () => number; reserveUsd: number; capUsd: number; fenceUnsettled: boolean;
+  requireSavedCap?: boolean; approvedCredential?: DataForSeoConnectionPin;
 }): Promise<DataForSeoReservation> {
   return store.write(async tx => {
     await serializeBudget(tx);
+    if (input.approvedCredential && !await dataForSeoConnectionMatches(tx, input.approvedCredential)) {
+      return { kind: 'dataforseo_approval_changed' };
+    }
     if (input.fenceUnsettled && (await tx.query(`SELECT attempt_id FROM noticeos.dataforseo_request_charges
         WHERE request_key=$1 AND provider_cost_usd IS NULL LIMIT 1`, [input.requestKey])).length > 0) {
       return { kind: 'dataforseo_uncertain' };

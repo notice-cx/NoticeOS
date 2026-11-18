@@ -5,8 +5,9 @@ import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../sr
 import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { runCustomerDataForSeo } from '../src/customer-dataforseo.js';
-import { putCredential } from '../src/credentials.js';
-import { ARCHIVE_RUNS, emptyTables, pgFirst, reset } from './helpers.js';
+import { putCredential, resolveCredential } from '../src/credentials.js';
+import { EgressGate, openEgressLaneRecord } from '../src/egress.js';
+import { ARCHIVE_RUNS, cutUplink, emptyTables, pgFirst, reset } from './helpers.js';
 
 const AUGUST = Date.parse('2026-08-31T23:59:59.000Z');
 const SEPTEMBER = Date.parse('2026-09-01T00:00:00.000Z');
@@ -89,13 +90,17 @@ it('collects only an approved customer property and requires a saved budget', as
     return Response.json({ status_code: 20000, cost: 0.02,
       tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
   };
-  const input = { assets: ['northwind.example'], approvedMonthlyCapUsd: 1, signal: new AbortController().signal };
-  const run = (job: 'dataforseo' | 'dataforseo-recovery') => runCustomerDataForSeo(customer, { ...input, job }, { fetchImpl, nowMs: AUGUST });
+  expect(await putCredential(customer, { provider: 'dataforseo', fields: { DATAFORSEO_LOGIN: 'fixture-login', DATAFORSEO_PASSWORD: 'fixture-password' } }))
+    .toMatchObject({ ok: true });
+  const { connectionId, secretVersion } = await resolveCredential(customer, 'dataforseo', 'store-only');
+  const approval = { workspaceId: await env.STORE.workspaceId(), connectionId: connectionId!, secretVersion: secretVersion!,
+    assets: [{ asset: 'northwind.example', families: ['ranked-keywords', 'backlinks-summary'] }],
+    approvedMonthlyCapUsd: 1, weekly: true, recovery: true };
+  const run = (job: 'dataforseo' | 'dataforseo-recovery') => runCustomerDataForSeo(customer,
+    { approval, job, signal: new AbortController().signal }, { fetchImpl, nowMs: AUGUST });
   await expect(run('dataforseo')).rejects.toThrow(/monthly data cap/u);
   expect(paidTargets).toEqual([]);
   expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 0.26 } } }, actor: 'config:seed' }, AUGUST)).ok).toBe(true);
-  expect(await putCredential(customer, { provider: 'dataforseo', fields: { DATAFORSEO_LOGIN: 'fixture-login', DATAFORSEO_PASSWORD: 'fixture-password' } }))
-    .toMatchObject({ ok: true });
   expect(await run('dataforseo-recovery')).toMatchObject({ attempted: 0 });
   expect(paidTargets).toEqual([]);
   const weekly = await run('dataforseo');
@@ -103,4 +108,40 @@ it('collects only an approved customer property and requires a saved budget', as
   expect(weekly.outcomes.every(outcome => outcome.asset === 'northwind.example')).toBe(true);
   expect(weekly.outcomes.some(outcome => outcome.errorCode === 'budget_exhausted')).toBe(true);
   expect(paidTargets).toEqual(['northwind.example']);
+  expect(await putCredential(customer, { provider: 'dataforseo',
+    fields: { DATAFORSEO_LOGIN: 'replacement-login', DATAFORSEO_PASSWORD: 'replacement-password' } })).toMatchObject({ ok: true });
+  await expect(run('dataforseo')).rejects.toThrow(/renew its paid scheduling approval/u);
+  expect(paidTargets).toEqual(['northwind.example']);
+});
+
+it('allows recovery on its own for approved outage gaps only', async () => {
+  const customer = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'hosted' };
+  expect((await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } },
+    actor: 'config:seed' }, AUGUST)).ok).toBe(true);
+  expect(await putCredential(customer, { provider: 'dataforseo', fields: { DATAFORSEO_LOGIN: 'fixture-login', DATAFORSEO_PASSWORD: 'fixture-password' } }))
+    .toMatchObject({ ok: true });
+  const { connectionId, secretVersion } = await resolveCredential(customer, 'dataforseo', 'store-only');
+  const property = 'northwind.example';
+  const approval = { workspaceId: await env.STORE.workspaceId(), connectionId: connectionId!, secretVersion: secretVersion!,
+    assets: [{ asset: property, families: ['backlinks-summary'] }], approvedMonthlyCapUsd: 1, weekly: false, recovery: true };
+  const offline = new EgressGate(customer, { lane: 'dataforseo',
+    fetchImpl: cutUplink(async () => new Response(null, { status: 204 })), at: new Date(AUGUST).toISOString() });
+  expect(await offline.isDown()).toBe(true);
+  offline.recordUnmeasured(property, 'backlinks-summary');
+  offline.recordUnmeasured(property, 'backlinks-anchors');
+  await offline.finalize();
+  const calls: string[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    if (init?.method !== 'POST') return Response.json({ status_code: 20000, tasks: [] });
+    calls.push(String(input));
+    return Response.json({ status_code: 20000, cost: 0.03,
+      tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
+  };
+  const run = (job: 'dataforseo' | 'dataforseo-recovery') => runCustomerDataForSeo(customer,
+    { approval, job, signal: new AbortController().signal }, { fetchImpl, nowMs: SEPTEMBER });
+  await expect(run('dataforseo')).rejects.toThrow(/paid DataForSEO schedule is unavailable/iu);
+  expect(calls).toEqual([]);
+  expect(await run('dataforseo-recovery')).toMatchObject({ attempted: 1, succeeded: 1, costUsd: 0.03 });
+  expect(calls.map(url => new URL(url).pathname)).toEqual(['/v3/backlinks/summary/live']);
+  expect((await openEgressLaneRecord(customer, 'dataforseo'))?.parts).toEqual({ [property]: ['backlinks-anchors'] });
 });

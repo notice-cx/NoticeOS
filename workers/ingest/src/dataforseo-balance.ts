@@ -9,11 +9,12 @@
 // digits the provider sent (`ExactUsd`), stored as numeric(14,6).
 
 import { type ExactUsd, type IntegrationProviderId, exactUsd } from '@noticeos/contract';
+import { DATAFORSEO_ACCOUNT_PATH, DATAFORSEO_ORIGIN } from '../../../scripts/customer-dataforseo-egress.mjs';
 import { setCredentialBalance } from './credentials.js';
 import { asRecord } from './shared.js';
 
 /** DataForSEO's free account endpoint — no money, no metered quota. */
-const ACCOUNT_URL = 'https://api.dataforseo.com/v3/appendix/user_data';
+const ACCOUNT_URL = DATAFORSEO_ORIGIN + DATAFORSEO_ACCOUNT_PATH;
 
 /** The provider's own "everything is fine" code inside a 200 envelope. */
 const PROVIDER_OK = 20000;

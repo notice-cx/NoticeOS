@@ -6,7 +6,7 @@ import { Cron } from 'croner';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
 import { customerArchive, customerJobStep, customerJobSubject, customerSchedules, isCustomerJob } from '../../../scripts/customer-collection.mjs';
-import { customerCollectionPolicy, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
+import { customerCollectionPolicy, isCustomerDataForSeoJob, selectedCustomerCounter, selectedCustomerPull } from '../../../scripts/customer-collection-policy.mjs';
 import { readBoundedJsonText } from '../../../scripts/bounded-json-body.mjs';
 import { readCollectorConfigs } from './config-store.js';
 import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
@@ -24,6 +24,7 @@ import { runPullAdapter, type PullAssetConfig } from './pull.js';
 import { runCountersScrape, type CountersConfig } from './counters.js';
 import { runPosthogDumps } from './posthog-dumps.js';
 import { runClarityDumps } from './clarity-dumps.js';
+import { runCustomerDataForSeo } from './customer-dataforseo.js';
 import { isolateState } from './isolate-state.js';
 
 interface ScheduleEnv extends IngestEnv {
@@ -31,6 +32,7 @@ interface ScheduleEnv extends IngestEnv {
   NOTICEOS_SCHEDULE_GRANTS?: string;
   NOTICEOS_SCHEDULE_GRANT_DB?: { connectionString: string };
   NOTICEOS_CUSTOMER_COLLECTION?: string;
+  NOTICEOS_CUSTOMER_PAID_SCHEDULE?: boolean;
 }
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const denied = () => new Response(null, { status: 403 });
@@ -83,6 +85,8 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
     if (typeof workspaceId !== 'string' || !uuid.test(workspaceId) || !isCustomerJob(job)
       || (asset !== null && (typeof asset !== 'string' || !asset.length || asset.length > 512))
       || typeof occurrence !== 'string' || occurrence.length > 128) return denied();
+    const paid = isCustomerDataForSeoJob(job);
+    if (paid !== (this.env.NOTICEOS_CUSTOMER_PAID_SCHEDULE === true) || paid && asset !== null) return denied();
     const archive = customerArchive(body.archive);
     if (job === 'signal-dumps' ? !archive || asset === null : body.archive !== undefined) return denied();
     const [at, suffix, extra] = occurrence.split('/');
@@ -128,6 +132,18 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             if (response.status === 401) authorization?.reject();
             return response;
           };
+          if (paid) {
+            const approval = policy?.paidDataForSeo.find(item => item.workspaceId === workspaceId);
+            const assets = plan.portfolioAssets;
+            if (!approval || !assets?.length || !env.RAW_SIGNALS) return denied();
+            const result = await runCustomerDataForSeo(env,
+              { job, approval: { ...approval, assets: approval.assets.filter(item => assets.includes(item.asset)) }, signal }, { fetchImpl });
+            if (result.refused || result.outcomes.some(outcome => outcome.unconfirmedCost)) {
+              return new Response(null, { status: 503 });
+            }
+            const { attempted, succeeded, unchanged, failed } = result;
+            return Response.json({ attempted, succeeded, unchanged, failed });
+          }
           if (job === 'freshness' && asset !== null) {
             const entries = (await eligibleAssets(env)).filter(site => site.asset === asset);
             const result = await runUptimeChecks(env, { assets: entries, fetchImpl });

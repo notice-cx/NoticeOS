@@ -1,12 +1,12 @@
 import { scheduleFor, schedulesRefusal, ALL_SCHEDULED_JOBS, type JobSchedule, type ScheduleOverrides } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
-import { selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
+import { CUSTOMER_DATAFORSEO_JOBS, customerDataForSeoFacts, isCustomerDataForSeoJob, selectedCustomerCounter, selectedCustomerPull, type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
 
-const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity'] as const;
+const CUSTOMER_JOBS = ['freshness', 'counters', 'site-counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero', 'posthog', 'clarity', ...CUSTOMER_DATAFORSEO_JOBS] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
 export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : job === 'site-counters' ? 'counters'
-  : job === 'posthog' ? 'product' : job === 'clarity' ? 'clarity' : 'collect';
+  : job === 'posthog' ? 'product' : job === 'clarity' ? 'clarity' : isCustomerDataForSeoJob(job) ? 'search' : 'collect';
 const ARCHIVE_REPORTS = {
   ga4: ['pages-screens', 'landing-pages', 'traffic-acquisition', 'events', 'events-28d', 'page-events'],
   gsc: ['query', 'page', 'page-query'],
@@ -112,6 +112,16 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   if (archives.length) planned.push({ job: 'signal-dumps', schedule: settings('signal-dumps'),
     assets: [...new Set(archives.map(target => target.asset))], archives });
   if (!policy) return planned;
+  const paid = asset === null ? policy.paidDataForSeo.find(item => item.workspaceId === enrolled[0]!.workspace) : undefined;
+  if (paid) {
+    const facts = await customerDataForSeoFacts(store, paid);
+    for (const job of CUSTOMER_DATAFORSEO_JOBS) {
+      if (job === 'dataforseo' ? !paid.weekly : !paid.recovery) continue;
+      const schedule = settings(job);
+      const enabled = schedule.enabled && facts.budgetReady && facts.connectionMatches && facts.savedCap && facts.eligibleAssets.length > 0;
+      planned.push({ job, schedule: { ...schedule, enabled }, assets: [null], portfolioAssets: facts.eligibleAssets });
+    }
+  }
   const counterAssets = rows.filter(row => selectedCustomerCounter(policy, row.workspace, row.asset, JSON.parse(row.counter ?? 'null'))).map(row => row.asset);
   if (counterAssets.length) planned.push({ job: 'site-counters', schedule: settings('site-counters'), assets: counterAssets });
   for (const job of ['posthog', 'clarity'] as const) {

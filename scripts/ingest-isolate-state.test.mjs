@@ -20,7 +20,7 @@ const REGISTERED = {
   'customer-schedule.ts': ['googleArchiveTokens'],
   // laneTokens is never forgotten on purpose: release tokens keep rising, so a
   // run still going from before cannot free a later run's lane.
-  'dataforseo-dumps.ts': ['lane', 'laneTokens'],
+  'dataforseo-dumps.ts': ['laneTokens', 'lanes'],
   'ga4-realtime.ts': ['sharedTokenCache'],
   'hosted-task-summary.ts': ['attempts'],
 };

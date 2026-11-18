@@ -63,6 +63,7 @@ import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
 import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from '../../../scripts/customer-dataforseo-egress.mjs';
+import type { DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
 import { isolateState } from './isolate-state.js';
@@ -183,6 +184,7 @@ export interface DataForSeoDumpOutcome extends SignalDumpOutcome {
   costUsd: number;
   /** Provider calls this family repeated before it landed; 0 on a clean collection. */
   retries: number;
+  unconfirmedCost?: true;
 }
 
 export interface DataForSeoDumpsResult {
@@ -226,11 +228,11 @@ interface CollectorLane {
   readonly recovery: boolean;
 }
 
-let lane: CollectorLane | null = null;
+const lanes = new Map<string, CollectorLane>();
 let laneTokens = 0;
 // Forgetting frees the lane but keeps the tokens rising, so a run still going
 // from before cannot free the lane of a run started after it.
-isolateState('DataForSEO collector lane', { forget: () => { lane = null; }, held: () => lane !== null });
+isolateState('DataForSEO collector lane', { forget: () => lanes.clear(), held: () => lanes.size > 0 });
 
 type LaneClaim =
   | { token: number; blockedBy: null }
@@ -238,22 +240,23 @@ type LaneClaim =
 
 /** Take the lane, or report who has it. Synchronous so two triggers in one tick see each other. */
 function claimLane(
+  workspaceId: string,
   nowMs: number,
   scope: DataForSeoCollectScope | null,
   recovery: boolean,
   preserveRecoveryLock: boolean,
 ): LaneClaim {
-  const held = lane;
-  if (held !== null && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
+  const held = lanes.get(workspaceId);
+  if (held && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
     return { token: null, blockedBy: laneHolder(held, nowMs) };
   }
   const token = (laneTokens += 1);
-  lane = { token, startedAtMs: nowMs, scope, recovery };
+  lanes.set(workspaceId, { token, startedAtMs: nowMs, scope, recovery });
   return { token, blockedBy: null };
 }
 
-function releaseLane(token: number): void {
-  if (lane?.token === token) lane = null;
+function releaseLane(workspaceId: string, token: number): void {
+  if (lanes.get(workspaceId)?.token === token) lanes.delete(workspaceId);
 }
 
 function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
@@ -299,7 +302,8 @@ export interface DataForSeoDumpsOptions {
   /** One property instead of the portfolio — see `DataForSeoCollectScope`. */
   scope?: DataForSeoCollectScope | null;
   /** Workspace properties explicitly approved for an automated paid schedule. */
-  scheduledAssets?: readonly string[];
+  scheduledAssets?: ReadonlyMap<string, readonly string[]>;
+  approvedCredential?: DataForSeoConnectionPin;
   signal?: AbortSignal;
   fenceUnsettled?: true;
   /** A scheduled sweep and its automatic retry must never take over outage recovery. */
@@ -704,7 +708,8 @@ async function runCollector(
   owed: EgressLaneRecord | null,
 ): Promise<DataForSeoDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
-  const claim = claimLane(nowMs, options.scope ?? null, owed !== null, options.preserveRecoveryLock === true);
+  const workspaceId = await env.STORE.workspaceId();
+  const claim = claimLane(workspaceId, nowMs, options.scope ?? null, owed !== null, options.preserveRecoveryLock === true);
   if (claim.blockedBy) {
     // Neither a start nor a complete line: "one start, no complete" keeps
     // meaning an interrupted run.
@@ -736,7 +741,7 @@ async function runCollector(
   try {
     return await collectDueReports(env, options, nowMs, owed);
   } finally {
-    releaseLane(claim.token);
+    releaseLane(workspaceId, claim.token);
   }
 }
 
@@ -759,7 +764,11 @@ async function collectDueReports(
   const reportDate = requestedAt.slice(0, 10);
   const fetchImpl = options.fetchImpl ?? fetch;
   // A caller that handed us a login is a test, so the source is `env` by definition.
-  const resolved = await resolveCredential(env, 'dataforseo');
+  const approval = options.approvedCredential;
+  const resolved = await resolveCredential(env, 'dataforseo', approval ? 'store-only' : 'legacy-fallback');
+  if (approval && (resolved.source !== 'store' || resolved.connectionId !== approval.connectionId || resolved.secretVersion !== approval.secretVersion)) {
+    throw new SignalError('dataforseo_approval_changed', 'Review the stored DataForSEO connection and renew its paid scheduling approval.');
+  }
   const health = await tryHealthConnection(env, 'dataforseo', resolved);
   const monitoring = beginCollection(env.STORE, health);
   const login = options.login ?? resolved.fields.DATAFORSEO_LOGIN;
@@ -784,7 +793,7 @@ async function collectDueReports(
   const panel = options.serpPanelConfig ?? SERP_PANEL_CONFIG;
   const retryBackoffMs = options.retryBackoffMs ?? RETRY_BACKOFF_MS;
   const scope = options.scope ?? null;
-  const approved = options.scheduledAssets && new Set(options.scheduledAssets);
+  const approved = options.scheduledAssets;
   // A property its Data sources row declines is neither asked for nor billed:
   // filtered before the plan, so it reserves nothing and writes no attempt row.
   const candidates = (await dataForSeoCandidates(env.STORE, scope?.asset ?? null))
@@ -796,7 +805,8 @@ async function collectDueReports(
       options.laneRegister,
     ),
   );
-  const sweep = sweepPlan(targets, panel, scope?.families);
+  const familiesFor = (asset: string) => scope?.families ?? approved?.get(asset);
+  const sweep = sweepPlan(targets, panel, familiesFor);
   // The daily re-collection narrows the sweep to what the outage skipped; the
   // due check below still applies, so a family collected since is not re-bought.
   const fullPlan =
@@ -841,14 +851,13 @@ async function collectDueReports(
   // A scoped run answers only for the families it was asked for. Every family
   // the plan attempted leaves the entry whatever became of it, so the daily
   // re-collection never retries a failure it cannot fix.
-  const egressCoverage =
-    scope === null
-      ? approved ? { covers: (asset: string) => approved.has(asset) } : {}
-      : {
-          covers: (asset: string, family: string | null) =>
-            asset === scope.asset &&
-            (scope.families === undefined || (family !== null && scope.families.includes(family))),
-        };
+  const egressCoverage = scope || approved ? {
+    covers: (asset: string, family: string | null) => {
+      const families = familiesFor(asset);
+      return (scope === null || asset === scope.asset) && (!approved || approved.has(asset))
+        && (!families || (family !== null && families.includes(family)));
+    },
+  } : {};
 
   if (!login || !password) {
     const error = new SignalError(
@@ -901,6 +910,9 @@ async function collectDueReports(
       outcomes.push({ ...outcome, costUsd: 0, retries: 0 });
       continue;
     }
+    const budget: RetryBudget = { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
+      signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, approvedCredential: approval,
+      used: 0, confirmedUsd: 0, costUnconfirmed: false };
     const outcome = await collectReport(
       env,
       target,
@@ -910,11 +922,10 @@ async function collectDueReports(
       authorization,
       egress,
       panel,
-      { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
-        signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, used: 0, confirmedUsd: 0 },
+      budget,
       monitoring,
     );
-    outcomes.push(outcome);
+    outcomes.push(budget.costUnconfirmed ? { ...outcome, unconfirmedCost: true } : outcome);
   }
   // One `os-egress-down` fact for the sweep — or the retraction of one an
   // earlier run left open.
@@ -1013,12 +1024,12 @@ interface DueDataForSeoPlan {
 function sweepPlan(
   targets: DataForSeoTarget[],
   panel: SerpPanelConfig,
-  families?: readonly string[],
+  familiesFor: (asset: string) => readonly string[] | undefined,
 ): PlannedReport[] {
   const plan: PlannedReport[] = [];
   for (const long of [false, true]) {
     for (const target of targets) {
-      for (const report of reportsFor(target.asset, panel, families)) {
+      for (const report of reportsFor(target.asset, panel, familiesFor(target.asset))) {
         if ((report.longRunning === true) === long) plan.push({ target, report });
       }
     }
@@ -1511,11 +1522,15 @@ async function callProvider(
   for (;;) {
     budget.signal?.throwIfAborted();
     const reservation = await reserveDataForSeo(budget.store, { asset, requestKey, reserveUsd, capUsd: budget.monthlyCapUsd,
-      requestClock: budget.requestClock, fenceUnsettled: budget.fenceUnsettled, requireSavedCap: budget.fenceUnsettled });
+      requestClock: budget.requestClock, fenceUnsettled: budget.fenceUnsettled, requireSavedCap: budget.fenceUnsettled,
+      approvedCredential: budget.approvedCredential });
     if (reservation.kind !== 'reserved') {
-      throw new SignalError(reservation.kind, reservation.kind === 'budget_exhausted'
+      if (reservation.kind === 'dataforseo_uncertain') budget.costUnconfirmed = true;
+      const message = reservation.kind === 'budget_exhausted'
         ? `DataForSEO paused before the portfolio ${budget.monthlyCapUsd.toFixed(2)} USD monthly data cap.`
-        : 'DataForSEO may have already billed this request.');
+        : reservation.kind === 'dataforseo_uncertain' ? 'DataForSEO may have already billed this request.'
+          : 'Review the stored DataForSEO connection and renew its paid scheduling approval.';
+      throw new SignalError(reservation.kind, message);
     }
     if (budget.signal?.aborted) {
       await settleDataForSeo(budget.store, reservation.attemptId, 0);
@@ -1547,6 +1562,7 @@ async function callProvider(
       );
       answer = { status: response.status, body: await boundedResponseJson(response, 'DataForSEO', RESPONSE_BYTE_LIMIT), askedForMs };
     } catch (error) {
+      budget.costUnconfirmed = true;
       // Ask the gate before spending a retry: on a dead uplink a second call
       // hits the same wall, and the family must stay due.
       const delayMs =
@@ -1567,6 +1583,9 @@ async function callProvider(
       await settleDataForSeo(budget.store, reservation.attemptId, billed);
       costUsd += billed;
       budget.confirmedUsd += billed;
+    } else {
+      budget.costUnconfirmed = true;
+      if (budget.fenceUnsettled) throw new SignalError('dataforseo_uncertain', 'DataForSEO did not confirm this request’s cost.');
     }
     const delayMs = isTransientResponse(answer.status, answer.body) && (billed !== null || !budget.fenceUnsettled)
       ? await nextRetryDelay(budget, answer.askedForMs) : null;
@@ -1596,7 +1615,9 @@ interface RetryBudget {
   readonly requestClock: () => number;
   readonly signal?: AbortSignal;
   readonly fenceUnsettled: boolean;
+  readonly approvedCredential?: DataForSeoConnectionPin;
   confirmedUsd: number;
+  costUnconfirmed: boolean;
   /** Retries already spent by this family. */
   used: number;
 }

@@ -2,10 +2,10 @@
 import { type JobSchedule } from './scheduled-jobs.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { type CustomerCollectionPolicy } from './customer-collection-policy.mjs';
-declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity"];
+declare const CUSTOMER_JOBS: readonly ["freshness", "counters", "site-counters", "signal-dumps", "mediavine", "stripe", "pull", "asset-zero", "posthog", "clarity", "dataforseo", "dataforseo-recovery"];
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export declare const isCustomerJob: (value: unknown) => value is CustomerJob;
-export declare const customerJobStep: (job: CustomerJob) => "clarity" | "product" | "counters" | "report" | "collect";
+export declare const customerJobStep: (job: CustomerJob) => "clarity" | "product" | "search" | "counters" | "report" | "collect";
 declare const ARCHIVE_REPORTS: {
     readonly ga4: readonly ["pages-screens", "landing-pages", "traffic-acquisition", "events", "events-28d", "page-events"];
     readonly gsc: readonly ["query", "page", "page-query"];

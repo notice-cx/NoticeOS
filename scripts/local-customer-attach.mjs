@@ -8,14 +8,14 @@ import { smtpIdentityMail } from './local-identity-mail.mjs';
 /** Start the same customer app without provisioning, rotating logins or
  * changing database ownership. This controller owns the single scheduler. */
 export async function startAttachedCustomer(plan, file, {
-  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, smtpLaunch,
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, dataForSeoTransport, smtpLaunch,
 } = {}) {
   const db = await openCustomerOperating(plan, file);
-  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport, smtpLaunch });
+  return startPreparedCustomer(plan, db, { startSchedules, collectorTransport, dataForSeoTransport, smtpLaunch });
 }
 
 export async function startPreparedCustomer(plan, db, {
-  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, smtpLaunch, deployment,
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, dataForSeoTransport, smtpLaunch, deployment,
 } = {}) {
   const { operating, signal } = db;
   let app, closing;
@@ -44,7 +44,7 @@ export async function startPreparedCustomer(plan, db, {
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
       startSchedules, resumeSince: db.resumeSince, backupResumeSince: db.backupResumeSince, deployment,
       operating: { googleDaily: operating.googleDaily, extendedArchives: operating.extendedArchives, collectorTransport,
-        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
+        collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls, paidDataForSeo: operating.paidDataForSeo, dataForSeoTransport,
         siteReports: operating.siteReports, signal } });
     db.ready();
     return Object.freeze({ ...app, whenLost, close });
