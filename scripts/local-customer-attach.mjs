@@ -15,7 +15,7 @@ export async function startAttachedCustomer(plan, file, {
 }
 
 export async function startPreparedCustomer(plan, db, {
-  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, dataForSeoTransport, smtpLaunch, deployment,
+  startSchedules = startLocalCustomerSchedules, googleTransport, collectorTransport = googleTransport, googleSetupTransport, dataForSeoTransport, smtpLaunch, deployment,
 } = {}) {
   const { operating, signal } = db;
   let app, closing;
@@ -47,7 +47,7 @@ export async function startPreparedCustomer(plan, db, {
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
       startSchedules, resumeSince: db.resumeSince, backupResumeSince: db.backupResumeSince, deployment,
-      operating: { googleDaily: operating.googleDaily, extendedArchives: operating.extendedArchives, collectorTransport,
+      operating: { googleDaily: operating.googleDaily, extendedArchives: operating.extendedArchives, collectorTransport, googleSetupTransport,
         collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteChecks: operating.siteChecks, revenueNotices: operating.revenueNotices, taskFollowups: operating.taskFollowups,
         paidDataForSeo: operating.paidDataForSeo, dataForSeoTransport,

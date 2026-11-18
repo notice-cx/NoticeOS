@@ -22,6 +22,7 @@
 //   pnpm os:refresh-comparison  Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site.
 //   pnpm os:customer-archive -- --plan  Estimate scoped copies of the running standalone installation's historical archive.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
+//   pnpm os:customer-google-setup -- open|close  Temporarily serve the customer Tower on the host’s loopback address for Google sign-in.
 //   pnpm os:customer-check  Check the prepared customer configuration in the app container before switching profiles.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
@@ -35,11 +36,12 @@ import { publishedRevision } from './published-image.mjs';
 import { runCommand } from './run-command.mjs';
 import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
-import { serviceDrift } from './stack-drift.mjs';
+import { parseDeclaredHashes, serviceDrift } from './stack-drift.mjs';
+import { holdingStackLock, writeStackFile } from './stack-operation-files.mjs';
 import { manualScheduledJob } from './scheduled-jobs.mjs';
 import { archiveTransitionArgs } from './customer-archive-transition.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'customer-archive', 'customer-check', 'mcp'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'customer-archive', 'customer-check', 'customer-google-setup', 'mcp'];
 const SERVICES = ['postgres', 'backup', 'noticeos'];
 /** Services an earlier stack ran and this one does not: an installation set up
  * while its tasks were in Dolt keeps that stopped container and its volume,
@@ -54,6 +56,7 @@ const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /abso
        stack-control.mjs refresh-comparison
        stack-control.mjs customer-archive --plan | --prepare <workspace UUID> --backup-bytes <bytes>
        stack-control.mjs customer-check
+       stack-control.mjs customer-google-setup open|close
        stack-control.mjs logs [--follow] [--lines N] [postgres|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>]
        stack-control.mjs run-job --id <job-id>
@@ -86,7 +89,7 @@ export function readSelector(file, io = fs) {
     return value;
   } catch { refuse('Stack selector or declared files are invalid or missing.'); }
 }
-export function parseServices(stdout, project) {
+export function parseServices(stdout, project, { allowPartialApp = false } = {}) {
   if (typeof stdout !== 'string' || stdout.length > 262144) refuse('Stack inventory is invalid.');
   let rows;
   try {
@@ -97,12 +100,13 @@ export function parseServices(stdout, project) {
   const seen = new Map();
   for (const row of rows) {
     if (row?.Project === project && RETIRED.includes(row.Service)) continue;
-    if (!row || row.Project !== project || !SERVICES.includes(row.Service) || seen.has(row.Service) ||
+    const key = allowPartialApp && row?.Service === 'noticeos' && seen.has('noticeos') ? 'replacement' : row?.Service;
+    if (!row || row.Project !== project || !SERVICES.includes(row.Service) || seen.has(key) ||
       typeof row.ID !== 'string' || !/^[a-f0-9]{12,64}$/u.test(row.ID) || row.OneOff === true) refuse('Stack contains an unexpected or mismatched service.');
-    seen.set(row.Service, { id: row.ID, state: ['running','exited','created','restarting','paused','dead','removing'].includes(row.State) ? row.State : 'unknown',
+    seen.set(key, { id: row.ID, state: ['running','exited','created','restarting','paused','dead','removing'].includes(row.State) ? row.State : 'unknown',
       health: ['healthy','unhealthy','starting'].includes(row.Health) ? row.Health : null });
   }
-  for (const service of ['noticeos', 'postgres']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
+  if (!seen.has('postgres') || (!allowPartialApp && !seen.has('noticeos'))) refuse('Stack is missing a required existing service.');
   return seen;
 }
 /**
@@ -147,6 +151,10 @@ export function actionArgs(action, args) {
   if (action === 'collect') return { job: ['collect', ...collectJobArgs(args)] };
   if (action === 'refresh-anomalies') { anomalyRefreshArgs(args); return { job: ['refresh-anomalies', ...args] }; }
   if (action === 'customer-archive') { archiveTransitionArgs(args); return { job: ['customer-archive', ...args] }; }
+  if (action === 'customer-google-setup') {
+    if (args.length !== 1 || !['open', 'close'].includes(args[0])) refuse(HELP);
+    return { googleSetup: args[0] };
+  }
   if (action === 'capacity') {
     if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
     return { job: ['capacity', ...args] };
@@ -161,20 +169,186 @@ export function actionArgs(action, args) {
   return action === 'backup' ? { job: ['backup'] } : {};
 }
 
+const SETUP_ENV = Object.freeze({ NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_TOWER_BIND: '127.0.0.1' });
+const NORMAL_ENV = Object.freeze({ NOTICEOS_CUSTOMER_GOOGLE_SETUP: '0' });
+const APP_REPLACE = ['up', '--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos'];
+
+function googleSetupRecovery(selectorFile) {
+  const file = path.join(path.dirname(selectorFile), 'stack-deploy', 'google-setup-recovery.json');
+  return {
+    read() {
+      try {
+        const stat = fs.lstatSync(file);
+        if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077) || stat.size > 4096) throw new Error();
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch (error) {
+        if (error.code === 'ENOENT') return null;
+        refuse('The private Google setup recovery record cannot be read.');
+      }
+    },
+    save(record) { writeStackFile(file, JSON.stringify(record)); },
+    clear() { fs.rmSync(file, { force: true }); },
+  };
+}
+
+const siblingIds = rows => ['postgres', 'backup'].flatMap(name => rows.has(name) ? [rows.get(name).id] : []);
+const sameIds = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+async function customerGoogleSetup(action, { original, inventory, call, docker, out, signal, recovery }) {
+  const opening = action === 'open';
+  const app = original.get('noticeos');
+  if (opening && original.has('replacement')) refuse('Google setup was interrupted. Run pnpm os:customer-google-setup -- close before opening it again.');
+  if (opening && (app?.state !== 'running' || app.health !== 'healthy')) refuse('Start the customer Tower before opening Google setup.');
+
+  const declared = async (env, label) => parseDeclaredHashes(await call(
+    ['config', '--hash', 'noticeos'], label, 20000, env)).get('noticeos');
+  const normal = await declared(NORMAL_ENV, 'Normal Tower validation');
+  const setup = await declared(SETUP_ENV, 'Google setup validation');
+  const raw = await call(['config', '--format', 'json'], 'Google setup port validation', 20000, SETUP_ENV);
+  let declaration;
+  try { declaration = JSON.parse(raw).services.noticeos; } catch { refuse('Google setup could not read the app declaration.'); }
+  const ports = Array.isArray(declaration?.ports) ? declaration.ports : [];
+  const [port] = ports;
+  const published = String(port?.published ?? '');
+  if (!normal || !setup || normal === setup || declaration?.environment?.NOTICEOS_CUSTOMER_GOOGLE_SETUP !== '1'
+    || declaration.network_mode || declaration.build || ports.length !== 1 || port?.host_ip !== '127.0.0.1'
+    || port.target !== 5173 || port.protocol !== 'tcp' || !/^\d{4,5}$/u.test(published)
+    || Number(published) < 1024 || Number(published) > 65535
+    || declaration.environment.NOTICEOS_HOST_TOWER_PORT !== published
+    || declaration.environment.NOTICEOS_HOST_TOWER_ADDRESS !== '127.0.0.1'
+    || typeof declaration.image !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_./:@-]{0,511}$/u.test(declaration.image)) {
+    refuse('Google setup needs the current app declaration and one loopback-only Tower port.');
+  }
+  const declaredImage = async () => (await docker(
+    ['image', 'inspect', '--format', '{{.Id}}', declaration.image], 'Declared app image inspection')).trim();
+  const image = await declaredImage();
+  if (!/^sha256:[a-f0-9]{64}$/u.test(image)) refuse('The saved Tower image is unavailable.');
+  const inspect = async id => {
+    const raw = await docker(['inspect', '--format',
+      '{{.Image}} {{index .Config.Labels "com.docker.compose.config-hash"}}', id], 'Running app declaration inspection');
+    const [runningImage, hash, extra] = raw.trim().split(' ');
+    if (runningImage !== image || extra !== undefined || ![normal, setup].includes(hash)) {
+      refuse('The running app and saved settings differ. Use the current app image and restore the original Tower settings before retrying.');
+    }
+    return hash;
+  };
+  const verified = { normal, setup, image, siblings: siblingIds(original) };
+  const known = recovery?.read();
+  if (known) {
+    const { previousApp, ...scope } = known;
+    if (!/^[a-f0-9]{12,64}$/u.test(previousApp ?? '') || JSON.stringify(scope) !== JSON.stringify(verified)) {
+      refuse('The saved settings or supporting containers changed during Google setup. Restore the recorded installation before retrying.');
+    }
+  }
+  const latest = await inventory();
+  if (!sameIds([...latest.values()].map(row => row.id).sort(), [...original.values()].map(row => row.id).sort())) {
+    refuse('Stack containers changed before Google setup. Retry the command.');
+  }
+
+  async function removeUnstartedReplacement(rows, previousApp) {
+    if (!rows.has('replacement')) return rows.get('noticeos');
+    const pair = [rows.get('noticeos'), rows.get('replacement')];
+    const prior = pair.find(row => row.id === previousApp);
+    const staged = pair.find(row => row.id !== previousApp);
+    // Compose can create the replacement before stopping the original. Keep
+    // the original and remove only that exact, unstarted replacement.
+    if (!prior || !staged || staged.state !== 'created' || await inspect(prior.id) === await inspect(staged.id)) {
+      refuse('Two app containers remain and their recovery is ambiguous. Inspect the recorded installation before retrying.');
+    }
+    await docker(['container', 'rm', staged.id], 'Unstarted Tower replacement cleanup');
+    const after = await inventory();
+    if (after.has('replacement') || after.get('noticeos')?.id !== prior.id || !sameIds(siblingIds(after), verified.siblings)) {
+      refuse('The app changed during recovery. Inspect the installation before retrying.');
+    }
+    return after.get('noticeos');
+  }
+
+  const active = await removeUnstartedReplacement(latest, known?.previousApp);
+  const current = active ? await inspect(active.id) : null;
+  const closeMessage = 'Google setup is closed. Use the usual Tower address.';
+  if (!opening && current === normal && active.health === 'healthy') {
+    recovery?.clear();
+    out.write(closeMessage + '\n');
+    return;
+  }
+  if (!opening && !known && current !== setup) {
+    refuse(active ? 'Google setup is closed. Use pnpm os:start to start the usual Tower.'
+      : 'The app container is missing and there is no Google setup recovery record. Restore the application from the installation’s verified release.');
+  }
+  if (opening && current !== setup) {
+    // Check the running and selected profiles before recreating its container.
+    await call(['exec', '-T', 'noticeos', 'node', '--input-type=module', '--eval',
+      "import { runningContainerProfile, selectedCustomerProfile } from './deploy/compose/customer-entry.mjs'; process.exitCode = runningContainerProfile() === 'customer' && selectedCustomerProfile() === 'customer' ? 0 : 1;"],
+    'Customer profile check', 20000);
+  }
+  const verifyHealthy = async expected => {
+    const after = await inventory();
+    const updated = after.get('noticeos');
+    if (!updated || after.has('replacement') || updated.health !== 'healthy' || await inspect(updated.id) !== expected
+      || !sameIds(siblingIds(after), verified.siblings)) {
+      refuse('The installation did not return with the expected app and supporting containers.');
+    }
+  };
+  const replace = async (env, expected) => {
+    await call(APP_REPLACE, 'Tower restart', 130000, env);
+    await verifyHealthy(expected);
+  };
+  const restoreNormal = async app => {
+    if (app && await inspect(app.id) === normal) {
+      if (app.health === 'healthy') return;
+      if (app.state === 'running') await call(['restart', '--no-deps', 'noticeos'], 'Restarting the usual Tower', 130000, NORMAL_ENV);
+      await call(['start', '--wait', '--wait-timeout', '90', 'noticeos'], 'Starting the usual Tower', 130000, NORMAL_ENV);
+      await verifyHealthy(normal);
+      return;
+    }
+    if (app) recovery?.save({ ...verified, previousApp: app.id });
+    await replace(NORMAL_ENV, normal);
+  };
+  if (opening && current !== setup) {
+    if (signal?.aborted) refuse('Google setup was canceled before the Tower restarted.');
+    recovery?.save({ ...verified, previousApp: active.id });
+    out.write('Opening Google setup. The usual Tower address will be unavailable on other devices.\n');
+    try {
+      await replace(SETUP_ENV, setup);
+      if (signal?.aborted) throw new Error();
+    } catch (error) {
+      if (error.uncertain) refuse('The Tower restart did not finish. Once Docker responds, run pnpm os:customer-google-setup -- close.');
+      try {
+        const after = await inventory();
+        if (!sameIds(siblingIds(after), verified.siblings)
+          || await declared(NORMAL_ENV, 'Normal Tower recovery validation') !== normal || await declaredImage() !== image) throw new Error();
+        await restoreNormal(await removeUnstartedReplacement(after, active.id));
+        recovery?.clear();
+      } catch {
+        refuse('Google setup did not open and the usual Tower did not come back. Run pnpm os:customer-google-setup -- close to restore it.');
+      }
+      refuse('Google setup did not open. The usual Tower address is available again.');
+    }
+  } else if (!opening) {
+    await restoreNormal(active);
+    recovery?.clear();
+  }
+  if (opening) {
+    out.write(`Sign in at http://127.0.0.1:${published}/integrations on this Mac. Run pnpm os:customer-google-setup -- close when finished.\n`);
+  } else out.write(closeMessage + '\n');
+}
+
 export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env, args = [],
   root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent, drift = serviceDrift,
-  published = publishedRevision } = {}) {
+  published = publishedRevision, signal, recovery } = {}) {
   if (!ACTIONS.includes(action)) refuse(HELP);
   const own = actionArgs(action, args);
   const selector = validateSelector(input);
   const prefix = ['--host', selector.dockerHost, 'compose', '--project-name', selector.project,
     ...selector.files.flatMap(file => ['-f', file]), '--env-file', selector.envFile];
   const ownEnv = Object.fromEntries(['PATH','HOME','DOCKER_CONFIG','XDG_CONFIG_HOME'].filter(key => env[key] !== undefined).map(key => [key, env[key]]));
-  const call = async (args, label, timeoutMs) => {
+  const call = async (args, label, timeoutMs, overrides) => {
     let result;
-    try { result = await run('docker', [...prefix, ...args], { env: ownEnv, timeoutMs }); }
-    catch { refuse(`${label} did not complete; stack state may have changed.`); }
-    if (result.code !== 0) refuse(`${label} failed; no later stack steps ran.`);
+    try { result = await run('docker', [...prefix, ...args], { env: { ...ownEnv, ...overrides }, timeoutMs }); }
+    catch { throw Object.assign(new Error(`${label} did not complete; stack state may have changed.`), { uncertain: true }); }
+    if (result.code !== 0) {
+      throw Object.assign(new Error(`${label} failed; no later stack steps ran.`), { uncertain: result.timedOut === true });
+    }
     return result.stdout;
   };
   // Logs and jobs write straight to this terminal; nothing is collected here.
@@ -184,8 +358,17 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     catch { refuse(`${label} did not complete.`); }
     if (result.code !== 0) refuse(`${label} failed (exit ${result.code}).`);
   };
-  const inventory = () => call(['ps','--all','--format','json'], 'Stack inspection', 20000).then(text => parseServices(text, selector.project));
+  const inventory = () => call(['ps','--all','--format','json'], 'Stack inspection', 20000)
+    .then(text => parseServices(text, selector.project, { allowPartialApp: Boolean(own.googleSetup) }));
   const original = await inventory();
+  if (own.googleSetup) {
+    const docker = async (args, label) => {
+      const result = await run('docker', ['--host', selector.dockerHost, ...args], { env: ownEnv, timeoutMs: 20000 });
+      if (result.code !== 0) refuse(`${label} failed.`);
+      return result.stdout;
+    };
+    return customerGoogleSetup(own.googleSetup, { original, inventory, call, docker, out, signal, recovery });
+  }
   if (action === 'logs') {
     await attached(['logs', '--tail', String(own.lines), ...(own.follow ? ['--follow'] : []), ...(own.service ? [own.service] : [])], 'Reading the logs', own.follow ? Infinity : 60000);
     return;
@@ -304,7 +487,16 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
     const selector = readSelector(file, options.io);
     // An agent starts the server and talks to it over a pipe; a terminal would only wait.
     if (action === 'mcp' && interactive) { out.write(mcpConnectHelp(own, at === -1 ? null : file, towerAddress(selector.envFile, options.io))); return 0; }
-    await stackControl(action, selector, { ...options, out, args: own }); return 0;
+    const control = (signal, recovery) => stackControl(action, selector, { ...options, out, args: own, signal, recovery });
+    if (action === 'customer-google-setup') {
+      const interrupted = new AbortController();
+      const cancel = () => interrupted.abort();
+      const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+      for (const signal of signals) process.on(signal, cancel);
+      try { await holdingStackLock(file, action, () => control(interrupted.signal, googleSetupRecovery(file))); }
+      finally { for (const signal of signals) process.off(signal, cancel); }
+    } else await control();
+    return 0;
   } catch (error) { err.write(`${error.message}\n`); return 1; }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

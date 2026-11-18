@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { actionArgs, main, mcpConnectHelp, readSelector, validateSelector, parseServices, stackControl } from './stack-control.mjs';
+import { testFixtureRoot } from './test-fixture-root.mjs';
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
@@ -145,6 +149,182 @@ test('historical archive preparation uses the existing app container and refuses
   assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','customer-archive', ...args]]);
   assert.throws(() => actionArgs('customer-archive', ['--prepare', workspace, '--backup-bytes', '0']), /verified complete backup/u);
 });
+test('Google setup replaces only the selected app, keeps its custom port, and closes after refusal or interruption', async () => {
+  const normal = 'a'.repeat(64), setup = 'b'.repeat(64), image = 'sha256:' + 'd'.repeat(64);
+  const model = { ports: [{ host_ip: '127.0.0.1', published: '25173', target: 5173, protocol: 'tcp' }],
+    environment: { NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' },
+    image: 'noticeos-local:synthetic' };
+  const updates = [], removed = [], started = [];
+  const controller = new AbortController();
+  const [app, postgres] = rows();
+  let current = normal, appId = app.ID, databaseId = postgres.ID, healthy = true, failure, standalone = false, saved, staged;
+  const recovery = { read: () => saved, save: record => { saved = record; }, clear: () => { saved = undefined; } };
+  const run = async (command, args, { env }) => {
+    assert.equal(command, 'docker');
+    assert.deepEqual(args.slice(0, 2), ['--host', selector.dockerHost]);
+    const answer = stdout => ({ code: 0, stdout });
+    if (args[2] === 'image') return answer(image);
+    if (args[2] === 'inspect') {
+      if (staged && args.at(-1) === staged.id) return answer(`${image} ${staged.hash}`);
+      assert.equal(args.at(-1), appId);
+      return answer(`${image} ${current}`);
+    }
+    if (args[2] === 'container') {
+      assert.deepEqual(args.slice(3), ['rm', staged.id]);
+      assert.equal(staged.state, 'created');
+      removed.push(staged.id);
+      staged = undefined;
+      return answer('');
+    }
+    const [action, ...rest] = args.slice(9);
+    if (action === 'ps') return answer(JSON.stringify(rows().flatMap(row => row.Service === 'noticeos'
+      ? [...(staged ? [{ ...row, ID: staged.id, State: staged.state, Health: '' }] : []),
+        ...(appId ? [{ ...row, ID: appId, State: healthy ? 'running' : 'exited', Health: healthy ? 'healthy' : '' }] : [])]
+      : [{ ...row, ...(row.Service === 'postgres' ? { ID: databaseId } : {}) }])));
+    if (action === 'config') return rest[0] === '--hash'
+      ? answer(`noticeos ${env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal}`)
+      : answer(JSON.stringify({ services: { noticeos: model } }));
+    if (action === 'exec') return { code: standalone ? 1 : 0, stdout: '' };
+    if (action === 'start') {
+      assert.deepEqual(rest, ['--wait', '--wait-timeout', '90', 'noticeos']);
+      assert.equal(current, normal);
+      started.push(appId);
+      healthy = true;
+      return answer('');
+    }
+    assert.equal(action, 'up');
+    assert.deepEqual(rest, ['--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos']);
+    updates.push([env.NOTICEOS_CUSTOMER_GOOGLE_SETUP, env.NOTICEOS_TOWER_BIND]);
+    const opening = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1';
+    if (failure === 'gone') {
+      appId = null;
+      return { code: 1, stdout: '' };
+    }
+    if (failure === (opening ? 'opening-replacement' : 'closing-replacement') || !opening && failure === 'rollback-replacement') {
+      staged = { id: (opening ? 'a2' : 'b2').repeat(32), hash: opening ? setup : normal, state: 'created' };
+      healthy = false;
+      return { code: 1, stdout: '' };
+    }
+    if (failure === 'stopped' && opening) {
+      healthy = false;
+      return { code: 1, stdout: '' };
+    }
+    appId = (updates.length + 3).toString(16).repeat(64).slice(0, 64);
+    current = opening ? setup : normal;
+    healthy = !(['unhealthy', 'rollback-replacement'].includes(failure) && current === setup);
+    if (failure === 'interrupt' && current === setup) controller.abort();
+    return { code: healthy ? 0 : 1, stdout: '', stderr: 'private login' };
+  };
+  let output = '';
+  const command = (verb, signal) => stackControl('customer-google-setup', selector, { args: [verb], run, signal, recovery,
+    out: { write: line => { output += line; } } });
+  await command('open');
+  assert.match(output, /http:\/\/127\.0\.0\.1:25173\/integrations/u);
+  assert.ok(saved, 'keep the recovery record while setup is open');
+  await command('open');
+  assert.deepEqual(updates, [['1', '127.0.0.1']]);
+  healthy = false;
+  await command('close');
+  await command('close');
+  assert.deepEqual(updates, [['1', '127.0.0.1'], ['0', undefined]]);
+  assert.equal(saved, undefined);
+  failure = 'stopped';
+  const originalId = appId;
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
+  assert.deepEqual(started, [originalId]);
+  assert.equal(appId, originalId);
+  failure = 'unhealthy';
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
+  failure = 'interrupt';
+  await assert.rejects(command('open', controller.signal), /usual Tower address is available again/u);
+  assert.equal(current, normal);
+  assert.deepEqual(updates.slice(2), [['1', '127.0.0.1'], ['1', '127.0.0.1'], ['0', undefined],
+    ['1', '127.0.0.1'], ['0', undefined]]);
+  failure = 'gone';
+  await assert.rejects(command('open'), /close to restore it/u);
+  assert.ok(saved, 'a failed recovery retains the verified installation');
+  failure = undefined;
+  databaseId = '9'.repeat(64);
+  await assert.rejects(command('close'), /supporting containers changed/u);
+  assert.equal(appId, null);
+  databaseId = postgres.ID;
+  await command('close');
+  assert.equal(saved, undefined);
+  assert.equal(current, normal);
+  const recoveredApp = appId;
+  appId = null;
+  await assert.rejects(command('close'), /missing and there is no Google setup recovery record/u);
+  appId = recoveredApp;
+  failure = 'opening-replacement';
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
+  assert.deepEqual(removed, ['a2'.repeat(32)]);
+  assert.equal(current, normal);
+  failure = undefined;
+  await command('open');
+  failure = 'closing-replacement';
+  await assert.rejects(command('close'), /Tower restart failed/u);
+  assert.equal(saved.previousApp, appId);
+  staged.state = 'running';
+  await assert.rejects(command('close'), /recovery is ambiguous/u);
+  assert.deepEqual(removed, ['a2'.repeat(32)]);
+  staged.state = 'created';
+  failure = undefined;
+  await command('close');
+  assert.deepEqual(removed, ['a2'.repeat(32), 'b2'.repeat(32)]);
+  assert.equal(current, normal);
+  assert.equal(saved, undefined);
+  const beforeRollback = appId;
+  failure = 'rollback-replacement';
+  await assert.rejects(command('open'), /close to restore it/u);
+  assert.equal(saved.previousApp, appId);
+  assert.notEqual(appId, beforeRollback);
+  assert.equal(current, setup);
+  failure = undefined;
+  await command('close');
+  assert.deepEqual(removed, ['a2'.repeat(32), 'b2'.repeat(32), 'b2'.repeat(32)]);
+  assert.equal(saved, undefined);
+  assert.equal(current, normal);
+  const beforeBadInput = updates.length;
+  model.ports.push({ ...model.ports[0], host_ip: '0.0.0.0' });
+  await assert.rejects(command('open'), /one loopback-only Tower port/u);
+  model.ports.pop();
+  standalone = true;
+  await assert.rejects(command('open'), /Customer profile check failed/u);
+  assert.equal(updates.length, beforeBadInput);
+  assert.throws(() => actionArgs('customer-google-setup', ['--port', '15400']), /Usage/u);
+});
+
+test('the executable Google setup command acquires and releases the installation lock', t => {
+  const root = testFixtureRoot('noticeos-google-setup-cli-');
+  t.after(() => rmSync(root, { force: true, recursive: true }));
+  const bin = path.join(root, 'bin');
+  mkdirSync(bin);
+  const config = path.join(root, 'stack.json');
+  const compose = path.join(root, 'compose.yaml');
+  const envFile = path.join(root, 'installation.env');
+  const lock = path.join(root, 'stack-deploy', 'lock');
+  const observed = path.join(root, 'docker-arguments.json');
+  const dockerHost = 'unix://' + path.join(root, 'nonexistent.sock');
+  writeFileSync(compose, 'services: {}\n');
+  writeFileSync(envFile, '');
+  writeFileSync(config, JSON.stringify({ ...selector, files: [compose], envFile, dockerHost }));
+  writeFileSync(path.join(bin, 'docker'), `#!${process.execPath}
+const { existsSync, writeFileSync } = require('node:fs');
+if (!existsSync(${JSON.stringify(lock)})) process.exit(33);
+writeFileSync(${JSON.stringify(observed)}, JSON.stringify(process.argv.slice(2)));
+process.stdout.write('[]');
+`, { mode: 0o700 });
+  const cli = fileURLToPath(new URL('./stack-control.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'customer-google-setup', 'open', '--config', config], {
+    encoding: 'utf8', timeout: 5000, env: { PATH: bin, HOME: root },
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /Stack is missing a required existing service/u);
+  assert.deepEqual(JSON.parse(readFileSync(observed, 'utf8')), ['--host', dockerHost, 'compose', '--project-name', selector.project,
+    '-f', compose, '--env-file', envFile, 'ps', '--all', '--format', 'json']);
+  assert.equal(existsSync(lock), false);
+});
+
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
   const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));

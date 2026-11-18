@@ -9,13 +9,18 @@ import { act, fireEvent, render, screen, within } from "./render";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { integrationProvider, type IntegrationProviderId } from "@noticeos/contract/integrations";
 import { GOOGLE_CONSOLE, readGoogleClientFile } from "@shared/google-client-file";
-import type { GoogleOAuthCardState } from "@shared/integrations-page";
+import { googleOAuthCardState, googleOAuthNotice, type GoogleOAuthCardState, type IntegrationProviderStatus } from "@shared/integrations-page";
 import { GoogleSignInSetup, type GoogleSignInSetupProps } from "@/components/GoogleSignInSetup";
+import { GoogleSignIn } from "@/components/provider-card/GoogleSignIn";
 
 const REDIRECT = "http://127.0.0.1:4747/api/integrations/google/oauth/callback";
 const SECRET = "SEKRIT-google-client-secret-do-not-echo";
 const CLIENT_ID = "1234567890-abcdef.apps.googleusercontent.com";
+
+const copyText = vi.hoisted(() => vi.fn(async (_text: string) => {}));
+vi.mock('@/lib/clipboard', () => ({ copyText }));
 
 const clientFile = (body: unknown) => JSON.stringify(body);
 const web = (redirects: string[] = [REDIRECT]) => clientFile({ web: { client_id: CLIENT_ID, client_secret: SECRET, redirect_uris: redirects } });
@@ -41,6 +46,13 @@ describe("reading the client file Google hands back", () => {
 
 function card(state: GoogleOAuthCardState["state"], over: Partial<GoogleOAuthCardState> = {}): GoogleOAuthCardState {
   return { state, redirectUri: REDIRECT, loopbackUrl: null, account: null, scopes: [], connectedAt: null, ...over };
+}
+
+function status(id: IntegrationProviderId, source: 'none' | 'store' = 'none'): IntegrationProviderStatus {
+  return { provider: integrationProvider(id)!, assets: [], credential: {
+    provider: id, source, fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
+    keyVersion: null, createdAt: null, updatedAt: null, lastUsedAt: null, lastOkAt: null, lastError: null,
+  } };
 }
 
 function renderSetup(over: Partial<GoogleSignInSetupProps> = {}) {
@@ -128,14 +140,52 @@ describe("the sign-in in the panel", () => {
     expect(screen.queryByRole("link", { name: "Continue with Google" })).toBeNull();
   });
 
-  it.each(['google', 'adsense'] as const)('the customer LAN connection panel offers no unusable %s callback or navigation', provider => {
-    renderSetup({ provider, card: card('redirect-unusable', { localSignInBlocked: true }) });
+  it.each(['google', 'adsense'] as const)('the customer %s connection waits for a setup window even on loopback', provider => {
+    const connection = status(provider);
+    const app = status(provider === 'google' ? 'google-oauth-app' : 'adsense-oauth-app', 'store');
+    const origin = new URL(REDIRECT).origin;
+    const blocked = renderSetup({ provider, card: googleOAuthCardState(connection, app, origin, false, true) });
     expect(screen.queryByRole('link', { name: 'Open on 127.0.0.1' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Continue with Google' })).toBeNull();
     expect(screen.queryByLabelText('client_secret.json')).toBeNull();
     if (provider === 'google') {
       expect(screen.getByRole('link', { name: 'Service account instead' })).toHaveAttribute('href', '/integrations?provider=google&setup=page');
     } else expect(screen.queryByRole('link', { name: 'Service account instead' })).toBeNull();
+    expect(googleOAuthNotice('redirect_unusable', 'http://tower.example:4747', provider, true, true)?.action).toBeUndefined();
+
+    blocked.unmount();
+    const onStart = vi.fn();
+    renderSetup({ provider, card: googleOAuthCardState(connection, app, origin, false), onStart });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(onStart).toHaveBeenCalledOnce();
+  });
+
+  it('copies the open and restore commands for an installation or source checkout', async () => {
+    copyText.mockClear();
+    renderSetup({ card: card('redirect-unusable', { localSignInBlocked: true }) });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy the command to open Google setup' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy the command to close Google setup' }));
+      fireEvent.click(screen.getByText('Commands from a source checkout'));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy the checkout command to open Google setup' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy the checkout command to close Google setup' }));
+    });
+    expect(copyText.mock.calls.map(([text]) => text)).toEqual([
+      './noticeos customer-google-setup open', './noticeos customer-google-setup close',
+      'pnpm os:customer-google-setup -- open', 'pnpm os:customer-google-setup -- close',
+    ]);
+  });
+
+  it('keeps empty account discovery from offering consent before setup', async () => {
+    render(<MemoryRouter><GoogleSignIn canConnect failing={false} panel={{
+      card: card('connected', { localSignInBlocked: true }), app: status('google-oauth-app', 'store'),
+      startHref: '/api/integrations/google/oauth/start', onSaveApp: async () => {},
+      onDiscover: async () => ({ ok: true, message: '', checkedAt: '2026-11-01T00:00:00Z', account: null, auth: 'oauth', properties: [] }),
+    }} /></MemoryRouter>);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'What can this account see?' })));
+    expect(screen.queryByRole('link', { name: 'Sign in as another account' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy the command to open Google setup' })).toBeVisible();
   });
 });
 

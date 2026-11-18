@@ -16,6 +16,7 @@ interface BrowserContextValue {
   readonly workspaceLabel: string | null;
   /** Presentation fact from the trusted session bootstrap. */
   readonly backupPreview?: true;
+  readonly googleSetupRequired?: true;
   /** Captured bootstrap presentation; every administration request reauthorizes. */
   readonly workspaceRole?: WorkspaceChoice['role'];
   readonly refreshSession?: BrowserEntry['refresh'];

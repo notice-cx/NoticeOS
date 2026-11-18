@@ -54,10 +54,12 @@ it('platform housekeeping is a credential-free no-op outside hosted profile', as
   }
 });
 
-it('declines both Google OAuth starts on private HTTP before opening any credential or database', async () => {
-  const origin = 'http://tower.local:5173';
+it.each([
+  { origin: 'http://tower.local:5173', setup: { NOTICEOS_LOCAL_TOWER_ORIGIN: 'http://tower.local:5173' } },
+  { origin: 'http://127.0.0.1:5173', setup: { NOTICEOS_LOCAL_TOWER_ORIGIN: undefined, NOTICEOS_GOOGLE_SETUP_REQUIRED: true } },
+])('declines both Google OAuth starts before credentials at $origin outside setup', async ({ origin, setup }) => {
   const configured: Record<string, unknown> = {
-    NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: origin, NOTICEOS_LOCAL_TOWER_ORIGIN: origin,
+    NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: origin, ...setup,
   };
   const bindings = new Proxy(configured, { get(target, key) {
     if (typeof key === 'string' && Object.hasOwn(target, key)) return target[key];

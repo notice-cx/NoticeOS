@@ -320,6 +320,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
   startSchedules, fixtureProvider, shadowAdmission, resumeSince, backupResumeSince, operating, deployment }) {
   const localTowerOrigin = deployment && plan.localTowerOrigin;
   if (localTowerOrigin && !isPrivateTowerOrigin(localTowerOrigin)) throw new Error('Invalid private Tower origin.');
+  if (plan.googleSetup && (!deployment?.bridgePeer || localTowerOrigin)) throw new Error('Google setup requires the loopback Compose Tower.');
   const publicOrigin = localTowerOrigin || `http://${HOST}:${plan.port}`;
   if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
   if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating || deployment)) {
@@ -358,13 +359,15 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const backupProof = randomBytes(32).toString('base64url');
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const { Miniflare, Log } = v4Miniflare(createRequire(require.resolve('wrangler/package.json')));
-    const bindings = { ...localBindings, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
+    const setupRequired = deployment?.bridgePeer && !plan.googleSetup ? { NOTICEOS_GOOGLE_SETUP_REQUIRED: true } : {};
+    const bindings = { ...localBindings, ...setupRequired, NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
       NOTICEOS_IDENTITY_DATABASE_URL: identityDatabase, NOTICEOS_IDENTITY_SESSION_SECRET: identitySecret,
       NOTICEOS_WORKSPACE_DATABASE_URL: connectionString };
     const denyOutbound = localCustomerOutbound();
-    const tasksOutbound = localCustomerOutbound({ ntasksOrigin, signal: operating?.signal });
+    const interactiveOutbound = localCustomerOutbound({ ntasksOrigin, googleSetup: plan.googleSetup,
+      ...(plan.googleSetup ? { googleSetupTransport: operating?.googleSetupTransport } : {}), signal: operating?.signal });
     const ingestOutbound = request => fixtureProvider && new URL(request.url).origin !== ntasksOrigin
-      ? fixtureProvider(request) : tasksOutbound(request);
+      ? fixtureProvider(request) : interactiveOutbound(request);
     const worker = (name, entry, outboundService = denyOutbound) => ({ name, compatibilityDate: entry.compatibilityDate, compatibilityFlags: entry.compatibilityFlags,
       modulesRoot: path.join(artifactRoot, entry.modulesRoot), modules: [entry.main, ...Object.keys(artifact.files)
         .filter(file => file !== entry.main && file.startsWith(entry.modulesRoot + '/') && /\.m?js$/u.test(file))]
@@ -454,7 +457,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
             } } });
       await new Promise((resolve, reject) => {
         server.once('error', reject);
-        server.listen(deployment?.listenPort ?? plan.port, deployment ? '0.0.0.0' : HOST,
+        const address = deployment?.bridgePeer && deployment.bridgePeer !== HOST ? '0.0.0.0' : HOST;
+        server.listen(deployment?.listenPort ?? plan.port, address,
           () => { server.off('error', reject); resolve(); });
       });
     };

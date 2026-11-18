@@ -67,8 +67,10 @@ export function composeCustomerPlan(env, towerOrigin) {
     throw new ContainerRefusal('Customer mode needs the published Tower port.');
   }
   const address = env.NOTICEOS_HOST_TOWER_ADDRESS;
+  const googleSetup = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1';
+  if (googleSetup && address !== '127.0.0.1') throw new ContainerRefusal('Google setup needs a loopback-only Tower port.');
   const local = { root: '/opt/noticeos', url: `http://127.0.0.1:${port}`, port, doorPort: 5173 };
-  if (towerOrigin === undefined && address === '127.0.0.1') return local;
+  if (towerOrigin === undefined && address === '127.0.0.1') return googleSetup ? { ...local, googleSetup } : local;
   const hosts = (env.TOWER_ALLOWED_HOSTS ?? '').split(/[,\s]+/u);
   if (!isPrivateTowerOrigin(towerOrigin)) throw new ContainerRefusal('Set towerOrigin to the exact home-network Tower address in the private customer configuration.');
   const url = new URL(towerOrigin);
@@ -76,6 +78,7 @@ export function composeCustomerPlan(env, towerOrigin) {
     || (address !== '0.0.0.0' && address !== '127.0.0.1' && !(isIP(address) === 4 && isPrivateTowerOrigin(`http://${address}:${port}`)))) {
     throw new ContainerRefusal('The home-network Tower address must match the published port and an allowed installation host.');
   }
+  if (googleSetup) return { ...local, googleSetup, savedTowerOrigin: towerOrigin };
   return { ...local, url: towerOrigin, localTowerOrigin: towerOrigin };
 }
 

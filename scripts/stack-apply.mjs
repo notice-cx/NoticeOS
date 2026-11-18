@@ -27,6 +27,9 @@ import { runCommand } from './run-command.mjs';
 import { readSelector, validateSelector } from './stack-control.mjs';
 import { composePrefix } from './stack-database.mjs';
 import { DeclarationUnreadable, serviceDrift } from './stack-drift.mjs';
+import { holdingStackLock } from './stack-operation-files.mjs';
+
+export { holdingStackLock };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
@@ -156,18 +159,6 @@ export function portTaken({ run = runCommand, env = process.env, held = doorIsHe
   const image = imageInstallation(env);
   if (!image) return (port) => held(`http://127.0.0.1:${port}`);
   return async (port, address) => !(await dockerPortFree(port, { run, dockerHost, image: image.image, env: ownEnv(env), address }));
-}
-
-/** Run `operation` holding the stack's lock, which os:update and os:apply share. */
-export async function holdingStackLock(selectorFile, name, operation) {
-  const lock = path.join(path.dirname(selectorFile), 'stack-deploy', 'lock');
-  fs.mkdirSync(path.dirname(lock), { recursive: true, mode: 0o700 });
-  let handle;
-  try { handle = fs.openSync(lock, 'wx', 0o600); } catch { refuse('Another app operation holds the stack lock.'); }
-  try {
-    fs.writeFileSync(handle, JSON.stringify({ pid: process.pid, operation: name }));
-    return await operation();
-  } finally { fs.closeSync(handle); fs.rmSync(lock, { force: true }); }
 }
 
 /**

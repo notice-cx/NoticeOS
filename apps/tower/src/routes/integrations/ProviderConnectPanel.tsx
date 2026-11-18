@@ -1,5 +1,5 @@
 import { LOCAL_MODEL_OUTPUT_TOKENS, DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
-import { useBrowserRuntime, useOwnerMutation } from '@/lib/browser-context';
+import { useBrowserContext, useOwnerMutation } from '@/lib/browser-context';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { useOwnerToast } from '@/lib/browser-context';
@@ -85,7 +85,8 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
   const toast = useOwnerToast();
   const queryClient = useQueryClient();
   const googleStart = useGoogleOAuthStart(status.provider.id === 'adsense' ? 'adsense' : 'google', reportReturn);
-  const offerLoopback = useBrowserRuntime().owner.mode === 'standalone';
+  const { runtime: { owner }, googleSetupRequired } = useBrowserContext();
+  const offerLoopback = owner.mode === 'standalone';
   const { deleteProviderCredential, connectProviderCredential, saveProviderCredential } = useTowerApi();
   const [started, setStarted] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -160,7 +161,7 @@ export function ProviderConnectPanel({ status, opened, asset, googleSetup = fals
           provider={provider.id === 'adsense' ? 'adsense' : 'google'}
           serviceAccountHref={googleServiceAccountHref}
           onOpenServiceAccount={onOpenGoogleServiceAccount}
-          card={googleOAuthCardState(status, app, window.location.origin, offerLoopback)}
+          card={googleOAuthCardState(status, app, window.location.origin, offerLoopback, googleSetupRequired)}
           // The host's own verified client arrives from the environment; one
           // this installation stores is its own, set up once, in Testing.
           selfHosted={app === null || app.credential.source !== "env"}

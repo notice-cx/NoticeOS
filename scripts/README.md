@@ -25,6 +25,7 @@
 | `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:customer-check` | Check the prepared customer configuration in the app container before switching profiles. | `scripts/stack-control.mjs customer-check` |
+| `os:customer-google-setup` | Temporarily serve the customer Tower on the host’s loopback address for Google sign-in. | `scripts/stack-control.mjs customer-google-setup` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
 | `os:customer-archive` | Estimate scoped copies of the running standalone installation's historical archive. | `scripts/stack-control.mjs customer-archive` |

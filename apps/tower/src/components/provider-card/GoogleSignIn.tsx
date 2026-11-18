@@ -1,6 +1,7 @@
 import { BarChart3, Check, Copy, ExternalLink, Globe, KeyRound, ListTree, Loader2, LogIn, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP, type GoogleOAuthCardState, type GooglePropertyDiscovery, type IntegrationProviderStatus } from "@shared/integrations-page";
+import type { GoogleOAuthCardState, GooglePropertyDiscovery, IntegrationProviderStatus } from "@shared/integrations-page";
+import { LocalGoogleSignInHelp } from "@/components/GoogleSignInSetup";
 import { Button } from "@/components/ui/button";
 import { useCopyFlash } from "@/hooks/useCopyFlash";
 import { copyText } from "@/lib/clipboard";
@@ -20,8 +21,8 @@ export interface ProviderOAuthPanel {
    * so the client id/secret form is generated from the contract like every
    * other form on this page. */
   app: IntegrationProviderStatus;
-  /** Standalone navigation; hosted starts use the captured callback instead. */
-  startHref: string;
+  /** Present when sign-in can start at this address. Hosted starts use the captured callback. */
+  startHref?: string;
   onStart?: () => void;
   starting?: boolean;
   onSaveApp: (fields: Record<string, string>) => Promise<void>;
@@ -61,6 +62,8 @@ export function GoogleSignIn({
     >
       {card.state === "connected" ? (
         <ConnectedGrant panel={panel} failing={failing} />
+      ) : card.localSignInBlocked ? (
+        <LocalGoogleSignInHelp />
       ) : (
         <>
           {card.state === "app-missing" ? (
@@ -113,7 +116,7 @@ export function GoogleSignIn({
               data-oauth-redirect-blocked
             >
               <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
-              <span>{card.localSignInBlocked ? LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP : "Google won't return to this address"}</span>
+              <span>Google won't return to this address</span>
               {card.loopbackUrl ? (
                 <Button asChild size="sm" variant="outline" className="text-foreground">
                   <a href={card.loopbackUrl} data-oauth-loopback>
@@ -124,7 +127,7 @@ export function GoogleSignIn({
             </p>
           ) : null}
 
-          {card.state === "ready" ? (
+          {card.state === "ready" && panel.startHref ? (
             <>
               <RedirectUri value={card.redirectUri} />
               <div className="flex flex-wrap items-center gap-2">
@@ -164,6 +167,8 @@ function ConnectedGrant({
   const [discovery, setDiscovery] = useState<GooglePropertyDiscovery | null>(null);
   const [listing, setListing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const startHref = card.localSignInBlocked ? undefined : panel.startHref;
+  const needsAnotherAccount = discovery?.ok && discovery.properties.length === 0;
 
   return (
     <>
@@ -189,19 +194,16 @@ function ConnectedGrant({
         </span>
         {/* The same sign-in, muted beside a working grant and the primary
             button beside a dead one. */}
-        {card.localSignInBlocked && failing ? (
-          <p className="text-xs text-muted-foreground">{LOCAL_CUSTOMER_GOOGLE_SIGN_IN_HELP}</p>
-        ) : null}
-        {!card.localSignInBlocked && (failing ? (
+        {startHref && (failing ? (
           <Button asChild size="sm" data-oauth-restart>
-            <GoogleStartPress href={panel.startHref} onStart={panel.onStart} starting={panel.starting} rel="noreferrer">
+            <GoogleStartPress href={startHref} onStart={panel.onStart} starting={panel.starting} rel="noreferrer">
               <LogIn className="size-3.5" aria-hidden />
               Sign in with Google again
             </GoogleStartPress>
           </Button>
         ) : (
           <GoogleStartPress
-            href={panel.startHref}
+            href={startHref}
             onStart={panel.onStart}
             starting={panel.starting}
             rel="noreferrer"
@@ -213,6 +215,15 @@ function ConnectedGrant({
           </GoogleStartPress>
         ))}
       </div>
+
+      {card.localSignInBlocked ? failing || needsAnotherAccount ? (
+        <LocalGoogleSignInHelp />
+      ) : (
+        <details className="text-sm">
+          <summary className="cursor-pointer font-medium">Reconnect with Google</summary>
+          <div className="mt-2"><LocalGoogleSignInHelp /></div>
+        </details>
+      ) : null}
 
       {card.scopes.length > 0 ? (
         <ul className="flex flex-wrap gap-x-3 gap-y-1" data-oauth-scopes>
@@ -279,7 +290,7 @@ function ConnectedGrant({
           {failure}
         </p>
       ) : null}
-      {discovery ? <DiscoveredProperties discovery={discovery} startHref={panel.startHref} onStart={panel.onStart} starting={panel.starting} /> : null}
+      {discovery ? <DiscoveredProperties discovery={discovery} startHref={startHref} onStart={panel.onStart} starting={panel.starting} /> : null}
     </>
   );
 }
@@ -296,7 +307,7 @@ function DiscoveredProperties({
   starting,
 }: {
   discovery: GooglePropertyDiscovery;
-  startHref: string;
+  startHref?: string;
   onStart?: () => void;
   starting?: boolean;
 }) {
@@ -313,10 +324,10 @@ function DiscoveredProperties({
     return (
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-oauth-discovery-empty>
         <span className="tabular-nums text-muted-foreground">0 Analytics properties · 0 Search Console sites</span>
-        <GoogleStartPress href={startHref} onStart={onStart} starting={starting} rel="noreferrer" className="inline-flex min-h-11 items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline">
+        {startHref ? <GoogleStartPress href={startHref} onStart={onStart} starting={starting} rel="noreferrer" className="inline-flex min-h-11 items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline">
           <LogIn className="size-3" aria-hidden />
           Sign in as another account
-        </GoogleStartPress>
+        </GoogleStartPress> : null}
       </p>
     );
   }

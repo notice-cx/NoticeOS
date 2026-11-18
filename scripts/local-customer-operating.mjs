@@ -80,7 +80,7 @@ export function readComposeCustomerOperating(file, plan, bootstrap) {
   let config, operating;
   try {
     const { towerOrigin, ...declaration } = JSON.parse(privateFile(file));
-    if (towerOrigin !== plan.localTowerOrigin) throw refused();
+    if (towerOrigin !== (plan.googleSetup ? plan.savedTowerOrigin : plan.localTowerOrigin)) throw refused();
     config = declaration;
     if (config.format !== 'noticeos-compose-customer/1' || !config.database || !Array.isArray(config.workspaces)
       || config.workspaces.length !== 1 || Object.keys(config.database).length !== 2
@@ -215,7 +215,8 @@ export async function openCustomerOperating(plan, file) {
 export async function openCustomerTarget(plan, operating, customer, receipt, { release = async () => {}, activation, backup = false } = {}) {
   let lease;
   try {
-    const publicOrigin = new URL(plan.url).origin;
+    // Setup changes the browser origin, while the scheduler receipt belongs to the saved Tower address.
+    const publicOrigin = (plan.googleSetup && plan.savedTowerOrigin) || new URL(plan.url).origin;
     const scope = createHash('sha256').update(JSON.stringify(operating.workspaces));
     if (activation !== undefined) scope.update('\0' + activation);
     const schedule = scope.digest('hex');

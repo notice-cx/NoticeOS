@@ -12,7 +12,7 @@
 //
 // When main carries migrations the database has not applied, the update stops
 // and names `pnpm os:migrate`.
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { prepareContainerContext, publicContainerPath } from './container-context.mjs';
 import { RELEASE_REPOSITORY, REVISION_LABEL } from './published-image.mjs';
 import { readSelector, validateSelector, parseServices } from './stack-control.mjs';
+import { writeStackFile as atomic } from './stack-operation-files.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { runCommand } from './run-command.mjs';
 
@@ -48,11 +49,6 @@ function regular(file, maximum = 1024 * 1024) {
   const stat = fs.lstatSync(file);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maximum) fail('Deployment input must be a bounded regular file.');
   return fs.readFileSync(file);
-}
-function atomic(file, bytes) {
-  const temp = `${file}.${randomUUID()}.tmp`;
-  try { fs.writeFileSync(temp, bytes, { flag: 'wx', mode: 0o600 }); fs.renameSync(temp, file); }
-  finally { if (fs.existsSync(temp)) fs.unlinkSync(temp); }
 }
 function directory(selectorFile) {
   const parent = path.dirname(selectorFile);
