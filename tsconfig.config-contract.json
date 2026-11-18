@@ -56,6 +56,7 @@
     "scripts/workspace-operations.mts",
     "scripts/hosted-task-request.mts",
     "scripts/cloudflare-d1-download.mts",
+    "scripts/customer-dataforseo-egress.mts",
     "scripts/ntasks-backup-access.mts",
     "scripts/sealed-credential.mts",
     "scripts/task-projects.mts",

@@ -3,10 +3,9 @@
 // the portfolio closed is the number the operator reads.
 //
 // Spend is money the provider account was billed, not what the OS collected:
-// ad-hoc research spends the same account. The two halves are disjoint: the
-// report runs carry every call the weekly collector made, and the collector's
-// own research rows are excluded by actor, so a collected family is never
-// billed twice. Both are read in one transaction.
+// ad-hoc research spends the same account. Earlier report runs keep their
+// archived prices. New provider bills are dated per request, and the covered
+// portion of a report is excluded from the archive subtotal.
 
 /** One read transaction's statements, as this sum needs them. */
 export interface MeteredSpendQuery {
@@ -79,6 +78,17 @@ export function meteredSpendSince(
     : `${iso.slice(0, 7)}-01T00:00:00.000Z`;
 }
 
+export function meteredSpendBounds(now: Date | string, window: MeteredSpendWindow = 'month'): [string, string] {
+  const since = meteredSpendSince(now, window);
+  const next = new Date(since);
+  if (window === 'day') next.setUTCDate(next.getUTCDate() + 1);
+  else next.setUTCMonth(next.getUTCMonth() + 1);
+  return [since, next.toISOString()];
+}
+
+/** Only the portion of a report's cost without an individual receipt. */
+export const METERED_ARCHIVE_COST = 'cost_usd - dataforseo_cost_accounted_usd';
+
 function finite(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -95,32 +105,39 @@ export async function loadMeteredDataSpend(
   now: Date | string,
   window: MeteredSpendWindow = 'month',
 ): Promise<MeteredDataSpend> {
-  const since = meteredSpendSince(now, window);
+  const [since, next] = meteredSpendBounds(now, window);
 
   type Spent = { asset: string | null; spent: string; unknown: number };
-  const [collected, research] = await store.read(async (tx) => [
+  const [collected, requests, research] = await store.read(async (tx) => [
     await tx.query<Spent>(
-      `SELECT asset_id AS asset, COALESCE(SUM(cost_usd), 0)::text AS spent,
+      `SELECT asset_id AS asset, COALESCE(SUM(${METERED_ARCHIVE_COST}), 0)::text AS spent,
               count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
          FROM noticeos.archive_runs
-        WHERE integration = $1 AND requested_at >= $2::timestamptz
+        WHERE integration = $1 AND requested_at >= $2::timestamptz AND requested_at < $3::timestamptz
         GROUP BY asset_id`,
-      [METERED_DATA_PROVIDER, since],
+      [METERED_DATA_PROVIDER, since, next],
+    ),
+    await tx.query<Spent>(
+      `SELECT asset_id AS asset, sum(provider_cost_usd)::text AS spent, 0 AS unknown
+         FROM noticeos.dataforseo_request_charges
+        WHERE provider_cost_usd IS NOT NULL AND reserved_at >= $1::timestamptz AND reserved_at < $2::timestamptz
+        GROUP BY asset_id`,
+      [since, next],
     ),
     await tx.query<Spent>(
       `SELECT asset_id AS asset, COALESCE(SUM(cost_usd), 0)::text AS spent,
               count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
          FROM noticeos.research_log
-        WHERE provider = $1 AND bought_at >= $2::timestamptz AND actor <> $3
+        WHERE provider = $1 AND bought_at >= $2::timestamptz AND bought_at < $3::timestamptz AND actor <> $4
         GROUP BY asset_id`,
-      [METERED_DATA_PROVIDER, since, RESEARCH_COLLECTOR_ACTOR],
+      [METERED_DATA_PROVIDER, since, next, RESEARCH_COLLECTOR_ACTOR],
     ),
   ]);
 
   const perAsset = new Map<string, MeteredSpendAsset>();
   let unattributedUsd = 0;
   let unattributedUnknownPrices = 0;
-  for (const row of [...collected, ...research]) {
+  for (const row of [...collected, ...requests, ...research]) {
     const spent = finite(row.spent);
     const unknownPrices = finite(row.unknown);
     if (spent === 0 && unknownPrices === 0) continue;

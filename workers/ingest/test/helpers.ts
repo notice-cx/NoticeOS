@@ -64,6 +64,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'watch_windows',
   'watch_window_readings',
   'archive_runs',
+  'dataforseo_request_charges',
   'archive_objects',
   'research_log',
   'asset_insight_snapshots',

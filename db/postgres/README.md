@@ -518,6 +518,7 @@ by column; retention and maintenance privileges are checked separately.
 | `current_flags` (view) | read-only view | Every alert a retry did not replace, with its severity, message and inputs from its newest flag_evidence reading. |
 | `current_pulses` (view) | read-only view | The newest revision of each day's report, numbered by the day's first revision (day_number). |
 | `current_revenue` (view) | read-only view | The newest figure per asset, source, account, day and item. |
+| `dataforseo_request_charges` | insert; update only provider_cost_usd | One durable reservation per attempted paid DataForSEO call. The known provider cost can settle that reservation once. An unsettled call keeps its reserve in its original UTC month. |
 | `egress_checks` | append-only | Append-only. |
 | `financial_ledger` (view) | read-only view | What financial readers read: money only, never a change entry, with a month of a source's daily figures in place of an imported estimate from the same provider that covers less. |
 | `flag_evidence` | append-only | Append-only. |

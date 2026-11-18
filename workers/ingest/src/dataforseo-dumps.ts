@@ -35,11 +35,11 @@ import {
   DATAFORSEO_MONTHLY_CADENCE_DAYS,
   DATAFORSEO_WEEKLY_CADENCE_DAYS,
   MAX_REPORT_COST_USD,
+  SERP_PANEL_CALL_USD,
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT,
-  capReserveExceeded,
   dataForSeoReportsFor,
-  loadMeteredDataSpend,
+  meteredSpendSince,
   siteHost,
   type DataForSeoReport,
 } from '@noticeos/contract';
@@ -51,6 +51,7 @@ import {
   sourcedCredentialRef,
 } from './credentials.js';
 import { readDataForSeoAccount, recordDataForSeoBalance } from './dataforseo-balance.js';
+import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from './dataforseo-budget.js';
 import {
   type LaneMappingSource,
   type LaneRegister,
@@ -61,12 +62,13 @@ import {
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
+import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from '../../../scripts/customer-dataforseo-egress.mjs';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
 import { isolateState } from './isolate-state.js';
 import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } from './shared.js';
 
-const API_BASE = 'https://api.dataforseo.com/v3';
+const API_BASE = DATAFORSEO_ORIGIN + '/v3';
 const CREDENTIAL_REF = 'DATAFORSEO_LOGIN+DATAFORSEO_PASSWORD';
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 130_000;
@@ -86,9 +88,9 @@ const SERP_COMPETITORS_LIMIT = 20;
  * internet's biggest queries fill every slot. */
 const KEYWORD_IDEAS_VOLUME_CEILING = 500_000;
 /** A saved cap can be set independently of the other portfolio settings. */
-export function dataForSeoMonthlyCap(settings: unknown): number {
+export function dataForSeoMonthlyCap(settings: unknown, fallback = constants.monthly_caps.data_usd): number {
   const cap = asRecord(asRecord(settings)?.monthly_caps)?.data_usd;
-  return typeof cap === 'number' ? cap : constants.monthly_caps.data_usd;
+  return typeof cap === 'number' ? cap : fallback;
 }
 /** Two pages. A property below this records no rank: "not inside the tracked
  * depth", never "not ranking". */
@@ -145,6 +147,7 @@ interface DataForSeoRequestCheckpoint {
   providerRows: number;
   costUsd: number;
   taskError: { code: string; message: string } | null;
+  costAccounted?: true;
 }
 
 export const DATAFORSEO_CHECKPOINT_PREFIX = 'checkpoints/dataforseo';
@@ -196,10 +199,8 @@ export interface DataForSeoDumpsResult {
   refused?: DataForSeoRunInFlight;
 }
 
-// The collector lane: one DataForSEO run at a time. The cap gate reads
-// month-to-date spend once per run, so two concurrent runs would each pay for
-// every call. A module-scope marker is the lock because every trigger runs in
-// this one isolate; it is not a distributed lock. It cannot wedge shut: the
+// The collector lane avoids redundant work within one isolate. The database
+// reserves paid attempts across isolates. The local lane cannot wedge shut: the
 // holder's `finally`, a restarted runtime and the lease each free it.
 
 /** The run that already holds the lane, as the trigger it refused reports it. */
@@ -280,6 +281,8 @@ export interface DataForSeoCollectScope {
 
 export interface DataForSeoDumpsOptions {
   nowMs?: number;
+  /** The purchasing clock can advance even when the report date stays fixed. */
+  requestClock?: () => number;
   fetchImpl?: typeof fetch;
   login?: string;
   password?: string;
@@ -295,6 +298,10 @@ export interface DataForSeoDumpsOptions {
   configSources?: ConfigSourceMap;
   /** One property instead of the portfolio — see `DataForSeoCollectScope`. */
   scope?: DataForSeoCollectScope | null;
+  /** Workspace properties explicitly approved for an automated paid schedule. */
+  scheduledAssets?: readonly string[];
+  signal?: AbortSignal;
+  fenceUnsettled?: true;
   /** A scheduled sweep and its automatic retry must never take over outage recovery. */
   preserveRecoveryLock?: true;
   /** Override the run's egress gate (tests control the verdict TTL); every other
@@ -311,7 +318,7 @@ interface EgressLane {
 const REPORTS: ReportSpec[] = [
   {
     name: 'ranked-keywords',
-    path: '/dataforseo_labs/google/ranked_keywords/live',
+    path: DATAFORSEO_REPORT_PATHS.rankedKeywords,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -336,7 +343,7 @@ const REPORTS: ReportSpec[] = [
   },
   {
     name: 'backlinks-summary',
-    path: '/backlinks/summary/live',
+    path: DATAFORSEO_REPORT_PATHS.backlinksSummary,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -352,7 +359,7 @@ const REPORTS: ReportSpec[] = [
   },
   {
     name: 'backlinks-new-lost',
-    path: '/backlinks/timeseries_new_lost_summary/live',
+    path: DATAFORSEO_REPORT_PATHS.backlinksNewLost,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target, reportDate) => {
       // This endpoint accepts completed days only: the archive says when we
@@ -375,7 +382,7 @@ const REPORTS: ReportSpec[] = [
     // The names behind the referring-domain count; what `reclamation_targets`
     // is pointed at.
     name: 'backlinks-referring-domains',
-    path: '/backlinks/referring_domains/live',
+    path: DATAFORSEO_REPORT_PATHS.referringDomains,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -394,7 +401,7 @@ const REPORTS: ReportSpec[] = [
   {
     // The anchor profile as a distribution rather than a list.
     name: 'backlinks-anchors',
-    path: '/backlinks/anchors/live',
+    path: DATAFORSEO_REPORT_PATHS.anchors,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -415,7 +422,7 @@ const REPORTS: ReportSpec[] = [
     // terms matter, already loaded here. A property with no panel gets no ideas
     // rather than ideas grown from a guess.
     name: 'keyword-ideas',
-    path: '/dataforseo_labs/google/keyword_ideas/live',
+    path: DATAFORSEO_REPORT_PATHS.keywordIdeas,
     cadenceDays: DATAFORSEO_MONTHLY_CADENCE_DAYS,
     appliesTo: (asset, panel) => serpPanelEntry(panel, asset) !== undefined,
     requests: (target, _reportDate, panel) => [
@@ -442,7 +449,7 @@ const REPORTS: ReportSpec[] = [
   {
     // Who else holds the SERPs this property competes on.
     name: 'serp-competitors',
-    path: '/dataforseo_labs/google/competitors_domain/live',
+    path: DATAFORSEO_REPORT_PATHS.competitors,
     cadenceDays: DATAFORSEO_MONTHLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -472,7 +479,7 @@ const REPORTS: ReportSpec[] = [
     // that decides `success` vs `unchanged` covers every page's body, `device`
     // included.
     name: 'serp-panel',
-    path: '/serp/google/organic/live/advanced',
+    path: DATAFORSEO_REPORT_PATHS.panel,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     appliesTo: (asset, panel) => serpPanelEntry(panel, asset) !== undefined,
     longRunning: true,
@@ -511,7 +518,7 @@ function llmReport(platform: LlmPlatform): ReportSpec {
       : 'llm-mentions-google';
   return {
     name,
-    path: '/ai_optimization/llm_mentions/target_metrics/live',
+    path: DATAFORSEO_REPORT_PATHS.llmMentions,
     cadenceDays: DATAFORSEO_WEEKLY_CADENCE_DAYS,
     requests: (target) => [
       {
@@ -777,10 +784,11 @@ async function collectDueReports(
   const panel = options.serpPanelConfig ?? SERP_PANEL_CONFIG;
   const retryBackoffMs = options.retryBackoffMs ?? RETRY_BACKOFF_MS;
   const scope = options.scope ?? null;
+  const approved = options.scheduledAssets && new Set(options.scheduledAssets);
   // A property its Data sources row declines is neither asked for nor billed:
   // filtered before the plan, so it reserves nothing and writes no attempt row.
   const candidates = (await dataForSeoCandidates(env.STORE, scope?.asset ?? null))
-    .filter((candidate) => !laneDeclined(candidate.asset, 'dataforseo', options.laneRegister));
+    .filter((candidate) => (!approved || approved.has(candidate.asset)) && !laneDeclined(candidate.asset, 'dataforseo', options.laneRegister));
   const targets = candidates.map((candidate) =>
     dataForSeoTarget(
       candidate,
@@ -835,7 +843,7 @@ async function collectDueReports(
   // re-collection never retries a failure it cannot fix.
   const egressCoverage =
     scope === null
-      ? {}
+      ? approved ? { covers: (asset: string) => approved.has(asset) } : {}
       : {
           covers: (asset: string, family: string | null) =>
             asset === scope.asset &&
@@ -873,12 +881,10 @@ async function collectDueReports(
   }
   const authorization = basicAuthorization(login, password);
   const outcomes: DataForSeoDumpOutcome[] = [];
-  // Both places the portfolio spends this account, through the one sum the
-  // desk's meters read.
-  const { spentUsd } = await loadMeteredDataSpend(env.STORE, requestedAt, 'month');
-  let monthSpendUsd = spentUsd;
+  const requestClock = options.requestClock ?? (options.nowMs === undefined ? Date.now : () => nowMs);
   for (const { target, report } of plan) {
-    if (capReserveExceeded(monthSpendUsd, 1, monthlyCapUsd)) {
+    options.signal?.throwIfAborted();
+    if (!await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd, options.fenceUnsettled)) {
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -904,11 +910,11 @@ async function collectDueReports(
       authorization,
       egress,
       panel,
-      { backoffMs: retryBackoffMs, monthSpendUsd, monthlyCapUsd, used: 0 },
+      { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
+        signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, used: 0, confirmedUsd: 0 },
       monitoring,
     );
     outcomes.push(outcome);
-    monthSpendUsd += outcome.costUsd;
   }
   // One `os-egress-down` fact for the sweep — or the retraction of one an
   // earlier run left open.
@@ -1143,7 +1149,8 @@ async function collectReport(
   const pages: DumpPage[] = [];
   let providerRows = 0;
   let rankedKeywordsTruncated = false;
-  let costUsd = 0;
+  let carriedCostUsd = 0;
+  let carriedAccountedUsd = 0;
   let failedRequests = 0;
   let failedAttempts = 0;
   let resumedRequests = 0;
@@ -1177,7 +1184,10 @@ async function collectReport(
       if (checkpoint && checkpoint.taskError === null) {
         pages.push(checkpoint.page);
         providerRows += checkpoint.providerRows;
-        if (checkpointCostsUnaccounted) costUsd += checkpoint.costUsd;
+        if (checkpointCostsUnaccounted) {
+          carriedCostUsd += checkpoint.costUsd;
+          if (checkpoint.costAccounted) carriedAccountedUsd += checkpoint.costUsd;
+        }
         resumedRequests += 1;
         continue;
       }
@@ -1185,6 +1195,8 @@ async function collectReport(
       const call = await callProvider(
         spec,
         body,
+        target.asset,
+        await sha256Hex(JSON.stringify([target.asset, spec.name, reportDate, body])),
         authorization,
         egress,
         budget,
@@ -1204,9 +1216,6 @@ async function collectReport(
         },
         response: call.body,
       };
-      // Count the provider's bill before the checkpoint write: if durable
-      // persistence itself fails, the error manifest still records what we paid.
-      costUsd += parsed.costUsd;
       providerRows += parsed.providerRows;
       rankedKeywordsTruncated ||= parsed.rankedKeywordsTruncated === true;
       if (spec.independentRequests === true) {
@@ -1221,7 +1230,8 @@ async function collectReport(
           requestHash: key.slice(key.lastIndexOf('/') + 1, -5),
           page,
           providerRows: parsed.providerRows,
-          costUsd: parsed.costUsd,
+          costUsd: call.costUsd,
+          costAccounted: true,
           taskError: parsed.taskError
             ? { code: parsed.taskError.code, message: parsed.taskError.message }
             : null,
@@ -1253,7 +1263,6 @@ async function collectReport(
     if (lastTaskError && failedRequests === pages.length) {
       // A panel with no answered page is not review evidence. Its checkpoints
       // still retain every paid response, but no archive is promoted.
-      Object.assign(lastTaskError, { costUsd });
       throw lastTaskError;
     }
     const outcome = await archiveCollectedDump(env, {
@@ -1269,7 +1278,8 @@ async function collectReport(
         providerRows,
         providerTruncated: rankedKeywordsTruncated || spec.name === 'serp-panel',
       },
-      providerCostUsd: costUsd,
+      providerCostUsd: carriedCostUsd + budget.confirmedUsd,
+      dataForSeoCostAccountedUsd: carriedAccountedUsd + budget.confirmedUsd,
     });
     if (lastTaskError && failedRequests > 0) {
       // Partial panels are useful and reviewable, but never silently healthy.
@@ -1307,10 +1317,10 @@ async function collectReport(
         }),
       );
     }
-    return { ...outcome, costUsd, retries: budget.used };
+    return { ...outcome, costUsd: carriedCostUsd + budget.confirmedUsd, retries: budget.used };
   } catch (error) {
-    // Requests already billed before the failure still count against the cap.
-    const spent = Math.max(costUsd, providerCost(error));
+    const spent = carriedCostUsd + budget.confirmedUsd;
+    const dataForSeoCostAccountedUsd = carriedAccountedUsd + budget.confirmedUsd;
     // The uplink, not DataForSEO: `callProvider` already asked the gate, so this
     // is the cached verdict. The family is unmeasured and still due.
     if (await egressExplains(egress.gate, egress.transport, error)) {
@@ -1335,6 +1345,7 @@ async function collectReport(
           `Offline, not DataForSEO · ${pages.length} paid call${pages.length === 1 ? '' : 's'} kept · ${spent.toFixed(4)} USD counted`,
         ),
         providerCostUsd: spent,
+        dataForSeoCostAccountedUsd,
       });
       egress.gate.recordUnmeasured(target.asset, spec.name);
       return { ...outcome, egressDown: true, costUsd: spent, retries: budget.used };
@@ -1352,6 +1363,8 @@ async function collectReport(
       dataState: 'provider-snapshot',
       error: retriedFailure(normalized, budget.used),
       providerCostUsd: spent,
+      dataForSeoCostAccountedUsd,
+      knownZeroCost: spent === 0 && normalized.code === 'budget_exhausted' ? true : undefined,
     });
     return { ...outcome, costUsd: spent, retries: budget.used };
   }
@@ -1470,12 +1483,10 @@ async function readDataForSeoCheckpoint(
  * nothing was retried. */
 function retriedFailure(error: SignalError, retries: number): SignalError {
   if (retries < 1) return error;
-  const disclosed = new SignalError(
+  return new SignalError(
     error.code,
     `${error.message} Gave up after ${retries + 1} attempts.`,
   );
-  Object.assign(disclosed, { costUsd: providerCost(error) });
-  return disclosed;
 }
 
 /** One provider call, repeated while the failure is about the call rather than
@@ -1488,12 +1499,35 @@ async function callProvider(
   /** The planned request's body only; the envelope's other fields are not the
    * provider's business. */
   requestBody: Record<string, unknown>,
+  asset: string,
+  requestKey: string,
   authorization: string,
   egress: EgressLane,
   budget: RetryBudget,
-): Promise<{ status: number; body: unknown; attempts: number }> {
-  for (let attempts = 1; ; attempts += 1) {
-    let delayMs: number | null = null;
+): Promise<{ status: number; body: unknown; attempts: number; costUsd: number }> {
+  const reserveUsd = spec.name === 'serp-panel' ? SERP_PANEL_CALL_USD : MAX_REPORT_COST_USD;
+  let costUsd = 0;
+  let attempts = 0;
+  for (;;) {
+    budget.signal?.throwIfAborted();
+    const reservation = await reserveDataForSeo(budget.store, { asset, requestKey, reserveUsd, capUsd: budget.monthlyCapUsd,
+      requestClock: budget.requestClock, fenceUnsettled: budget.fenceUnsettled, requireSavedCap: budget.fenceUnsettled });
+    if (reservation.kind !== 'reserved') {
+      throw new SignalError(reservation.kind, reservation.kind === 'budget_exhausted'
+        ? `DataForSEO paused before the portfolio ${budget.monthlyCapUsd.toFixed(2)} USD monthly data cap.`
+        : 'DataForSEO may have already billed this request.');
+    }
+    if (budget.signal?.aborted) {
+      await settleDataForSeo(budget.store, reservation.attemptId, 0);
+      budget.signal.throwIfAborted();
+    }
+    // A reservation committed at midnight can cross the month before any I/O.
+    if (meteredSpendSince(new Date(reservation.reservedAtMs)) !== meteredSpendSince(new Date(budget.requestClock()))) {
+      await settleDataForSeo(budget.store, reservation.attemptId, 0);
+      continue;
+    }
+    attempts += 1;
+    let answer: { status: number; body: unknown; askedForMs: number | null };
     try {
       const response = await egress.transport.fetch(`${API_BASE}${spec.path}`, {
         method: 'POST',
@@ -1502,7 +1536,8 @@ async function callProvider(
           'content-type': 'application/json',
         },
         body: JSON.stringify([requestBody]),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        redirect: 'manual',
+        signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), ...(budget.signal ? [budget.signal] : [])]),
       });
       // Read before the body, because a 429 that is about to be dropped for
       // being too far away still has to say how far away it was.
@@ -1510,36 +1545,58 @@ async function callProvider(
         response.status === 429 ? response.headers.get('retry-after') : null,
         Date.now(),
       );
-      const body = await boundedResponseJson(response, 'DataForSEO', RESPONSE_BYTE_LIMIT);
-      if (!isTransientResponse(response.status, body)) {
-        return { status: response.status, body, attempts };
-      }
-      delayMs = nextRetryDelay(budget, askedForMs);
-      if (delayMs === null) return { status: response.status, body, attempts };
+      answer = { status: response.status, body: await boundedResponseJson(response, 'DataForSEO', RESPONSE_BYTE_LIMIT), askedForMs };
     } catch (error) {
       // Ask the gate before spending a retry: on a dead uplink a second call
       // hits the same wall, and the family must stay due.
-      delayMs =
-        isTransientTransport(error) && !(await egressExplains(egress.gate, egress.transport, error))
-          ? nextRetryDelay(budget)
+      const delayMs =
+        !budget.fenceUnsettled && !budget.signal?.aborted && isTransientTransport(error)
+          && !(await egressExplains(egress.gate, egress.transport, error))
+          ? await nextRetryDelay(budget)
           : null;
       if (delayMs === null) {
         Object.assign(error as object, { attempts });
         throw error;
       }
+      budget.used += 1;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
     }
+    const billed = billedDataForSeoCost(answer.body);
+    if (billed !== null) {
+      await settleDataForSeo(budget.store, reservation.attemptId, billed);
+      costUsd += billed;
+      budget.confirmedUsd += billed;
+    }
+    const delayMs = isTransientResponse(answer.status, answer.body) && (billed !== null || !budget.fenceUnsettled)
+      ? await nextRetryDelay(budget, answer.askedForMs) : null;
+    if (delayMs === null) return { status: answer.status, body: answer.body, attempts, costUsd };
     budget.used += 1;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
 
+function billedDataForSeoCost(value: unknown): number | null {
+  const body = asRecord(value);
+  if (!Number.isInteger(body?.status_code)) return null;
+  const raw = body?.cost ?? asRecord(arrayField(body, 'tasks')[0])?.cost;
+  if (typeof raw !== 'number' && !(typeof raw === 'string' && raw.trim())) return null;
+  const amount = finiteNumber(raw);
+  if (amount === null) return null;
+  const bill = Number(amount.toFixed(6));
+  return bill < 100_000_000 && (amount === 0 || bill > 0) ? bill : null;
+}
+
 /** The retry allowance for ONE report family, spent across all its requests. */
 interface RetryBudget {
+  readonly store: WorkspaceStore;
   /** The wait before each retry, in order; its length is the ceiling. */
   readonly backoffMs: number[];
-  /** Month-to-date metered spend as the family's budget gate saw it. */
-  readonly monthSpendUsd: number;
   readonly monthlyCapUsd: number;
+  readonly requestClock: () => number;
+  readonly signal?: AbortSignal;
+  readonly fenceUnsettled: boolean;
+  confirmedUsd: number;
   /** Retries already spent by this family. */
   used: number;
 }
@@ -1549,13 +1606,13 @@ interface RetryBudget {
  * crosses it. `askedForMs` (a 429's `Retry-After`) outranks the ladder up to
  * `RETRY_AFTER_CAP_MS`, past which there is no retry; the ladder stays the
  * floor so `Retry-After: 0` cannot become a hot loop. */
-function nextRetryDelay(
+async function nextRetryDelay(
   budget: RetryBudget,
   askedForMs: number | null = null,
-): number | null {
+): Promise<number | null> {
   if (budget.used >= budget.backoffMs.length) return null;
   const reserved = (budget.used + 2) * MAX_REPORT_COST_USD;
-  if (budget.monthSpendUsd + reserved > budget.monthlyCapUsd) return null;
+  if (!await canReserveDataForSeo(budget.store, budget.requestClock(), reserved, budget.monthlyCapUsd, budget.fenceUnsettled)) return null;
   const ladderMs = budget.backoffMs[budget.used]!;
   if (askedForMs === null) return ladderMs;
   if (askedForMs > RETRY_AFTER_CAP_MS) return null;
@@ -1605,7 +1662,6 @@ function isTransientTransport(error: unknown): boolean {
 
 interface ParsedProviderResponse {
   providerRows: number;
-  costUsd: number;
   rankedKeywordsTruncated?: boolean;
   /** Set instead of thrown when the caller retains independent requests. */
   taskError: SignalError | null;
@@ -1643,14 +1699,11 @@ function parseProviderResponse(
       ),
     );
   }
-  const rootCost = finiteNumber(root?.cost);
-  const costUsd = rootCost ?? 0;
   const task = asRecord(arrayField(root, 'tasks')[0]);
   const taskStatus = finiteNumber(task?.status_code);
   const failed = (error: SignalError): ParsedProviderResponse => {
-    Object.assign(error, { costUsd });
     if (!retainTaskFailure) throw error;
-    return { providerRows: 0, costUsd, taskError: error };
+    return { providerRows: 0, taskError: error };
   };
   if (taskStatus !== 20000) {
     return failed(
@@ -1670,7 +1723,6 @@ function parseProviderResponse(
     if (providerAnsweredEmpty(task, results)) {
       return {
         providerRows: 0,
-        costUsd: rootCost ?? finiteNumber(task?.cost) ?? 0,
         taskError: null,
       };
     }
@@ -1697,14 +1749,12 @@ function parseProviderResponse(
     }
     return {
       providerRows: nestedItems,
-      costUsd: rootCost ?? finiteNumber(task?.cost) ?? 0,
       taskError: null,
       rankedKeywordsTruncated: typeof total === 'number' ? total > nestedItems : nestedItems === RANKED_KEYWORD_LIMIT,
     };
   }
   return {
     providerRows: Math.max(1, declaredItems ?? nestedItems),
-    costUsd: rootCost ?? finiteNumber(task?.cost) ?? 0,
     taskError: null,
   };
 }
@@ -1765,12 +1815,6 @@ function basicAuthorization(login: string, password: string): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return `Basic ${btoa(binary)}`;
-}
-
-function providerCost(error: unknown): number {
-  if (!error || typeof error !== 'object') return 0;
-  const value = (error as { costUsd?: unknown }).costUsd;
-  return finiteNumber(value) ?? 0;
 }
 
 function finiteNumber(value: unknown): number | null {

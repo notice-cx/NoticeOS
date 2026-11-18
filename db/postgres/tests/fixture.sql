@@ -80,6 +80,10 @@ INSERT INTO noticeos.research_log (workspace_id, asset_id, provider, endpoint, p
 VALUES (:'ws', :'site', 'dataforseo', 'serp/google/organic/live', repeat('b', 64), 'one synthetic question',
   0.002, 'reported', NULL, 'collector', '2026-09-05T12:00:00Z');
 
+INSERT INTO noticeos.dataforseo_request_charges
+  (workspace_id, asset_id, attempt_id, request_key, reserved_at, reserve_usd, provider_cost_usd)
+VALUES (:'ws', :'site', gen_random_uuid(), repeat('d', 64), '2026-09-05T12:01:00Z', 0.25, 0.002);
+
 INSERT INTO noticeos.asset_insight_snapshots (workspace_id, snapshot_id, asset_id, generated_at, window_start,
   window_end, source_archive_count, content_sha256, payload)
 VALUES (:'ws', 'snapshot-0', :'site', '2026-09-04T13:00:00Z', '2026-08-07', '2026-09-03', 3, repeat('8', 64),

@@ -20,7 +20,7 @@ import type {
   SiteIconsReadInput,
   SiteIconsReadResult,
 } from '@noticeos/contract';
-import { OS_TIME_ZONE, capReserveExceeded, loadMeteredDataSpend, savedOsTimeZone } from '@noticeos/contract';
+import { MAX_REPORT_COST_USD, OS_TIME_ZONE, savedOsTimeZone } from '@noticeos/contract';
 import { type CountersConfig, runCountersScrape } from './counters.js';
 import {
   type CollectorConfigs,
@@ -37,6 +37,7 @@ import {
   runDataForSeoDumps,
   runDataForSeoRecovery,
 } from './dataforseo-dumps.js';
+import { canReserveDataForSeo } from './dataforseo-budget.js';
 import { resolveCredential } from './credentials.js';
 import { ruleConfigFromConstants, runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { checkSearchTraffic } from './search-traffic-alerts.js';
@@ -437,8 +438,8 @@ export async function runCollectNow(
     // budget gate would let every family it names through, so a press over the
     // cap buys nothing and leaves no failed report behind.
     if (families && eligible.length > 0) {
-      const { spentUsd } = await loadMeteredDataSpend(env.STORE, startedAt, 'month');
-      if (capReserveExceeded(spentUsd, eligible.length * families.length, cfg.dataForSeoMonthlyCapUsd)) {
+      if (!await canReserveDataForSeo(env.STORE, Date.parse(startedAt),
+        eligible.length * families.length * MAX_REPORT_COST_USD, cfg.dataForSeoMonthlyCapUsd)) {
         return { ok: false, provider, error: 'over-cap', job };
       }
     }

@@ -8,7 +8,8 @@ it('keeps unknown costs visible in the same window and excludes collector resear
       async query<R extends Record<string, unknown>>(sql: string, params?: readonly (string | number)[]) {
         calls.push({ sql, params });
         const rows: Record<string, unknown>[] = sql.includes('archive_runs')
-          ? [{ asset: 'example.com', spent: '1.250000', unknown: 2 }, { asset: 'unpriced.example', spent: '0', unknown: 1 }]
+          ? [{ asset: 'example.com', spent: '1.050000', unknown: 2 }, { asset: 'unpriced.example', spent: '0', unknown: 1 }]
+          : sql.includes('dataforseo_request_charges') ? [{ asset: 'example.com', spent: '0.200000', unknown: 0 }]
           : [{ asset: 'example.com', spent: '0.500000', unknown: 1 }, { asset: null, spent: '0.250000', unknown: 3 }];
         return rows as R[];
       },
@@ -23,7 +24,8 @@ it('keeps unknown costs visible in the same window and excludes collector resear
     unattributedUsd: 0.25, unattributedUnknownPrices: 3,
   });
   expect(calls.map((call) => call.params)).toEqual([
-    ['dataforseo', '2026-09-01T00:00:00.000Z'],
-    ['dataforseo', '2026-09-01T00:00:00.000Z', 'collector'],
+    ['dataforseo', '2026-09-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z'],
+    ['2026-09-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z'],
+    ['dataforseo', '2026-09-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z', 'collector'],
   ]);
 });

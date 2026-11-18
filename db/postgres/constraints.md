@@ -102,10 +102,11 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `error_message` | text | no |  |
 | `cost_usd` | numeric(14,6) | no | `((cost_usd IS NULL) OR ((cost_usd <> 'NaN') AND (cost_usd >= (0))))` |
 | `cost_state` | text | yes | `(cost_state IN ('reported', 'estimated', 'unknown'))` |
+| `dataforseo_cost_accounted_usd` | numeric(14,6) | yes |  |
 
 - **Keys:** primary (workspace_id, run_seq); unique (workspace_id, run_id)
 - **Links:** (integration) → `noticeos_ref.integrations`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`; (workspace_id, object_seq) → `archive_objects`
-- **Row checks:** `((cost_state = 'unknown') = (cost_usd IS NULL))`; `(((status IN ('success', 'unchanged')) AND (object_seq IS NOT NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'error') AND (object_seq IS NULL) AND (error_code IS NOT NULL) AND (error_message IS NOT NULL)))`
+- **Row checks:** `((cost_state = 'unknown') = (cost_usd IS NULL))`; `(((status IN ('success', 'unchanged')) AND (object_seq IS NOT NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'error') AND (object_seq IS NULL) AND (error_code IS NOT NULL) AND (error_message IS NOT NULL)))`; `((dataforseo_cost_accounted_usd <> 'NaN') AND (dataforseo_cost_accounted_usd >= (0)) AND (dataforseo_cost_accounted_usd <= COALESCE(cost_usd, (0))) AND ((integration = 'dataforseo') OR (dataforseo_cost_accounted_usd = (0))))`
 - **Triggers:** `history_leaves_only_when_exported` (before delete)
 
 ## `asset_icons`
@@ -311,6 +312,22 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, asset_id, metric)
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+
+## `dataforseo_request_charges`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `asset_id` | text | yes |  |
+| `attempt_id` | uuid | yes |  |
+| `request_key` | text | yes | `(request_key ~ '^[0-9a-f]{64}$')` |
+| `reserved_at` | timestamp with time zone | yes |  |
+| `reserve_usd` | numeric(14,6) | yes | `((reserve_usd > (0)) AND (reserve_usd <> 'NaN'))` |
+| `provider_cost_usd` | numeric(14,6) | no | `((provider_cost_usd >= (0)) AND (provider_cost_usd <> 'NaN'))` |
+
+- **Keys:** primary (workspace_id, attempt_id)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+- **Triggers:** `settle_dataforseo_request_charge` (before update of provider_cost_usd)
 
 ## `egress_checks`
 
