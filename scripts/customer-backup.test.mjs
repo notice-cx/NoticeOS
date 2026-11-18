@@ -40,7 +40,7 @@ test('customer nightly and manual backup need independently scoped Ntasks custod
       VALUES ('${serviceId}','${workspaceId}',ARRAY['workflows.run'],now()+interval '1 day');`);
     const key = randomBytes(32).toString('base64');
     const connectionId = randomUUID();
-    const connect = (backupToken, version) => db.cluster.run(sealedProviderSql(workspaceId, key, 'ntasks', { NTASKS_URL: tasks.origin,
+    const connect = (backupToken, version) => db.cluster.run(sealedProviderSql(workspaceId, key, 'ntasks', { NTASKS_URL: tasks.origin + '/',
       NTASKS_WORKSPACE_ID: tasks.workspaceId, NTASKS_TOKEN: tasks.token, NTASKS_BACKUP_TOKEN: backupToken }, connectionId, version));
     connect(tasks.backupToken, 1);
     const handed = [], file = path.join(root, 'received-backup.json');

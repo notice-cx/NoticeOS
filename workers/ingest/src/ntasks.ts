@@ -4,7 +4,7 @@
 
 import type { ConnectionFailure, ProbeResult } from '@noticeos/contract';
 import { isLocalAddress } from './local-model.js';
-import { NTASKS_BACKUP_SCOPE_QUERY, NTASKS_BACKUP_TOKEN, ntasksBackupAccess, ntasksBackupCredential } from '../../../scripts/ntasks-backup-access.mjs';
+import { NTASKS_BACKUP_SCOPE_QUERY, NTASKS_BACKUP_TOKEN, ntasksBackupAccess, ntasksBackupCredential, ntasksEndpoint } from '../../../scripts/ntasks-backup-access.mjs';
 
 export const NTASKS_URL = 'NTASKS_URL';
 export const NTASKS_TOKEN = 'NTASKS_TOKEN';
@@ -88,10 +88,8 @@ export class TaskServiceError extends Error {
 
 /** HTTPS, or HTTP to a local address; no password, path, query or fragment. */
 export function ntasksOrigin(value: string): string {
-  let url: URL;
-  try { url = new URL(value.trim()); } catch { throw new TaskServiceError({ kind: 'configuration' }); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
-    || url.pathname.replace(/\/+$/u, '') !== '' || (url.protocol === 'http:' && !isLocalAddress(url.hostname))) {
+  const url = ntasksEndpoint(value);
+  if (!url || (url.protocol === 'http:' && !isLocalAddress(url.hostname))) {
     throw new TaskServiceError({ kind: 'configuration' });
   }
   return url.origin;

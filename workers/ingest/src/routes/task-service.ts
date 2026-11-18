@@ -51,7 +51,8 @@ export async function handleTaskService(request: Request, env: IngestEnv, fetchI
     const saved = !fields && (resolved.connectionId !== null || await hasSavedCredentialConnection(env, 'ntasks'));
     if (saved) return json({ error: 'unavailable' }, 503);
     let origin: string | null = null;
-    try { origin = fields ? ntasksOrigin(fields[NTASKS_URL] ?? '') : null; } catch { origin = null; }
+    try { origin = fields ? ntasksOrigin(fields[NTASKS_URL] ?? '') : null; }
+    catch { return json({ error: 'unavailable' }, 503); }
     return json({ connected: origin !== null, origin, appClientId: origin !== null && fields ? ntasksAppClientId(fields) : null });
   }
   let call: TaskServiceCall | null = null;

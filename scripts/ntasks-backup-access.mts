@@ -7,6 +7,16 @@ const serviceToken = /^ntasks_service\.[A-Za-z0-9._~-]{1,1024}$/u;
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value)
   ? value as Record<string, unknown> : null;
 
+/** The saved setting may contain trailing slashes. Only its HTTP(S) origin is used. */
+export function ntasksEndpoint(value: unknown): URL | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value.trim());
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash
+      && url.pathname.replace(/\/+$/u, '') === '' ? url : null;
+  } catch { return null; }
+}
+
 export function ntasksBackupCredential(fields: Record<string, string>) {
   const token = fields[NTASKS_BACKUP_TOKEN];
   const workspaceId = fields.NTASKS_WORKSPACE_ID;

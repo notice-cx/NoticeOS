@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { cloudflareAccountId, storedD1Selection, CLOUDFLARE_D1_TARGETS } from '../packages/contract/src/cloudflare-d1.mjs';
 import { containerBackupStatus, requestContainerBackup } from './container-backup-channel.mjs';
-import { ntasksBackupAccess, ntasksBackupCredential, NTASKS_BACKUP_SCOPE_QUERY } from './ntasks-backup-access.mjs';
+import { ntasksBackupAccess, ntasksBackupCredential, ntasksEndpoint, NTASKS_BACKUP_SCOPE_QUERY } from './ntasks-backup-access.mjs';
 import { takeNtasksExport } from './ntasks-backup.mjs';
 import { unsealCredential } from './sealed-credential.mjs';
 
@@ -72,7 +72,7 @@ export function createCustomerBackup({ address, workspaceId, credentialsKey, nta
     if (!row && !ntasksOrigin) return { row: null, service: null };
     const held = await fields(row);
     const credential = ntasksBackupCredential(held);
-    if (!credential || !ntasksOrigin || held.NTASKS_URL !== ntasksOrigin) throw new Error('Missing independent backup scope.');
+    if (!credential || !ntasksOrigin || ntasksEndpoint(held.NTASKS_URL)?.origin !== ntasksOrigin) throw new Error('Missing independent backup scope.');
     const call = async (pathname, body) => {
       const stop = AbortSignal.any([signal, AbortSignal.timeout(REQUEST_MS)]);
       stop.throwIfAborted();
