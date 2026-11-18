@@ -449,7 +449,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Tabs / TabPanel",
     file: "components/Tabs.tsx",
     purpose:
-      "The desk's tab bar: an ARIA tablist whose tabs are NavLinks, so the active tab is the URL, with manual activation, a roving tabindex, an optional `count` and `glyph` per tab, `onIntent` for fetching a tab's code before it opens, and a strip that scrolls inside itself on a phone. TabPanel is the single panel the router swaps.",
+      "Page navigation for sections with their own URLs. The active tab has an accent underline over a full-width baseline. Each tab uses a 16px label, a target at least 44px tall, an inset keyboard focus outline and optional glyph and count. Long rows scroll within the strip. TabPanel holds the active section.",
     variants: [
       "plain tabs",
       "active tab",
@@ -457,10 +457,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "glyph + count (severity dot)",
       "segmented ratio glyph",
       "keyboard roving focus",
-      "strip scrolled to the selected tab",
+      "scrolling to the selected or keyboard-focused tab",
     ],
     demo:
-      "The scrolling strip is the viewport, not a prop; pinned in test/components.test.tsx.",
+      "The gallery shows plain tabs, counts, status glyphs and links with query parameters.",
   },
   {
     name: "Stepper",

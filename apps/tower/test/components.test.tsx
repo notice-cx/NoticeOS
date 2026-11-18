@@ -3669,34 +3669,42 @@ describe("phone mode — the tab strip scrolls, the page does not", () => {
     end: index === 0,
   }));
 
-  const strip = (at = "/assets/a") =>
-    render(
-      <MemoryRouter initialEntries={[at]}>
-        <Tabs label="Asset sections" tabs={SEVEN} idBase="t" panelId="p" />
-      </MemoryRouter>,
-    ).container;
+  const strip = (at: string, tabs = SEVEN) => (
+    <MemoryRouter initialEntries={[at]}>
+      <Tabs label="Asset sections" tabs={tabs} idBase="t" panelId="p" />
+    </MemoryRouter>
+  );
 
-  it("keeps the seven tabs on one line that scrolls inside its own box", () => {
-    const list = strip().querySelector('[role="tablist"]')!;
-    expect(list.className).toContain("overflow-x-auto");
-    expect(list.className).not.toContain("flex-wrap");
-    expect(list.className).toContain("overscroll-x-contain");
-  });
+  it("reveals the selected or keyboard-focused tab inside the strip", () => {
+    const path = "/assets/a/settings";
+    const view = render(strip(path));
+    const list = screen.getByRole("tablist", { name: "Asset sections" });
+    const tabs = within(list).getAllByRole("tab");
+    Object.defineProperty(list, "clientWidth", { value: 250 });
+    tabs.forEach((tab, index) => Object.defineProperties(tab, {
+      offsetLeft: { value: index * 100 }, offsetWidth: { value: 100 },
+    }));
 
-  it("gives every tab the phone's touch floor and keeps it from shrinking", () => {
-    const tabs = [...strip().querySelectorAll('[role="tab"]')];
-    expect(tabs).toHaveLength(7);
-    for (const tab of tabs) {
-      expect(tab.className).toContain("max-sm:min-h-11");
-      expect(tab.className).toContain("shrink-0");
-    }
+    view.rerender(strip(path, SEVEN.map(tab => ({ ...tab, count: 2 }))));
+    const selected = screen.getByRole("tab", { selected: true });
+    expect(list.scrollLeft).toBe(450);
+    selected.focus();
+    fireEvent.keyDown(selected, { key: "Home" });
+    expect(tabs[0]).toHaveFocus();
+    expect(list.scrollLeft).toBe(0);
+    expect(selected).toHaveAttribute("aria-selected", "true");
+    view.rerender(strip(path, SEVEN.map(tab => ({ ...tab, count: 10 }))));
+    expect(tabs[0]).toHaveFocus();
+    expect(list.scrollLeft).toBe(0);
+    fireEvent.keyDown(tabs[0]!, { key: "End" });
+    expect(selected).toHaveFocus();
+    expect(list.scrollLeft).toBe(450);
   });
 
   it("still lights exactly the tab the URL names", () => {
-    const selected = [...strip("/assets/a/sources").querySelectorAll('[role="tab"]')].filter(
-      (tab) => tab.getAttribute("aria-selected") === "true",
-    );
-    expect(selected.map((tab) => tab.textContent)).toEqual(["sources"]);
+    render(strip("/assets/a/sources"));
+    const selected = screen.getByRole("tab", { selected: true });
+    expect(selected).toHaveAccessibleName("sources");
   });
 });
 
