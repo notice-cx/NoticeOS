@@ -37,6 +37,7 @@ import { runCommand } from './run-command.mjs';
 import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { parseDeclaredHashes, serviceDrift } from './stack-drift.mjs';
+import { holdingStackLock, writeStackFile } from './stack-operation-files.mjs';
 import { manualScheduledJob } from './scheduled-jobs.mjs';
 import { archiveTransitionArgs } from './customer-archive-transition.mjs';
 
@@ -172,7 +173,7 @@ const SETUP_ENV = Object.freeze({ NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_
 const NORMAL_ENV = Object.freeze({ NOTICEOS_CUSTOMER_GOOGLE_SETUP: '0' });
 const APP_REPLACE = ['up', '--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos'];
 
-function googleSetupRecovery(selectorFile, atomicWrite) {
+function googleSetupRecovery(selectorFile) {
   const file = path.join(path.dirname(selectorFile), 'stack-deploy', 'google-setup-recovery.json');
   return {
     read() {
@@ -185,7 +186,7 @@ function googleSetupRecovery(selectorFile, atomicWrite) {
         refuse('The private Google setup recovery record cannot be read.');
       }
     },
-    save(record) { atomicWrite(file, JSON.stringify(record)); },
+    save(record) { writeStackFile(file, JSON.stringify(record)); },
     clear() { fs.rmSync(file, { force: true }); },
   };
 }
@@ -478,14 +479,11 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
     if (action === 'mcp' && interactive) { out.write(mcpConnectHelp(own, at === -1 ? null : file, towerAddress(selector.envFile, options.io))); return 0; }
     const control = (signal, recovery) => stackControl(action, selector, { ...options, out, args: own, signal, recovery });
     if (action === 'customer-google-setup') {
-      const [{ holdingStackLock }, { stackAtomic }] = await Promise.all([
-        import('./stack-apply.mjs'), import('./stack-deploy.mjs'),
-      ]);
       const interrupted = new AbortController();
       const cancel = () => interrupted.abort();
       const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
       for (const signal of signals) process.on(signal, cancel);
-      try { await holdingStackLock(file, action, () => control(interrupted.signal, googleSetupRecovery(file, stackAtomic))); }
+      try { await holdingStackLock(file, action, () => control(interrupted.signal, googleSetupRecovery(file))); }
       finally { for (const signal of signals) process.off(signal, cancel); }
     } else await control();
     return 0;

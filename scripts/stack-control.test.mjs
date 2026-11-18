@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { actionArgs, main, mcpConnectHelp, readSelector, validateSelector, parseServices, stackControl } from './stack-control.mjs';
+import { testFixtureRoot } from './test-fixture-root.mjs';
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
@@ -266,6 +270,37 @@ test('Google setup replaces only the selected app, keeps its custom port, and cl
   await assert.rejects(command('open'), /Customer profile check failed/u);
   assert.equal(updates.length, beforeBadInput);
   assert.throws(() => actionArgs('customer-google-setup', ['--port', '15400']), /Usage/u);
+});
+
+test('the executable Google setup command acquires and releases the installation lock', t => {
+  const root = testFixtureRoot('noticeos-google-setup-cli-');
+  t.after(() => rmSync(root, { force: true, recursive: true }));
+  const bin = path.join(root, 'bin');
+  mkdirSync(bin);
+  const config = path.join(root, 'stack.json');
+  const compose = path.join(root, 'compose.yaml');
+  const envFile = path.join(root, 'installation.env');
+  const lock = path.join(root, 'stack-deploy', 'lock');
+  const observed = path.join(root, 'docker-arguments.json');
+  const dockerHost = 'unix://' + path.join(root, 'nonexistent.sock');
+  writeFileSync(compose, 'services: {}\n');
+  writeFileSync(envFile, '');
+  writeFileSync(config, JSON.stringify({ ...selector, files: [compose], envFile, dockerHost }));
+  writeFileSync(path.join(bin, 'docker'), `#!${process.execPath}
+const { existsSync, writeFileSync } = require('node:fs');
+if (!existsSync(${JSON.stringify(lock)})) process.exit(33);
+writeFileSync(${JSON.stringify(observed)}, JSON.stringify(process.argv.slice(2)));
+process.stdout.write('[]');
+`, { mode: 0o700 });
+  const cli = fileURLToPath(new URL('./stack-control.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'customer-google-setup', 'open', '--config', config], {
+    encoding: 'utf8', timeout: 5000, env: { PATH: bin, HOME: root },
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /Stack is missing a required existing service/u);
+  assert.deepEqual(JSON.parse(readFileSync(observed, 'utf8')), ['--host', dockerHost, 'compose', '--project-name', selector.project,
+    '-f', compose, '--env-file', envFile, 'ps', '--all', '--format', 'json']);
+  assert.equal(existsSync(lock), false);
 });
 
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
