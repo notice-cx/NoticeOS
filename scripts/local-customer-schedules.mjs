@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { customerJobSubject, customerSchedules } from './customer-collection.mjs';
+import { customerJobStep, customerJobSubject, customerSchedules } from './customer-collection.mjs';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { scheduleTimezone } from './scheduled-jobs.mjs';
@@ -160,7 +160,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
       const scoped = resources(binding);
       const reporting = job === 'panel-refresh';
       const definitions = [{ key: job, version: 'customer-v1', parseInput: value => value, diagnostics: false,
-        steps: [{ key: reporting ? 'report' : 'collect', kind: 'effect', action: 'workflows.run',
+        steps: [{ key: reporting ? 'report' : customerJobStep(job), kind: 'effect', action: 'workflows.run',
           ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
           if (reporting) return await reports.run({ store: scoped.store, workspaceId: context.workspaceId, asset, scheduledAt, signal })
             ?? { state: 'skipped', summary: 'No eligible reports were archived.' };

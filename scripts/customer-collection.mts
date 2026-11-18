@@ -5,6 +5,7 @@ import { selectedCustomerPull, type CustomerCollectionPolicy } from './customer-
 const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero'] as const;
 export type CustomerJob = typeof CUSTOMER_JOBS[number];
 export const isCustomerJob = (value: unknown): value is CustomerJob => CUSTOMER_JOBS.some(job => job === value);
+export const customerJobStep = (job: CustomerJob) => job === 'asset-zero' ? 'report' : 'collect';
 const ARCHIVE_REPORTS = {
   ga4: ['pages-screens', 'landing-pages', 'traffic-acquisition', 'events', 'events-28d', 'page-events'],
   gsc: ['query', 'page', 'page-query'],

@@ -3,6 +3,7 @@ import { scheduleFor, schedulesRefusal, SCHEDULED_JOBS } from './scheduled-jobs.
 import { selectedCustomerPull } from './customer-collection-policy.mjs';
 const CUSTOMER_JOBS = ['freshness', 'counters', 'signal-dumps', 'mediavine', 'stripe', 'pull', 'asset-zero'];
 export const isCustomerJob = (value) => CUSTOMER_JOBS.some(job => job === value);
+export const customerJobStep = (job) => job === 'asset-zero' ? 'report' : 'collect';
 const ARCHIVE_REPORTS = {
     ga4: ['pages-screens', 'landing-pages', 'traffic-acquisition', 'events', 'events-28d', 'page-events'],
     gsc: ['query', 'page', 'page-query'],

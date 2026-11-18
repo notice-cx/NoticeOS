@@ -42,7 +42,7 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     FROM noticeos.pulses ORDER BY workspace_id, pulse_id`);
   const alerts = () => db.cluster.sql(`SELECT workspace_id,coalesce(asset_id,'portfolio') AS subject,day::text,
     observed_at::text,open,errors,warnings FROM noticeos.alert_daily_counts ORDER BY workspace_id,subject`);
-  const receipts = () => db.cluster.sql(`SELECT workspace_id,occurrence,state,attempt
+  const receipts = () => db.cluster.sql(`SELECT workspace_id,occurrence,state,attempt,steps->'report'->>'state' AS report_state
     FROM noticeos.hosted_job_occurrences WHERE lane='asset-zero' ORDER BY workspace_id`);
   // The released job name maps the workflow attempt to the same Journal as standalone.
   const journal = () => db.cluster.sql(`SELECT workspace_id,started_at::text,outcome
@@ -80,7 +80,7 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     assert.deepEqual(eastAlerts.map(({ workspace_id, subject, day, open, errors, warnings }) =>
       [workspace_id, subject, day, open, errors, warnings]), ['fixture-system', 'portfolio'].map(subject =>
       [east, subject, eastReports[0].pulse_date, '1', '1', '0']));
-    assert.deepEqual(eastReceipts, [{ workspace_id: east, occurrence, state: 'succeeded', attempt: '1' }]);
+    assert.deepEqual(eastReceipts, [{ workspace_id: east, occurrence, state: 'succeeded', attempt: '1', report_state: 'succeeded' }]);
     assert.deepEqual(eastJournal.map(row => [row.workspace_id, row.outcome]), [[east, 'ran']]);
     assert.deepEqual(dispatches, [{ workspaceId: east, job: 'asset-zero', asset: null, occurrence }]);
     setSchedule(west, true);
@@ -97,7 +97,7 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     assert.deepEqual(inWorkspace(alerts(), west).map(({ subject, day, open, errors, warnings }) =>
       [subject, day, open, errors, warnings]), ['fixture-system', 'portfolio'].map(subject =>
       [subject, westReports[0].pulse_date, '1', '0', '1']));
-    assert.deepEqual(inWorkspace(receipts(), west), [{ workspace_id: west, occurrence, state: 'succeeded', attempt: '1' }]);
+    assert.deepEqual(inWorkspace(receipts(), west), [{ workspace_id: west, occurrence, state: 'succeeded', attempt: '1', report_state: 'succeeded' }]);
     assert.deepEqual(inWorkspace(journal(), west).map(row => row.outcome), ['ran']);
     assert.equal(outbound, 0);
   } finally {
