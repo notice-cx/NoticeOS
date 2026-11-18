@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
-import { composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
+import { composeArchiveBucket, composeArchiveState, composeBridgePeer, composeCustomerPlan, runningContainerProfile, selectedCustomerProfile } from '../deploy/compose/customer-entry.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
 import { readComposeCustomerOperating } from './local-customer-operating.mjs';
@@ -139,6 +139,9 @@ test('the same container explicitly selects one customer clock, exact loopback i
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-compose-archive-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.equal(composeArchiveBucket(root), 'noticeos-raw-signals');
+  fs.writeFileSync(path.join(root, 'resource-names.json'), JSON.stringify({ rawSignalsBucket: '../escape' }));
+  assert.throws(() => composeArchiveBucket(root), ContainerRefusal);
   const archive = composeArchiveState(root, fs, dir => fs.mkdirSync(dir, { recursive: true, mode: 0o700 }));
   fs.writeFileSync(path.join(archive, 'existing'), 'keep');
   assert.equal(composeArchiveState(root, fs, () => {}), path.join(root, '.wrangler/state/v3'));

@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 import path from 'node:path';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 import { isPrivateTowerOrigin } from '../../scripts/browser-request-policy.mjs';
+import { NEW_INSTALL_NAMES, readResourceNames } from '../../scripts/resource-names.mjs';
 import { ContainerRefusal } from './development.mjs';
 
 const marker = '/state/installation/customer-runtime.enabled';
@@ -121,19 +122,29 @@ export async function verifyComposeCustomerWorkspace(origin, operating, localTow
   finally { await identity?.close(); }
 }
 
+export function composeArchiveBucket(installationDir) {
+  try {
+    const names = readResourceNames({ env: { NOTICEOS_INSTALLATION_DIR: installationDir } });
+    return names.rawSignalsBucket ?? NEW_INSTALL_NAMES.rawSignalsBucket;
+  } catch {
+    throw new ContainerRefusal('The installation’s resource-names.json must identify its existing archive bucket.');
+  }
+}
+
 async function prepareCustomer() {
   const { containerBackupStatus } = await import('../../scripts/container-backup-channel.mjs');
   const { readComposeCustomerOperating } = await import('../../scripts/local-customer-operating.mjs');
   const io = { lstatSync, readFileSync };
   const config = JSON.parse(privateText(io, '/state/installation/customer-runtime.json', 32768));
   const plan = composeCustomerPlan(process.env, config.towerOrigin);
+  const archiveBucket = composeArchiveBucket('/state/installation');
   const backup = await containerBackupStatus('/state/backup-client.json');
   if (backup.configured) throw new ContainerRefusal('Customer mode needs the existing backup request and export path before it can run with this backup declaration.');
   const bridgePeer = composeBridgePeer(readFileSync('/proc/net/route', 'utf8'));
   const bootstrap = JSON.parse(privateText(io, '/state/workers/ingest/.dev.secrets.json', 16384));
   const operating = readComposeCustomerOperating('/state/installation/customer-runtime.json', plan, bootstrap);
   await verifyComposeCustomerWorkspace(plan.url, operating, plan.localTowerOrigin);
-  return { plan, operating, bridgePeer };
+  return { plan, operating, bridgePeer, archiveBucket };
 }
 
 async function runCustomer(stop) {
@@ -144,13 +155,13 @@ async function runCustomer(stop) {
   if (selectedCustomerProfile() !== 'customer') throw new ContainerRefusal('The customer profile was not selected.');
   const selection = lstatSync(marker);
   const activation = `${selection.ino}/${selection.mtimeMs}`;
-  const { plan, operating, bridgePeer } = await prepareCustomer();
+  const { plan, operating, bridgePeer, archiveBucket } = await prepareCustomer();
   const state = '/state/.local/compose-customer';
   privateDirectory(state, !existsSync(state));
   const workerState = composeArchiveState('/state', { lstatSync }, folder => { if (!existsSync(folder)) mkdirSync(folder, { mode: 0o700 }); });
   const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation });
   const app = await startPreparedCustomer(plan, db, { deployment: {
-    artifactRoot, archiveBucket: 'noticeos-raw-signals', workerState, listenPort: 5173, bridgePeer,
+    artifactRoot, archiveBucket, workerState, listenPort: 5173, bridgePeer,
   } });
   try {
     const status = await Promise.race([stop.then(() => 0), app.whenLost.then(() => 1)]);
