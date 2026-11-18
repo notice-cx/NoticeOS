@@ -402,7 +402,9 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         ...(startSchedules ? [scheduleTrigger('customer-schedule-trigger', scheduleName, scheduleProof)] : []),
         ...(paid ? [{
           ...worker('customer-paid-ingest', artifact.ingest, localDataForSeoOutbound({ signal: operating.signal,
-            transport: operating.dataForSeoTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings,
+            transport: operating.dataForSeoTransport })), ...archive, ...scheduleTransport, bindings: {
+            NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_DATABASE_URL: connectionString,
+            ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}),
             NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces), NOTICEOS_CUSTOMER_PAID_SCHEDULE: true,
             NOTICEOS_CUSTOMER_COLLECTION: JSON.stringify({ paidDataForSeo }) },
         }, scheduleTrigger('customer-paid-trigger', 'customer-paid-ingest', paidScheduleProof)] : []),

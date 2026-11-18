@@ -19,6 +19,12 @@ import { availableCustomerPort } from './test/customer-ports.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
 test('an attached customer buys only approved due DataForSEO reports using a separate Worker', { timeout: 150_000 }, async t => {
+  const fetch = globalThis.fetch;
+  t.mock.method(globalThis, 'fetch', (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    assert.notEqual(url.origin, DATAFORSEO_ORIGIN, 'A synthetic fixture must not use Node’s provider transport.');
+    return fetch(input, init);
+  });
   const root = testFixtureRoot('n-customer-paid-');
   const plan = startPlan({ dir: path.join(root, 'source'), port: await availableCustomerPort() });
   const attached = startPlan({ dir: path.join(root, 'runtime'), port: plan.port });

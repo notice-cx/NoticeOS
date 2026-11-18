@@ -1573,7 +1573,7 @@ async function callProvider(
       const delayMs =
         !budget.fenceUnsettled && !budget.signal?.aborted && isTransientTransport(error)
           && !(await egressExplains(egress.gate, egress.transport, error))
-          ? await nextRetryDelay(budget)
+          ? await nextRetryDelay(budget, reserveUsd)
           : null;
       if (delayMs === null) {
         Object.assign(error as object, { attempts });
@@ -1593,7 +1593,7 @@ async function callProvider(
       if (budget.fenceUnsettled) throw new SignalError('dataforseo_uncertain', 'DataForSEO did not confirm this request’s cost.');
     }
     const delayMs = isTransientResponse(answer.status, answer.body) && (billed !== null || !budget.fenceUnsettled)
-      ? await nextRetryDelay(budget, answer.askedForMs) : null;
+      ? await nextRetryDelay(budget, reserveUsd, answer.askedForMs) : null;
     if (delayMs === null) return { status: answer.status, body: answer.body, attempts, costUsd };
     budget.used += 1;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -1628,18 +1628,18 @@ interface RetryBudget {
   used: number;
 }
 
-/** The wait before the next retry, or null when there must not be one. A retry
- * reserves its own report's worth of the cap, so it may never be the call that
- * crosses it. `askedForMs` (a 429's `Retry-After`) outranks the ladder up to
+/** The wait before the next retry, or null when there must not be one. Each
+ * retry checks just that call's reserve. Earlier attempts are in live spend.
+ * `askedForMs` (a 429's `Retry-After`) outranks the ladder up to
  * `RETRY_AFTER_CAP_MS`, past which there is no retry; the ladder stays the
  * floor so `Retry-After: 0` cannot become a hot loop. */
 async function nextRetryDelay(
   budget: RetryBudget,
+  reserveUsd: number,
   askedForMs: number | null = null,
 ): Promise<number | null> {
   if (budget.used >= budget.backoffMs.length) return null;
-  const reserved = (budget.used + 2) * MAX_REPORT_COST_USD;
-  if (!await canReserveDataForSeo(budget.store, budget.requestClock(), reserved, budget.monthlyCapUsd, budget.fenceUnsettled)) return null;
+  if (!await canReserveDataForSeo(budget.store, budget.requestClock(), reserveUsd, budget.monthlyCapUsd, budget.fenceUnsettled)) return null;
   const ladderMs = budget.backoffMs[budget.used]!;
   if (askedForMs === null) return ladderMs;
   if (askedForMs > RETRY_AFTER_CAP_MS) return null;

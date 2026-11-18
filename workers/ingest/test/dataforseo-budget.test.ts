@@ -98,6 +98,19 @@ it('counts billed retries once in the month of each purchase even when the repor
   ]);
 });
 
+it('admits a retry when the next request fits beside the cost already billed', async () => {
+  let paid = 0;
+  const fetchImpl: typeof fetch = async () => {
+    if (++paid === 1) return Response.json({ status_code: 50000, cost: 0.02 }, { status: 503 });
+    return Response.json({ status_code: 20000, cost: 0.05,
+      tasks: [{ status_code: 20000, result: [{ items_count: 1, items: [{ fixture: true }] }] }] });
+  };
+  expect(await runDataForSeoDumps(env, { ...options, fetchImpl, monthlyCapUsd: 0.50 }))
+    .toMatchObject({ succeeded: 1, costUsd: 0.07, outcomes: [{ retries: 1 }] });
+  expect(paid).toBe(2);
+  expect((await loadMeteredDataSpend(env.STORE, new Date(AUGUST))).spentUsd).toBeCloseTo(0.07);
+});
+
 it('uses no paid retry after an ambiguous customer response and refuses exact replay', async () => {
   const seeded = await seedConfigDocuments(env, { documents: { 'config/constants.json': { monthly_caps: { data_usd: 1 } } }, actor: 'config:seed' }, AUGUST);
   expect(seeded.ok).toBe(true);

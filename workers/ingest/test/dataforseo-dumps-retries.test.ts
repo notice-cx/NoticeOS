@@ -130,11 +130,11 @@ describe('DataForSEO weekly archives', () => {
     });
 
     it('will not let a retry be the call that crosses the monthly cap', async () => {
-      // The gate reserves one report's worth of cap per call. At a $0.25 cap the
-      // FIRST attempt fits and a second never could, so the failure stands after
-      // one call — the guardrail outranks the repair.
+      // The first call fits the $0.25 cap. Its known bill leaves too little
+      // room to reserve $0.25 again, so the failed request is not repeated.
       const { fetchImpl, calls } = providerFetch({
         failPath: '/dataforseo_labs/google/ranked_keywords/live',
+        failWith: { status: 503, body: { status_code: 50000, status_message: 'Provider unavailable.', cost: 0.01 } },
       });
       const result = await runDataForSeoDumps(env, {
         nowMs: NOW,
