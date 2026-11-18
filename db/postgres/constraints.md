@@ -40,12 +40,13 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `project_id` | uuid | yes |  |
 | `assigned_by` | uuid | yes |  |
 | `started_at` | timestamp with time zone | yes |  |
+| `delivery_started_at` | timestamp with time zone | no |  |
 | `task_id` | text | no | `((task_id ~ '^[a-z0-9]+-[a-z0-9]+(\.[a-z0-9]+)*$') AND (char_length(task_id) <= 128))` |
 | `linked_at` | timestamp with time zone | no |  |
 
 - **Keys:** primary (workspace_id, workflow_id, run_id); unique (workspace_id, project_id, task_id)
 - **Links:** (workspace_id, workflow_id, run_id) → `analysis_workflow_runs`
-- **Row checks:** `((task_id IS NULL) = (linked_at IS NULL))`
+- **Row checks:** `((task_id IS NULL) = (linked_at IS NULL))`; `((delivery_started_at IS NULL) OR (delivery_started_at >= started_at))`; `((linked_at IS NULL) OR ((delivery_started_at IS NOT NULL) AND (linked_at >= delivery_started_at)))`
 - **Triggers:** `link_analysis_workflow_assignment` (before update)
 
 ## `analysis_workflow_runs`

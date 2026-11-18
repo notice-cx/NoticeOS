@@ -3,6 +3,7 @@ import type { WorkspaceStore } from './store.mjs';
 export interface AnalysisAssignment {
     readonly projectId: string;
     readonly startedAt: string;
+    readonly deliveryStartedAt: string | null;
     readonly taskId: string | null;
 }
 export interface AnalysisAssignmentInput {
@@ -22,10 +23,9 @@ export declare function validAnalysisTaskId(value: unknown): value is string;
 export declare function readAnalysisAssignment(store: WorkspaceStore, workflowId: string, runId: string): Promise<AnalysisAssignment | null>;
 /** Only the saved runbook references needed for the task cross into Ntasks. */
 export declare function readAnalysisAssignmentInput(store: WorkspaceStore, workflowId: string, runId: string): Promise<AnalysisAssignmentInput>;
-/** Only the request that commits a fresh reservation may create the task. */
-export declare function reserveAnalysisAssignment(store: WorkspaceStore, workflowId: string, runId: string, projectId: string, assignedBy: string): Promise<{
-    assignment: AnalysisAssignment;
-    created: boolean;
-}>;
+/** Fixes the project before any request to create a task. */
+export declare function reserveAnalysisAssignment(store: WorkspaceStore, workflowId: string, runId: string, projectId: string, assignedBy: string): Promise<AnalysisAssignment>;
+/** Only the caller that sets this fence can send a task creation request. */
+export declare function startAnalysisAssignmentDelivery(store: WorkspaceStore, workflowId: string, runId: string, projectId: string): Promise<AnalysisAssignment | null>;
 /** The receiver has already verified the task in the reserved project. */
 export declare function linkAnalysisAssignment(store: WorkspaceStore, workflowId: string, runId: string, projectId: string, taskId: string): Promise<AnalysisAssignment>;

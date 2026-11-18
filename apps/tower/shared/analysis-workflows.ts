@@ -71,6 +71,7 @@ export interface AnalysisRun extends AnalysisRunSummary {
 export interface AnalysisAssignment {
   projectId: string;
   startedAt: string;
+  deliveryStartedAt: string | null;
   taskId: string | null;
 }
 

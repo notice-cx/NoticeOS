@@ -1,5 +1,5 @@
 import { AnalysisAssignmentRefused, linkAnalysisAssignment, readAnalysisAssignment, readAnalysisAssignmentInput,
-  reserveAnalysisAssignment, validAnalysisTaskId, type AnalysisAssignment } from '@noticeos/postgres/analysis-assignment';
+  reserveAnalysisAssignment, startAnalysisAssignmentDelivery, validAnalysisTaskId, type AnalysisAssignment } from '@noticeos/postgres/analysis-assignment';
 import { analysisAssignmentRequest, analysisId } from '../../../../scripts/analysis-workflow-request.mjs';
 import { readBoundedJsonText } from '../../../../scripts/bounded-json-body.mjs';
 import type { WorkspaceContext } from '../../../../scripts/workspace-admission.mjs';
@@ -71,7 +71,7 @@ export async function handleAnalysisAssignment(request: Request, env: IngestEnv,
       if (!assignment) return json({ error: 'assignment_not_found' }, 404);
       const project = projects.find(entry => entry.projectId === assignment.projectId);
       if (!connection || !project) return json({ error: 'assignment_project_unavailable' }, 403);
-      if (assignment.taskId) return assignmentReply(assignment);
+      if (assignment.taskId || !assignment.deliveryStartedAt) return assignmentReply(assignment);
       const taskId = await findExistingTask(connection, project, route, url, body.taskId, fetchImpl);
       return assignmentReply(taskId
         ? await linkAnalysisAssignment(store, workflowId, runId, project.projectId, taskId)
@@ -82,8 +82,8 @@ export async function handleAnalysisAssignment(request: Request, env: IngestEnv,
     const project = projects.find(entry => entry.projectId === projectId);
     if (!connection || !project || !await connection.stillCurrent()) return json({ error: 'assignment_project_unavailable' }, 403);
     const input = await readAnalysisAssignmentInput(store, workflowId, runId);
-    const { assignment, created } = await reserveAnalysisAssignment(store, workflowId, runId, projectId, context.principalId);
-    if (!created || !await connection.stillCurrent()) return assignmentReply(assignment);
+    const assignment = await reserveAnalysisAssignment(store, workflowId, runId, projectId, context.principalId);
+    if (assignment.deliveryStartedAt || !await connection.stillCurrent()) return assignmentReply(assignment);
     const description = [
       'Open the saved analysis run in NoticeOS.',
       url,
@@ -92,6 +92,9 @@ export async function handleAnalysisAssignment(request: Request, env: IngestEnv,
       input.output,
       'Submit the sourced result in NoticeOS. This task tracks the handoff.',
     ].join('\n\n');
+    const delivery = await startAnalysisAssignmentDelivery(store, workflowId, runId, projectId);
+    if (!delivery) return assignmentReply((await readAnalysisAssignment(store, workflowId, runId)) ?? assignment);
+    if (!await connection.stillCurrent()) return assignmentReply(delivery);
     try {
       const filed = await callNtasks(connection.credential.fields, {
         method: 'POST', path: '/api/tasks', workspaceId: connection.workspaceId, idempotencyKey: `analysis-review:${runId}`,
@@ -106,7 +109,7 @@ export async function handleAnalysisAssignment(request: Request, env: IngestEnv,
     } catch {
       // A lost response may already have created the task. Keep the reservation.
     }
-    return assignmentReply(assignment);
+    return assignmentReply(delivery);
   } catch (error) {
     if (error instanceof AnalysisAssignmentRefused) return json({ error: 'analysis_assignment_unavailable' }, error.status);
     return json({ error: 'analysis_assignment_unavailable' }, 503);

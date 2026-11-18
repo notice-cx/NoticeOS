@@ -99,14 +99,16 @@ function AnalysisRunDetails({ id, runId, writable, retry, starting }: { id: stri
   const queryKey = [...ANALYSIS_QUERY, id, runId];
   const query = useQuery({ queryKey, queryFn: ({ signal }) => api.fetchAnalysisRun(id, runId, signal), retry: false });
   const complete = useOwnerMutation({ mutationFn: (result: AnalysisResult) => api.completeAnalysisRun(id, runId, result),
+    onMutate: () => cache.cancelQueries({ queryKey, exact: true }),
     onSuccess: (response) => {
       cache.setQueryData<{ run: AnalysisRun }>(queryKey, current => ({ run: {
         ...response.run, assignment: response.run.assignment === undefined ? current?.run.assignment : response.run.assignment,
       } }));
       void cache.invalidateQueries({ queryKey: [...ANALYSIS_QUERY, id], exact: true });
     },
+    onSettled: () => { void cache.invalidateQueries({ queryKey, exact: true }); },
   });
-  if (query.isError) return <ReadFailed title="Couldn’t open run" subject="read:analysis-run" error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
+  if (query.isError && !query.data) return <ReadFailed title="Couldn’t open run" subject="read:analysis-run" error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />;
   if (!query.data) return <p role="status" data-status-for="read:analysis-run" className="text-sm text-muted-foreground">Loading run…</p>;
   const { run } = query.data;
 

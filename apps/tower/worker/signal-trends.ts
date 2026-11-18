@@ -141,6 +141,7 @@ function everyTrend(
  * The change's number breaks a tie between two filed at the same instant.
  */
 export function timeZoneChangesSql(narrowedTo: number, dated = false): string {
+  const cutoff = `$${narrowedTo ? 3 : 2}::timestamptz`;
   return `SELECT a.asset_id AS asset, (n.at AT TIME ZONE 'UTC')::date AS "effectiveOn", n.ref AS ref
            FROM noticeos.assets a
            CROSS JOIN LATERAL (
@@ -148,7 +149,7 @@ export function timeZoneChangesSql(narrowedTo: number, dated = false): string {
                FROM noticeos.annotations c
               WHERE c.workspace_id = a.workspace_id AND c.asset_id = a.asset_id
                 AND c.at >= (($1::date + 1)::timestamp AT TIME ZONE 'UTC')
-                ${dated ? `AND c.at <= $${narrowedTo ? 3 : 2}::timestamptz` : ""}
+                ${dated ? `AND c.at <= ${cutoff} AND c.created_at <= ${cutoff}` : ""}
                 AND c.kind = 'config' AND c.ref LIKE 'reporting-time-zone-changed:%'
              OFFSET 0) n
           ${narrowedTo > 0 ? "WHERE a.asset_id = ANY($2::text[])" : ""}

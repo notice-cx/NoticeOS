@@ -5,6 +5,7 @@ const TASK_ID = /^[a-z0-9]+-[a-z0-9]+(?:\.[a-z0-9]+)*$/u;
 export interface AnalysisAssignment {
   readonly projectId: string;
   readonly startedAt: string;
+  readonly deliveryStartedAt: string | null;
   readonly taskId: string | null;
 }
 export interface AnalysisAssignmentInput {
@@ -18,6 +19,7 @@ export interface AnalysisAssignmentInput {
 interface AssignmentRow extends Record<string, unknown> {
   project_id: string;
   started_at: string;
+  delivery_started_at: string | null;
   task_id: string | null;
 }
 export class AnalysisAssignmentRefused extends Error {
@@ -28,7 +30,8 @@ function ids(...values: string[]): void {
   if (values.some(value => typeof value !== 'string' || !UUID.test(value))) throw new AnalysisAssignmentRefused(400);
 }
 function assignment(row: AssignmentRow): AnalysisAssignment {
-  return { projectId: row.project_id, startedAt: new Date(row.started_at).toISOString(), taskId: row.task_id };
+  return { projectId: row.project_id, startedAt: new Date(row.started_at).toISOString(),
+    deliveryStartedAt: row.delivery_started_at ? new Date(row.delivery_started_at).toISOString() : null, taskId: row.task_id };
 }
 export function validAnalysisTaskId(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 128 && TASK_ID.test(value);
@@ -37,7 +40,7 @@ export async function readAnalysisAssignment(store: WorkspaceStore, workflowId: 
   ids(workflowId, runId);
   return store.read(async tx => {
     const [row] = await tx.query<AssignmentRow>(`
-      SELECT project_id,started_at::text,task_id FROM noticeos.analysis_workflow_assignments
+      SELECT project_id,started_at::text,delivery_started_at::text,task_id FROM noticeos.analysis_workflow_assignments
       WHERE workflow_id=$1::uuid AND run_id=$2::uuid`, [workflowId, runId]);
     return row ? assignment(row) : null;
   });
@@ -64,9 +67,9 @@ export async function readAnalysisAssignmentInput(store: WorkspaceStore, workflo
   });
 }
 
-/** Only the request that commits a fresh reservation may create the task. */
+/** Fixes the project before any request to create a task. */
 export async function reserveAnalysisAssignment(store: WorkspaceStore, workflowId: string, runId: string,
-  projectId: string, assignedBy: string): Promise<{ assignment: AnalysisAssignment; created: boolean }> {
+  projectId: string, assignedBy: string): Promise<AnalysisAssignment> {
   ids(workflowId, runId, projectId, assignedBy);
   return store.write(async tx => {
     const [run] = await tx.query<{ finished: boolean; retry: boolean }>(`
@@ -74,20 +77,37 @@ export async function reserveAnalysisAssignment(store: WorkspaceStore, workflowI
       WHERE workflow_id=$1::uuid AND run_id=$2::uuid FOR NO KEY UPDATE`, [workflowId, runId]);
     if (!run) throw new AnalysisAssignmentRefused(404);
     const [existing] = await tx.query<AssignmentRow>(`
-      SELECT project_id,started_at::text,task_id FROM noticeos.analysis_workflow_assignments
+      SELECT project_id,started_at::text,delivery_started_at::text,task_id FROM noticeos.analysis_workflow_assignments
       WHERE workflow_id=$1::uuid AND run_id=$2::uuid`, [workflowId, runId]);
     if (existing) {
       if (existing.project_id !== projectId) throw new AnalysisAssignmentRefused(409);
-      return { assignment: assignment(existing), created: false };
+      return assignment(existing);
     }
     if (run.finished || run.retry) throw new AnalysisAssignmentRefused(409);
     const [row] = await tx.query<AssignmentRow>(`
       INSERT INTO noticeos.analysis_workflow_assignments
         (workspace_id,workflow_id,run_id,project_id,assigned_by)
       VALUES (noticeos.current_workspace_id(),$1::uuid,$2::uuid,$3::uuid,$4::uuid)
-      RETURNING project_id,started_at::text,task_id`, [workflowId, runId, projectId, assignedBy]);
+      RETURNING project_id,started_at::text,delivery_started_at::text,task_id`, [workflowId, runId, projectId, assignedBy]);
     if (!row) throw new AnalysisAssignmentRefused(409);
-    return { assignment: assignment(row), created: true };
+    return assignment(row);
+  });
+}
+
+/** Only the caller that sets this fence can send a task creation request. */
+export async function startAnalysisAssignmentDelivery(store: WorkspaceStore, workflowId: string, runId: string,
+  projectId: string): Promise<AnalysisAssignment | null> {
+  ids(workflowId, runId, projectId);
+  return store.write(async tx => {
+    const [run] = await tx.query<{ finished: boolean }>(`
+      SELECT completed_at IS NOT NULL AS finished FROM noticeos.analysis_workflow_runs
+      WHERE workflow_id=$1::uuid AND run_id=$2::uuid FOR NO KEY UPDATE`, [workflowId, runId]);
+    if (!run || run.finished) throw new AnalysisAssignmentRefused(409);
+    const [row] = await tx.query<AssignmentRow>(`
+      UPDATE noticeos.analysis_workflow_assignments SET delivery_started_at=clock_timestamp()
+      WHERE workflow_id=$1::uuid AND run_id=$2::uuid AND project_id=$3::uuid AND delivery_started_at IS NULL
+      RETURNING project_id,started_at::text,delivery_started_at::text,task_id`, [workflowId, runId, projectId]);
+    return row ? assignment(row) : null;
   });
 }
 
@@ -100,11 +120,11 @@ export async function linkAnalysisAssignment(store: WorkspaceStore, workflowId: 
     const args = [workflowId, runId, projectId, taskId];
     const [updated] = await tx.query<AssignmentRow>(`
       UPDATE noticeos.analysis_workflow_assignments SET task_id=$4,linked_at=clock_timestamp()
-      WHERE workflow_id=$1::uuid AND run_id=$2::uuid AND project_id=$3::uuid AND task_id IS NULL
-      RETURNING project_id,started_at::text,task_id`, args);
+      WHERE workflow_id=$1::uuid AND run_id=$2::uuid AND project_id=$3::uuid AND task_id IS NULL AND delivery_started_at IS NOT NULL
+      RETURNING project_id,started_at::text,delivery_started_at::text,task_id`, args);
     if (updated) return assignment(updated);
     const [existing] = await tx.query<AssignmentRow>(`
-      SELECT project_id,started_at::text,task_id FROM noticeos.analysis_workflow_assignments
+      SELECT project_id,started_at::text,delivery_started_at::text,task_id FROM noticeos.analysis_workflow_assignments
       WHERE workflow_id=$1::uuid AND run_id=$2::uuid AND project_id=$3::uuid AND task_id=$4`, args);
     if (!existing) throw new AnalysisAssignmentRefused(409);
     return assignment(existing);

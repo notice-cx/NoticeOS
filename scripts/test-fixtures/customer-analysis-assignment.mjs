@@ -79,10 +79,29 @@ export async function assertAnalysisAssignment({ origin, http, owner, otherOwner
   assert.equal(retried.status, 201);
   const retryRun = (await retried.json()).run;
   assert.equal((await http(`${runs}/${retryRun.id}/assignment`, { headers: owner.headers, body: { projectId: owner.projectId } })).status, 409);
-  const lost = (await (await start('synthetic-analysis-unconfirmed')).json()).run;
+  const unsent = (await (await start('synthetic-analysis-never-sent')).json()).run;
   cluster.run(`INSERT INTO noticeos.analysis_workflow_assignments
     (workspace_id,workflow_id,run_id,project_id,assigned_by)
     SELECT workspace_id,workflow_id,run_id,:'project'::uuid,created_by FROM noticeos.analysis_workflow_runs
+    WHERE workspace_id=:'workspace'::uuid AND run_id=:'run'::uuid`, {
+    vars: { workspace: owner.headers[WORKSPACE_SELECTION_HEADER], run: unsent.id, project: owner.projectId },
+  });
+  const unsentPath = `${runs}/${unsent.id}/assignment`;
+  const checkUnsent = await http(unsentPath + '/reconcile', { headers: owner.headers, body: {} });
+  assert.equal(checkUnsent.status, 202);
+  assert.equal((await checkUnsent.json()).assignment.deliveryStartedAt, null);
+  assert.deepEqual((await ntasks.tool('list_tasks', { query: unsent.id })).tasks, []);
+  const resend = () => http(unsentPath, { headers: owner.headers, body: { projectId: owner.projectId } });
+  const retryDelivery = await Promise.all([resend(), resend()]);
+  assert.equal(retryDelivery.filter(reply => reply.status === 201).length, 1);
+  const recoveredTask = (await retryDelivery.find(reply => reply.status === 201).json()).assignment;
+  assert.ok(recoveredTask.deliveryStartedAt);
+  assert.deepEqual((await ntasks.tool('list_tasks', { query: unsent.id })).tasks.map(task => task.id), [recoveredTask.taskId]);
+
+  const lost = (await (await start('synthetic-analysis-unconfirmed')).json()).run;
+  cluster.run(`INSERT INTO noticeos.analysis_workflow_assignments
+    (workspace_id,workflow_id,run_id,project_id,assigned_by,delivery_started_at)
+    SELECT workspace_id,workflow_id,run_id,:'project'::uuid,created_by,now() FROM noticeos.analysis_workflow_runs
     WHERE workspace_id=:'workspace'::uuid AND run_id=:'run'::uuid`, {
     vars: { workspace: owner.headers[WORKSPACE_SELECTION_HEADER], run: lost.id, project: owner.projectId },
   });

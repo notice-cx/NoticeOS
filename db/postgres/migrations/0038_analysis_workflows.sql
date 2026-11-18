@@ -78,12 +78,15 @@ CREATE TABLE noticeos.analysis_workflow_assignments (
   project_id uuid NOT NULL,
   assigned_by uuid NOT NULL,
   started_at timestamptz NOT NULL DEFAULT now(),
+  delivery_started_at timestamptz,
   task_id text CHECK (task_id ~ '^[a-z0-9]+-[a-z0-9]+(\.[a-z0-9]+)*$' AND char_length(task_id) <= 128),
   linked_at timestamptz,
   PRIMARY KEY (workspace_id, workflow_id, run_id),
   UNIQUE (workspace_id, project_id, task_id),
   FOREIGN KEY (workspace_id, workflow_id, run_id) REFERENCES noticeos.analysis_workflow_runs,
-  CHECK ((task_id IS NULL) = (linked_at IS NULL))
+  CHECK ((task_id IS NULL) = (linked_at IS NULL)),
+  CHECK (delivery_started_at IS NULL OR delivery_started_at >= started_at),
+  CHECK (linked_at IS NULL OR (delivery_started_at IS NOT NULL AND linked_at >= delivery_started_at))
 );
 
 ALTER TABLE noticeos.analysis_workflow_assignments ENABLE ROW LEVEL SECURITY;
@@ -92,15 +95,17 @@ CREATE POLICY workspace_isolation ON noticeos.analysis_workflow_assignments
   USING (workspace_id = noticeos.current_workspace_id()) WITH CHECK (workspace_id = noticeos.current_workspace_id());
 REVOKE ALL ON noticeos.analysis_workflow_assignments FROM PUBLIC;
 GRANT SELECT, INSERT ON noticeos.analysis_workflow_assignments TO noticeos_app;
-GRANT UPDATE (task_id, linked_at) ON noticeos.analysis_workflow_assignments TO noticeos_app;
+GRANT UPDATE (delivery_started_at, task_id, linked_at) ON noticeos.analysis_workflow_assignments TO noticeos_app;
 
 CREATE FUNCTION noticeos.link_analysis_workflow_assignment() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF OLD.task_id IS NOT NULL OR NEW.task_id IS NULL THEN
-    RAISE EXCEPTION 'An analysis assignment can be linked once' USING ERRCODE = 'check_violation';
+  IF (OLD.delivery_started_at IS NULL AND NEW.delivery_started_at IS NOT NULL AND NEW.task_id IS NULL)
+    OR (OLD.delivery_started_at IS NOT NULL AND NEW.delivery_started_at = OLD.delivery_started_at
+        AND OLD.task_id IS NULL AND NEW.task_id IS NOT NULL) THEN
+    RETURN NEW;
   END IF;
-  RETURN NEW;
+  RAISE EXCEPTION 'Analysis assignment delivery and linking each happen once' USING ERRCODE = 'check_violation';
 END $$;
 
 CREATE TRIGGER link_analysis_workflow_assignment BEFORE UPDATE ON noticeos.analysis_workflow_assignments

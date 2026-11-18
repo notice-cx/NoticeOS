@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ANALYSIS_RUNBOOKS } from '@shared/analysis-runbooks';
@@ -8,6 +8,7 @@ import { createAppRelease } from '@/lib/app-release';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
 import { createBrowserRuntime } from '@/lib/browser-runtime';
 import WorkflowsRoute from '@/routes/WorkflowsRoute';
+import { ANALYSIS_QUERY } from '@/routes/workflows/analysis-workflow-links';
 import { wallMoneyResponse } from './critical-response-fixtures';
 
 const WORKFLOW = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +28,7 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
     trigger: { kind: 'manual' }, createdAt: DATE, updatedAt: DATE,
   } : null;
   let run: AnalysisRun | null = null;
+  let nextRunRead: { started: (signal: AbortSignal | null | undefined) => void; release: Promise<void> } | undefined;
   const traffic: { path: string; method: string; key: string | null | undefined; body: unknown }[] = [];
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const path = new URL(String(input)).pathname;
@@ -58,12 +60,24 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
       }
       return Response.json({ run }, { status: 201 });
     }
-    if (path === `${PATH}/${WORKFLOW}/runs/${RUN}` && run) return Response.json({ run });
+    if (path === `${PATH}/${WORKFLOW}/runs/${RUN}` && run) {
+      const response = Response.json({ run });
+      const held = nextRunRead;
+      if (held) {
+        nextRunRead = undefined;
+        held.started(init?.signal);
+        await held.release;
+      }
+      return response;
+    }
+    if (path === '/api/tasks/projects' && method === 'GET') return Response.json({
+      projects: [{ projectId: PROJECT, logicalKey: 'search-review', displayName: 'Search review', prefix: 'test' }],
+    });
     if (path === `${PATH}/assignments` && method === 'GET') return Response.json({ projects: [
       { projectId: PROJECT, displayName: 'Search review' }, { projectId: WORKFLOW, displayName: 'Other project' },
     ] });
     if (path === `${PATH}/${WORKFLOW}/runs/${RUN}/assignment` && method === 'POST' && run) {
-      const assignment = { projectId: String(body.projectId), startedAt: DATE, taskId: null };
+      const assignment = { projectId: String(body.projectId), startedAt: DATE, deliveryStartedAt: DATE, taskId: null };
       run = { ...run, assignment };
       return Response.json({ assignment }, { status: 202 });
     }
@@ -79,7 +93,12 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
     }
     return Response.json({ error: 'not_found' }, { status: 404 });
   });
-  return { fetch, traffic };
+  return { fetch, traffic, holdNextRunRead() {
+    const started = Promise.withResolvers<AbortSignal | null | undefined>();
+    const release = Promise.withResolvers<void>();
+    nextRunRead = { started: started.resolve, release: release.promise };
+    return { started: started.promise, release: release.resolve };
+  } };
 }
 
 function Address() {
@@ -93,12 +112,13 @@ function mount(traffic: ReturnType<typeof fixture>, path = '/workflows', role: '
     origin: location.origin, fetch: traffic.fetch, appRelease: createAppRelease(traffic.fetch, null), sendAnswer: async () => {},
   });
   runtimes.push(runtime);
-  return render(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Fixture workspace', workspaceRole: role, backupPreview }}>
+  const view = render(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Fixture workspace', workspaceRole: role, backupPreview }}>
     <QueryClientProvider client={runtime.queries}><MemoryRouter initialEntries={[path]}>
       <Routes><Route path="/workflows/:id?" element={<WorkflowsRoute />} /><Route path="/health/operations/:id?" element={<WorkflowsRoute surface="system" />} /></Routes>
       <Address />
     </MemoryRouter></QueryClientProvider>
   </BrowserRuntimeProvider>);
+  return { ...view, queries: runtime.queries };
 }
 
 afterEach(() => { cleanup(); for (const runtime of runtimes.splice(0)) runtime.retire(); });
@@ -138,7 +158,7 @@ describe('customer analysis workflows', () => {
     fireEvent.change(within(assignment).getByLabelText('Task project'), { target: { value: PROJECT } });
     fireEvent.click(assign);
     fireEvent.click(await within(assignment).findByRole('button', { name: 'Check assignment' }));
-    expect(await within(assignment).findByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example');
+    expect(await within(assignment).findByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example?project=search-review');
     expect(requests.traffic.filter(event => event.path.endsWith('/assignment')).map(event => event.body)).toEqual([{ projectId: PROJECT }]);
     expect(requests.traffic.some(event => event.path.endsWith('/complete'))).toBe(false);
     const result = screen.getByRole('form', { name: 'Record result' });
@@ -150,7 +170,7 @@ describe('customer analysis workflows', () => {
     fireEvent.click(within(result).getByRole('checkbox', { name: /Search clicks/u }));
     fireEvent.click(within(result).getByRole('button', { name: 'Save result' }));
     expect(await screen.findByRole('region', { name: 'Recorded result' })).toHaveTextContent('Compare the empty first week');
-    expect(within(assignment).getByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example');
+    expect(within(assignment).getByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example?project=search-review');
     expect(requests.traffic.find(event => event.path.endsWith('/complete'))?.body).toMatchObject({ outcome: 'findings', findings: [{ citationIds: ['gsc-1'] }] });
     expect(screen.queryByRole('form', { name: 'Record result' })).toBeNull();
   });
@@ -166,13 +186,30 @@ describe('customer analysis workflows', () => {
 
   it('records insufficient evidence without treating it as a failed run', async () => {
     const requests = fixture(true);
-    mount(requests, `/workflows?workflow=${WORKFLOW}`);
+    const { queries } = mount(requests, `/workflows?workflow=${WORKFLOW}`);
     fireEvent.click(await screen.findByRole('button', { name: 'Start run' }));
     const result = await screen.findByRole('form', { name: 'Record result' });
     fireEvent.change(within(result).getByLabelText('Outcome *'), { target: { value: 'insufficient-evidence' } });
     fireEvent.change(within(result).getByLabelText('Summary *'), { target: { value: 'Only one complete week was saved.' } });
-    fireEvent.click(within(result).getByRole('button', { name: 'Save result' }));
-    await screen.findByRole('region', { name: 'Recorded result' });
+    const pending = requests.holdNextRunRead();
+    const runKey = [...ANALYSIS_QUERY, WORKFLOW, RUN];
+    const requestPath = `${PATH}/${WORKFLOW}/runs/${RUN}`;
+    const refetch = queries.invalidateQueries({ queryKey: runKey, exact: true });
+    const signal = await pending.started;
+    try {
+      fireEvent.click(within(result).getByRole('button', { name: 'Save result' }));
+      await screen.findByRole('region', { name: 'Recorded result' });
+      expect(signal?.aborted).toBe(true);
+      await waitFor(() => {
+        const writes = requests.traffic.findIndex(event => event.path === `${requestPath}/complete`);
+        expect(requests.traffic.slice(writes + 1)).toContainEqual(expect.objectContaining({ path: requestPath, method: 'GET' }));
+      });
+    } finally {
+      pending.release();
+      await act(() => refetch);
+    }
+    expect(screen.getByRole('region', { name: 'Recorded result' })).toBeVisible();
+    expect(screen.queryByRole('form', { name: 'Record result' })).toBeNull();
     expect(requests.traffic.find(event => event.path.endsWith('/complete'))?.body).toEqual({
       outcome: 'insufficient-evidence', summary: 'Only one complete week was saved.', findings: [],
     });

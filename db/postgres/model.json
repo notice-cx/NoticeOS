@@ -19,10 +19,10 @@
     "analysis_workflow_assignments": {
       "revision": {
         "insert": true,
-        "update": ["task_id", "linked_at"],
+        "update": ["delivery_started_at", "task_id", "linked_at"],
         "delete": false
       },
-      "rule": "Each run reserves one project assignment. A verified task can be linked once."
+      "rule": "Each run reserves one project assignment, begins delivery once and links a verified task once."
     },
     "workspaces": {
       "revision": {

@@ -97,11 +97,6 @@ export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
   }
   async function library(request: Request, url: URL): Promise<Response> {
     if (request.method !== AGENT_OAUTH_ROUTES[url.pathname]) return json({ error: 'method_not_allowed' }, 405);
-    // Registration stores allowed scopes. An authorization that omits scope
-    // retains the original defaults, so review requires an explicit request.
-    if (url.pathname === '/api/auth/oauth2/authorize' && !url.searchParams.has('scope')) {
-      url.searchParams.set('scope', [...AGENT_DEFAULT_SCOPES, OFFLINE_ACCESS].join(' '));
-    }
     let body: string | undefined;
     if (request.method === 'POST') {
       const type = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
@@ -110,7 +105,20 @@ export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
       if (body.length > BODY_BYTES) return json({ error: 'invalid_request' }, 400);
       if (url.pathname === '/api/auth/oauth2/register' && type === 'application/json') body = nativeByDefault(body);
     }
-    const engine = identityEngine(await database(), options, { transaction: true, agents: true, validateSchema: false, peer });
+    const db = await database();
+    // An omitted request uses the client's compatible defaults. Review scope
+    // always needs an explicit request, even for a client registered for it.
+    if (url.pathname === '/api/auth/oauth2/authorize' && !url.searchParams.has('scope')) {
+      const clientId = url.searchParams.get('client_id');
+      const [client] = clientId && clientId.length <= 512 ? (await sql<{ scopes: unknown }>`
+        SELECT scopes FROM noticeos_identity.auth_oauth_client WHERE client_id=${clientId}`.execute(db)).rows : [];
+      const scopes = client?.scopes;
+      const defaults = [...AGENT_DEFAULT_SCOPES, OFFLINE_ACCESS].filter(scope =>
+        scopes === null || (Array.isArray(scopes) && scopes.includes(scope)));
+      if (client && defaults.length === 0) return json({ error: 'invalid_scope' }, 400);
+      if (client) url.searchParams.set('scope', defaults.join(' '));
+    }
+    const engine = identityEngine(db, options, { transaction: true, agents: true, validateSchema: false, peer });
     return engine.handler(forwarded(request, url.pathname + url.search, body));
   }
   /** What the page shows: the client's own name and address, and the access

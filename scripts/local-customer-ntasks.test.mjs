@@ -50,6 +50,9 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       authSecret: randomBytes(48).toString('base64url') });
     const { PUBLIC_WORKSPACE_ID: _publicWorkspace, ...privateBindings } = worker.bindings;
     ntasks = new Miniflare({ ...worker, bindings: privateBindings, host: '127.0.0.1', port: 0, cf: false,
+      // All synthetic customers and shadow commands share one loopback address.
+      ratelimits: { ...worker.ratelimits, SIGN_IN_LIMIT: { ...worker.ratelimits.SIGN_IN_LIMIT,
+        simple: { ...worker.ratelimits.SIGN_IN_LIMIT.simple, limit: 120 } } },
       resourcePersistencePath: path.join(root, 'ntasks') });
     const ntasksOrigin = (await ntasks.ready).origin;
     const database = await ntasks.getD1Database('DB');

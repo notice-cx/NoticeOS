@@ -1,13 +1,25 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { AnalysisRun } from '@shared/analysis-workflows';
+import type { AnalysisAssignment, AnalysisRun } from '@shared/analysis-workflows';
 import { TASK_PROJECTS_PATH } from '@shared/tasks';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { useOwnerMutation, useTowerApi } from '@/lib/browser-context';
 import { taskPath } from '@/lib/task-path';
 import { ANALYSIS_QUERY } from './analysis-workflow-links';
+
+function AssignedAnalysisTask({ assignment }: { assignment: AnalysisAssignment & { taskId: string } }) {
+  const api = useTowerApi();
+  const projects = useQuery({ queryKey: ['task-projects'], queryFn: ({ signal }) => api.fetchTaskProjects(signal),
+    staleTime: 15_000, retry: false });
+  const project = projects.data?.find(item => item.projectId === assignment.projectId);
+  if (!project) return <p className="text-sm text-muted-foreground">
+    {projects.isPending ? 'Loading assigned task…' : 'The assigned task project is unavailable.'}
+  </p>;
+  return <Link className="inline-flex min-h-8 items-center text-sm underline underline-offset-4"
+    to={taskPath(assignment.taskId, project.logicalKey)}>View assigned task</Link>;
+}
 
 export function AnalysisRunAssignment({ run, writable }: { run: AnalysisRun; writable: boolean }) {
   const api = useTowerApi();
@@ -33,11 +45,14 @@ export function AnalysisRunAssignment({ run, writable }: { run: AnalysisRun; wri
 
   return <section aria-label="Analysis assignment" className="space-y-2 rounded-lg border border-border p-4">
     <h3 className="font-semibold">Analysis assignment</h3>
-    {assignment?.taskId ? <Link className="inline-flex min-h-8 items-center text-sm underline underline-offset-4" to={taskPath(assignment.taskId)}>View assigned task</Link>
+    {assignment?.taskId ? <AssignedAnalysisTask assignment={{ ...assignment, taskId: assignment.taskId }} />
       : assignment ? <div className="space-y-2">
-        <p role="status" data-status-for="task:analysis-assignment" className="text-sm text-muted-foreground">The task has not been confirmed.</p>
-        {writable ? <Button type="button" size="sm" variant="outline" disabled={submit.isPending} onClick={() => submit.mutate(null)}>
-          {submit.isPending ? 'Checking…' : 'Check assignment'}
+        <p role="status" data-status-for="task:analysis-assignment" className="text-sm text-muted-foreground">
+          {assignment.deliveryStartedAt ? 'The task has not been confirmed.' : 'The task has not been sent.'}
+        </p>
+        {writable && (awaitingResult || assignment.deliveryStartedAt) ? <Button type="button" size="sm" variant="outline"
+          disabled={submit.isPending} onClick={() => submit.mutate(assignment.deliveryStartedAt ? null : assignment.projectId)}>
+          {assignment.deliveryStartedAt ? 'Check assignment' : 'Retry assignment'}
         </Button> : null}
       </div> : !canAssign ? <p className="text-sm text-muted-foreground">A workspace owner or operator can assign this analysis.</p>
         : projects.isError ? <div className="flex flex-wrap items-center gap-2 text-sm"><p>Couldn’t load task projects.</p><Button type="button" size="sm" variant="outline" onClick={() => void projects.refetch()}>Try again</Button></div>

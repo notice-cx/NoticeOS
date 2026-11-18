@@ -250,10 +250,14 @@ test('an agent registers, its person approves it once, and its token reaches eac
       ['agent', person.id, operated, client.client_id, undefined]);
     assert.deepEqual([...context.allowedActions].sort(), ['evidence.read', 'mcp.connect', 'tasks.read', 'tasks.write']);
     await assert.rejects(admitted('analysis.complete', operated), 'earlier task and evidence consent grants no analysis ability');
-    const reviewClient = await register('Saved analysis reviewer', 'analysis:review');
+    const reviewClient = await register('Saved analysis reviewer', 'tasks:read analysis:review');
+    // Dynamic registration stores the provider's allowed union. A restricted
+    // stored client still authorizes only the compatible part of its own list.
+    await admin.query('UPDATE noticeos_identity.auth_oauth_client SET scopes=$1::jsonb WHERE client_id=$2',
+      [JSON.stringify(['tasks:read', 'analysis:review']), reviewClient.client_id]);
     const implicit = await authorize(reviewClient, null);
     const implicitScope = await (await page(AGENT_ACCESS_PATHS.request, { oauth_query: implicit.location.search.slice(1) })).json();
-    assert.deepEqual(implicitScope.scopes.sort(), ['evidence:read', 'tasks:read', 'tasks:write']);
+    assert.deepEqual(implicitScope.scopes, ['tasks:read']);
     const review = await authorize(reviewClient, 'analysis:review');
     assert.equal(review.location.pathname, '/agent-access');
     const reviewQuery = review.location.search.slice(1);
