@@ -40,6 +40,21 @@ test('dependency changes refuse, but script-only package edits do not require re
   fs.writeFileSync(path.join(f.root,'pnpm-lock.yaml'),'changed');assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/packages changed since this image was built; pnpm os:dev builds a matching one/);
  }finally{f.close();}
 });
+test('mounted dependency patches are verified by their bytes', t => {
+  const fixture = source();
+  t.after(fixture.close);
+  const patches = path.join(fixture.root, 'patches');
+  fs.mkdirSync(patches);
+  const patch = path.join(patches, 'fixture.patch');
+  fs.writeFileSync(patch, 'original patch');
+  const metadataFile = path.join(fixture.root, 'dependency.json');
+  fs.writeFileSync(metadataFile, JSON.stringify(dependencyDescription(fixture.root)));
+  fs.utimesSync(patch, 1, 1);
+  assert.ok(developmentDependencies({ source: fixture.root, metadataFile }));
+  fs.writeFileSync(patch, 'edited patch');
+  fs.utimesSync(patch, 1, 1);
+  assert.throws(() => developmentDependencies({ source: fixture.root, metadataFile }));
+});
 test('generated Worker configs point to live code and follow atomic secret-file replacement by a link',()=>{
  const f=source();try {
   for(const dir of ['apps/tower','workers/ingest']) fs.writeFileSync(path.join(f.root,dir,'wrangler.jsonc'),JSON.stringify({main:'src/index.ts',hyperdrive:[{binding:'POSTGRES'}]}));

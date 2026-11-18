@@ -48,7 +48,7 @@ export const RETIRED = ['dolt'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000,
-  'refresh-comparison': 180_000, 'customer-archive': 3_600_000, 'customer-check': 30_000, mcp: Infinity };
+  'refresh-comparison': 180_000, 'customer-archive': 3_600_000, 'customer-check': 120_000, mcp: Infinity };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs restart postgres|backup|noticeos
        stack-control.mjs refresh-comparison

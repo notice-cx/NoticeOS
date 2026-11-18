@@ -19,11 +19,15 @@ import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 import { INITIAL_DOCUMENTS } from '../apps/tower/e2e/fixtures.ts';
 import { EMAIL_CODE_PATHS } from './identity-protocol.mjs';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
+import { prepareContainerContext } from './container-context.mjs';
+import { developStack } from './stack-development.mjs';
+import { DEPENDENCY_PATHS } from '../deploy/compose/development.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enabled = process.env.NOTICEOS_TEST_CONTAINER === '1';
-const customer = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER === '1';
-const customerLan = customer && process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN === '1';
+const customerDevelopment = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_DEVELOPMENT === '1';
+const customer = customerDevelopment || process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER === '1';
+const customerLan = customerDevelopment || (customer && process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN === '1');
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 function fixtureSource(base) {
@@ -70,7 +74,7 @@ async function until(check, timeoutMs = 90_000) {
   });
 }
 
-test('the prepared application container runs its schedules with no task service, preserving state across its own restart', { skip: !enabled, timeout: 480_000 }, async t => {
+test('the application container runs its schedules with no task service, preserving state across its own restart', { skip: !enabled, timeout: 480_000 }, async t => {
   const image = process.env.NOTICEOS_TEST_APP_IMAGE;
   assert.match(image ?? '', /^noticeos-local:compose-proof-[a-z0-9]+$/u, 'use the explicitly built local proof image');
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-proof-'));
@@ -99,10 +103,20 @@ test('the prepared application container runs its schedules with no task service
   const appEnv = { ...env, ...(customerLan ? { TOWER_ALLOWED_HOSTS: 'fixture-tower.local' } : {}), NOTICEOS_APP_IMAGE: image, NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
     NOTICEOS_NETWORK: `${pg.project}_default`, NOTICEOS_TOWER_PORT: String(plan.port),
     NOTICEOS_APP_UID: String(process.getuid()), NOTICEOS_APP_GID: String(process.getgid()) };
-  const compose = args => runCommand('docker', ['compose', '-p', pg.project, '-f', appFile, '--env-file', os.devNull, ...args], { cwd: ROOT, env: appEnv, timeoutMs: 240_000 });
+  let developmentOverride;
+  const compose = (args, override = developmentOverride) => runCommand('docker', ['compose', '-p', pg.project, '-f', appFile,
+    ...(override ? ['-f', override] : []), '--env-file', os.devNull, ...args], { cwd: ROOT, env: appEnv, timeoutMs: 240_000 });
   const run = (command, args, options) => {
-    return runCommand(command, args, options).then(result => {
-      if (result.code !== 0 && command === 'docker' && !args.includes('inspect')) t.diagnostic(`owned Compose command failed: ${result.stderr.slice(-1500)}`);
+    return runCommand(command, args, options).then(async result => {
+      if (result.code !== 0 && command === 'docker' && !args.includes('inspect')) {
+        t.diagnostic(`owned Compose command failed: ${result.stderr.slice(-1500)}`);
+        const up = args.lastIndexOf('up');
+        if (up >= 0 && args.includes('compose') && args.at(-1) === 'noticeos') {
+          const logs = await runCommand(command, [...args.slice(0, up), 'logs', '--no-color', '--tail', '40', 'noticeos'], options);
+          const safe = (logs.stdout + logs.stderr).replaceAll(/postgres(?:ql)?:\/\/\S+/gu, '[redacted]');
+          t.diagnostic(`owned app logs before recovery: ${safe.slice(-4000)}`);
+        }
+      }
       return result;
     });
   };
@@ -112,7 +126,9 @@ test('the prepared application container runs its schedules with no task service
     mounts: [{ source: state, destination: '/state' }, { source: spokes, destination: '/spokes' }],
     runDocker: (args, options) => runCommand('docker', args, { cwd: ROOT, env, ...options }) });
   await cleanup.proveFresh();
-  cleanupServices = () => cleanup.finish([() => compose(['down']), () => databases(['down', '--volumes'])]);
+  const sourceOverride = path.join(base, 'stack-development', 'source.json');
+  cleanupServices = () => cleanup.finish([() => compose(['down', '--volumes'], fs.existsSync(sourceOverride) ? sourceOverride : undefined),
+    () => databases(['down', '--volumes'])]);
   const prepared = await prepareFreshPostgres(plan, { env, run, empty(own) {
     try { return databaseEmpty(own); }
     catch (error) {
@@ -253,6 +269,29 @@ test('the prepared application container runs its schedules with no task service
         ...(customerLan ? { towerOrigin: lanOrigin, siteReports: true } : {}),
         database: { identity: address('noticeos_identity', identity), grant: address('noticeos_service_grant', grant) },
         identitySecret: randomBytes(48).toString('base64url'), mailRecipients: [email], workspaces: [{ workspaceId: workspace, serviceId }] });
+      let source, selectorFile, currentContainer = containerId.stdout.trim();
+      if (customerDevelopment) {
+        source = path.join(fs.realpathSync(base), 'mounted-checkout');
+        const inventory = await runCommand('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: ROOT, env: toolEnv });
+        assert.equal(inventory.code, 0);
+        const files = inventory.stdout.split('\0').filter(file => file && !file.startsWith('config/'));
+        prepareContainerContext({ root: ROOT, destination: source, files });
+        fs.cpSync(path.join(plan.root, 'config'), path.join(source, 'config'), { recursive: true });
+        for (const relative of DEPENDENCY_PATHS) fs.mkdirSync(path.join(source, relative));
+        const envFile = path.join(base, 'development.env');
+        fs.writeFileSync(envFile, Object.entries(appEnv).filter(([key]) => key.startsWith('NOTICEOS_') || key === 'TOWER_ALLOWED_HOSTS')
+          .map(([key, value]) => `${key}=${JSON.stringify(value)}`).join('\n') + '\n', { mode: 0o600 });
+        selectorFile = path.join(base, 'stack.json');
+        write(selectorFile, { dockerHost: endpoint, project: pg.project, files: [appFile, isolatedDatabases], envFile });
+        const image = process.env.NOTICEOS_TEST_DEVELOPMENT_IMAGE;
+        assert.match(image ?? '', /^sha256:[a-f0-9]{64}$/u, 'select the prepared local proof image');
+        const developed = await developStack({ root: source, selectorFile, image, env, run, out: { write() {} } });
+        assert.equal(developed.mode, 'development');
+        assert.equal(developed.image, image);
+        developmentOverride = sourceOverride;
+        currentContainer = (await compose(['ps', '--quiet', 'noticeos'])).stdout.trim();
+        assert.notEqual(currentContainer, containerId.stdout.trim());
+      }
       const preflight = await compose(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', 'customer-check']);
       assert.equal(preflight.code, 0, preflight.stderr);
       const db = async () => (await databases(['ps', '--status', 'running', '--quiet', 'postgres'])).stdout.trim();
@@ -265,12 +304,41 @@ test('the prepared application container runs its schedules with no task service
         const start = await compose(['start', '--wait', '--wait-timeout', '180', 'noticeos']);
         assert.equal(start.code, 0, start.stderr);
         assert.equal(await db(), dbId);
-        assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), containerId.stdout.trim());
+        assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), currentContainer);
       };
       await restart();
       if (customerLan) {
         const { useLanTower } = await import('./test-fixtures/customer-lan-browser.mjs');
-        await useLanTower({ origin: lanOrigin, state, email });
+        await useLanTower({ origin: lanOrigin, state, email, ...(source ? { liveEdit: async page => {
+          const template = path.join(source, 'apps/tower/index.html');
+          const api = path.join(source, 'apps/tower/shared/app-release.ts');
+          const initial = await page.evaluate(() => fetch('/api/app-release').then(r => r.json()));
+          assert.match(initial.release, /^[a-f0-9]{64}$/u);
+          const client = fs.readFileSync(template, 'utf8');
+          const worker = fs.readFileSync(api, 'utf8');
+          assert.match(client, /<title>[^<]*<\/title>/u);
+          assert.ok(worker.includes('Response.json({ release })'));
+          // A failed compile leaves the current version and its session live.
+          fs.writeFileSync(api, '{');
+          await until(async () => (await compose(['logs', '--tail', '50', 'noticeos'])).stdout.includes('The previous app is still serving.'));
+          assert.deepEqual(await page.evaluate(() => fetch('/api/app-release').then(r => r.json())), initial);
+          fs.writeFileSync(template, client.replace(/<title>[^<]*<\/title>/u, '<title>Checkout edit fixture</title>'));
+          fs.writeFileSync(api, worker.replace('Response.json({ release })', "Response.json({ release, fixture: 'checkout-worker' })"));
+          await page.locator('[data-app-update]').waitFor({ timeout: 90_000 });
+          const updated = await page.evaluate(() => fetch('/api/app-release').then(r => r.json()));
+          assert.equal(updated.fixture, 'checkout-worker');
+          assert.notEqual(updated.release, initial.release);
+          await page.reload();
+          assert.equal(await page.title(), 'Checkout edit fixture');
+          await page.locator('[data-home-brief], [data-first-run]').waitFor();
+          assert.equal((await compose(['ps', '--quiet', 'noticeos'])).stdout.trim(), currentContainer);
+          assert.equal(await db(), dbId);
+          const lease = await ownerSql("SELECT count(*) FROM pg_stat_activity WHERE application_name='noticeos-local-customer-scheduler'");
+          assert.equal(lease.code, 0, lease.stderr);
+          assert.match(lease.stdout, /^\s*1\s*$/mu);
+          assert.equal(fs.existsSync(path.join(source, 'customer-artifacts')), false);
+          assert.equal(fs.existsSync(path.join(source, 'apps/tower/dist')), false);
+        } } : {}) });
       } else {
         const origin = `http://127.0.0.1:${plan.port}`;
         const post = (route, body, headers) => fetch(origin + route, { method: 'POST', signal: AbortSignal.timeout(10_000),
@@ -294,6 +362,13 @@ test('the prepared application container runs its schedules with no task service
       await restart();
       assert.equal((await get('api/health')).ok, true);
       assert.equal((await query('SELECT document_key FROM noticeos.config_documents')).length, settings.length);
+      if (source) {
+        const restored = await developStack({ root: source, selectorFile, disable: true, env, run, out: { write() {} } });
+        assert.equal(restored.mode, 'prepared');
+        developmentOverride = undefined;
+        assert.equal(await db(), dbId);
+        assert.equal((await get('api/health')).ok, true);
+      }
     });
   } finally { await store.close(); }
 });
