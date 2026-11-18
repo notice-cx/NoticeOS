@@ -1,0 +1,52 @@
+diff --git a/dist/custom-fields-CPuNCk_Q.js b/dist/custom-fields-CPuNCk_Q.js
+index 8f055b09849d8f69464da281b144d00c3085bd26..ed1ed396e486202e0c95bfd6b33034e4dff61bf0 100644
+--- a/dist/custom-fields-CPuNCk_Q.js
++++ b/dist/custom-fields-CPuNCk_Q.js
+@@ -1,3 +1,4 @@
++import { newRequestId } from "./request-id.js";
+ // src/api/client.ts
+ var e = "/sign-in";
+ function t(e) {
+@@ -241,7 +242,7 @@ async function T(e, t, n, r, i, { keepalive: a = !1, idempotencyKey: s } = {}) {
+ 		headers: {
+ 			...o,
+ 			"content-type": "application/json",
+-			"idempotency-key": s ?? crypto.randomUUID()
++			"idempotency-key": s ?? newRequestId()
+ 		},
+ 		body: JSON.stringify(r),
+ 		...a ? { keepalive: !0 } : {}
+diff --git a/dist/request-id.js b/dist/request-id.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..b603560cb44a15af321e9eb47721b8f6d1561042
+--- /dev/null
++++ b/dist/request-id.js
+@@ -0,0 +1,9 @@
++export function newRequestId() {
++	if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
++	// Private HTTP still exposes secure random bytes through Web Crypto.
++	const bytes = crypto.getRandomValues(new Uint8Array(16));
++	bytes[6] = (bytes[6] & 0x0f) | 0x40;
++	bytes[8] = (bytes[8] & 0x3f) | 0x80;
++	const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
++	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
++}
+diff --git a/dist/useTasks-CwKGwyz6.js b/dist/useTasks-CwKGwyz6.js
+index 026d7cf40bbb01b3904a74402b798294b4abccc5..2e761200027e5fd3c253b087c089c9a97e5aae21 100644
+--- a/dist/useTasks-CwKGwyz6.js
++++ b/dist/useTasks-CwKGwyz6.js
+@@ -1,4 +1,5 @@
+ import { E as e } from "./custom-fields-CPuNCk_Q.js";
++import { newRequestId } from "./request-id.js";
+ import { S as t, T as n, h as r } from "./format-Bb5hPHuK.js";
+ import { r as i } from "./paths-C9INMC7Q.js";
+ import { createContext as a, useCallback as o, useContext as s, useEffect as c, useMemo as l, useRef as u, useState as d, useSyncExternalStore as f } from "react";
+@@ -262,7 +263,7 @@ function U() {
+ 	return l(() => ({
+ 		keyFor: (t) => (e.current?.content !== t && (e.current = {
+ 			content: t,
+-			key: crypto.randomUUID()
++			key: newRequestId()
+ 		}), e.current.key),
+ 		done: () => {
+ 			e.current = null;

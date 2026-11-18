@@ -16,6 +16,7 @@ const ROOT_FILES = new Set(['.gitignore', '.githooks/pre-commit', '.github/actio
   'tsconfig.config-contract.json', 'tsconfig.config-contract.node.json']);
 const TREES = ['apps/tower/', 'workers/ingest/', 'packages/contract/', 'packages/postgres/',
   'packages/mediavine/', 'scripts/', 'config/', 'db/postgres/', 'db/fixtures/', 'deploy/', 'dev/cloud/'];
+const PUBLIC_PATCHES = new Set(['patches/@notice-cx__ntasks-ui@0.5.0.patch']);
 const PRIVATE_SEGMENTS = /(?:^|\/)(?:\.[^/]+|installation|node_modules|secrets?|backups?|artifacts|test-results|playwright-report|dist|coverage)(?:\/|$)/iu;
 const PRIVATE_FILE = /(?:^|\/)(?:[^/]*\.(?:pem|key|sqlite(?:3)?|db|dump|tar|gz|zip)|credentials(?:\.(?:json|ya?ml|ini|txt))?)$/iu;
 // Public download referenced by the shipped brand page. Review its contents
@@ -45,7 +46,7 @@ function publicPath(file, documents) {
   if (!validPath(file)) return false;
   if (ROOT_FILES.has(file)) return true;
   if (privatePath(file)) return false;
-  return inventoryCovers(documents, file) || TREES.some(prefix => file.startsWith(prefix));
+  return PUBLIC_PATCHES.has(file) || inventoryCovers(documents, file) || TREES.some(prefix => file.startsWith(prefix));
 }
 function git(root, args, input) {
   const result = spawnSync('git', ['--no-replace-objects', '-C', root, ...args], {
