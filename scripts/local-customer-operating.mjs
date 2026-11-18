@@ -190,7 +190,7 @@ export async function openCustomerOperating(plan, file) {
 
 /** Compose already replaces the single app container. It still takes the same
  * database session lease as the attached runner, including across containers. */
-export async function openCustomerTarget(plan, operating, customer, receipt, { release = async () => {}, activation } = {}) {
+export async function openCustomerTarget(plan, operating, customer, receipt, { release = async () => {}, activation, backup = false } = {}) {
   let lease;
   try {
     const publicOrigin = new URL(plan.url).origin;
@@ -208,13 +208,16 @@ export async function openCustomerTarget(plan, operating, customer, receipt, { r
     const resumeSince = operating.googleDaily && previous?.schedule === schedule
       && Number.isSafeInteger(previous.googleSince) && previous.googleSince > 0 && previous.googleSince <= now
       ? previous.googleSince : undefined;
-    return { address: operating.address, customer, operating, resumeSince, signal: lease.signal,
+    const backupResumeSince = backup && previous?.schedule === schedule
+      && Number.isSafeInteger(previous.backupSince) && previous.backupSince > 0 && previous.backupSince <= now ? previous.backupSince : undefined;
+    return { address: operating.address, customer, operating, resumeSince, backupResumeSince, signal: lease.signal,
       ready() {
         lease.signal.throwIfAborted();
         const temporary = receipt + '.' + randomUUID();
         try {
           writeFileSync(temporary, JSON.stringify({ target: operating.target, publicOrigin, schedule,
-            googleSince: operating.googleDaily ? resumeSince ?? Date.now() : null }) + '\n', { flag: 'wx', mode: 0o600 });
+            googleSince: operating.googleDaily ? resumeSince ?? Date.now() : null,
+            ...(backup ? { backupSince: backupResumeSince ?? Date.now() } : {}) }) + '\n', { flag: 'wx', mode: 0o600 });
           renameSync(temporary, receipt);
         } finally { rmSync(temporary, { force: true }); }
       },

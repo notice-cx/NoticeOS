@@ -54,11 +54,11 @@ this Linux runtime.
 Native D1 targets saved in **Integrations → Cloudflare** need no exporter
 checkout. The protected worker connects only to `http://noticeos:5173` on its
 declared installation network, using the existing private bootstrap bearer.
-The app adds `noticeos` to `TOWER_ALLOWED_HOSTS` at start in both container
-modes, so the Tower's host check accepts these requests. The app's standalone receiver authenticates before opening SQL and keeps the
-provider token private. Each selected database is written to the dated set as
+The standalone receiver authenticates before opening SQL. The customer receiver
+also checks the active worker request and the declared workspace's current
+service grant. The app keeps the provider token private. Each selected database is written to the dated set as
 a verified gzip file with a private record of its export receipt and restore
-steps; if the selection changes or any target fails, the set is not published. A native target and legacy exporter cannot cover
+steps. Publication requires an unchanged selection and a verified export from every target. A native target and legacy exporter cannot cover
 the same asset. Account activation and recurring export impact still require
 the owner's specific production approval.
 
@@ -67,6 +67,9 @@ capabilities are limited to `DAC_OVERRIDE`, `CHOWN`, `SETUID` and `SETGID`, with
 a read-only image and explicit mounts. Postgres capture uses the existing socket
 superuser authority. The tasks come from the Ntasks export the app takes for
 each run ([Keep tasks in Ntasks](../../docs/guides/keep-tasks-in-ntasks.md#the-nightly-backup)).
+In customer mode the app checks its separate backup-only Ntasks credential and
+keeps a complete export of the one saved Ntasks workspace. The project-scoped
+service credential continues to serve the task board.
 The profile introduces no SQL grant changes. The app and worker mount no Docker
 socket.
 
@@ -78,7 +81,11 @@ daily and weekly retention behavior. A complete container set includes Postgres,
 R2, the Ntasks export while Ntasks is connected, approved exporter output,
 restore instructions and private recovery material. The recovery material
 includes the bootstrap bindings, database credentials, the saved task projects
-when the installation has exported them, and the worker/exporter declarations. If a source credential or
+when the installation has exported them, and the worker/exporter declarations.
+The recovery folder also keeps `resource-names.json` when the installation uses
+a saved archive bucket name.
+The local set keeps an existing private customer runtime declaration in
+`recovery/customer-runtime.json` in either profile, including after rollback. If a source credential or
 declaration changes during capture, the set is not published.
 
 The offsite copy leaves out `recovery/`; only the local set has it. The copy
@@ -87,7 +94,7 @@ descriptor it created, so a sync client that hard-links files while uploading
 them does not affect it. Symbolic links and other special files are refused.
 
 The job result the application records names only the first failed stage.
-Every run writes each stage's result and redacted errors to
+Every run accepted by the backup worker writes each stage's result and redacted errors to
 `/state/.local/backup-report.json` (the application's state folder), mode
 `0600` and owned by the worker profile's identity, beside the backups folder and
 never inside a set. A Cloudflare D1 failure there names an HTTP status, an
@@ -97,8 +104,9 @@ file cannot be written, the job result says so.
 `node deploy/compose/health.mjs` reports application health and whether the declared
 backup worker is ready. A missing declaration is reported explicitly. Container
 health fails when a configured worker stops or its private heartbeat (a regular
-signal that the worker is still running) is no longer fresh.
-Backup completion remains a separate job result.
+signal that the worker is still running) is no longer fresh. In customer mode,
+a refused task export or an incomplete backup also makes readiness fail. A
+successful manual or scheduled backup restores readiness once the setup permits it.
 
 A request is removed automatically only after the worker writes its exact
 finished response. After a timeout or a lost worker, the request is kept.
@@ -110,8 +118,25 @@ the operation that made the claim has stopped, then remove its protected claim.
 
 Restore uses a new, proven absent destination. The Postgres restore identity must
 receive its own private copy or input stream; the backup's own copy stays mode `0600`.
-Restore the archived bootstrap bindings, adapting only the explicitly chosen new
-endpoint and credentials selector.
+Restore the archived bootstrap bindings, adapting the endpoint and credentials
+selector to the new destination. The Postgres dump contains the workspace,
+identity tables and service grants. To start the recovered workspace in customer
+mode, restore into the new installation's `noticeos` database, then follow
+[Prepare the Postgres logins](../../scripts/README.md#prepare-the-postgres-logins-on-the-existing-local-stack)
+for that new stack. The verified plan generates fresh role credentials and
+enables their local `CONNECT` access. Copy the protected `customer-runtime.json`
+into the new installation, preserving its identity secret and workspace mapping.
+Replace `database.identity` and `database.grant` in that copy with the new
+plan's `noticeos_identity.internal` and `noticeos_service_grant.internal` URLs.
+If the new stack uses a different home-network address, update `towerOrigin`
+in the private copy to match its declared Tower address.
+Run customer preflight before starting the customer profile.
+If present, restore `recovery/resource-names.json` to the new installation's own
+settings folder before starting the app. For older sets without this file, keep
+the original declaration or set `rawSignalsBucket` to the verified archive
+bucket before starting customer mode. If the restore contains several buckets,
+verify which physical bucket contains the indexed report objects before choosing
+the name.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local
@@ -119,9 +144,14 @@ The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 Docker endpoint and a nonroot operator.
 Preserve explicit `DOCKER_CONFIG` when isolating HOME. Run with
 `node --import ./scripts/script-tests-setup.mjs --test scripts/container-backup-compose.test.mjs`.
-It creates and removes only its own projects and volumes, reserves loopback ports
-5900–5949, and verifies an internal network before starting the app and worker.
-The exporter is synthetic; the proof executes no real remote exporter.
+It creates and removes only its own projects and volumes and reserves loopback ports
+5900–5949. Add `NOTICEOS_TEST_CONTAINER_CUSTOMER_BACKUP=1` and point
+`NOTICEOS_NTASKS_ROOT` at the built [pinned Ntasks checkout](../demo/ntasks.json)
+to rehearse the customer schedule, manual backup and rollback on a dedicated
+Compose bridge. That fixture runs Ntasks inside the app container on a private
+loopback port. Add `NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN=1` to run the same
+backup and recovery checks with a private home-network Tower address. Both
+modes use a synthetic exporter.
 
 This worker profile does not establish compatibility for a native exporter's
 credentials or platform dependencies.

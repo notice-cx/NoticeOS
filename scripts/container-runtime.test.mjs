@@ -84,7 +84,8 @@ test('app jobs wait for the running profile and customer startup cannot dispatch
   });
   assert.equal(runningContainerProfile(startup(100)), 'standalone');
   assert.equal(runningContainerProfile(startup(101)), null);
-  for (const argv of [['backup'], ['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
+  assert.equal(await containerMain(['backup'], { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
+  for (const argv of [['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
     assert.equal(await containerMain(argv, { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
     assert.equal(await containerMain(argv, { err, environment, runningProfile: () => 'customer' }), 2);
   }
@@ -118,7 +119,8 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.deepEqual(actionArgs('customer-check', []), { job: ['customer-check'] });
   assert.deepEqual(containerCommand(['customer-check']), ['deploy/compose/customer-entry.mjs', '--check']);
   assert.throws(() => actionArgs('customer-check', ['--apply']));
-  for (const command of [['backup'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
+  assert.deepEqual(containerCommand(['backup'], 'customer'), ['deploy/compose/customer-entry.mjs', '--backup']);
+  for (const command of [['backup', '--unknown'], ['mcp'], ['run-job', '0 6 * * *'], ['collect', '--asset', 'example.com'], ['customer-archive', '--plan']]) {
     assert.equal(containerCommand(command, 'customer'), null);
   }
 
@@ -140,6 +142,8 @@ test('the same container explicitly selects one customer clock, exact loopback i
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-compose-archive-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   assert.equal(composeArchiveBucket(root), 'noticeos-raw-signals');
+  fs.writeFileSync(path.join(root, 'resource-names.json'), JSON.stringify({ rawSignalsBucket: 'fixture-legacy-raw-signals' }));
+  assert.equal(composeArchiveBucket(root), 'fixture-legacy-raw-signals');
   fs.writeFileSync(path.join(root, 'resource-names.json'), JSON.stringify({ rawSignalsBucket: '../escape' }));
   assert.throws(() => composeArchiveBucket(root), ContainerRefusal);
   const archive = composeArchiveState(root, fs, dir => fs.mkdirSync(dir, { recursive: true, mode: 0o700 }));
@@ -192,8 +196,10 @@ test('customer readiness does not fall back to stale standalone state or ignore 
   assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:5173']]);
   assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
   for (const available of [true, false]) {
-    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);
+    assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), available);
   }
+  assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404,
+    backupStatus: async () => ({ configured: true, available: true }) }), false);
   assert.equal(await containerHealthy({ ...health, profile: () => null }), false);
 });
 

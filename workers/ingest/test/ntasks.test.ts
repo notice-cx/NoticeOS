@@ -71,6 +71,32 @@ it('refuses a credential made without the backup choice, which the nightly backu
   expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).source).toBe('none');
 });
 
+it('connects separate task backup access only when it covers the active project workspace', async () => {
+  const workspaceId = crypto.randomUUID(), differentId = crypto.randomUUID();
+  const backupToken = `ntasks_service.${crypto.randomUUID()}`;
+  const paired = { ...fields, NTASKS_WORKSPACE_ID: workspaceId, NTASKS_BACKUP_TOKEN: backupToken };
+  const backupReads = vi.fn();
+  const fixture = (primary: string, status: string): typeof fetch => async (input, init) => {
+    if (new URL(String(input)).pathname === '/api/tasks/projects') return projects();
+    const headers = new Headers(init?.headers);
+    const backup = headers.get('authorization') === `Bearer ${backupToken}`;
+    if (backup) backupReads(headers.get('x-ntasks-workspace'));
+    return Response.json({ result: { structuredContent: { workspaces: [backup
+      ? { workspaceId, status: 'active', access: ['tasks:backup'] }
+      : { workspaceId: primary, status, access: ['tasks:read'] }] } } });
+  };
+  for (const [primary, status] of [[differentId, 'active'], [workspaceId, 'suspended']] as const) {
+    expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields: paired }, { fetchImpl: fixture(primary, status) }))
+      .toMatchObject({ verdict: 'refused', failure: { kind: 'backup-missing' } });
+  }
+  expect(backupReads).not.toHaveBeenCalled();
+  expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).source).toBe('none');
+  expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields: paired }, { fetchImpl: fixture(workspaceId, 'active') }))
+    .toMatchObject({ verdict: 'accepted' });
+  expect(backupReads).toHaveBeenCalledExactlyOnceWith(workspaceId);
+  expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).source).toBe('store');
+});
+
 it('stores an Ntasks connection only after Ntasks accepts it, and only on a standalone installation', async () => {
   expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields }, { fetchImpl: async () => Response.json({}, { status: 401 }) }))
     .toMatchObject({ ok: true, verdict: 'refused' });

@@ -153,11 +153,11 @@ Ntasks Worker and a service credential from it. Ntasks then holds the
 installation's tasks: the **Tasks** pages and the runner read and change them
 there, through the ingest Worker, which adds the credential to each call.
 Agents connect to Ntasks's own MCP endpoint, and NoticeOS's MCP server lists
-no task tools. The connection test lists the projects the credential reaches
-and checks that the credential was made with the backup choice, which the
-nightly backup needs. A credential that gets HTTP status 401 or 403 from
-Ntasks, or one made without that choice, is not kept. HTTPS is required, except for a local address. Redirects are
-refused. This connection is available in standalone installations.
+no task tools. The connection test lists the projects the service credential reaches.
+Local customer backups use a separate backup-only credential for that Ntasks
+workspace. A standalone connection can use a service credential that also has
+the backup choice. HTTPS is required except for local addresses. The app refuses
+redirects.
 The **Tower client ID** is the Tower's client ID as a connected app of that
 Ntasks; with it, people sign in to Ntasks on the **Tasks** pages and their
 decisions are recorded under their own names. The first **Sign in to Ntasks**
@@ -1268,10 +1268,11 @@ not prove that a restore works.
 Downloads accept only HTTPS Cloudflare R2 storage endpoints. Cloudflare's D1
 export reference does not guarantee a download hostname; the first approved
 account check must confirm that boundary. Other hosts are rejected, not followed.
-On standalone installations and the protected Compose backup profile, the
-saved targets join the existing **04:00 UTC** backup operation. Its fixed
-machine route accepts the installation's bootstrap bearer before store access;
-hosted and demo profiles reject that route. The host reads no provider token
+On standalone installations and the local customer Compose profile, the
+saved targets join the existing **04:00 UTC** backup operation. The protected
+route checks the installation's bootstrap bearer before store access. In customer
+mode it also checks the running backup request and the workspace's service grant.
+The backup worker reads no provider token
 from the encrypted store and needs no asset checkout or Wrangler login.
 It verifies receipt identities, SQL bytes and hashes while streaming gzip into
 `cloudflare-d1/<account>/<database>/` in the dated set. Each directory carries

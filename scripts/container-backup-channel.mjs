@@ -3,6 +3,7 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { isBackupFailure, isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
 
 const FORMAT = 'noticeos-backup-request-v1';
@@ -62,15 +63,27 @@ export async function containerBackupStatus(file, { fs: io = fs, now = Date.now 
   } catch { return { configured: true, available: false, detail: 'The backup worker is unavailable.' }; }
 }
 
-/** A request names its id and, while the installation's tasks live in Ntasks,
+/** A request names its id, the customer transport when used, and, while the installation's tasks live in Ntasks,
  * `tasks: 'ntasks'`: the set then keeps the request's own tasksExportFile.
  * Nothing else: the worker chooses every
  * executable and resource itself. */
 export function validateBackupRequest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-    !['format,id', 'format,id,tasks'].includes(Object.keys(value).sort().join()) || value.format !== FORMAT || !UUID.test(value.id ?? '') ||
+    Object.keys(value).some(key => !['format', 'id', 'tasks', 'customer'].includes(key)) || value.format !== FORMAT || !UUID.test(value.id ?? '') ||
+    ('customer' in value && value.customer !== true) ||
     ('tasks' in value && value.tasks !== 'ntasks')) refusal();
-  return { format: FORMAT, id: value.id, ...(value.tasks === 'ntasks' ? { tasks: 'ntasks' } : {}) };
+  return { format: FORMAT, id: value.id, ...(value.customer ? { customer: true } : {}), ...(value.tasks === 'ntasks' ? { tasks: 'ntasks' } : {}) };
+}
+
+export async function activeCustomerBackupRequest(file, id, { fs: io = fs } = {}) {
+  if (typeof id !== 'string' || !UUID.test(id)) return false;
+  try {
+    const profile = await readBackupClient(file, { fs: io });
+    const current = await readBackupRequest(profile, { fs: io });
+    const claim = await io.lstat(claimFile(profile, 'worker.lock'));
+    return current?.customer === true && current.id === id && claim.isDirectory() && claim.uid === profile.uid
+      && !(claim.mode & 0o077) && !await completedBackupRequest(profile, id, { fs: io });
+  } catch { return false; }
 }
 
 export async function readBackupRequest(profile, { fs: io = fs } = {}) {
@@ -151,15 +164,18 @@ async function retireCompleted(profile, id, io) {
   await io.rm(retired, { recursive: true });
 }
 
-export async function requestContainerBackup(file, { tasks, tasksExport, fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
+export async function requestContainerBackup(file, { tasks, tasksExport, customer = false, signal,
+  fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 900_000 || intervalMs < 1 || intervalMs > 1000) return failure('The backup request wait is invalid.');
   if (tasks !== undefined && tasks !== 'ntasks') return failure('The backup request names an unknown task store.');
   let profile;
   try { profile = await readBackupClient(file, { fs: io }); }
   catch { return failure('The declared container backup service is not configured or unavailable.', 'worker_unavailable'); }
   const claim = path.join(profile.transportDir, 'request.lock');
-  const request = { format: FORMAT, id: randomUUID(), ...(tasks ? { tasks } : {}) };
+  const request = { format: FORMAT, id: randomUUID(), ...(customer ? { customer: true } : {}), ...(tasks ? { tasks } : {}) };
+  let submitted = false;
   try {
+    signal?.throwIfAborted();
     try { await io.mkdir(claim, { mode: 0o700 }); }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
@@ -174,21 +190,19 @@ export async function requestContainerBackup(file, { tasks, tasksExport, fs: io 
     await io.writeFile(path.join(claim, 'owner.json'), JSON.stringify({ id: request.id }), { flag: 'wx', mode: 0o600 });
     // The export goes in before the request, so a worker that reads the request finds it whole.
     if (tasks && tasksExport) await privateCopy(profile, tasksExport, tasksExportFile(profile), io);
+    submitted = true;
     await atomicJson(profile, 'request.json', request, io);
     const deadline = Date.now() + timeoutMs;
-    const result = await new Promise((resolve, reject) => {
-      const check = async () => {
-        try {
-          const completed = await completedBackupRequest(profile, request.id, { fs: io });
-          if (completed) { resolve(completed); return; }
-          if (Date.now() >= deadline) { resolve(null); return; }
-          setTimeout(check, intervalMs);
-        } catch (error) { reject(error); }
-      };
-      void check();
-    });
+    let result;
+    do {
+      signal?.throwIfAborted();
+      result = await completedBackupRequest(profile, request.id, { fs: io });
+      if (result || Date.now() >= deadline) break;
+      await delay(intervalMs, undefined, { signal });
+    } while (true);
     if (!result) return failure('Backup timed out. Its request was preserved for review.', 'worker_timeout');
     await retireCompleted(profile, request.id, io);
     return result;
-  } catch { return failure('Backup could not finish. Its request was preserved for review.', 'worker_unavailable'); }
+  } catch { return { ...failure('Backup could not finish. Its request was preserved for review.', 'worker_unavailable'),
+    ...(customer && submitted ? { unconfirmed: true } : {}) }; }
 }

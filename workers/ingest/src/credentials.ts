@@ -44,6 +44,7 @@ import { getConfigDocument } from './config-store.js';
 import { localModelBaseUrl } from './local-model.js';
 import { LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
 import { hostedNtasksAddress, NTASKS_APP_CLIENT_ID, NTASKS_URL, ntasksOrigin } from './ntasks.js';
+import { unsealCredential } from '../../../scripts/sealed-credential.mjs';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
@@ -240,11 +241,7 @@ async function openWith(
   for (const attempt of attempts) {
     let plaintext: ArrayBuffer;
     try {
-      plaintext = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: toBytes(row.iv) },
-        await importAesKey(attempt.bytes),
-        toBytes(row.ciphertext),
-      );
+      plaintext = await unsealCredential(attempt.bytes, toBytes(row.iv), toBytes(row.ciphertext));
     } catch {
       continue;
     }
@@ -383,6 +380,12 @@ async function readRows(store: WorkspaceStore | undefined): Promise<CredentialRo
 async function readRow(store: WorkspaceStore | undefined, provider: string): Promise<CredentialRow | null> {
   if (!store) return null;
   return (await store.read((tx) => selectCredentials(tx, provider)))[0] ?? null;
+}
+
+/** A connection with missing ciphertext must stop a backup that depends on it. */
+export async function hasSavedCredentialConnection(env: IngestEnv, provider: IntegrationProviderId): Promise<boolean> {
+  return await env.STORE?.read(async tx =>
+    (await tx.query('SELECT 1 FROM noticeos.integration_connections WHERE provider = $1', [provider])).length > 0) ?? false;
 }
 
 const reportVerifierField = 'SITE_REPORT_VERIFIER';

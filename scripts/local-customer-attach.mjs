@@ -36,7 +36,8 @@ export async function startPreparedCustomer(plan, db, {
       workspaces: operating.workspaces, connectionString: db.address, identityDatabase: operating.identityAddress,
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
-      startSchedules, resumeSince: db.resumeSince, deployment, operating: { googleDaily: operating.googleDaily, collectorTransport,
+      startSchedules, resumeSince: db.resumeSince, backupResumeSince: db.backupResumeSince, deployment,
+      operating: { googleDaily: operating.googleDaily, collectorTransport,
         collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteReports: operating.siteReports, signal } });
     db.ready();

@@ -5,9 +5,10 @@
 
 import { workspaceProfile } from '../../../../scripts/product-env.mjs';
 import { authenticateOperator } from '../auth.js';
-import { resolveCredential, saveNtasksAppClientId } from '../credentials.js';
-import { callNtasks, NTASKS_URL, ntasksAppClientId, ntasksOrigin, ON_BEHALF_OF, registerNtasksApp, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
+import { hasSavedCredentialConnection, resolveCredential, saveNtasksAppClientId } from '../credentials.js';
+import { callNtasks, NTASKS_TOKEN, NTASKS_URL, ntasksAppClientId, ntasksOrigin, ON_BEHALF_OF, registerNtasksApp, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
 import { json } from '../responses.js';
+import { NTASKS_BACKUP_TOKEN, ntasksBackupCredential } from '../../../../scripts/ntasks-backup-access.mjs';
 
 export const TASK_SERVICE_PATH = '/api/task-service';
 export const TASK_SERVICE_APP_PATH = '/api/task-service/app';
@@ -47,8 +48,11 @@ export async function handleTaskService(request: Request, env: IngestEnv, fetchI
   const resolved = await resolveCredential(env, 'ntasks', 'store-only');
   const fields = resolved.source === 'store' ? resolved.fields : null;
   if (request.method === 'GET') {
+    const saved = !fields && (resolved.connectionId !== null || await hasSavedCredentialConnection(env, 'ntasks'));
+    if (saved) return json({ error: 'unavailable' }, 503);
     let origin: string | null = null;
-    try { origin = fields ? ntasksOrigin(fields[NTASKS_URL] ?? '') : null; } catch { origin = null; }
+    try { origin = fields ? ntasksOrigin(fields[NTASKS_URL] ?? '') : null; }
+    catch { return json({ error: 'unavailable' }, 503); }
     return json({ connected: origin !== null, origin, appClientId: origin !== null && fields ? ntasksAppClientId(fields) : null });
   }
   let call: TaskServiceCall | null = null;
@@ -56,7 +60,11 @@ export async function handleTaskService(request: Request, env: IngestEnv, fetchI
   if (!call) return json({ error: 'invalid_request' }, 400);
   if (!fields) return json({ answered: false, reason: 'not-connected' } satisfies TaskServiceAnswer);
   try {
-    const { status, body } = await callNtasks(fields, call, fetchImpl);
+    const backup = call.method === 'GET' && call.path.split('?')[0] === '/api/backup' && fields[NTASKS_BACKUP_TOKEN] !== undefined;
+    const credential = backup ? ntasksBackupCredential(fields) : null;
+    if (backup && !credential) return json({ answered: false, reason: 'configuration' } satisfies TaskServiceAnswer);
+    const { status, body } = await callNtasks(credential ? { ...fields, [NTASKS_TOKEN]: credential.token } : fields,
+      credential ? { ...call, workspaceId: credential.workspaceId } : call, fetchImpl);
     return json({ answered: true, status, body } satisfies TaskServiceAnswer);
   } catch (error) {
     const failure = error instanceof TaskServiceError ? error.failure : { kind: 'network' as const };
