@@ -46,11 +46,11 @@ function scopedSiteFetch(origins: string[], fetchImpl: typeof fetch): typeof fet
 }
 
 export async function runCustomerSiteCheck(env: IngestEnv, policy: CustomerCollectionPolicy, workspaceId: string,
-  asset: string, job: 'hygiene' | 'freshness', nowMs: number, fetchImpl: typeof fetch) {
+  asset: string, job: 'hygiene' | 'freshness', fetchImpl: typeof fetch) {
   const site = (await eligibleAssets(env)).find(row => row.asset === asset);
   const approved = site && selectedCustomerSite(policy, workspaceId, asset, site.domain);
   if (!site || !approved) return { outcome: 'skipped' };
-  const options = { assets: [site], nowMs, fetchImpl: scopedSiteFetch(approved.origins, fetchImpl) };
+  const options = { assets: [site], fetchImpl: scopedSiteFetch(approved.origins, fetchImpl) };
   if (job === 'freshness') {
     const result = await runUptimeChecks(env, options);
     return { attempted: result.checked, failed: result.failed.length };

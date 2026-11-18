@@ -27,7 +27,7 @@ test('approved sites and revenue notifications run once in their own workspace',
     app = await startLocalCustomer(plan, db);
     const [east, west] = app.workspaces, { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(db.customer, 'settings.json')));
     await app.close(); app = undefined;
-    const start = new Date(); start.setUTCSeconds(0, 0);
+    const start = new Date(Date.now() - 60_000); start.setUTCSeconds(0, 0);
     let clock = start.getTime();
     const schedules = Object.fromEntries(['hygiene','freshness','notifications'].map(job => [job, { enabled: true, cron: '* * * * *' }]));
     for (const { workspaceId } of [east, west]) {
@@ -76,7 +76,10 @@ test('approved sites and revenue notifications run once in their own workspace',
       await app.whenIdle();
     };
     const states = () => db.cluster.sql('SELECT workspace_id,notification_type,state,attempts FROM noticeos.notification_events ORDER BY workspace_id,notification_type');
+    const startedAt = Date.now();
     await launch();
+    const oldest = db.cluster.sql("SELECT extract(epoch FROM min(observed_at))*1000 AS observed FROM noticeos.hygiene_checks")[0].observed;
+    assert.ok(Number(oldest) >= startedAt, 'a delayed occurrence records when the site was checked');
     assert.ok(probes.includes('/robots.txt') && probes.includes('/sitemap.xml'));
     assert.ok(probes.includes('/catalog.xml') && probes.includes('/products'));
     assert.ok(destinations.every(url => new URL(url).origin !== foreign));

@@ -136,7 +136,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
             return response;
           };
           if ((job === 'hygiene' || job === 'freshness') && policy && asset !== null) {
-            return Response.json(await runCustomerSiteCheck(env, policy, workspaceId, asset, job, time, fetchImpl));
+            return Response.json(await runCustomerSiteCheck(env, policy, workspaceId, asset, job, fetchImpl));
           }
           if (job === 'notifications') {
             const approved = policy?.revenueNotices?.find(notice => notice.workspaceId === workspaceId);
