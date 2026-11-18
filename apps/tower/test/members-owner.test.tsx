@@ -3,6 +3,7 @@ import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MembersSection } from '@/routes/settings/MembersSection';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
+import type { BrowserAccessVerification } from '@/lib/browser-entry';
 import { createBrowserRuntime, BrowserRetiredError } from '@/lib/browser-runtime';
 import type { ApiTransport } from '@/lib/api';
 import { MembershipRefused } from '@/lib/membership-client';
@@ -28,7 +29,7 @@ function roster(input: unknown, init?: RequestInit) {
     items: command.collection === 'members' ? [member] : [], nextCursor: null });
 }
 function mount(value: ReturnType<typeof runtime>, role: 'owner' | 'operator' | 'viewer' = 'owner', refreshSession = vi.fn(async () => {}),
-  revalidateSession?: () => Promise<boolean>) {
+  revalidateSession?: () => Promise<BrowserAccessVerification>) {
   return render(<BrowserRuntimeProvider value={{ runtime: value, workspaceLabel: 'Generated workspace', workspaceRole: role, refreshSession, revalidateSession }}>
     <QueryClientProvider client={value.queries}><MembersSection /></QueryClientProvider>
   </BrowserRuntimeProvider>);
@@ -67,7 +68,7 @@ it("another member's role change rechecks access without rebuilding the page", a
     return roster(input, init);
   });
   const refreshSession = vi.fn(async () => {});
-  const revalidateSession = vi.fn(async () => true);
+  const revalidateSession = vi.fn(async () => 'verified' as const);
   mount(runtime(fetch), 'owner', refreshSession, revalidateSession);
   await screen.findByText('Generated operator');
   fireEvent.change(screen.getByLabelText('Role for operator@example.test'), { target: { value: 'viewer' } });
@@ -87,8 +88,8 @@ it('refresh waits for verified access, excludes pagination and leaves the roster
     if (reloadFails) return Response.json({ ok: false }, { status: 503 });
     return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
   });
-  let finishRecheck!: (verified: boolean) => void;
-  const revalidate = () => new Promise<boolean>(resolve => { finishRecheck = resolve; });
+  let finishRecheck!: (access: BrowserAccessVerification) => void;
+  const revalidate = () => new Promise<BrowserAccessVerification>(resolve => { finishRecheck = resolve; });
   const value = runtime(fetch);
   value.queries.setDefaultOptions({ queries: { retry: false } });
   mount(value, 'owner', undefined, revalidate);
@@ -96,7 +97,11 @@ it('refresh waits for verified access, excludes pagination and leaves the roster
   const refresh = screen.getByRole('button', { name: 'Refresh access' });
   const more = screen.getByRole('button', { name: 'More people' });
   fireEvent.click(refresh);
-  await act(async () => finishRecheck(false));
+  await act(async () => finishRecheck('changed'));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  fireEvent.click(refresh);
+  await act(async () => finishRecheck('unavailable'));
+  expect(screen.getByRole('status')).toHaveTextContent(/try again/i);
   expect(fetch).toHaveBeenCalledTimes(2);
   const wasOnline = onlineManager.isOnline();
   onlineManager.setOnline(false);
@@ -106,7 +111,7 @@ it('refresh waits for verified access, excludes pagination and leaves the roster
     expect(more).toBeDisabled();
     fireEvent.click(more);
     expect(fetch).toHaveBeenCalledTimes(2);
-    await act(async () => finishRecheck(true));
+    await act(async () => finishRecheck('verified'));
     await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
     expect(screen.getByText(member.name)).toBeVisible();
     expect(more).toBeEnabled();

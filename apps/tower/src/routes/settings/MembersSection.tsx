@@ -38,8 +38,9 @@ function OwnerMembers() {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      const verified = await recheckAccess?.();
-      if (verified === true && runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
+      const access = await recheckAccess?.();
+      if (access === 'unavailable') update(() => setNotice({ error: true, text: 'Access could not be checked. Try again.' }));
+      if (access === 'verified' && runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
     } catch {
       update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
     } finally {

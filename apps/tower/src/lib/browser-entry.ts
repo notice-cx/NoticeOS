@@ -15,6 +15,7 @@ export function captureBrowserLanding(page: Window): EmailEnrollmentLanding {
 }
 
 export type BrowserUiRuntime = ReturnType<typeof createBrowserRuntime<(keepalive: boolean) => Promise<void>>>;
+export type BrowserAccessVerification = 'verified' | 'changed' | 'unavailable';
 export type BrowserEntryState = Readonly<{
   phase: 'checking' | 'ready' | 'choose' | 'agent' | 'signed-out' | 'invitation' | 'unavailable' | 'invalid-link';
   session: BrowserSession | null;
@@ -49,6 +50,7 @@ export function createBrowserEntry(options: {
   let disposed = false;
   let request: AbortController | null = null;
   let releaseProbe: AbortController | null = null;
+  let verification: { state: BrowserEntryState; probe: AbortController; result: Promise<BrowserAccessVerification> } | undefined;
   let expiry: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
   const storage = (() => { try { return options.page.sessionStorage; } catch { return null; } })();
@@ -281,35 +283,43 @@ export function createBrowserEntry(options: {
     if (!expected || expected.mode !== 'hosted' || !expected.session) { await refresh(); return; }
     await completeSignIn(expected);
   }
-  /** True only when the server verifies the runtime the caller started with. */
-  async function revalidate(): Promise<boolean> {
-    if (disposed || appRelease.snapshot() !== 'current') return false;
+  /** Foreground and user-requested checks share the verification of one runtime. */
+  function revalidate(): Promise<BrowserAccessVerification> {
+    if (disposed || appRelease.snapshot() !== 'current') return Promise.resolve('changed');
     const kept = state;
-    if (kept.phase !== 'ready' || kept.runtime === null || kept.session === null) { await refresh(); return false; }
+    if (kept.phase !== 'ready' || kept.runtime === null || kept.session === null) return refresh().then(() => 'changed');
+    if (verification?.state === kept && verification.probe === releaseProbe) return verification.result;
     const probe = new AbortController();
     releaseProbe?.abort(); releaseProbe = probe;
-    const ticket = revision;
+    const result = verifyRuntime(kept, kept.session, probe, revision).finally(() => {
+      if (verification?.result === result) verification = undefined;
+    });
+    verification = { state: kept, probe, result };
+    return result;
+  }
+  async function verifyRuntime(kept: BrowserEntryState, previous: BrowserSession, probe: AbortController, ticket: number): Promise<BrowserAccessVerification> {
     const live = () => current(ticket) && releaseProbe === probe && !probe.signal.aborted && state === kept;
     try {
       if (appRelease.enabled) await appRelease.check(AbortSignal.any([probe.signal, AbortSignal.timeout(10_000)]));
-    } catch { return false; }
-    if (!live()) return false;
+    } catch { return live() && appRelease.snapshot() === 'current' ? 'unavailable' : 'changed'; }
+    if (!live()) return 'changed';
     let session: BrowserSession;
     try {
       session = await readSession({ base: options.base, signal: probe.signal });
-      if (!live()) return false;
+      if (!live()) return 'changed';
       const selected = session.mode === 'hosted' && session.session ? remembered(session.session) : undefined;
       if (selected !== undefined) {
         const selectedSession = await readSession({ base: options.base, selected, signal: probe.signal });
-        if (!live()) return false;
-        if (!samePerson(session, selectedSession)) { await refresh(); return false; }
+        if (!live()) return 'changed';
+        if (!samePerson(session, selectedSession)) { await refresh(); return 'changed'; }
         session = selectedSession;
       }
     } catch {
-      if (live()) await refresh();
-      return false;
+      if (!live()) return 'changed';
+      await refresh();
+      return state.runtime === kept.runtime && appRelease.snapshot() === 'current' ? 'unavailable' : 'changed';
     }
-    if (!sameLifetime(kept.session, session)) { await refresh(); return false; }
+    if (!sameLifetime(previous, session)) { await refresh(); return 'changed'; }
     releaseProbe = null;
     set({ ...kept, session, choices: session.mode === 'hosted' ? session.workspaces : [] });
     if (session.mode === 'hosted' && session.session) {
@@ -317,7 +327,7 @@ export function createBrowserEntry(options: {
       const remaining = Date.parse(session.session.expiresAt) - Date.now();
       expiry = setTimeout(() => void refresh(), Math.min(remaining, 2_147_483_647));
     }
-    return true;
+    return 'verified';
   }
   // A page's first `pageshow` follows its own load, often after the entry has
   // already read the session; only a page that was hidden reads it again.
