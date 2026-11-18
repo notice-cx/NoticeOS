@@ -233,7 +233,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     }
   });
 
-  it('connects in the panel only where one free read proves every typed field', () => {
+  it('uses typed fields for supported connections and keeps backup credentials separate', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
@@ -257,7 +257,10 @@ describe('INTEGRATION_PROVIDERS', () => {
       // Operator-selected server addresses and account logins need no issuance link.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
       else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password', 'text']);
-      else if (provider.id === 'ntasks') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password', 'text', 'text']);
+      else if (provider.id === 'ntasks') {
+        expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password', 'password', 'text', 'text']);
+        expect(provider.fields.find(field => field.name === 'NTASKS_BACKUP_TOKEN')).toMatchObject({ secret: true, required: false });
+      }
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
   });
