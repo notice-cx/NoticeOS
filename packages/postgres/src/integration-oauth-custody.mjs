@@ -3,9 +3,10 @@
  * verification API. Server composition supplies the shared action decision.
  * Provider exchange must happen only AFTER issue/claim resolves (commit). */
 import { sql } from 'kysely';
+import { googleOAuthRedirectUri, googleRedirectVerdict } from '@noticeos/contract/google-oauth';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { identityEngine, identityMembership, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused } from './identity-engine.mjs';
-import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_CALLBACK, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
+import { googleOAuthRequest, googleOAuthProvider, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
 export { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK };
 export const GOOGLE_INTEGRATION_TTL_MS = 10 * 60 * 1000;
 const NAMESPACE = 'noticeos:integration-google:v1:';
@@ -105,12 +106,15 @@ export function openIntegrationOAuthCustody(input) {
     }
     return Object.freeze({
         issueGoogle(request, workspaceId, authorize) {
+            if (!googleRedirectVerdict(origin).usable) {
+                return Promise.reject(new IdentityRefused('Google OAuth requires an HTTPS or loopback redirect origin.'));
+            }
             return run(async () => {
                 if (typeof workspaceId !== 'string' || !UUID.test(workspaceId) || typeof authorize !== 'function')
                     refuse();
                 const original = await proof(request, origin, 'start', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
-                const redirectUri = `${origin}${provider === 'adsense' ? ADSENSE_INTEGRATION_CALLBACK : GOOGLE_INTEGRATION_CALLBACK}`;
+                const redirectUri = googleOAuthRedirectUri(origin, provider);
                 const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
                 if (selected !== workspaceId)
                     refuse();

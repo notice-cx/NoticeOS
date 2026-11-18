@@ -255,7 +255,9 @@ Prepare `state/installation/customer-runtime.json` as a regular file owned by th
 
 On a home-network Tower, local report senders run inside the app container and use its loopback socket on port 5173 with the configured Tower Host header. The LAN listener serves the browser.
 
-Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials. Both external connections stay off by default. The file mailbox captures sign-in messages under `state/.local/compose-customer/customer/mail/`. A real enrollment requires independently verified email delivery. Connecting or reconnecting Google interactively is a separate setup step.
+Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials, including service accounts. Both external connections stay off by default. The file mailbox captures sign-in messages under `state/.local/compose-customer/customer/mail/`. A real enrollment requires independently verified email delivery.
+
+Connect or replace Google and AdSense sign-in credentials in standalone mode before switching to customer mode. For OAuth, open the standalone Tower's registered loopback address on the computer running NoticeOS, or use its existing supported HTTPS address. Customer mode reserves Google connections for scheduled collection.
 
 To continue the existing scheduled provider reads, include `mediavine`,
 `stripe` or `bing-webmaster` in `collectorProviders`. For each enabled nightly

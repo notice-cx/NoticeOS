@@ -2,6 +2,7 @@ import { createExecutionContext } from 'cloudflare:test';
 import { expect, it } from 'vitest';
 import IngestWorker from '../src/index.js';
 import { TOWER_CONFIG_FILES } from '../../../packages/contract/src/configuration.mjs';
+import { WORKSPACE_SELECTION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 
 it('standalone config RPC cannot downgrade an original hosted proof into legacy capabilities', async () => {
   const reads: PropertyKey[] = [];
@@ -50,5 +51,27 @@ it('platform housekeeping is a credential-free no-op outside hosted profile', as
     const worker = new IngestWorker(createExecutionContext(), bindings as IngestEnv);
     await worker.scheduled({ cron: '7 * * * *' } as ScheduledController);
     expect(reads).toEqual(['NOTICEOS_WORKSPACE_PROFILE']);
+  }
+});
+
+it('declines both Google OAuth starts on private HTTP before opening any credential or database', async () => {
+  const origin = 'http://tower.local:5173';
+  const configured: Record<string, unknown> = {
+    NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: origin, NOTICEOS_LOCAL_TOWER_ORIGIN: origin,
+  };
+  const bindings = new Proxy(configured, { get(target, key) {
+    if (typeof key === 'string' && Object.hasOwn(target, key)) return target[key];
+    throw new Error('Unexpected access to a credential or database.');
+  } });
+  const worker = new IngestWorker(createExecutionContext(), bindings as unknown as IngestEnv);
+  const selection = { [WORKSPACE_SELECTION_HEADER]: crypto.randomUUID() };
+  for (const provider of ['google', 'adsense'] as const) {
+    const url = `${origin}/api/integrations/${provider}/oauth/start`;
+    const input = provider === 'google' ? { origin } : { origin, provider };
+    const submit = (source: string) => worker.beginGoogleOAuth(input, new Request(url, {
+      method: 'POST', headers: { origin: source, ...selection },
+    }));
+    await expect(submit(origin)).resolves.toEqual({ ok: false, error: 'redirect_unusable' });
+    await expect(submit('http://another.local:5173')).rejects.toThrow();
   }
 });
