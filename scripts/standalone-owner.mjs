@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Enroll the verified first owner of an explicitly selected standalone workspace.
 import { spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
@@ -22,11 +22,12 @@ const mailRequired = 'Restore the private SMTP mail file beside the owner plan b
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === fields.length && fields.every(key => Object.hasOwn(value, key));
 
-function localDatabase(value, role) {
+function localDatabase(value, role, newWorkspace) {
   if (typeof value !== 'string') throw invalid();
   const url = new URL(value);
+  const databaseName = newWorkspace ? /^\/[a-zA-Z0-9_-]{1,63}$/u : /^\/[a-z0-9_]+$/u;
   if (!['postgresql:', 'postgres:'].includes(url.protocol) || !['postgres', '127.0.0.1'].includes(url.hostname)
-    || url.username !== role || !url.password || !/^\/[a-z0-9_]+$/u.test(url.pathname) || url.hash
+    || url.username !== role || !url.password || !databaseName.test(url.pathname) || url.hash
     || (url.search && url.search !== '?sslmode=disable')) throw invalid();
   return url;
 }
@@ -42,15 +43,18 @@ function readPlan(file, newWorkspace, invalid) {
     if (newWorkspace) fields.push('slug', 'displayName', 'serviceId');
     if (Object.hasOwn(input ?? {}, 'mail')) fields.push('mail');
     if (Object.hasOwn(input ?? {}, 'mailDelivery')) fields.push('mailDelivery');
+    const secret = input?.identitySecret;
+    const validSecret = typeof secret === 'string'
+      && (newWorkspace ? secret.length >= 32 && secret.length <= 512 : /^[A-Za-z0-9_-]{64}$/u.test(secret));
     if (!exact(input, fields) || input.format !== (newWorkspace ? newWorkspaceFormat : format)
       || typeof input.workspaceId !== 'string' || !uuid.test(input.workspaceId)
       || typeof input.intendedEmail !== 'string' || input.intendedEmail.length > 320 || !email.test(input.intendedEmail)
-      || typeof input.identitySecret !== 'string' || !/^[A-Za-z0-9_-]{64}$/u.test(input.identitySecret)
+      || !validSecret
       || typeof input.trustedOrigin !== 'string') throw invalid();
     if (newWorkspace && (typeof input.slug !== 'string' || typeof input.displayName !== 'string'
       || typeof input.serviceId !== 'string' || !uuid.test(input.serviceId))) throw invalid();
-    const platform = localDatabase(input.platformDatabaseUrl, 'noticeos_platform');
-    const identity = localDatabase(input.identityDatabaseUrl, 'noticeos_identity');
+    const platform = localDatabase(input.platformDatabaseUrl, 'noticeos_platform', newWorkspace);
+    const identity = localDatabase(input.identityDatabaseUrl, 'noticeos_identity', newWorkspace);
     if (platform.host !== identity.host || platform.pathname !== identity.pathname) throw invalid();
     const tower = new URL(input.trustedOrigin);
     if (tower.origin !== input.trustedOrigin || (tower.protocol !== 'https:'
@@ -111,13 +115,15 @@ export async function runStandaloneOwner(args, input, { smtpLaunch } = {}) {
 }
 
 function ntasksProject(plan) {
-  // The directory's executor/database pair pins one project in one Ntasks
-  // deployment and prevents a second local enrollment claiming the same pair.
-  const hash = createHash('sha256').update(JSON.stringify(['local-ntasks/1', plan.ntasks.origin, plan.ntasks.workspaceId])).digest('hex');
+  // Directory uniqueness follows the physical workspace/project IDs across
+  // address aliases. The credential reference separately pins the exact origin.
+  const { origin, workspaceId, projectId } = plan.ntasks;
+  const hash = createHash('sha256').update(JSON.stringify(['local-ntasks/1', plan.workspaceId, origin, workspaceId, projectId])).digest('hex');
   return {
-    projectId: plan.ntasks.projectId,
-    executorRef: `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`,
-    databaseKey: 'n_' + plan.ntasks.projectId.replaceAll('-', ''),
+    projectId,
+    executorRef: workspaceId,
+    credentialRef: `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`,
+    databaseKey: 'n_' + projectId.replaceAll('-', ''),
   };
 }
 
@@ -161,7 +167,8 @@ async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunc
     identityConnectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, localTowerOrigin, sessionSecret: plan.identitySecret,
     async verifyProject(mapping, budget) {
       if (serviceToken === null || mapping.workspaceId !== plan.workspaceId || mapping.projectId !== plan.ntasks.projectId
-        || (project && (mapping.executorRef !== project.executorRef || mapping.databaseKey !== project.databaseKey))) throw invalidPlan();
+        || (project && (mapping.executorRef !== project.executorRef || mapping.databaseKey !== project.databaseKey
+          || mapping.credentialRef !== project.credentialRef))) throw invalidPlan();
       await ntasksActivationVerifier({ ...mapping, origin: plan.ntasks.origin, ntasksWorkspaceId: plan.ntasks.workspaceId,
         serviceToken })(mapping, budget);
     } });
@@ -174,8 +181,7 @@ async function runOwnerEnrollment(args, input, { newWorkspace = false, smtpLaunc
     }
     const owner = { intendedEmail: plan.intendedEmail, expiresAt: new Date(Date.now() + 6 * 86400_000).toISOString() };
     const prepared = project
-      ? await provisioning.prepare({ workspaceId: plan.workspaceId, slug: plan.slug, displayName: plan.displayName, ...owner },
-        { ...project, credentialRef: randomUUID() })
+      ? await provisioning.prepare({ workspaceId: plan.workspaceId, slug: plan.slug, displayName: plan.displayName, ...owner }, project)
       : await provisioning.prepareStandaloneOwner({ ...binding, ...owner });
     return { ...prepared, enrollmentUrl: emailEnrollmentUrl(plan.trustedOrigin, { kind: 'platform', id: prepared.enrollmentId }) };
   } finally { await provisioning.close(); }

@@ -877,8 +877,9 @@ This command adds a new workspace to the prepared database. The ordinary
 Compose customer profile supports one workspace.
 
 1. In the separate local Ntasks instance, prepare the team's workspace and
-   project. Create a service credential with write access to exactly that
-   project.
+   project. If the Tower already has an `ntasksOrigin`, use that same origin
+   for the new team. Create a service credential with write access to
+   exactly the new team's project.
 2. Make a separate operator-owned plan file with mode `0600`. Use the fields
    in the [owner plan above](#enroll-the-owner-of-an-existing-standalone-workspace),
    with these values:
@@ -901,25 +902,28 @@ Compose customer profile supports one workspace.
    when providing either value.
 
 ```sh
-pnpm db:provision-workspace -- prepare /absolute/private-owner-plan.json
-pnpm db:provision-workspace -- send-code /absolute/private-owner-plan.json <enrollment-id>
-pnpm db:provision-workspace -- verify-code /absolute/private-owner-plan.json <enrollment-id>
-pnpm db:provision-workspace -- activate /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:provision-workspace prepare /absolute/private-owner-plan.json
+pnpm db:provision-workspace send-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:provision-workspace verify-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:provision-workspace activate /absolute/private-owner-plan.json <enrollment-id>
 ```
 
 4. After activation, append the plan's `workspaceId` and `serviceId` to the
    attached runtime's `workspaces`. Add the first owner's address if the
-   runtime uses an explicit `mailRecipients` list. Restart the same local
-   customer runtime with its existing Tower address and runtime folder.
+   runtime uses an explicit `mailRecipients` list. If `ntasksOrigin` is absent,
+   set it to the plan's Ntasks origin. Restart the same local customer runtime
+   with its existing Tower address and runtime folder.
 5. The new owner signs in through the Tower and connects the team's
    project-scoped credential under **Integrations → Ntasks**. The first
    team's membership and connection continue to use its existing workspace.
 
 Preparation leaves the workspace inactive. The owner and its scheduler
-grant are recorded together after email and project verification. If a
-verification fails, correct the input and repeat that action using the same
-enrollment ID. A duplicate workspace ID, slug or already assigned local
-Ntasks project cannot create another workspace.
+grant are recorded together after email and project verification. Complete
+verification and activation within six days of preparation. Before the
+enrollment expires, correct a refused input and repeat that action with the
+same enrollment ID. An expired workspace stays inactive, with its original
+project reserved. To start a separate rehearsal, use a new workspace ID,
+slug and Ntasks project.
 
 ---
 

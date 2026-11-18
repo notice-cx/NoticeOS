@@ -27,6 +27,7 @@ import { assertNtasksShadowActivation } from './test/customer-shadow-activation.
 
 const tools = process.env.NOTICEOS_NTASKS_ROOT;
 const ownerScript = fileURLToPath(new URL('./local-workspace-owner.mjs', import.meta.url));
+const ownerFixtureGuard = new URL('./test/local-workspace-owner-cli.mjs', import.meta.url).href;
 
 test('the local customer Tower reads and writes to distinct workspaces in a separate Ntasks', {
   skip: !tools, timeout: 240_000,
@@ -71,7 +72,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       actors.push({ ...seed, token: provision.tokens.tower, readonlyToken: provision.tokens.readonly });
     }
     const origin = new URL(plan.url).origin;
-    const identitySecret = randomBytes(48).toString('base64url'), credentialsKey = randomBytes(32).toString('base64');
+    const identitySecret = randomBytes(36).toString('base64url'), credentialsKey = randomBytes(32).toString('base64');
     // Give the external provisioner its normal limited login on the disposable cluster.
     const platform = new URL(postgres.address);
     platform.username = 'noticeos_platform';
@@ -97,7 +98,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     };
     const runOwner = async (action, file, { id, input, status = 0 } = {}) => {
       const result = await new Promise((resolve, reject) => {
-        const child = execFile(process.execPath, [ownerScript, action, file, ...(id ? [id] : [])],
+        const child = execFile(process.execPath, ['--import', ownerFixtureGuard, ownerScript, action, file, ...(id ? [id] : [])],
           { timeout: 30_000, maxBuffer: 64 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
             if (error && typeof error.code !== 'number') reject(new Error(`Operator ${action} did not finish.`));
             else resolve({ status: error?.code ?? 0, stdout, stderr });
@@ -209,6 +210,9 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     };
     const conflict = ownerPlan(oak, 'overlap');
     await runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
+    const alternateOrigin = `http://127.0.0.1:${plan.doorPort}`;
+    await runOwner('prepare', prepareFile('alias-overlap', { ...conflict, ntasks: { ...conflict.ntasks, origin: alternateOrigin } }),
+      { status: 1 });
     const secondOwner = ownerPlan(elm, 'elm');
     const secondFile = prepareFile('elm', secondOwner);
     const second = await runOwner('prepare', secondFile);
@@ -218,6 +222,8 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     await activate(secondFile, { enrollmentId: first.enrollmentId }, elm.token, 1);
     await activate(secondFile, second, elm.readonlyToken, 1);
     await activate(secondFile, second, oak.token, 1);
+    const otherOrigin = prepareFile('wrong-origin', { ...secondOwner, ntasks: { ...secondOwner.ntasks, origin: alternateOrigin } });
+    await activate(otherOrigin, second, elm.token, 1);
     const editedEmail = prepareFile('wrong-recipient', { ...secondOwner, intendedEmail: firstOwner.intendedEmail });
     await activate(editedEmail, second, elm.token, 1);
     const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
