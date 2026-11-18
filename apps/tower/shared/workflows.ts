@@ -10,12 +10,12 @@ export * from '../../../scripts/workflow-definitions.mjs';
  * its runner lists; every other job is listed, and one its runner does not
  * report stays unconfirmed.
  */
-export function installedWorkflows(data?: Pick<ScheduledJobsPayload, 'runtime'> & { workflows?: readonly { id: string }[] }): WorkflowDefinition[] {
+export function installedWorkflows(data?: Pick<ScheduledJobsPayload, 'runtime'> & { workflows?: readonly { id: string }[] }, scheduledOnly = false): WorkflowDefinition[] {
   const runtime = data?.runtime;
   const recorded = (id: string) => data?.workflows?.some(workflow => workflow.id === id) ?? false;
   if (!runtime && data?.workflows) return WORKFLOW_DEFINITIONS.filter(workflow => recorded(workflow.id));
   if (runtime?.onlyListedJobs) return WORKFLOW_DEFINITIONS.filter(workflow =>
-    (runtime.registeredJobs?.includes(workflow.id) ?? runtime.jobs.some(job => job.id === workflow.id)) || recorded(workflow.id));
+    (runtime.registeredJobs?.includes(workflow.id) ?? runtime.jobs.some(job => job.id === workflow.id)) || (!scheduledOnly && recorded(workflow.id)));
   if (runtime?.hostLanes !== false) return WORKFLOW_DEFINITIONS;
   return WORKFLOW_DEFINITIONS.filter((workflow) => !workflow.local || runtime.jobs.some((job) => job.id === workflow.id));
 }

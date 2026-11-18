@@ -117,7 +117,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
   const grouped = search.get('view') !== 'flat';
   const setFilter = (key: string, value: string) => { const next = new URLSearchParams(search); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearch(next, { replace: key === 'q' }); };
   const data = query.data ? { ...query.data, runtimeFresh: query.data.runtimeFresh && !query.isError && now - Date.parse(query.data.generatedAt) < 45_000 } : undefined;
-  const definitions = installedWorkflows(data).filter((workflow) => workflow.surface === surface && (!schedule || !workflow.manualOnly));
+  const definitions = installedWorkflows(data, schedule).filter((workflow) => workflow.surface === surface && (!schedule || !workflow.manualOnly));
   const categories = WORKFLOW_GROUPS.filter((group) => definitions.some((workflow) => workflow.group === group.label));
   const all = data?.workflows.filter((summary) => definitions.some((workflow) => workflow.id === summary.id)).map((summary) => ({ summary, workflow: WORKFLOW_DEFINITIONS.find((w) => w.id === summary.id)!, state: workflowState(summary, data) })) ?? [];
   const rows = all.filter(({ workflow, state }) => (!term || [workflow.label, workflow.source ?? '', workflow.group, ...(workflow.keywords ?? [])].join(' ').toLowerCase().includes(term.toLowerCase())) && (group === 'all' || workflow.group === group) &&

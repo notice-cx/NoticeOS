@@ -70,6 +70,17 @@ test('customer nightly and manual backup need independently scoped Ntasks custod
     assert.deepEqual(outcomes().map(row => row.state), ['succeeded', 'succeeded']);
     assert.equal(outcomes()[0].occurrence, '2026-11-17T04:00:00.000Z/workspace');
     assert.match(outcomes()[1].occurrence, /^manual\//u);
+    const completed = outcomes();
+    await scheduler.close(); scheduler = undefined;
+    db.cluster.run(`INSERT INTO noticeos.config_documents(workspace_id,document_key,version,body,updated_at,updated_by)
+      VALUES (:'workspace'::uuid,'constants',1,'{"schedules":{"backup":{"enabled":false,"cron":"0 4 * * *"}}}',now(),'fixture');`,
+    { vars: { workspace: workspaceId } });
+    scheduler = await startLocalCustomerSchedules({ workspaces: [{ workspaceId, serviceId }], connectionString: db.address,
+      grantConnectionString: db.grantConnectionString, backup, now: () => Date.parse('2026-11-18T04:00:00Z') });
+    await scheduler.whenIdle();
+    assert.deepEqual(scheduler.status(workspaceId).jobs, [{ id: 'backup', enabled: false, cron: '0 4 * * *', nextRun: null }]);
+    assert.deepEqual(outcomes(), completed);
+    assert.equal(handed.length, 2);
     restored = await openBackupNtasks(path.join(root, 'restored-tasks'), pinned, { restore: file });
     const client = demoNtasks({ origin: restored.origin, workspaceId: restored.workspaceId, token: restored.token });
     assert.equal((await client.tool('get_task', { task: tasks.task.id })).task.title, tasks.task.title);

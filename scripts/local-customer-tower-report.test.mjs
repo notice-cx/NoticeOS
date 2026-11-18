@@ -1,15 +1,39 @@
 import assert from 'node:assert/strict';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { startLocalCustomer } from './local-customer.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
-import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, SCHEDULES_FILE, SCHEDULES_POINTER, jobRunName } from './scheduled-jobs.mjs';
+import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
+import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { startPlan } from './start.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { availableCustomerPort } from './test/customer-ports.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
+
+async function ownerSession(app, { email, url, workspaceId }) {
+  const http = (route, { method = 'GET', body, headers = {} } = {}) => fetch(app.publicOrigin + route, {
+    method, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    headers: { origin: app.publicOrigin, ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+    redirect: 'manual', signal: AbortSignal.timeout(30000),
+  });
+  const invitationId = new URL(url).hash.slice('#invitation='.length);
+  const enrollment = { [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: invitationId };
+  assert.equal((await http(EMAIL_CODE_PATHS.request, { method: 'POST', body: { email }, headers: enrollment })).status, 202);
+  const mail = readdirSync(app.outbox).map(file => JSON.parse(readFileSync(path.join(app.outbox, file), 'utf8')))
+    .find(item => item.to === email && /[0-9]{6}\.$/u.test(item.text));
+  const otp = mail?.text.match(/\b([0-9]{6})\.$/u)?.[1];
+  assert.ok(otp);
+  const verified = await http(EMAIL_CODE_PATHS.verify, { method: 'POST', body: { email, otp }, headers: enrollment });
+  assert.equal(verified.status, 200);
+  const cookie = verified.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+  const { session } = await (await http('/api/session', { headers: { cookie } })).json();
+  const signedIn = { cookie, [WORKSPACE_SESSION_HEADER]: session.sessionId };
+  assert.equal((await http(ACCEPT_INVITATION_PATH, { method: 'POST', body: { invitationId }, headers: signedIn })).status, 200);
+  return (route, options) => http(route, { ...options, headers: { ...signedIn, [WORKSPACE_SELECTION_HEADER]: workspaceId } });
+}
 
 test('customer Tower reports and rolls up alerts once per scheduled occurrence in each enabled workspace', { timeout: 150_000 }, async t => {
   const root = testFixtureRoot('n-customer-tower-report-');
@@ -18,6 +42,7 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
   const occurrence = new Date(now).toISOString() + '/workspace';
   const journalJob = jobRunName(SCHEDULED_JOBS.find(job => job.id === 'asset-zero'));
   const dispatches = [];
+  let clockTime = now, beforeDispatch = () => {};
   let outbound = 0, db, app;
   const setSchedule = (workspace, enabled) => db.cluster.run(`
     UPDATE noticeos.config_documents SET body=jsonb_set(body::jsonb,'{schedules}',:'schedules'::jsonb)::json
@@ -49,9 +74,11 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     FROM noticeos.job_runs WHERE job='${journalJob}' ORDER BY workspace_id`);
   const launch = () => startLocalCustomer(plan, db, {
     fixtureProvider() { outbound++; return new Response(null, { status: 503 }); },
-    startSchedules: options => startLocalCustomerSchedules({ ...options, now: () => now, worker: {
+    startSchedules: options => startLocalCustomerSchedules({ ...options, now: () => clockTime, worker: {
       async fetch(request) {
-        dispatches.push(await request.clone().json());
+        const call = await request.clone().json();
+        dispatches.push(call);
+        beforeDispatch(call);
         return options.worker.fetch(request);
       },
     } }),
@@ -67,7 +94,8 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     db = await skipWithoutPostgres(t, () => openDevelopmentStart(plan, { profile: 'hosted' }));
     if (!db) return;
     app = await startLocalCustomer(plan, db);
-    const [east, west] = app.workspaces.map(entry => entry.workspaceId);
+    const [eastWorkspace, westWorkspace] = app.workspaces;
+    const { workspaceId: east } = eastWorkspace, { workspaceId: west } = westWorkspace;
     seed(east, 'error', 'ran');
     seed(west, 'warn', 'failed');
     setSchedule(east, true);
@@ -83,7 +111,32 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
     assert.deepEqual(eastReceipts, [{ workspace_id: east, occurrence, state: 'succeeded', attempt: '1', report_state: 'succeeded' }]);
     assert.deepEqual(eastJournal.map(row => [row.workspace_id, row.outcome]), [[east, 'ran']]);
     assert.deepEqual(dispatches, [{ workspaceId: east, job: 'asset-zero', asset: null, occurrence }]);
-    setSchedule(west, true);
+    const signedIn = await ownerSession(app, westWorkspace);
+    const workflows = async () => {
+      const response = await signedIn('/api/workflows');
+      assert.equal(response.status, 200);
+      const payload = await response.json();
+      const job = payload.runtime.jobs.find(row => row.id === 'asset-zero');
+      const item = payload.workflows.find(row => row.id === 'asset-zero');
+      assert.ok(job && item);
+      assert.ok(payload.runtimeFresh);
+      assert.ok(!payload.workflows.some(row => ['stripe', 'counters'].includes(row.id)));
+      return { saved: payload.overrides, job, item };
+    };
+    const save = async ({ saved }, enabled) => {
+      const expected = { ...saved, 'asset-zero': { ...saved['asset-zero'], enabled } };
+      const response = await signedIn('/api/config', { method: 'PUT', body: {
+        slug: 'schedule-asset-zero', ops: [{ kind: 'file-json-set', file: SCHEDULES_FILE,
+          pointer: SCHEDULES_POINTER, expect: saved, value: expected }],
+      } });
+      assert.equal(response.status, 200, await response.clone().text());
+      assert.deepEqual((await workflows()).saved, expected);
+    };
+    const paused = await workflows();
+    assert.equal(paused.saved['asset-zero'].enabled, false);
+    assert.deepEqual(paused.job, { id: 'asset-zero', enabled: false, cron: '5 3 * * *', nextRun: null });
+    assert.deepEqual(paused.item.runs, []);
+    await save(paused, true);
     await restart();
     assert.deepEqual(dispatches, [east, west].map(workspaceId => ({ workspaceId, job: 'asset-zero', asset: null, occurrence })));
     const inWorkspace = (rows, workspace) => rows.filter(row => row.workspace_id === workspace);
@@ -99,6 +152,23 @@ test('customer Tower reports and rolls up alerts once per scheduled occurrence i
       [subject, westReports[0].pulse_date, '1', '0', '1']));
     assert.deepEqual(inWorkspace(receipts(), west), [{ workspace_id: west, occurrence, state: 'succeeded', attempt: '1', report_state: 'succeeded' }]);
     assert.deepEqual(inWorkspace(journal(), west).map(row => row.outcome), ['ran']);
+    const resumed = await workflows();
+    assert.equal(resumed.job.enabled, true);
+    assert.equal(resumed.item.runs.length, 1);
+    await save(resumed, false);
+    clockTime = now + 86_400_000;
+    beforeDispatch = ({ workspaceId }) => {
+      assert.equal(workspaceId, east);
+      setSchedule(east, false);
+    };
+    await restart();
+    const pausedAgain = await workflows();
+    assert.equal(pausedAgain.job.enabled, false);
+    assert.equal(pausedAgain.job.nextRun, null);
+    assert.deepEqual(pausedAgain.item.runs, resumed.item.runs);
+    assert.deepEqual(inWorkspace(reports(), west), westReports);
+    assert.deepEqual(inWorkspace(reports(), east), eastReports);
+    assert.deepEqual(inWorkspace(journal(), east).map(row => row.outcome).sort(), ['ran', 'skipped']);
     assert.equal(outbound, 0);
   } finally {
     try { await app?.close(); } finally { db?.close(); }

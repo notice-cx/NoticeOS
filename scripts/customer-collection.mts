@@ -35,8 +35,8 @@ export function customerJobSubject(asset: string, archive?: CustomerArchive): st
   return archive ? JSON.stringify([asset, archive.provider, archive.report]) : asset;
 }
 
-/** Read only configuration, asset IDs and the presence of a credential. The caller
- * must already hold a fresh service grant for this store. */
+/** Return eligible jobs, including paused jobs. The caller must already hold
+ * a fresh service grant for this store. */
 export async function customerSchedules(store: WorkspaceStore, asset: string | null = null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]> {
   const enrolled = await store.read(tx => tx.query<{
     workspace: string; overrides: string; asset: string; isOs: boolean; domain: string | null; connected: string[]; sources: string; pulls: string;
@@ -62,7 +62,7 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
     return scheduleFor(job === 'counters' ? { ...released, cron: '0 * * * *' } : released, overrides);
   };
   const selfReport = settings('asset-zero');
-  if (selfReport.enabled && enrolled.some(row => row.isOs)) {
+  if (enrolled.some(row => row.isOs)) {
     planned.push({ job: 'asset-zero', schedule: selfReport, assets: [null] });
   }
   const rows = enrolled.filter(row => !row.isOs);
@@ -71,7 +71,6 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   for (const job of ['freshness', 'counters', 'signal-dumps'] as const) {
     if (job !== 'freshness' && (!connected.has('google') || policy?.googleDaily === false)) continue;
     const schedule = settings(job);
-    if (!schedule.enabled) continue;
     const assets = job === 'freshness' ? [null, ...(policy ? [] : rows.filter(row => row.domain).map(row => row.asset))] : rows.map(row => row.asset);
     if (job !== 'signal-dumps') {
       planned.push({ job, schedule, assets });
@@ -93,22 +92,19 @@ export async function customerSchedules(store: WorkspaceStore, asset: string | n
   const portfolioAssets = rows.map(row => row.asset);
   for (const job of ['mediavine', 'stripe'] as const) {
     const schedule = settings(job);
-    if (!schedule.enabled || !allowed.has(job) || !connected.has(job)) continue;
+    if (!allowed.has(job) || !connected.has(job)) continue;
     const scopedAssets = job === 'stripe' ? rows.filter(row => {
       const source = JSON.parse(row.sources)?.subscriptions;
       return source?.status !== 'skipped' && source?.status !== 'not-applicable';
     }).map(row => row.asset) : portfolioAssets;
     if (scopedAssets.length) planned.push({ job, schedule, assets: [null], portfolioAssets: scopedAssets });
   }
-  const pullSchedule = settings('pull');
-  if (pullSchedule.enabled) {
-    const pulls: unknown[] = JSON.parse(rows[0]!.pulls);
-    const assets: Array<string | null> = rows.filter(row => selectedCustomerPull(policy, row.workspace, row.asset, pulls)).map(row => row.asset);
-    if (asset === null && allowed.has('bing-webmaster') && connected.has('bing-webmaster') && rows.some(row => {
-      const source = JSON.parse(row.sources)?.['bing-webmaster'];
-      return row.domain && source?.status !== 'skipped' && source?.status !== 'not-applicable';
-    })) assets.unshift(null);
-    if (assets.length) planned.push({ job: 'pull', schedule: pullSchedule, assets, portfolioAssets });
-  }
+  const pulls: unknown[] = JSON.parse(rows[0]!.pulls);
+  const pullAssets: Array<string | null> = rows.filter(row => selectedCustomerPull(policy, row.workspace, row.asset, pulls)).map(row => row.asset);
+  if (asset === null && allowed.has('bing-webmaster') && connected.has('bing-webmaster') && rows.some(row => {
+    const source = JSON.parse(row.sources)?.['bing-webmaster'];
+    return row.domain && source?.status !== 'skipped' && source?.status !== 'not-applicable';
+  })) pullAssets.unshift(null);
+  if (pullAssets.length) planned.push({ job: 'pull', schedule: settings('pull'), assets: pullAssets, portfolioAssets });
   return planned;
 }

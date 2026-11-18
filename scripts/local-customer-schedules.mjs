@@ -66,17 +66,19 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
         entry.retryDelay = Math.min(15 * MINUTE, entry.retryDelay * 2);
         const selected = await read(entry.binding);
         for (const [key, call] of entry.queued) {
-          if (!selected.some(item => item.job === call.job && (call.archive
+          if (!selected.some(item => item.schedule.enabled && item.job === call.job && (call.archive
             ? item.archives?.some(target => customerJobSubject(target.asset, target.archive) === customerJobSubject(call.asset, call.archive))
             : item.assets.includes(call.asset)))) entry.queued.delete(key);
         }
         entry.jobs = selected.map(item => {
-          const old = previous.find(j => j.job === item.job && j.schedule.cron === item.schedule.cron
-            && scheduleTimezone(j.schedule) === scheduleTimezone(item.schedule));
-          let due = old?.due ?? next(item.schedule, at - 1);
+          if (!item.schedule.enabled) return { ...item, due: Infinity };
+          const old = previous.find(j => j.job === item.job);
+          const matching = old?.schedule.enabled && old.schedule.cron === item.schedule.cron
+            && scheduleTimezone(old.schedule) === scheduleTimezone(item.schedule);
+          let due = matching ? old.due : next(item.schedule, at - 1);
           const since = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
-          const resuming = entry.initial && Number.isFinite(since);
-          if (!old && (item.job === 'panel-refresh' || resuming)) {
+          const resuming = Number.isFinite(since);
+          if (entry.initial && (item.job === 'panel-refresh' || resuming)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;
@@ -126,6 +128,14 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
   };
 }
 
+async function readBackupSchedule(store) {
+  const rows = await store.read(tx => tx.query(`SELECT COALESCE(body->'schedules','{}'::json)::text AS overrides
+    FROM noticeos.config_documents WHERE document_key='constants'`));
+  const overrides = JSON.parse(rows[0]?.overrides ?? '{}');
+  if (schedulesRefusal(overrides)) throw new Error('Invalid saved backup schedule.');
+  return scheduleFor(manualScheduledJob('backup'), overrides);
+}
+
 export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now,
   resumeSince, backupResumeSince, collection, backup }) {
   const ids = new Set();
@@ -148,12 +158,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
           new Request(privateUrl, { method: 'POST' }), async () => {
             const scheduled = await customerSchedules(store, null, collection);
             if (backup) {
-              const rows = await store.read(tx => tx.query(`SELECT COALESCE(body->'schedules','{}'::json)::text AS overrides
-                FROM noticeos.config_documents WHERE document_key='constants'`));
-              const overrides = JSON.parse(rows[0]?.overrides ?? '{}');
-              if (schedulesRefusal(overrides)) throw new Error('Invalid saved backup schedule.');
-              const schedule = scheduleFor(manualScheduledJob('backup'), overrides);
-              if (schedule.enabled) scheduled.push({ job: 'backup', schedule, assets: [null] });
+              scheduled.push({ job: 'backup', schedule: await readBackupSchedule(store), assets: [null] });
             }
             if (!reports) return scheduled;
             try { return [...scheduled, ...await reports.targets(store)]; }
@@ -177,6 +182,7 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
       steps: [{ key: snapshot ? 'backup' : reporting ? 'report' : customerJobStep(job), kind: 'effect', action: 'workflows.run',
         ...(reporting ? {} : { terminalReportedFailure: true }), async run({ context, signal }) {
         if (snapshot) {
+          if (!manual && !(await readBackupSchedule(scoped.store)).enabled) return { outcome: 'skipped' };
           backupResult = await backup.run(signal);
           if (backupResult.unconfirmed) throw new Error('The backup worker did not confirm completion.');
           return backupResult;

@@ -74,7 +74,7 @@ export class CustomerSchedule extends WorkerEntrypoint<ScheduleEnv> {
           const plan = (await customerSchedules(store, asset, policy)).find(item => item.job === job && (archive
             ? item.archives?.some(target => target.asset === asset && target.archive.provider === archive.provider && target.archive.report === archive.report)
             : item.assets.includes(asset)));
-          if (!plan || !new Cron(plan.schedule.cron, { timezone: plan.schedule.timezone ?? 'UTC', paused: true }).match(new Date(time))) {
+          if (!plan?.schedule.enabled || !new Cron(plan.schedule.cron, { timezone: plan.schedule.timezone ?? 'UTC', paused: true }).match(new Date(time))) {
             return Response.json({ outcome: 'skipped' });
           }
           const signal = request.signal;

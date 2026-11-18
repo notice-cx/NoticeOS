@@ -131,10 +131,10 @@ test('discovery retries only the affected workspace and resumes its current targ
 test('restart resumes only the latest eligible collection or backup since that schedule was activated', async () => {
   const at = Date.parse('2026-11-17T10:07:00Z');
   const selected = [
-    { job: 'counters', schedule: { cron: '0 * * * *' }, assets: ['site'] },
-    { job: 'signal-dumps', schedule: { cron: '45 9 * * *' }, assets: ['site'] },
-    { job: 'freshness', schedule: { cron: '0 * * * *' }, assets: [null] },
-    { job: 'backup', schedule: { cron: '0 4 * * *' }, assets: [null] },
+    { job: 'counters', schedule: { enabled: true, cron: '0 * * * *' }, assets: ['site'] },
+    { job: 'signal-dumps', schedule: { enabled: true, cron: '45 9 * * *' }, assets: ['site'] },
+    { job: 'freshness', schedule: { enabled: true, cron: '0 * * * *' }, assets: [null] },
+    { job: 'backup', schedule: { enabled: true, cron: '0 4 * * *' }, assets: [null] },
   ];
   async function resumed(since, backupResumeSince) {
     const calls = [];
@@ -151,4 +151,38 @@ test('restart resumes only the latest eligible collection or backup since that s
   assert.deepEqual(await resumed(undefined), []);
   assert.deepEqual(await resumed(undefined, at - 25 * 3_600_000), [['backup', '2026-11-17T04:00:00.000Z']]);
   assert.deepEqual(await resumed(undefined, at - 3_600_000), []);
+});
+
+test('a paused report stays listed and schedule edits only affect future runs', async () => {
+  const workspace = { workspaceId: 'fixture' };
+  let now = Date.parse('2026-11-17T09:04:00Z'), enabled = false, cron = '5 * * * *';
+  const runs = [];
+  const clock = customerScheduleClock({ workspaces: [workspace], now: () => now,
+    read: async () => [{ job: 'panel-refresh', schedule: { enabled, cron }, assets: ['site'] }],
+    run: async call => runs.push(call.scheduledAt),
+  });
+  const tick = async at => {
+    now = Date.parse(at);
+    await clock.tick();
+    await clock.whenIdle();
+    return clock.status(workspace.workspaceId);
+  };
+  try {
+    const paused = await tick('2026-11-17T09:05:00Z');
+    assert.deepEqual(paused.registeredJobs, ['panel-refresh']);
+    assert.deepEqual(paused.jobs, [{ id: 'panel-refresh', enabled: false, cron, nextRun: null }]);
+    assert.deepEqual(runs, []);
+    enabled = true;
+    const resumed = await tick('2026-11-17T10:00:00Z');
+    assert.deepEqual(resumed.jobs, [{ id: 'panel-refresh', enabled: true, cron, nextRun: '2026-11-17T10:05:00.000Z' }]);
+    assert.deepEqual(runs, []);
+    await tick('2026-11-17T10:05:00Z');
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z']);
+    cron = '45 * * * *';
+    const edited = await tick('2026-11-17T11:00:00Z');
+    assert.deepEqual(edited.jobs, [{ id: 'panel-refresh', enabled: true, cron, nextRun: '2026-11-17T11:45:00.000Z' }]);
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z']);
+    await tick('2026-11-17T11:45:00Z');
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z', '2026-11-17T11:45:00.000Z']);
+  } finally { await clock.close(); }
 });

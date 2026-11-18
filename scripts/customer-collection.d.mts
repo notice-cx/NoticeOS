@@ -27,7 +27,7 @@ export interface CustomerSchedule {
 }
 export declare function customerArchive(value: unknown): CustomerArchive | null;
 export declare function customerJobSubject(asset: string, archive?: CustomerArchive): string;
-/** Read only configuration, asset IDs and the presence of a credential. The caller
- * must already hold a fresh service grant for this store. */
+/** Return eligible jobs, including paused jobs. The caller must already hold
+ * a fresh service grant for this store. */
 export declare function customerSchedules(store: WorkspaceStore, asset?: string | null, policy?: CustomerCollectionPolicy): Promise<CustomerSchedule[]>;
 export {};
