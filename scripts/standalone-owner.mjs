@@ -9,12 +9,14 @@ import { isPrivateTowerOrigin } from './browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS, emailEnrollmentUrl } from './identity-protocol.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { ntasksActivationVerifier } from './ntasks-activation.mjs';
+import { readLocalIdentityMail, smtpIdentityMail } from './local-identity-mail.mjs';
 
 const format = 'noticeos-standalone-owner/1';
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const email = /^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z0-9-]+$/u;
 const token = /^ntasks_service\.[A-Za-z0-9._~-]{1,1024}$/u;
 const invalid = () => new Error('The private standalone owner plan or command is invalid.');
+const mailRequired = 'Restore the private SMTP mail file beside the owner plan before requesting a code.';
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === fields.length && fields.every(key => Object.hasOwn(value, key));
 
@@ -36,6 +38,7 @@ function readPlan(file) {
     const input = JSON.parse(readFileSync(handle, 'utf8'));
     const fields = ['format', 'workspaceId', 'intendedEmail', 'trustedOrigin', 'identityDatabaseUrl', 'platformDatabaseUrl', 'identitySecret', 'ntasks'];
     if (Object.hasOwn(input ?? {}, 'mail')) fields.push('mail');
+    if (Object.hasOwn(input ?? {}, 'mailDelivery')) fields.push('mailDelivery');
     if (!exact(input, fields) || input.format !== format || !uuid.test(input.workspaceId)
       || typeof input.intendedEmail !== 'string' || input.intendedEmail.length > 320 || !email.test(input.intendedEmail)
       || typeof input.identitySecret !== 'string' || !/^[A-Za-z0-9_-]{64}$/u.test(input.identitySecret)
@@ -52,10 +55,15 @@ function readPlan(file) {
     const origin = new URL(tasks.origin);
     if (origin.origin !== tasks.origin || (origin.protocol !== 'https:'
       && (origin.protocol !== 'http:' || origin.hostname !== '127.0.0.1'))) throw invalid();
-    if (input.mail !== undefined && (!exact(input.mail, ['sendmail', 'from'])
+    if (input.mail !== undefined && (input.mailDelivery !== undefined || !exact(input.mail, ['sendmail', 'from'])
       || typeof input.mail.sendmail !== 'string' || !path.isAbsolute(input.mail.sendmail)
       || /[\r\n\0]/u.test(input.mail.sendmail) || typeof input.mail.from !== 'string' || !email.test(input.mail.from))) throw invalid();
-    return { ...input, intendedEmail: input.intendedEmail.toLowerCase() };
+    let smtp;
+    if (input.mailDelivery !== undefined) {
+      try { smtp = readLocalIdentityMail(input.mailDelivery, file); }
+      catch { throw new Error(mailRequired); }
+    }
+    return { ...input, intendedEmail: input.intendedEmail.toLowerCase(), smtp };
   } finally { closeSync(handle); }
 }
 
@@ -86,7 +94,7 @@ async function readCredential(input, limit, format, failure) {
 const codeRequired = 'Provide the six-digit email code on standard input.';
 const tokenRequired = 'Provide the project-scoped Ntasks service credential on standard input.';
 
-async function run(args, input) {
+export async function runStandaloneOwner(args, input, { smtpLaunch } = {}) {
   const [action, file, enrollmentId] = args;
   if (!['prepare', 'send-code', 'verify-code', 'activate'].includes(action)
     || (action === 'prepare' ? args.length !== 2 : args.length !== 3 || !uuid.test(enrollmentId))) throw invalid();
@@ -95,10 +103,16 @@ async function run(args, input) {
   const binding = { workspaceId: plan.workspaceId, ntasksWorkspaceId: plan.ntasks.workspaceId,
     ntasksOrigin: plan.ntasks.origin, projectId: plan.ntasks.projectId };
   if (action === 'send-code' || action === 'verify-code') {
-    if (!plan.mail) throw new Error('Configure delivery to the intended email before requesting an enrollment code.');
+    if (!plan.mail && !plan.smtp) throw new Error('Configure delivery to the intended email before requesting an enrollment code.');
+    const smtp = plan.smtp && smtpIdentityMail(plan.smtp, recipient => recipient === plan.intendedEmail, { launch: smtpLaunch });
     const login = openEmailCodeLogin({ connectionString: plan.identityDatabaseUrl, trustedOrigin: plan.trustedOrigin, localTowerOrigin,
       sessionSecret: plan.identitySecret, peerAddress: '127.0.0.1', standaloneOwnerWorkspaceId: plan.workspaceId,
-      deliver: message => sendMail(plan.mail, plan.intendedEmail, message) });
+      async deliver(message) {
+        if (!smtp) return sendMail(plan.mail, plan.intendedEmail, message);
+        if (!/^\d{6}$/u.test(message.code)) throw new Error('Mail delivery refused.');
+        await smtp({ from: plan.smtp.from, to: message.email, subject: 'Your NoticeOS sign-in code',
+          text: `Your NoticeOS sign-in code is ${message.code}.` });
+      } });
     try {
       const verify = action === 'verify-code';
       const request = new Request(plan.trustedOrigin + EMAIL_CODE_PATHS[verify ? 'verify' : 'request'], { method: 'POST',
@@ -130,11 +144,11 @@ async function run(args, input) {
 
 async function main(args) {
   try {
-    process.stdout.write(JSON.stringify(await run(args, process.stdin)) + '\n');
+    process.stdout.write(JSON.stringify(await runStandaloneOwner(args, process.stdin)) + '\n');
     return 0;
   } catch (error) {
     const safe = new Set([invalid().message, 'Configure delivery to the intended email before requesting an enrollment code.',
-      'Email enrollment did not complete.', codeRequired, tokenRequired]);
+      'Email enrollment did not complete.', mailRequired, codeRequired, tokenRequired]);
     const message = error instanceof StandaloneOwnerMigrationRequired || safe.has(error?.message) ? error.message
       : 'Standalone owner enrollment refused. Check the selected workspace, verified email and project binding.';
     process.stderr.write(message + '\n');

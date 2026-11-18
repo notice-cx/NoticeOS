@@ -844,11 +844,12 @@ database access and dedicated credentials for each role. In `ntasks`, give
 `origin`, `workspaceId` and `projectId`. Provide the Ntasks service token on
 standard input to `activate`. It needs write access to exactly that project.
 
-Set `mail` to an object with `sendmail`, the absolute path to the configured
-mail transport, and `from`, the sender's address. Delivery must reach the
-intended owner's mailbox. The file mailbox used by local fixtures is for
-synthetic tests. Provide the code received by the intended owner on standard
-input to `verify-code`.
+Set `mailDelivery` to the filename of the private SMTP relay file beside this
+plan. Customer sign-in and enrollment can use the same relay file. Existing
+plans can use `mail` with `sendmail`, the absolute path to a configured transport,
+and `from`, the sender's address. Use one sender and provide the code received
+by the intended owner on standard input to `verify-code`.
+[Configure the relay file](../deploy/compose/README.md#deliver-sign-in-codes-to-an-inbox).
 
 ```sh
 pnpm db:adopt-owner -- prepare /absolute/private-owner-plan.json

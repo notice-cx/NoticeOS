@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { holdLock } from './history-files.mjs';
+import { readLocalIdentityMail } from './local-identity-mail.mjs';
 import { MANAGED_START_PORTS } from './start-ports.mjs';
 import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 
@@ -12,7 +13,7 @@ const MARK = '.noticeos-customer-operating';
 const ROLES = { app: 'noticeos_app', identity: 'noticeos_identity', grant: 'noticeos_service_grant' };
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/iu;
-const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'ntasksOrigin',
+const options = new Set(['format', 'database', 'identitySecret', 'credentialsKey', 'workspaces', 'mailRecipients', 'mailDelivery', 'ntasksOrigin',
   'googleDaily', 'collectorProviders', 'sitePulls', 'siteReports']);
 
 export class CustomerOperatingRefused extends Error {}
@@ -50,8 +51,10 @@ function taskOrigin(value, plan, databasePort) {
 }
 
 export function readCustomerOperating(file, plan) {
-  try { return customerOperating(JSON.parse(privateFile(file)), plan); }
+  let config;
+  try { config = JSON.parse(privateFile(file)); }
   catch { throw refused(); }
+  return withDelivery(config, customerOperating(config, plan), file);
 }
 
 class SitePullBearerMissing extends Error {}
@@ -74,19 +77,28 @@ function composeSitePulls(pulls, assetTokens, workspaceId) {
 }
 
 export function readComposeCustomerOperating(file, plan, bootstrap) {
+  let config, operating;
   try {
-    const { towerOrigin, ...config } = JSON.parse(privateFile(file));
+    const { towerOrigin, ...declaration } = JSON.parse(privateFile(file));
     if (towerOrigin !== plan.localTowerOrigin) throw refused();
+    config = declaration;
     if (config.format !== 'noticeos-compose-customer/1' || !config.database || !Array.isArray(config.workspaces)
       || config.workspaces.length !== 1 || Object.keys(config.database).length !== 2
       || 'app' in config.database || 'credentialsKey' in config) throw refused();
     const sitePulls = composeSitePulls(config.sitePulls, bootstrap.ASSET_TOKENS, config.workspaces[0]?.workspaceId);
-    return customerOperating({ ...config, format: FORMAT, credentialsKey: bootstrap.CREDENTIALS_KEY, sitePulls,
+    operating = customerOperating({ ...config, format: FORMAT, credentialsKey: bootstrap.CREDENTIALS_KEY, sitePulls,
       database: { ...config.database, app: bootstrap.DATABASE_URL } }, plan, true);
   } catch (error) {
     if (error instanceof SitePullBearerMissing) throw new CustomerOperatingRefused('A configured site pull needs its existing bearer in ASSET_TOKENS.');
     throw new CustomerOperatingRefused('The app needs a private customer configuration for its existing database and one prepared workspace.');
   }
+  return withDelivery(config, operating, file);
+}
+
+function withDelivery(config, operating, file) {
+  if (config.mailDelivery === undefined) return operating;
+  try { return { ...operating, mailDelivery: readLocalIdentityMail(config.mailDelivery, file) }; }
+  catch { throw new CustomerOperatingRefused('Restore the private SMTP mail file beside the customer configuration before starting the app.'); }
 }
 
 function customerOperating(config, plan, compose = false) {
