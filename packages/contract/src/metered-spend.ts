@@ -116,14 +116,15 @@ const METERED_COSTS_SQL = `
    GROUP BY asset_id`;
 
 /** The balance used by both the collector and the Tower. Append a projection
- * from `budget` using {@link meteredBudgetParams} as the first five arguments. */
+ * from `budget` using {@link meteredBudgetParams} as the first six arguments. */
 export const METERED_BUDGET_SQL = `WITH costs AS (${METERED_COSTS_SQL}), saved AS (
   SELECT CASE WHEN jsonb_typeof(body::jsonb #> '{monthly_caps,data_usd}') = 'number'
     THEN (body::jsonb #>> '{monthly_caps,data_usd}')::numeric END AS cap
   FROM noticeos.config_documents WHERE document_key='constants'
 ), budget AS (
   SELECT coalesce(sum(spent), 0) AS spent, coalesce(sum(held), 0) AS held,
-    least($5::numeric, (SELECT cap FROM saved)) AS cap, (SELECT cap FROM saved) AS saved_cap
+    least($5::numeric, CASE WHEN $6::boolean THEN coalesce((SELECT cap FROM saved), 0)
+      ELSE (SELECT cap FROM saved) END) AS cap
   FROM costs
 )`;
 
@@ -131,8 +132,8 @@ function meteredCostParams(now: Date | string, window: MeteredSpendWindow = 'mon
   return [METERED_DATA_PROVIDER, ...meteredSpendBounds(now, window), RESEARCH_COLLECTOR_ACTOR];
 }
 
-export function meteredBudgetParams(now: Date | string, capUsd: number) {
-  return [...meteredCostParams(now), capUsd];
+export function meteredBudgetParams(now: Date | string, capUsd: number, requireSavedCap: boolean) {
+  return [...meteredCostParams(now), capUsd, String(requireSavedCap)];
 }
 
 function finite(value: unknown): number {
@@ -157,7 +158,7 @@ export async function loadMeteredDataSpend(
   return summarizeMeteredDataSpend(rows);
 }
 
-export async function loadMeteredDataBudget(store: MeteredSpendStore, now: Date | string, capUsd: number) {
+export async function loadMeteredDataBudget(store: MeteredSpendStore, now: Date | string, capUsd: number, requireSavedCap = false) {
   const [balance] = await store.read(tx => tx.query<{
     spent: string; held: string; available: string; cap: string; rows: string;
   }>(`${METERED_BUDGET_SQL}
@@ -165,7 +166,7 @@ export async function loadMeteredDataBudget(store: MeteredSpendStore, now: Date 
            coalesce((SELECT json_agg(items) FROM (
              SELECT asset, coalesce(spent, 0)::text AS spent, unknown::text FROM costs
            ) items), '[]'::json)::text AS rows
-    FROM budget`, meteredBudgetParams(now, capUsd)));
+    FROM budget`, meteredBudgetParams(now, capUsd, requireSavedCap)));
   if (!balance) throw new Error('The data budget is unavailable.');
   const rows = JSON.parse(balance.rows) as MeteredSpendRow[];
   return { ...summarizeMeteredDataSpend(rows), spentUsd: Number(balance.spent), capUsd: Number(balance.cap),

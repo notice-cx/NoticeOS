@@ -356,7 +356,8 @@ function Layers({
   });
   const spend = matrix.dataSpend;
   const heldUsd = spend.budget?.heldUsd ?? 0;
-  const atCap = spend.capUsd > 0 && (spend.budget ? spend.budget.availableUsd === 0 : spend.spentUsd >= spend.capUsd);
+  const atCap = spend.capUsd > 0 && spend.spentUsd >= spend.capUsd;
+  const heldAtCap = spend.capUsd > 0 && !atCap && heldUsd > 0 && spend.budget?.availableUsd === 0;
 
   return (
     <>
@@ -459,7 +460,7 @@ function Layers({
               className="min-w-0 grid-cols-[minmax(0,1fr)]"
               label="Data spend"
               value={<>{formatUsd(spend.spentUsd, { cents: true })}<UnknownPriceCount count={spend.unknownPrices} /></>}
-              valueTone={atCap ? "warn" : "default"}
+              valueTone={atCap || heldAtCap ? "warn" : "default"}
               caption={`of ${formatUsd(spend.capUsd)} in ${formatPeriodMonth(spend.period)}`}
               footer={<>
                 <SegmentBar
@@ -487,6 +488,7 @@ function Layers({
         <DataSpend
           spend={spend}
           atCap={atCap}
+          heldAtCap={heldAtCap}
           displayNames={new Map(matrix.assets.map((a) => [a.id, a.displayName]))}
         />
       </Panel>
@@ -541,10 +543,12 @@ function Panel({
 function DataSpend({
   spend,
   atCap,
+  heldAtCap,
   displayNames,
 }: {
   spend: DataSpendSummary;
   atCap: boolean;
+  heldAtCap: boolean;
   displayNames: Map<string, string>;
 }) {
   const rows = spend.byAsset.length > 0 || spend.unattributedUsd > 0 || spend.unattributedUnknownPrices > 0;
@@ -587,10 +591,10 @@ function DataSpend({
           Nothing metered has been bought this month.
         </p>
       )}
-      {atCap ? (
+      {atCap || heldAtCap ? (
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-spend-capped>
-          <StateChip tone="caution" label="Cap reached" subject="budget:portfolio" />
-          Metered pulls paused until next month
+          <StateChip tone="caution" label={heldAtCap ? "Budget held" : "Cap reached"} subject="budget:portfolio" />
+          {heldAtCap ? "Purchases can resume when held funds are released." : "Metered pulls paused until next month"}
         </p>
       ) : null}
     </div>

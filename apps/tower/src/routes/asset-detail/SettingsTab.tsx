@@ -842,7 +842,7 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
           Reading the cost…
         </p>
       )}
-      {overCap ? <CollectRefusal assetId={assetId} error="over-cap" /> : null}
+      {overCap ? <CollectRefusal assetId={assetId} error="over-cap" capDisabled={spend?.capUsd === 0} /> : null}
       {collect.isError ? (
         <p role="alert" className="m-0 text-sm text-error">
           Collection failed · try again
@@ -880,11 +880,11 @@ function CollectedLine({ assetId, result }: { assetId: string; result: CollectNo
   );
 }
 
-function CollectRefusal({ assetId, error }: { assetId: string; error: keyof typeof COLLECT_REFUSAL_LABEL }) {
+function CollectRefusal({ assetId, error, capDisabled }: { assetId: string; error: keyof typeof COLLECT_REFUSAL_LABEL; capDisabled?: boolean }) {
   return (
     <p role="status" data-status-for={`serp-panel-collect:${assetId}`} className="m-0 flex flex-wrap items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
       <TriangleAlert className="size-4 shrink-0" aria-hidden />
-      {COLLECT_REFUSAL_LABEL[error]}
+      {capDisabled ? "Set a positive monthly data cap to collect." : COLLECT_REFUSAL_LABEL[error]}
       {error === "over-cap" ? (
         <Link to="/settings#budget" className="text-xs underline underline-offset-4">
           Data cap

@@ -242,6 +242,7 @@ export interface IntegrationsDeps {
    * sending no nightly report, whose derived lane is Not using. */
   noNightlyReport?: readonly string[] | null;
   backupPreview?: boolean;
+  requireSavedCap?: boolean;
 }
 
 /** The stored settings the matrix is built from, as the Tower's config
@@ -285,7 +286,7 @@ export async function recordTodaysSourceHistory(store: WorkspaceStore, deps: Int
 /** The matrix without its history: every cell, lane and summary. */
 async function assembleIntegrationsMatrix(
   store: WorkspaceStore,
-  { now, integrations, pullConfig, monthlyCaps, serpPanel, noNightlyReport, backupPreview }: IntegrationsDeps,
+  { now, integrations, pullConfig, monthlyCaps, serpPanel, noNightlyReport, backupPreview, requireSavedCap }: IntegrationsDeps,
 ): Promise<Omit<IntegrationsMatrix, "history">> {
   const evidence = await loadIntegrationEvidence(store, { now, integrations, serpPanel, presentation: 'full' });
   const catalog = evidence.catalog;
@@ -341,7 +342,7 @@ async function assembleIntegrationsMatrix(
     // About credentials the operator still has to create; the derived lane is
     // never file-declared, so it is outside that count.
     sharedCredential: sharedCredentialInsight(catalog, cells),
-    dataSpend: await loadDataForSeoMonth(store, now, monthlyCaps.dataUsd, backupPreview),
+    dataSpend: await loadDataForSeoMonth(store, now, monthlyCaps.dataUsd, { backupPreview, requireSavedCap }),
   };
 }
 

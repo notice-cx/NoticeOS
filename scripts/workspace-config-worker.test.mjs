@@ -487,6 +487,31 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       }
       assert.equal(outside, 0, JSON.stringify(outsideDetails));
     });
+    await t.test('hosted budget views require a valid saved cap for the selected workspace', async () => {
+      const { rows: [{ body }] } = await admin.query(
+        "SELECT body::text FROM noticeos.config_documents WHERE workspace_id=$1 AND document_key='constants'", [a]);
+      const before = providerCalls.length;
+      try {
+        await admin.query(`UPDATE noticeos.config_documents
+          SET body=jsonb_set(body::jsonb,'{monthly_caps,data_usd}',to_jsonb('legacy'::text))
+          WHERE workspace_id=$1 AND document_key='constants'`, [a]);
+        for (const [workspace, capUsd] of [[a, 0], [b, 202]]) {
+          const matrix = await towerFetch.fetch(origin + '/api/integrations', { headers: headers(workspace) });
+          assert.equal(matrix.status, 200);
+          const providers = await towerFetch.fetch(origin + '/api/integrations/providers', { headers: headers(workspace) });
+          assert.equal(providers.status, 200);
+          const sites = await readiness(workspace, 'dataforseo', 'discoverSites');
+          assert.equal(sites.status, 200);
+          for (const spend of [(await matrix.json()).dataSpend, (await providers.json()).providers.find(row => row.provider.id === 'dataforseo').meter, (await sites.json()).spend]) {
+            assert.equal(spend.capUsd, capUsd);
+            assert.deepEqual(spend.budget, { heldUsd: 0, availableUsd: capUsd });
+          }
+        }
+        assert.equal(providerCalls.length, before);
+      } finally {
+        await admin.query("UPDATE noticeos.config_documents SET body=$2 WHERE workspace_id=$1 AND document_key='constants'", [a, body]);
+      }
+    });
     await t.test('readiness refusals do not read credentials, post messages, or touch provider accounts', async () => {
       const before = providerCalls.length;
       await admin.query('SELECT pg_stat_statements_reset()');

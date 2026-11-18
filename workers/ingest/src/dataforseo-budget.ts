@@ -6,12 +6,12 @@ import { sha256Hex } from './shared.js';
 const budgetName = 'noticeos.dataforseo-budget';
 
 const CAN_SPEND_SQL = `${METERED_BUDGET_SQL}
-SELECT spent + held + $6::numeric <= cap AND (NOT $7::boolean OR saved_cap > 0) AS allowed FROM budget`;
+SELECT cap > 0 AND spent + held + $7::numeric <= cap AS allowed FROM budget`;
 
 async function canSpend(tx: Transaction, nowMs: number, reserveUsd: number, capUsd: number, requireSavedCap: boolean): Promise<boolean> {
   if (!Number.isFinite(capUsd) || capUsd <= 0 || !Number.isFinite(reserveUsd) || reserveUsd <= 0) return false;
   const [result] = await tx.query<{ allowed: boolean }>(CAN_SPEND_SQL, [
-    ...meteredBudgetParams(new Date(nowMs), capUsd), reserveUsd, requireSavedCap,
+    ...meteredBudgetParams(new Date(nowMs), capUsd, requireSavedCap), reserveUsd,
   ]);
   return result?.allowed === true;
 }

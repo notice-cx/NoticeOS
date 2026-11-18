@@ -8,13 +8,14 @@ import { handleIntegrationHealthRequest } from './connection-status-daily';
 import { loadProviderMeter } from './metered-spend';
 
 export async function handleIntegrationSummaryRead(request: Request, {
-  store, config, ingest, now, backupPreview,
+  store, config, ingest, now, backupPreview, requireSavedCap,
 }: {
   store: WorkspaceStore;
   config: () => Promise<TowerConfig>;
   ingest: { listCredentialSummaries(): Promise<CredentialStoreState>; integrationHealth(): Promise<unknown> };
   now: Date;
   backupPreview?: boolean;
+  requireSavedCap?: boolean;
 }): Promise<Response | null> {
   if (request.method !== 'GET') return null;
   const pathname = new URL(request.url).pathname;
@@ -24,7 +25,7 @@ export async function handleIntegrationSummaryRead(request: Request, {
   if (pathname === '/api/integrations/providers') {
     const cfg = await config();
     return handleIntegrationProvidersRequest(request, ingest, cfg.integrations, now,
-      (meter, at) => loadProviderMeter(store, meter, at, cfg.monthlyCaps.dataUsd, backupPreview));
+      (meter, at) => loadProviderMeter(store, meter, at, cfg.monthlyCaps.dataUsd, { backupPreview, requireSavedCap }));
   }
   return null;
 }

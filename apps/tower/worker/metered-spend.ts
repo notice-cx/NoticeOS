@@ -52,12 +52,17 @@ export async function loadDataForSeoSpend(store: WorkspaceStore, now: Date, wind
 }
 export type { SpendWindow };
 
+type MonthlySpendOptions = { backupPreview?: boolean; requireSavedCap?: boolean };
+
 /** Backup projections carry past bills only. No purchasing balance is inferred from them. */
-export async function loadDataForSeoMonth(store: WorkspaceStore, now: Date, capUsd: number, backupPreview = false): Promise<DataSpendSummary> {
+export async function loadDataForSeoMonth(
+  store: WorkspaceStore, now: Date, capUsd: number,
+  { backupPreview, requireSavedCap }: MonthlySpendOptions = {},
+): Promise<DataSpendSummary> {
   return {
     period: utcMonth(now),
     ...(backupPreview ? { ...await loadDataForSeoSpend(store, now, 'month', true), capUsd }
-      : await loadMeteredDataBudget(store, now, capUsd)),
+      : await loadMeteredDataBudget(store, now, capUsd, requireSavedCap)),
   };
 }
 
@@ -104,10 +109,10 @@ export async function loadProviderMeter(
   meter: IntegrationMeter,
   now: Date,
   capUsd: number,
-  backupPreview = false,
+  options?: MonthlySpendOptions,
 ): Promise<ProviderMeterReading> {
   if (meter.window === "portfolio-month") {
-    const { spentUsd, unknownPrices, capUsd: effectiveCap, period, budget } = await loadDataForSeoMonth(store, now, capUsd, backupPreview);
+    const { spentUsd, unknownPrices, capUsd: effectiveCap, period, budget } = await loadDataForSeoMonth(store, now, capUsd, options);
     return { window: "portfolio-month", period, spentUsd, unknownPrices, capUsd: effectiveCap, ...(budget ? { budget } : {}) };
   }
   return loadMeteredCallsToday(store, meter.countedFrom, now);
@@ -133,8 +138,9 @@ export async function loadSpendPreview(
   store: WorkspaceStore,
   now: Date,
   capUsd: number,
+  requireSavedCap = false,
 ): Promise<SiteSpendPreview> {
-  const { spentUsd, unknownPrices, capUsd: effectiveCap, budget } = await loadMeteredDataBudget(store, now, capUsd);
+  const { spentUsd, unknownPrices, capUsd: effectiveCap, budget } = await loadMeteredDataBudget(store, now, capUsd, requireSavedCap);
   const since = new Date(now.getTime() - SPEND_PREVIEW_DAYS * 86_400_000).toISOString();
   // A report date whose every price is unknown recorded no spend: 0.
   const weeks = (

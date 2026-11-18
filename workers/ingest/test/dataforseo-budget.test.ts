@@ -135,7 +135,11 @@ it('reads the same balance the collector enforces and moves a held charge to con
     const neighbor = await read(other, SEPTEMBER);
     expect(previous).toMatchObject({ spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 0.75 } });
     expect(neighbor).toMatchObject({ spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 1.75 } });
-    const balance = await read(primary, SEPTEMBER);
+    expect(await loadMeteredDataBudget(other, new Date(SEPTEMBER), 2, true))
+      .toMatchObject({ capUsd: 0, spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 0 } });
+    expect(await canReserveDataForSeo(other, SEPTEMBER, 0.25, 2, true)).toBe(false);
+    expect(await canReserveDataForSeo(other, SEPTEMBER, 1.75, 2)).toBe(true);
+    const balance = await loadMeteredDataBudget(primary, new Date(SEPTEMBER), 2, true);
     expect(balance).toMatchObject({ capUsd: 1, spentUsd: 0.12, budget: { heldUsd: 0.25, availableUsd: 0.63 } });
     expect(await canReserveDataForSeo(primary, SEPTEMBER, balance.budget.availableUsd, 2, true)).toBe(true);
     expect(await canReserveDataForSeo(primary, SEPTEMBER, 0.630001, 2, true)).toBe(false);
