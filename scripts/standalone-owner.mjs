@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { openPlatformProvisioning, PlatformProjectReserved, StandaloneOwnerMigrationRequired } from '../packages/postgres/src/platform-provisioning.mjs';
@@ -11,11 +12,14 @@ import { EMAIL_CODE_PATHS, emailEnrollmentUrl } from './identity-protocol.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { ntasksActivationVerifier } from './ntasks-activation.mjs';
 import { readLocalIdentityMail, smtpIdentityMail } from './local-identity-mail.mjs';
+import { MANAGED_START_PORTS } from './start-ports.mjs';
 
 const format = 'noticeos-standalone-owner/1';
 const newWorkspaceFormat = 'noticeos-local-workspace-owner/1';
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const email = /^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z0-9-]+$/u;
+const { z } = createRequire(new URL('../packages/contract/package.json', import.meta.url))('zod');
+const enrollmentEmail = z.email();
 const token = /^ntasks_service\.[A-Za-z0-9._~-]{1,1024}$/u;
 const invalid = () => new Error('The private standalone owner plan or command is invalid.');
 const mailRequired = 'Restore the private SMTP mail file beside the owner plan before requesting a code.';
@@ -48,7 +52,7 @@ function readPlan(file, newWorkspace, invalid) {
       && (newWorkspace ? secret.length >= 32 && secret.length <= 512 : /^[A-Za-z0-9_-]{64}$/u.test(secret));
     if (!exact(input, fields) || input.format !== (newWorkspace ? newWorkspaceFormat : format)
       || typeof input.workspaceId !== 'string' || !uuid.test(input.workspaceId)
-      || typeof input.intendedEmail !== 'string' || input.intendedEmail.length > 320 || !email.test(input.intendedEmail)
+      || typeof input.intendedEmail !== 'string' || input.intendedEmail.length > 320 || !enrollmentEmail.safeParse(input.intendedEmail).success
       || !validSecret
       || typeof input.trustedOrigin !== 'string') throw invalid();
     if (newWorkspace && (typeof input.slug !== 'string' || typeof input.displayName !== 'string'
@@ -69,7 +73,8 @@ function readPlan(file, newWorkspace, invalid) {
       && (origin.protocol !== 'http:' || origin.hostname !== '127.0.0.1'))) throw invalid();
     if (newWorkspace && (platform.hostname !== '127.0.0.1' || tower.hostname !== '127.0.0.1'
       || tower.protocol !== 'http:' || origin.hostname !== '127.0.0.1' || origin.protocol !== 'http:'
-      || tower.origin === origin.origin)) throw invalid();
+      || !platform.port || !tower.port || !origin.port
+      || [...MANAGED_START_PORTS, Number(platform.port), Number(tower.port), Number(tower.port) + 1].includes(Number(origin.port)))) throw invalid();
     if (input.mail !== undefined && (input.mailDelivery !== undefined || !exact(input.mail, ['sendmail', 'from'])
       || typeof input.mail.sendmail !== 'string' || !path.isAbsolute(input.mail.sendmail)
       || /[\r\n\0]/u.test(input.mail.sendmail) || typeof input.mail.from !== 'string' || !email.test(input.mail.from))) throw invalid();
@@ -207,7 +212,7 @@ export async function ownerEnrollmentMain(args, { newWorkspace = false } = {}) {
       : newWorkspace ? 'Local workspace owner enrollment refused. Check the workspace ID, verified email and project binding.'
         : 'Standalone owner enrollment refused. Check the selected workspace, verified email and project binding.';
     process.stderr.write(message + '\n');
-    return 1;
+    return newWorkspace && error instanceof PlatformProjectReserved ? 2 : 1;
   }
 }
 

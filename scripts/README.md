@@ -885,6 +885,7 @@ when they target the same database.
    both lists have room for the entries you will add. This command uses a
    separate Ntasks origin of the form `http://127.0.0.1:<port>`. If the Tower
    already declares an `ntasksOrigin`, it must be that same loopback origin.
+   Use a port outside the Tower's own ports and the reserved development ports.
    Prepare the team's workspace and project there. Create a service
    credential with write access to exactly the new team's project. Choose
    a project that another NoticeOS workspace has never reserved.
@@ -919,8 +920,10 @@ pnpm db:provision-workspace activate /absolute/private-owner-plan.json <enrollme
 4. After activation, append the plan's `workspaceId` and `serviceId` to the
    attached runtime's `workspaces`. Add the first owner's address if the
    runtime uses an explicit `mailRecipients` list. If `ntasksOrigin` is absent,
-   set it to the plan's Ntasks origin. Restart the same local customer runtime
-   with its existing Tower address and runtime folder.
+   set it to the plan's Ntasks origin. If Google daily collection is enabled,
+   let the existing declaration finish any pending catch-up before changing
+   the list of workspaces. Restart the same local customer runtime with its
+   existing Tower address and runtime folder.
 5. The new owner signs in through the Tower and connects the team's
    project-scoped credential under **Integrations → Ntasks**. The first
    team's membership and connection continue to use its existing workspace.
@@ -934,6 +937,9 @@ same enrollment ID. If preparation committed and you lost the ID, use
 the original plan to retrieve the pending ID. An expired workspace stays
 inactive, with its original project reserved. To start a separate rehearsal,
 use a new workspace ID, slug and Ntasks project.
+
+The scheduler grant expires one year after activation. The workspace's
+scheduled jobs then need a renewed grant. This command does not renew grants.
 
 ---
 

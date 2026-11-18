@@ -170,9 +170,10 @@ test('platform preparation is inactive and activation checks locked current evid
         held = false;
         assert.ok(await attempt instanceof PlatformProjectReserved);
       } finally {
-        if (held) await holder.query('ROLLBACK');
-        holder.release();
-        await attempt;
+        let broken = false;
+        try { if (held) await holder.query('ROLLBACK'); }
+        catch (error) { broken = true; throw error; }
+        finally { holder.release(broken); await attempt; }
       }
       assert.deepEqual((await admin.query('SELECT workspace_id FROM noticeos_platform.task_project_directory WHERE project_id=$1', [projectId])).rows,
         [{ workspace_id: prepared.workspaceId }]);

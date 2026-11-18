@@ -6,7 +6,7 @@
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import { openIdentity } from './identity.mjs';
-import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID } from './identity-engine.mjs';
+import { hasConflictingLegacyMailbox, identityEngine, openIdentityDatabase, validateIdentityOptions, UUID } from './identity-engine.mjs';
 import { releasedDefaultDocuments } from '../../../scripts/released-defaults.mjs';
 export class PlatformProvisioningRefused extends Error {
     name = 'PlatformProvisioningRefused';
@@ -247,8 +247,11 @@ export function openPlatformProvisioning(input) {
                 return Promise.reject(new PlatformProvisioningRefused());
             }
             return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async (trx) => {
-                if (project)
+                if (project) {
+                    if (await hasConflictingLegacyMailbox(trx, command.intendedEmail))
+                        refuse();
                     await lockAvailableProject(trx, command.workspaceId, project.projectId);
+                }
                 if (signal.aborted)
                     refuse();
                 const result = await sql `SELECT noticeos_platform.prepare_workspace(

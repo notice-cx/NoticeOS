@@ -5,7 +5,7 @@
 import { Pool } from 'pg';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import { openIdentity } from './identity.mjs';
-import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
+import { hasConflictingLegacyMailbox, identityEngine, openIdentityDatabase, validateIdentityOptions, UUID, type IdentityDatabase } from './identity-engine.mjs';
 import type { TaskProjectMapping } from './task-directory.mjs';
 import { releasedDefaultDocuments } from '../../../scripts/released-defaults.mjs';
 
@@ -238,7 +238,10 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
         if (projectInput !== undefined) project = initialProject(projectInput);
       } catch { return Promise.reject(new PlatformProvisioningRefused()); }
       return track(transaction(async (db, signal) => db.transaction().setIsolationLevel('read committed').execute(async trx => {
-        if (project) await lockAvailableProject(trx, command.workspaceId, project.projectId);
+        if (project) {
+          if (await hasConflictingLegacyMailbox(trx, command.intendedEmail)) refuse();
+          await lockAvailableProject(trx, command.workspaceId, project.projectId);
+        }
         if (signal.aborted) refuse();
         const result = await sql<{ enrollment_id: string }>`SELECT noticeos_platform.prepare_workspace(
           ${command.workspaceId}::uuid,${command.slug},${command.displayName},${command.intendedEmail},

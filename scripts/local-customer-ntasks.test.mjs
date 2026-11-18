@@ -84,7 +84,7 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     execFileSync(postgres.cluster.tools.pgCtl, ['reload', '-D', path.join(postgres.cluster.root, 'data')], { stdio: 'pipe' });
     const mailbox = path.join(root, 'enrollment-mail');
     const sendmail = path.join(root, 'private-sendmail');
-    writeFileSync(sendmail, `#!/bin/sh\numask 077\nexec /bin/cat > "${mailbox}"\n`, { mode: 0o700 });
+    writeFileSync(sendmail, '#!/bin/sh\numask 077\nexec /bin/cat > "${0%/*}/enrollment-mail"\n', { mode: 0o700 });
     const ownerPlan = (actor, slug) => ({
       format: 'noticeos-local-workspace-owner/1', workspaceId: randomUUID(), serviceId: randomUUID(), slug, displayName: slug,
       intendedEmail: `${slug}-owner@example.test`, trustedOrigin: origin, platformDatabaseUrl: platform.href,
@@ -210,16 +210,19 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       assert.deepEqual(workspaces.map(workspace => workspace.workspaceId), [firstOwner.workspaceId]);
     };
     const conflict = ownerPlan(oak, 'overlap');
-    await runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
+    await runOwner('prepare', prepareFile('overlap', conflict), { status: 2 });
     let alternateRequests = 0;
     const alternate = createServer((_request, response) => { alternateRequests++; response.writeHead(503).end(); });
     t.after(() => new Promise(resolve => alternate.close(resolve)));
     await new Promise((resolve, reject) => alternate.once('error', reject).listen(0, '127.0.0.1', resolve));
     const alternateOrigin = `http://127.0.0.1:${alternate.address().port}`;
     await runOwner('prepare', prepareFile('alias-overlap', { ...conflict, ntasks: { ...conflict.ntasks, origin: alternateOrigin } }),
-      { status: 1 });
+      { status: 2 });
     const secondOwner = ownerPlan(elm, 'elm');
     const secondFile = prepareFile('elm', secondOwner);
+    await runOwner('prepare', prepareFile('invalid-address', { ...secondOwner, intendedEmail: '.alice@example.test' }), { status: 1 });
+    await runOwner('prepare', prepareFile('reserved-port', { ...secondOwner, ntasks: { ...secondOwner.ntasks, origin: 'http://127.0.0.1:5173' } }),
+      { status: 1 });
     const second = await runOwner('prepare', secondFile);
     await runOwner('prepare', secondFile, { status: 1 });
     assert.deepEqual(await runOwner('recover', secondFile), second);
@@ -234,8 +237,17 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     await runOwner('recover', editedEmail, { status: 1 });
     await runOwner('recover', otherOrigin, { status: 1 });
     await activate(editedEmail, second, elm.token, 1);
-    const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
-    await activate(reusedGrant, second, elm.token, 1);
+    postgres.cluster.run(`INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
+      VALUES (:'service'::uuid,:'workspace'::uuid,ARRAY['workflows.run'],now()+interval '1 day')`,
+    { vars: { service: secondOwner.serviceId, workspace: firstOwner.workspaceId } });
+    await activate(secondFile, second, elm.token, 1);
+    assert.deepEqual(postgres.cluster.script(`SELECT status,
+      EXISTS(SELECT 1 FROM noticeos_identity.auth_member WHERE organization_id=:'workspace'::uuid) AS member,
+      EXISTS(SELECT 1 FROM noticeos_platform.workspace_service_grants WHERE workspace_id=:'workspace'::uuid) AS granted
+      FROM noticeos.workspaces WHERE workspace_id=:'workspace'::uuid`, { vars: { workspace: secondOwner.workspaceId } }),
+    [{ status: 'provisioning', member: 'f', granted: 'f' }]);
+    postgres.cluster.run('DELETE FROM noticeos_platform.workspace_service_grants WHERE service_id=:\'service\'::uuid',
+      { vars: { service: secondOwner.serviceId } });
     await firstStillOwnsWorkspace();
     assert.equal((await activate(secondFile, second, elm.token)).serviceId, secondOwner.serviceId);
     await activate(secondFile, second, elm.token, 1);

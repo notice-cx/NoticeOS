@@ -5,7 +5,7 @@ import { isValidIP, normalizeIP, createRateLimitKey } from '@better-auth/core/ut
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { EMAIL_CODE_PATHS, type EmailEnrollment } from '../../../scripts/identity-protocol.mjs';
 import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID,
-  IdentityRefused, type IdentityOptions, type IdentityDatabase, type EmailCodeMessage } from './identity-engine.mjs';
+  hasConflictingLegacyMailbox, IdentityRefused, type IdentityOptions, type IdentityDatabase, type EmailCodeMessage } from './identity-engine.mjs';
 
 export { EMAIL_CODE_PATHS, type EmailEnrollment } from '../../../scripts/identity-protocol.mjs';
 export interface EmailCodeOptions extends IdentityOptions {
@@ -185,13 +185,10 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
       if (body) await sql`SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
       let eligible = body ? await eligibility(trx, body.email, enrollment, operator, options.mailWorkspaceIds) : { allowed: true };
-      if (body && eligible.allowed && enrollment && options.mailWorkspaceIds) {
+      if (body && eligible.allowed && enrollment && (options.mailWorkspaceIds || operator?.status === 'provisioning')) {
         // An invitation can create a person. Do not create a new normalized
         // identity when a legacy row already represents the same mailbox.
-        const existing = await sql`SELECT id FROM noticeos_identity.auth_user
-          WHERE lower(email COLLATE pg_catalog.pg_unicode_fast)=${body.email}
-            AND email COLLATE pg_catalog.pg_unicode_fast<>${body.email} LIMIT 1`.execute(trx);
-        if (existing.rows.length) eligible = { allowed: false };
+        if (await hasConflictingLegacyMailbox(trx, body.email)) eligible = { allowed: false };
       }
       const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
         ...(action === 'logout' ? { readOnlySession: true as const } : {}),
