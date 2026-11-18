@@ -1,28 +1,37 @@
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID, verify as verifySignature } from 'node:crypto';
 import { openWorkspaceStore } from '../../packages/postgres/src/store.mjs';
 
 const asset = 'archive-app';
 const scope = 'https://www.googleapis.com/auth/webmasters.readonly';
 const site = 'sc-domain:example.test';
 
-export function customerArchiveFixture(app) {
+export function customerArchiveFixture(app, { useServiceAccount = false } = {}) {
   const [east, west] = app.workspaces;
   const refresh = randomBytes(24).toString('base64url');
   const access = randomBytes(24).toString('base64url');
   const client = randomBytes(24).toString('base64url');
   const secret = randomBytes(24).toString('base64url');
   const requests = [];
+  const email = 'collector@example.test';
+  const accountKey = useServiceAccount ? generateKeyPairSync('rsa', { modulusLength: 2048 }) : null;
   let mints = 0;
   let refused = false;
 
   return {
     async configure(db, credentialsKey) {
       const aes = await crypto.subtle.importKey('raw', Buffer.from(credentialsKey, 'base64'), 'AES-GCM', false, ['encrypt']);
-      for (const [provider, fields] of [
+      const fieldsByProvider = accountKey ? [
+        ['google', { GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({ archive: {
+          service_account_b64: Buffer.from(JSON.stringify({ client_email: email,
+            private_key: accountKey.privateKey.export({ type: 'pkcs8', format: 'pem' }) })).toString('base64'),
+          properties: { [asset]: { gsc_site_url: site } },
+        } }) }],
+      ] : [
         ['google', { GOOGLE_OAUTH_REFRESH_TOKEN: refresh }],
         ['google-oauth-app', { GOOGLE_OAUTH_CLIENT_ID: client, GOOGLE_OAUTH_CLIENT_SECRET: secret }],
-      ]) {
+      ];
+      for (const [provider, fields] of fieldsByProvider) {
         const iv = randomBytes(12);
         const ciphertext = Buffer.from(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aes,
           new TextEncoder().encode(JSON.stringify(fields))));
@@ -53,7 +62,17 @@ export function customerArchiveFixture(app) {
       const url = new URL(request.url);
       if (url.href === 'https://oauth2.googleapis.com/token') {
         const params = new URLSearchParams(await request.text());
-        if (params.get('refresh_token') !== refresh || params.get('client_id') !== client || params.get('client_secret') !== secret) {
+        if (accountKey) {
+          assert.equal(params.get('grant_type'), 'urn:ietf:params:oauth:grant-type:jwt-bearer');
+          const [header, claims, signature, extra] = (params.get('assertion') ?? '').split('.');
+          assert.ok(header && claims && signature && extra === undefined);
+          assert.ok(verifySignature('RSA-SHA256', Buffer.from(`${header}.${claims}`), accountKey.publicKey, Buffer.from(signature, 'base64url')));
+          const token = JSON.parse(Buffer.from(claims, 'base64url').toString());
+          assert.equal(token.iss, email);
+          assert.equal(token.aud, url.href);
+          assert.equal(token.scope, scope);
+          assert.equal(token.exp - token.iat, 3600);
+        } else if (params.get('refresh_token') !== refresh || params.get('client_id') !== client || params.get('client_secret') !== secret) {
           return new Response(null, { status: 401 });
         }
         mints++;
@@ -108,7 +127,7 @@ export function customerArchiveFixture(app) {
         assert.equal(report.archivesFetched, rows.length);
         assert.equal(report.publication.created, true);
       } finally { await store.close(); }
-      t.diagnostic(`Scheduled Search Console: ${mints} token exchanges, ${requests.length} free report reads, ${rows.length} namespaced archives, 1 terminal partial failure, 0 requests from the second tenant.`);
+      t.diagnostic(`Scheduled Search Console: ${mints} ${accountKey ? 'signed service-account ' : ''}token exchanges, ${requests.length} free report reads, ${rows.length} namespaced archives, 1 terminal partial failure, 0 requests from the second tenant.`);
       return { asset, archives: rows.length };
     },
   };

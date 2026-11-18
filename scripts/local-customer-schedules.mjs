@@ -125,7 +125,8 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
   };
 }
 
-export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now, resumeSince }) {
+export async function startLocalCustomerSchedules({ workspaces, connectionString, grantConnectionString, worker, reports, now = Date.now,
+  resumeSince, operatingGoogle }) {
   const ids = new Set();
   for (const binding of workspaces) {
     if (!binding.workspaceId || !binding.serviceId || ids.has(binding.workspaceId)) throw new Error('Invalid customer schedule binding.');
@@ -145,11 +146,15 @@ export async function startLocalCustomerSchedules({ workspaces, connectionString
         return await admission.withAdmission('workflows.run', { requestedWorkspaceId: binding.workspaceId, correlationId: randomUUID() },
           new Request(privateUrl, { method: 'POST' }), async () => {
             const collection = await customerSchedules(store);
-            if (!reports) return collection;
-            try { return [...collection, ...await reports.targets(store)]; }
+            const allowed = operatingGoogle === undefined ? collection : collection.flatMap(item => {
+              if (item.job === 'freshness') return [{ ...item, assets: item.assets.filter(asset => asset === null) }];
+              return operatingGoogle ? [item] : [];
+            });
+            if (!reports) return allowed;
+            try { return [...allowed, ...await reports.targets(store)]; }
             catch {
               console.warn('Customer report settings could not be read. Check the report configuration.');
-              return collection;
+              return allowed;
             }
           });
       } finally { await Promise.all([store.close(), grant.close()]); }

@@ -5,16 +5,17 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { devNull } from 'node:os';
-import { doorIsHeld, MANAGED_DOOR } from './ingest-door.mjs';
+import { doorIsHeld } from './ingest-door.mjs';
 import { runCommand } from './run-command.mjs';
 import { localDocker } from './postgres-compose.mjs';
 import { EMPTY_INSTALLATION_SQL } from './postgres-empty.mjs';
-import { ADDRESS_FILE, DATABASE, DEFAULT_PORT as POSTGRES_PORT, SECRETS_DIR_VARIABLE, writeSecrets } from './postgres-secrets.mjs';
+import { ADDRESS_FILE, DATABASE, SECRETS_DIR_VARIABLE, writeSecrets } from './postgres-secrets.mjs';
 import { checkTarget, installationPlan, openInstallationDatabase, readFrozenMarker } from './postgres-apply.mjs';
 import { applyMigrations, bootstrapWorkspace, frozenMigrationProblems, readMigrations } from './postgres-migrate.mjs';
+import { MANAGED_START_PORTS } from './start-ports.mjs';
+export { MANAGED_START_PORTS } from './start-ports.mjs';
 
 const OWNER_URL_VARIABLE = 'NOTICEOS_FIRST_START_OWNER_URL';
-export const MANAGED_START_PORTS = Object.freeze([5173, Number(new URL(MANAGED_DOOR).port), POSTGRES_PORT]);
 const refusal = (line) => ({ ok: false, line });
 const RESERVATION = '.noticeos-first-start';
 

@@ -64,7 +64,7 @@ async function loadArchiveReaders(root) {
 }
 
 /** Fixture-only helpers for one disposable source and its already authorized shadow. */
-export async function shadowEvidence({ root, source, target, asset, date, at, workspaceId }) {
+export async function shadowEvidence({ root, source, target, asset, date, at, workspaceId, taskConnection }) {
   // Keep the source event outside the feed's group of new-workspace defaults.
   const changedAt = new Date(Date.now() - 20 * 60_000).toISOString();
   const sourceKey = randomBytes(32).toString('base64');
@@ -72,7 +72,8 @@ export async function shadowEvidence({ root, source, target, asset, date, at, wo
   const iv = randomBytes(12);
   const key = await crypto.subtle.importKey('raw', Buffer.from(sourceKey, 'base64'), 'AES-GCM', false, ['encrypt']);
   const token = randomBytes(32).toString('base64url');
-  const plaintext = JSON.stringify({ NTASKS_URL: 'https://offline.example.test', NTASKS_TOKEN: token });
+  const fields = taskConnection ?? { NTASKS_URL: 'https://offline.example.test', NTASKS_TOKEN: token };
+  const plaintext = JSON.stringify(fields);
   const ciphertext = Buffer.from(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext)));
   source.run(`INSERT INTO noticeos.config_documents(workspace_id,document_key,version,body,updated_at,updated_by)
     VALUES (:'workspace'::uuid,'constants',2,:'constants'::json,:'at'::timestamptz,'fixture-owner'),
@@ -83,9 +84,9 @@ export async function shadowEvidence({ root, source, target, asset, date, at, wo
     VALUES (:'workspace'::uuid,:'connection'::uuid,'ntasks','shared',:'at'::timestamptz,:'at'::timestamptz);
     INSERT INTO noticeos.connection_secrets(workspace_id,connection_id,secret_version,ciphertext,iv,key_version,field_names,created_at)
     VALUES (:'workspace'::uuid,:'connection'::uuid,1,decode(:'ciphertext','hex'),decode(:'iv','hex'),1,
-      '["NTASKS_URL","NTASKS_TOKEN"]',:'at'::timestamptz);`, { vars: { workspace: workspaceId, at: changedAt,
+      :'fields'::jsonb,:'at'::timestamptz);`, { vars: { workspace: workspaceId, at: changedAt,
     audit: JSON.stringify(audit), reason, constants: JSON.stringify({ os_time_zone: zone, fixture_source_only: true }),
-    connection, ciphertext: ciphertext.toString('hex'), iv: iv.toString('hex') } });
+    connection, ciphertext: ciphertext.toString('hex'), iv: iv.toString('hex'), fields: JSON.stringify(Object.keys(fields)) } });
   const ownKey = `workspaces/${workspaceId}/raw/${asset}/gsc/query/fixture.json.gz`;
   const legacyKey = `raw/${asset}/gsc/page/fixture.json.gz`;
   const archives = new Map();
@@ -116,6 +117,25 @@ export async function shadowEvidence({ root, source, target, asset, date, at, wo
     sourceKey, zone, reason, changedAt, ownKey, legacyKey, before,
     initializeSourceBucket: async bucket => {
       for (const [key, bytes] of archives) await bucket.put(key, bytes, { httpMetadata: { contentEncoding: 'gzip', contentType: 'application/json' } });
+    },
+    async readSourceArchives({ bucket, databaseUrl, profile }) {
+      const { readPanelManifest, readPanelObject } = await loadArchiveReaders(root);
+      const store = openWorkspaceStore(databaseUrl, { workspaceId });
+      try {
+        const env = { NOTICEOS_WORKSPACE_PROFILE: profile, STORE: store, RAW_SIGNALS: bucket };
+        const keys = (await readPanelManifest(env, asset)).map(row => row.objectKey).sort();
+        for (const key of keys) {
+          verifyArchiveBody(await readPanelObject(env, key), originalRows.find(row => row.object_key === key).content_sha256);
+        }
+        assert.equal(await readPanelObject(env, `workspaces/${randomUUID()}/raw/elsewhere.json.gz`), null);
+        return keys;
+      } finally { await store.close(); }
+    },
+    verifyPreservedStorage: async bucket => {
+      assert.deepEqual(source.sql(archiveRowsSql), originalRows);
+      const existing = new Set(originalCredential.map(row => row.connection_id));
+      assert.deepEqual(credentialProof(source).filter(row => existing.has(row.connection_id)), originalCredential);
+      for (const [archive, bytes] of archives) await readableArchive(bucket, bytes, archive);
     },
     async copy({ sourceBucket, shadowBucket, sourceUrl, shadowUrl }) {
       const { readPanelManifest, readPanelObject } = await loadArchiveReaders(root);

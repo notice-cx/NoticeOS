@@ -11,9 +11,11 @@ import { fileURLToPath } from 'node:url';
 import { APP_RELEASE_HEADER, isAppApiPath, releaseMismatch } from '../apps/tower/shared/app-release.ts';
 import { demoRequestTarget as requestTarget, readDemoArtifact as readHostedArtifact } from './hosted-demo-server.mjs';
 import { emailEnrollmentUrl } from './identity-protocol.mjs';
+import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
+import { localSiteReportsEnabled } from './workspace-operations.mjs';
 
 const HOST = '127.0.0.1';
 const MAIL_SENDER = 'noticeos@example.test';
@@ -236,11 +238,15 @@ export async function startLocalCustomer(plan, development, { startSchedules, nt
 /** Runtime composition shared by the disposable fixture and its read-only shadow. */
 export async function startCustomerRuntime(plan, { customer, outbox, workerState, deliver, connectionString,
   identityDatabase, identitySecret, credentialsKey, workspaces, ntasksOrigin = null, grantConnectionString,
-  startSchedules, fixtureProvider, shadowAdmission, resumeSince }) {
+  startSchedules, fixtureProvider, shadowAdmission, resumeSince, operating }) {
   const publicOrigin = `http://${HOST}:${plan.port}`;
   if (plan.url !== publicOrigin && plan.url !== publicOrigin + '/') throw new Error('Customer runtime requires its loopback origin.');
-  if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider)) {
+  if (shadowAdmission && (startSchedules || grantConnectionString || ntasksOrigin || fixtureProvider || operating)) {
     throw new Error('Customer shadow cannot start providers or schedules.');
+  }
+  const siteReports = operating?.siteReports ? { NOTICEOS_LOCAL_SITE_REPORTS: '1' } : {};
+  if (operating?.siteReports && !localSiteReportsEnabled({ ...siteReports, NOTICEOS_WORKSPACE_ORIGIN: publicOrigin })) {
+    throw new Error('Site reports require the same explicit loopback address as the customer Tower.');
   }
   const state = mkdtempSync(path.join(customer, 'build-'));
   const artifactRoot = path.join(state, 'app');
@@ -261,6 +267,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
   }
   try {
     await buildCustomer(state, artifactRoot);
+    operating?.signal.throwIfAborted();
     const artifact = readHostedArtifact(artifactRoot);
     const { assets } = JSON.parse(readFileSync(path.join(artifactRoot, artifact.tower.modulesRoot, 'wrangler.json'), 'utf8'));
     const peerProof = randomBytes(32).toString('base64url');
@@ -270,26 +277,29 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
     const bindings = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', NOTICEOS_WORKSPACE_ORIGIN: publicOrigin,
       NOTICEOS_IDENTITY_DATABASE_URL: identityDatabase, NOTICEOS_IDENTITY_SESSION_SECRET: identitySecret,
       NOTICEOS_WORKSPACE_DATABASE_URL: connectionString };
-    const outboundService = async (request, fixture) => {
-      if (ntasksOrigin === null || new URL(request.url).origin !== ntasksOrigin) {
-        return fixture ? fixture(request) : new Response(null, { status: 403 });
-      }
-      return fetch(request.url, { method: request.method, headers: Object.fromEntries(request.headers),
-        body: request.body ? await request.arrayBuffer() : undefined, redirect: 'manual', signal: AbortSignal.timeout(10000) });
-    };
-    const worker = (name, entry) => ({ name, compatibilityDate: entry.compatibilityDate, compatibilityFlags: entry.compatibilityFlags,
+    const denyOutbound = localCustomerOutbound();
+    const tasksOutbound = localCustomerOutbound({ ntasksOrigin, signal: operating?.signal });
+    const ingestOutbound = request => fixtureProvider && new URL(request.url).origin !== ntasksOrigin
+      ? fixtureProvider(request) : tasksOutbound(request);
+    const worker = (name, entry, outboundService = denyOutbound) => ({ name, compatibilityDate: entry.compatibilityDate, compatibilityFlags: entry.compatibilityFlags,
       modulesRoot: path.join(artifactRoot, entry.modulesRoot), modules: [entry.main, ...Object.keys(artifact.files)
         .filter(file => file !== entry.main && file.startsWith(entry.modulesRoot + '/') && /\.m?js$/u.test(file))]
         .map(file => ({ type: 'ESModule', path: path.join(artifactRoot, file) })),
-      outboundService: request => outboundService(request, name === 'ingest' ? fixtureProvider : undefined) });
-    const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest);
+      outboundService });
+    const tower = worker('tower', artifact.tower), ingest = worker('ingest', artifact.ingest, ingestOutbound);
+    const google = operating?.googleDaily === true;
+    const scheduleName = google ? 'customer-scheduled-ingest' : ingest.name;
     const serviceWorkspaces = grantConnectionString
       ? workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) : [];
+    const scheduleBindings = grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces) } : {};
+    const scheduleTransport = grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {};
+    const ingestBindings = { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}) };
+    const archive = { r2Buckets: { RAW_SIGNALS: 'customer-raw-signals' } };
     runtime = new Miniflare({ host: HOST, port: 0, cf: { colo: 'LOCAL' }, inspectorPort: undefined,
       resourcePersistencePath: workerState,
       log: new Log(0), handleStructuredLogs: () => undefined,
       telemetry: { enabled: false }, workers: [
-        { ...tower, bindings: { ...bindings, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
+        { ...tower, bindings: { ...bindings, ...siteReports, NOTICEOS_IDENTITY_EDGE: 'local-loopback', NOTICEOS_LOCAL_PEER_PROOF: peerProof,
           ...(shadowAdmission ? { NOTICEOS_CUSTOMER_SHADOW: true } : {}),
           NOTICEOS_IDENTITY_EMAIL_FROM: MAIL_SENDER },
           assets: { directory: path.join(artifactRoot, artifact.client), binding: assets.binding, run_worker_first: assets.run_worker_first,
@@ -300,15 +310,17 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
               return status ? Response.json(status) : new Response(null, { status: 404 });
             } } : {}) },
           r2Buckets: { NOTICEOS_PORTFOLIO: 'customer-portfolio-summaries' } },
-        { ...ingest, bindings: { ...bindings, ...(credentialsKey ? { CREDENTIALS_KEY: credentialsKey } : {}),
-          ...(grantConnectionString ? { NOTICEOS_SCHEDULE_GRANTS: JSON.stringify(serviceWorkspaces) } : {}),
+        { ...ingest, ...archive, bindings: { ...ingestBindings, ...siteReports, ...(google ? {} : scheduleBindings),
           ...(ntasksOrigin === null ? {} : { NOTICEOS_NTASKS_ORIGIN: ntasksOrigin }) },
-          ...(grantConnectionString ? { hyperdrives: { NOTICEOS_SCHEDULE_GRANT_DB: grantConnectionString } } : {}),
-          r2Buckets: { RAW_SIGNALS: 'customer-raw-signals' } },
+          ...(google ? {} : scheduleTransport) },
+        ...(google ? [{
+          ...worker(scheduleName, artifact.ingest, localCustomerOutbound({ googleDaily: true, signal: operating.signal,
+            transport: operating.googleTransport })), ...archive, ...scheduleTransport, bindings: { ...ingestBindings, ...scheduleBindings },
+        }] : []),
         ...(startSchedules ? [{ name: 'customer-schedule-trigger', modules: true, compatibilityDate: ingest.compatibilityDate,
           script: `export default {fetch(r,e){return r.headers.get('${SCHEDULE_HEADER}') === e.PROOF
             ? e.SCHEDULE.fetch(r) : new Response(null,{status:403})}}`, bindings: { PROOF: scheduleProof },
-          serviceBindings: { SCHEDULE: { name: 'ingest', entrypoint: 'CustomerSchedule' } } }] : []),
+          serviceBindings: { SCHEDULE: { name: scheduleName, entrypoint: 'CustomerSchedule' } } }] : []),
         { name: 'mail', modules: true, compatibilityDate: '2026-07-06', script: MAIL_WORKER,
           serviceBindings: { OUTBOX: async request => {
             try { return new Response(deliver(await request.json())); }
@@ -317,11 +329,12 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
       ] });
     await runtime.getWorker('tower');
     if (startSchedules) {
+      operating?.signal.throwIfAborted();
       const trigger = await runtime.getWorker('customer-schedule-trigger');
       const bucket = await runtime.getR2Bucket('RAW_SIGNALS', 'ingest');
       const reports = path.join(customer, 'reports');
       schedules = await startSchedules({ sourceRoot: plan.root, workspaces: serviceWorkspaces, connectionString,
-        resumeSince,
+        resumeSince, ...(operating ? { operatingGoogle: google } : {}),
         grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
           root: privateDirectory(reports, !existsSync(reports)), bucket }), worker: {
           fetch(input, init) {
@@ -331,6 +344,7 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
           },
         }, bucket });
     }
+    operating?.signal.throwIfAborted();
     server = customerServer(publicOrigin, runtime, peerProof, shadowAdmission, artifact.release);
     await new Promise((resolve, reject) => {
       server.once('error', reject);

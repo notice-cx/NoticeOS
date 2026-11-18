@@ -879,6 +879,65 @@ This launcher cannot adopt a Compose installation. A move from an existing
 standalone installation requires a separately tested rollout and rollback
 with the installation owner's approval.
 
+### Run the customer app on a separately prepared local database
+
+```sh
+pnpm db:try-tower -- --profile hosted --dir /absolute/customer-runtime \
+  --customer-config /absolute/customer-runtime.json --port 4747 --no-open
+```
+
+Choose a new private runtime folder. Prepare the customer database, its
+memberships and its workspace service grants separately before this start.
+Use a private settings file outside the runtime folder, readable only by
+its owner. The file supplies the existing database connections and keys.
+
+```json
+{
+  "format": "noticeos-customer-operating/1",
+  "database": {
+    "app": "postgresql://noticeos_app:PASSWORD@127.0.0.1:16476/customer",
+    "identity": "postgresql://noticeos_identity:PASSWORD@127.0.0.1:16476/customer",
+    "grant": "postgresql://noticeos_service_grant:PASSWORD@127.0.0.1:16476/customer"
+  },
+  "identitySecret": "EXISTING_IDENTITY_SESSION_SECRET",
+  "credentialsKey": "EXISTING_BASE64_32_BYTE_CREDENTIALS_KEY",
+  "workspaces": [
+    { "workspaceId": "WORKSPACE_UUID", "serviceId": "WORKFLOWS_RUN_GRANT_UUID" }
+  ],
+  "mailRecipients": ["owner@example.test"]
+}
+```
+
+All three roles connect directly to the same loopback database. This start
+uses its existing schema, roles, members, and keys. Private mail, new
+archives, and reports stay in the runtime folder. The mailbox delivers only
+to the configured addresses. Use the Tower's ordinary sign-in and roles,
+and read the code in the printed mailbox.
+
+Provider HTTP starts disabled. Add `ntasksOrigin` for a separately running
+Ntasks, as either a loopback HTTP origin or its exact HTTPS origin. Workspace
+connections still need project-scoped credentials. Set `googleDaily` to
+`true` to allow the scheduled Google Analytics and Search Console report
+requests from an existing credential. To connect or reconnect with a
+property-scoped service account, use **Integrations → Google → Service
+account** in the separately authorized provisioning environment. The
+attached runtime uses that saved connection and its existing encryption key.
+The runtime permits Google access during due collection and stops redirects.
+Customer backups and paid research require their separate controls.
+
+Set `siteReports` to `true` to allow site credentials and report intake on
+the exact loopback Tower address. From the site's settings, a workspace
+owner can issue and revoke a credential scoped to that site. Send the report
+to the same address using the [site report guide](../docs/guides/send-your-own-report.md).
+
+Only one scheduler can hold the database lease. Ctrl-C stops the app and
+releases that lease. If the database disconnects the launcher stops this
+runtime. Restart it using the same folder and Tower port. An unchanged,
+previously enabled Google setup can pick up its latest missed obligation
+after downtime. First activation starts from now. To return to the prior
+runtime, stop this profile and reopen the prior runtime using its own
+settings and store.
+
 ### Preview a workspace from an offline backup
 
 Use PostgreSQL 18 and an explicitly selected, owner-only custom-format
