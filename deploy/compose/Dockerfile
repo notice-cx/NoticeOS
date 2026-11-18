@@ -43,6 +43,8 @@ COPY . .
 RUN pnpm install --frozen-lockfile \
     && pnpm --filter @noticeos/tower run build \
     && DO_NOT_TRACK=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_CF_FETCH_ENABLED=false node scripts/hosted-demo-build.mjs --out /opt/noticeos/customer-artifacts --profile hosted \
+    && rm -r customer-artifacts/build-config \
+    && chmod -R a+rX customer-artifacts \
     && chmod 644 node_modules/.pnpm-workspace-state-v1.json \
     && mkdir -p /opt/noticeos/apps/tower/node_modules/.vite-temp \
     && ln -s /state/.local .local && ln -s /state/.wrangler .wrangler \
@@ -51,5 +53,6 @@ RUN pnpm install --frozen-lockfile \
 ENV NOTICEOS_HOME=/state NOTICEOS_INSTALLATION_DIR=/state/installation
 ENV NOTICEOS_VITE_CACHE_DIR=/state/.local/vite-cache WRANGLER_SEND_METRICS=false
 USER node
+RUN node --input-type=module -e "import { readDemoArtifact } from './scripts/hosted-demo-server.mjs'; readDemoArtifact('/opt/noticeos/customer-artifacts')"
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 CMD ["node", "deploy/compose/health.mjs"]
 ENTRYPOINT ["node", "deploy/compose/entrypoint.mjs"]
