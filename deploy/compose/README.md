@@ -253,6 +253,13 @@ Prepare `state/installation/customer-runtime.json` as a regular file owned by th
 
 Use `siteReports: true` to enable scoped site report credentials at the same loopback Tower address. Use `ntasksOrigin` to name the already connected separate Ntasks service. Use `googleDaily: true` to authorize scheduled Google reads for already connected credentials. Both external connections stay off by default. The file mailbox captures sign-in messages under `state/.local/compose-customer/customer/mail/`. A real enrollment requires independently verified email delivery. Connecting or reconnecting Google interactively is a separate setup step.
 
+To continue the existing scheduled provider reads, include `mediavine`,
+`stripe` or `bing-webmaster` in `collectorProviders`. For each enabled nightly
+site report already pulled by this app, add a `sitePulls` entry with the
+enrolled `workspaceId`, its `asset` ID and the exact approved HTTPS `urls`
+from its saved pull settings. The preflight checks that the existing
+`ASSET_TOKENS` map has a bearer for that asset. Keep the bearer in that map.
+
 From a checkout, run `pnpm os:customer-check` to check the prepared config, workspace, identity login, schedule grant, network and compiled app before the switch. The current installation launcher exposes the same check as `noticeos customer-check`. This is a read-only check in the running app container.
 
 The app reads `state/installation/customer-runtime.enabled` on startup. To select customer mode in an approved disposable rehearsal, write `noticeos-compose-customer/1` followed by a newline into that file with the same ownership and permissions, then run `pnpm os:restart:noticeos` or the installation launcher's `noticeos restart noticeos`. Remove the enable file and restart the app again to return to standalone. Postgres, archives and the connected Ntasks project keep writes made during the rehearsal. A second customer scheduler for the same database cannot start while the first holds its database lease.

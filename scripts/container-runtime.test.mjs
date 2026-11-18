@@ -149,9 +149,9 @@ test('the same container explicitly selects one customer clock, exact loopback i
   const bootstrap = { DATABASE_URL: 'postgresql://noticeos_app:fixture@postgres:5432/product', CREDENTIALS_KEY: 'A'.repeat(43) + '=' };
   const options = { format: 'noticeos-compose-customer/1', database, identitySecret: 'fixture'.repeat(8),
     mailRecipients: ['owner@example.test'], workspaces: [{ workspaceId: '00000000-0000-4000-8000-000000000001', serviceId: '00000000-0000-4000-8000-000000000002' }] };
-  const read = (value = {}) => {
+  const read = (value = {}, bindings = bootstrap) => {
     fs.writeFileSync(file, JSON.stringify({ ...options, ...value }), { mode: 0o600 });
-    return readComposeCustomerOperating(file, plan, bootstrap);
+    return readComposeCustomerOperating(file, plan, bindings);
   };
   const prepared = read();
   assert.equal(prepared.target, 'postgres:5432/product');
@@ -160,6 +160,17 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.throws(() => read({ database: { ...database, grant: database.grant.replace('/product', '/different') } }), /existing database/u);
   assert.throws(() => read({ database: { ...database, identity: database.identity.replace('@postgres', '@foreign.example') } }), /existing database/u);
   assert.throws(() => read({ database: { ...database, app: bootstrap.DATABASE_URL } }), /existing database/u);
+  const site = { workspaceId: options.workspaces[0].workspaceId, asset: 'fixture-site', urls: ['https://example.test/metrics'] };
+  const tokens = { 'fixture-site': 'fixture-bearer', 'different-site': 'unused-bearer' };
+  for (const ASSET_TOKENS of [tokens, JSON.stringify(tokens)]) {
+    assert.deepEqual(read({ sitePulls: [site] }, { ...bootstrap, ASSET_TOKENS }).sitePulls, [
+      { ...site, token: tokens['fixture-site'] },
+    ]);
+  }
+  assert.throws(() => read({ sitePulls: [site] }), /existing bearer in ASSET_TOKENS/u);
+  const bound = { ...bootstrap, ASSET_TOKENS: tokens };
+  assert.throws(() => read({ sitePulls: [{ ...site, token: 'replacement-bearer' }] }, bound), /existing database/u);
+  assert.throws(() => read({ sitePulls: [{ ...site, workspaceId: options.workspaces[0].serviceId }] }, bound), /existing database/u);
 });
 
 test('customer readiness does not fall back to stale standalone state or ignore a declared backup', async () => {

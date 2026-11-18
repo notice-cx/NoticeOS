@@ -54,15 +54,38 @@ export function readCustomerOperating(file, plan) {
   catch { throw refused(); }
 }
 
+class SitePullBearerMissing extends Error {}
+
+function composeSitePulls(pulls, assetTokens, workspaceId) {
+  if (pulls === undefined) return [];
+  if (!Array.isArray(pulls)) throw refused();
+  if (!pulls.length) return [];
+  let tokens = assetTokens;
+  try { if (typeof tokens === 'string') tokens = JSON.parse(tokens); }
+  catch { throw new SitePullBearerMissing(); }
+  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) throw new SitePullBearerMissing();
+  return pulls.map(entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).length !== 3
+      || Object.hasOwn(entry, 'token') || entry.workspaceId !== workspaceId || typeof entry.asset !== 'string') throw refused();
+    const token = Object.hasOwn(tokens, entry.asset) ? tokens[entry.asset] : null;
+    if (typeof token !== 'string' || !token.trim()) throw new SitePullBearerMissing();
+    return { ...entry, token };
+  });
+}
+
 export function readComposeCustomerOperating(file, plan, bootstrap) {
   try {
     const config = JSON.parse(privateFile(file));
     if (config.format !== 'noticeos-compose-customer/1' || !config.database || !Array.isArray(config.workspaces)
       || config.workspaces.length !== 1 || Object.keys(config.database).length !== 2
       || 'app' in config.database || 'credentialsKey' in config) throw refused();
-    return customerOperating({ ...config, format: FORMAT, credentialsKey: bootstrap.CREDENTIALS_KEY,
+    const sitePulls = composeSitePulls(config.sitePulls, bootstrap.ASSET_TOKENS, config.workspaces[0]?.workspaceId);
+    return customerOperating({ ...config, format: FORMAT, credentialsKey: bootstrap.CREDENTIALS_KEY, sitePulls,
       database: { ...config.database, app: bootstrap.DATABASE_URL } }, plan, true);
-  } catch { throw new CustomerOperatingRefused('The app needs a private customer configuration for its existing database and one prepared workspace.'); }
+  } catch (error) {
+    if (error instanceof SitePullBearerMissing) throw new CustomerOperatingRefused('A configured site pull needs its existing bearer in ASSET_TOKENS.');
+    throw new CustomerOperatingRefused('The app needs a private customer configuration for its existing database and one prepared workspace.');
+  }
 }
 
 function customerOperating(config, plan, compose = false) {
