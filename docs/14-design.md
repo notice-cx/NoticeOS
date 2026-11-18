@@ -195,16 +195,14 @@ that can be read quickly, and the kit has a component for it:
 | why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
 
 **Tabs are the only way a page in the Tower is divided into sections.** When
-a page covers more than one subject, `Tabs` divides it: the same bar on an
-asset's page, Alerts, System health, Workflows and Settings, drawn as
-Precise's tabs, the current one ringed on Panel in Text and the others in
-Text 3. Each tab has its
-own URL (the first tab the bare address, each other one a segment after it),
-the arrow keys and Home/End move between tabs, and on a phone the tab strip
-scrolls within its own row. A page never adds its own navigation beside the
-app's sidebar, and an address from before a page had tabs still opens the tab
-that holds its section. Inside a tab, the groups are panels, each starting
-with a sentence-case section label.
+a page covers more than one subject, `Tabs` uses the same navigation row on
+the asset page, Alerts, System health, Workflows and Settings. The row has a
+full-width baseline and uses 16px semibold labels. An accent underline marks
+the current tab. An inset outline marks keyboard focus. Tab targets are at
+least 44px tall. Each tab has its own URL, and prior addresses still open the
+matching section. Arrow keys and Home or End move focus. Enter or Space opens
+the focused tab. Long rows scroll within the strip to keep the current or
+focused tab visible. Inside a tab, panels start with sentence-case section labels.
 
 Redesign a region around what it shows, not one component at a time: five
 alert cards may become one grid and one ranked list, six asset cards one
