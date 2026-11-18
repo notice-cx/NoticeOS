@@ -389,16 +389,16 @@ export async function withGoogleWorkspaceEntry(env, request, phase, work, adapte
             claim: (original, authorize) => reader().claimGoogleCallback(original, authorize),
         },
     });
-    const admitted = (context, state) => work(Object.freeze({ context,
+    const admitted = (context, state, report) => work(Object.freeze({ context,
         withStore(callContext, use) {
             admission.assertContext(context, 'integrations.write');
             return adapters.withStore({ transport, workspace: { workspaceId: context.workspaceId } }, callContext, use);
         },
-    }), state);
+    }), state, report);
     try {
         return phase === 'start'
             ? await admission.withGoogleStart(crypto.randomUUID(), proof, admitted)
-            : await admission.withGoogleCallback(crypto.randomUUID(), proof, admitted);
+            : await admission.withGoogleCallback(crypto.randomUUID(), proof, (context, report) => admitted(context, undefined, report ?? undefined));
     }
     catch {
         return refuse();

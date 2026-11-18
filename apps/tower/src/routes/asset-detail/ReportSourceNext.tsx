@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { ASSET_ID_MAX, CONFIG_ASSET_KEY_RE } from "@noticeos/contract/configuration";
+import { setReportReturnParams, type ReportReturn } from "@noticeos/contract/report-return";
 import { connectionState, integrationProvider } from "@noticeos/contract/integrations";
 import { connectHref, providerName } from "@shared/connect-panel";
 import { laneStatus } from "@shared/connection-status";
@@ -9,7 +9,8 @@ import type { SignalTrend } from "@shared/wall";
 import { Button } from "@/components/ui/button";
 import { useConnections } from "@/hooks/useConnections";
 import { useBackupPreview, useCanEditWorkspace, useDemoReadonly } from "@/lib/browser-context";
-import { tabPath, type AssetTab } from "./AssetTabs";
+import { tabPath } from "./AssetTabs";
+import { rangeFromParam } from "./useRange";
 
 const reportLanes = {
   audience: ["ga4"],
@@ -17,14 +18,8 @@ const reportLanes = {
   revenue: ["ad-network", "adsense", "subscriptions"],
   trackedSearch: ["dataforseo"],
 };
-const REPORT_TABS = ["journeys", "growth", "search", "financials"] as const satisfies readonly AssetTab[];
-type ReportTab = typeof REPORT_TABS[number];
-
-export function sourceReportPath(params: URLSearchParams): string | null {
-  const asset = params.get("asset");
-  const report = REPORT_TABS.find(tab => tab === params.get("fromReport"));
-  if (!report || !asset || asset.length > ASSET_ID_MAX || !CONFIG_ASSET_KEY_RE.test(asset)) return null;
-  return tabPath(asset, report, params.toString());
+export function sourceReportPath(destination: ReportReturn): string {
+  return tabPath(destination.asset, destination.report, destination.range === undefined ? '' : `range=${destination.range}`);
 }
 
 export function hasRecordedTrend(trend: SignalTrend): boolean {
@@ -36,7 +31,7 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   report: keyof typeof reportLanes;
   data: { asset: { id: string }; integrations: AssetIntegrations };
   nowMs: number;
-  assetTab: ReportTab;
+  assetTab: ReportReturn['report'];
   configuredHref?: string;
 }) {
   const canEdit = useCanEditWorkspace();
@@ -86,9 +81,7 @@ export function ReportSourceNext({ report, data, nowMs, assetTab, configuredHref
   if (!providers?.data || connectBlockers(providers.data).length) return null;
   const label = disconnected ? `Connect ${name}` : `Set up ${name} for this asset`;
   const target = new URL(connectHref(source.provider.id, id), "http://local.invalid");
-  target.searchParams.set("asset", id);
-  target.searchParams.set("fromReport", assetTab);
   const range = new URLSearchParams(search).get("range");
-  if (range) target.searchParams.set("range", range);
+  setReportReturnParams(target.searchParams, { asset: id, report: assetTab, ...(range ? { range: rangeFromParam(range) } : {}) });
   return <Button asChild size="sm" variant="outline"><Link to={`${target.pathname}${target.search}`}>{label}</Link></Button>;
 }

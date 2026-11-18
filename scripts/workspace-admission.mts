@@ -1,6 +1,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { googleOAuthRequest } from './workspace-operations.mjs';
 import { agentActions, bearerToken } from './agent-access.mjs';
+import { readReportReturn, type ReportReturn } from '../packages/contract/src/report-return.mjs';
 
 /** Shared workspace admission.
  * Server composition selects this entry and its fresh authority readers.
@@ -55,7 +56,7 @@ export interface GoogleOAuthAdmissionAdapter {
   /** Server-owned transaction adapters. Call authorize exactly once with fresh
    * immutable facts; resolve only after issuance/consumption COMMIT. */
   issue(request: Request, workspaceId: string, authorize: (facts: WorkspaceMembership) => void): Promise<string>;
-  claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<void>;
+  claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<ReportReturn | null>;
 }
 /** A verified agent token's fresh facts in the workspace a call names
  * (identity agentAuthority): the person it acts for, the
@@ -132,7 +133,7 @@ export interface WorkspaceAdmission {
   withGoogleStart<T>(correlationId: string, proof: Request,
     work: (context: WorkspaceContext, state: string) => Promise<T>): Promise<T>;
   withGoogleCallback<T>(correlationId: string, proof: Request,
-    work: (context: WorkspaceContext) => Promise<T>): Promise<T>;
+    work: (context: WorkspaceContext, report: ReportReturn | null) => Promise<T>): Promise<T>;
 }
 export class AdmissionRefused extends Error {
   override name = 'AdmissionRefused';
@@ -250,7 +251,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
     return person => { if (person.sessionId !== expected) refuse(); };
   }
   async function googleOperation<T>(phase: 'start' | 'callback', correlation: string, request: Request,
-    work: (context: WorkspaceContext, state?: string) => Promise<T>): Promise<T> {
+    work: (context: WorkspaceContext, state?: string, report?: ReportReturn) => Promise<T>): Promise<T> {
     if (kind !== 'hosted' || !google || !(request instanceof Request) || typeof work !== 'function') refuse();
     const correlationId = identifier(correlation);
     let proof: Request;
@@ -271,8 +272,13 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       snapshot = authorized;
     };
     let state: string | undefined;
+    let report: ReportReturn | undefined;
     if (phase === 'start') state = await fresh(() => google!.issue(proof, requested!, authorize));
-    else await fresh(() => google!.claim(proof, authorize));
+    else {
+      const returned = await fresh(() => google!.claim(proof, authorize));
+      report = readReportReturn(returned) ?? undefined;
+      if (returned && report === undefined) refuse();
+    }
     if (calls !== 1 || !snapshot || (phase === 'start' && (typeof state !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(state)))) refuse();
     // Adapter resolution means the identity transaction committed. A late
     // expiry or invalid clock cannot release provider/store capability.
@@ -281,7 +287,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       sessionId: snapshot.sessionId, principalKind: 'person' as const, entryProfile: 'hosted' as const,
       profile, action: 'integrations.write' as const, correlationId, allowedActions: snapshot.allowedActions });
     live.add(context);
-    try { return await work(context, state); } finally { live.delete(context); }
+    try { return await work(context, state, report); } finally { live.delete(context); }
   }
   return Object.freeze({
     async withAdmission<T>(action: WorkspaceAction, inputSelection: WorkspaceSelection, request: Request, work: (context: WorkspaceContext) => Promise<T>): Promise<T> {
@@ -366,8 +372,9 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       return googleOperation('start', correlationId, request, (context, state) => work(context, state!));
     },
     withGoogleCallback<T>(correlationId: string, request: Request,
-      work: (context: WorkspaceContext) => Promise<T>): Promise<T> {
-      return googleOperation('callback', correlationId, request, work);
+      work: (context: WorkspaceContext, report: ReportReturn | null) => Promise<T>): Promise<T> {
+      if (typeof work !== 'function') refuse();
+      return googleOperation('callback', correlationId, request, (context, _state, report) => work(context, report ?? null));
     },
   });
 }

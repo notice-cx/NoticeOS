@@ -4,6 +4,7 @@
  * Provider exchange must happen only AFTER issue/claim resolves (commit). */
 import { sql } from 'kysely';
 import { googleOAuthRedirectUri, googleRedirectVerdict } from '@noticeos/contract/google-oauth';
+import { readReportReturn, reportReturnFromParams } from '@noticeos/contract/report-return';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { identityEngine, identityMembership, openIdentityDatabase, validateIdentityOptions, UUID, IdentityRefused } from './identity-engine.mjs';
 import { googleOAuthRequest, googleOAuthProvider, GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from '../../../scripts/workspace-operations.mjs';
@@ -32,13 +33,20 @@ function readBinding(value, redirectUri, provider) {
         refuse();
     }
     const fields = ['version', 'provider', 'workspaceId', 'principalId', 'sessionId', 'redirectUri', 'issuedAt', 'expiresAt'];
-    if (!row || Array.isArray(row) || Object.keys(row).length !== fields.length || fields.some(key => !Object.hasOwn(row, key))
+    if (!row || Array.isArray(row) || fields.some(key => !Object.hasOwn(row, key))
+        || Object.keys(row).some(key => !fields.includes(key) && key !== 'report')
         || row.version !== 1 || row.provider !== provider || row.redirectUri !== redirectUri
         || [row.workspaceId, row.principalId, row.sessionId].some(id => typeof id !== 'string' || !UUID.test(id))
         || typeof row.issuedAt !== 'number' || !Number.isSafeInteger(row.issuedAt) || row.issuedAt < 0
         || typeof row.expiresAt !== 'number' || !Number.isSafeInteger(row.expiresAt)
         || row.expiresAt - row.issuedAt !== GOOGLE_INTEGRATION_TTL_MS || row.issuedAt > now())
         refuse();
+    if (Object.hasOwn(row, 'report')) {
+        const report = readReportReturn(row.report);
+        if (!report)
+            refuse();
+        row.report = report;
+    }
     return Object.freeze(row);
 }
 async function proof(request, origin, action, localTowerOrigin) {
@@ -115,6 +123,7 @@ export function openIntegrationOAuthCustody(input) {
                 const original = await proof(request, origin, 'start', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
                 const redirectUri = googleOAuthRedirectUri(origin, provider);
+                const report = reportReturnFromParams(new URL(original.url).searchParams);
                 const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
                 if (selected !== workspaceId)
                     refuse();
@@ -127,7 +136,7 @@ export function openIntegrationOAuthCustody(input) {
                     const issuedAt = now();
                     const binding = { version: 1, provider, workspaceId,
                         principalId: facts.principalId, sessionId: facts.sessionId, redirectUri,
-                        issuedAt, expiresAt: issuedAt + GOOGLE_INTEGRATION_TTL_MS };
+                        issuedAt, expiresAt: issuedAt + GOOGLE_INTEGRATION_TTL_MS, ...(report ? { report } : {}) };
                     const auth = identityEngine(trx, options, { transaction: false, validateSchema: false });
                     const context = await auth.$context;
                     await context.internalAdapter.createVerificationValue({ identifier: NAMESPACE + state,
@@ -169,10 +178,11 @@ export function openIntegrationOAuthCustody(input) {
                         refuse();
                     // Expiry between the maintained consume and this final check is
                     // still spent. Return a refusal result so the outer commit survives.
-                    return binding.expiresAt > now();
+                    return binding.expiresAt > now() ? binding.report ?? null : false;
                 });
-                if (!accepted)
+                if (accepted === false)
                     refuse();
+                return accepted;
             });
         },
         close() {

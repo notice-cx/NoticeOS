@@ -19,6 +19,7 @@ import {
 } from "@noticeos/contract";
 import { JSON_HEADERS, jsonError } from "./http";
 import { googleOAuthRequest, googleOAuthProvider } from '../../../scripts/workspace-operations.mjs';
+import { readReportReturn, REPORT_RETURN_WORKSPACE_PARAM, setReportReturnParams } from '@noticeos/contract/report-return';
 
 /** Declared structurally so the test project can bind a double. */
 export interface GoogleOAuthIngest {
@@ -54,15 +55,20 @@ function crossSiteNavigation(request: Request): boolean {
   return site !== null && site !== "same-origin" && site !== "none";
 }
 
-function backToPage(url: URL, result: string, provider: GoogleOAuthProvider): Response {
+function backToPage(url: URL, result: string, provider: GoogleOAuthProvider, returned?: GoogleOAuthCompletion['reportReturn']): Response {
   const target = new URL(INTEGRATIONS_PAGE, url.origin);
   // Back to the connect panel: on the account's sites
   // once signed in, on the sign-in again when it did not finish.
   target.searchParams.set("connect", provider);
   target.searchParams.set(GOOGLE_OAUTH_RESULT_PARAM, result);
+  const destination = readReportReturn(returned?.destination);
+  if (destination && returned && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(returned.workspaceId)) {
+    setReportReturnParams(target.searchParams, destination);
+    target.searchParams.set(REPORT_RETURN_WORKSPACE_PARAM, returned.workspaceId);
+  }
   return new Response(null, {
     status: 302,
-    headers: { location: target.toString(), "cache-control": "no-store" },
+    headers: { location: target.toString(), "cache-control": "no-store", "referrer-policy": "no-referrer" },
   });
 }
 
@@ -133,7 +139,7 @@ export async function handleGoogleOAuthCallbackRequest(
       const parsed = googleOAuthRequest(request, hostedOrigin, 'callback');
       const completion = await ingest.completeGoogleOAuth({ code: parsed.code ?? '', state: parsed.state,
         redirectUri: googleOAuthRedirectUri(hostedOrigin, provider), error: parsed.error, ...selection }, request.clone());
-      return backToPage(returnUrl, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error, provider);
+      return backToPage(returnUrl, completion.ok ? GOOGLE_OAUTH_CONNECTED : completion.error, provider, completion.reportReturn);
     } catch { return backToPage(returnUrl, 'state_invalid', provider); }
   }
   if (request.method !== "GET") return jsonError("method_not_allowed", 405);

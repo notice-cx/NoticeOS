@@ -99,8 +99,9 @@ it('AdSense starts through its provider path and accepts only its own callback',
   consent.search = new URLSearchParams({ response_type: 'code', redirect_uri: callback, state: 'generated-state' }).toString();
   const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ ok: true, authorizeUrl: consent.toString(), redirectUri: callback }));
   const value = runtime(fetch);
-  await expect(value.api.beginGoogleOAuth(undefined, 'adsense')).resolves.toBe(consent.toString());
-  expect(String(fetch.mock.calls[0]?.[0])).toBe(`${origin}/api/integrations/adsense/oauth/start`);
+  await expect(value.api.beginGoogleOAuth(undefined, 'adsense', { asset: 'example.test', report: 'financials', range: 90 })).resolves.toBe(consent.toString());
+  expect(String(fetch.mock.calls[0]?.[0])).toBe(`${origin}/api/integrations/adsense/oauth/start?asset=example.test&fromReport=financials&range=90`);
+  expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get(WORKSPACE_SESSION_HEADER)).toBe(id);
   fetch.mockResolvedValueOnce(Response.json(success()));
   await expect(value.api.beginGoogleOAuth(undefined, 'adsense')).rejects.toThrow();
 });

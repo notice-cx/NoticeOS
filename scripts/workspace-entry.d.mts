@@ -8,6 +8,7 @@ import { withHostedWorkspaceStore, type CallContext, type WorkspaceStore } from 
 import { PRODUCT_ENV, workspaceProfile, type WorkspaceProfile } from './product-env.mjs';
 import { type WorkspaceContext } from './workspace-admission.mjs';
 import { type AssetMutationMethod } from './workspace-operations.mjs';
+import type { ReportReturn } from '../packages/contract/src/report-return.mjs';
 import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.js';
 import type { WatchQueryHistoryInput } from '../packages/contract/src/create-watch-window.js';
 import { type ApplyConfigOpsInput } from '../packages/contract/src/configuration.mjs';
@@ -99,7 +100,7 @@ export declare function watchQueryHistoryArguments(input: unknown, request: Requ
 export declare function withWorkspaceEntry<T>(env: object, request: Request, work: (call: WorkspaceEntryCall) => Promise<T>, adapters?: WorkspaceEntryDependencies): Promise<T>;
 /** Fixed receiver entry. Durable protocol custody is consumed only here, never
  * in Tower and never from a supplied context, actor, action or verified flag. */
-export declare function withGoogleWorkspaceEntry<T>(env: object, request: Request, phase: 'start' | 'callback', work: (call: WorkspaceEntryCall, state?: string) => Promise<T>, adapters?: {
+export declare function withGoogleWorkspaceEntry<T>(env: object, request: Request, phase: 'start' | 'callback', work: (call: WorkspaceEntryCall, state?: string, report?: ReportReturn) => Promise<T>, adapters?: {
     openCustody: typeof openIntegrationOAuthCustody;
     withStore: typeof withHostedWorkspaceStore;
 }): Promise<T>;

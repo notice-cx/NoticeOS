@@ -72,6 +72,7 @@ import type {
   IntegrationCredentialsPayload,
 } from "@shared/integrations-page";
 import { type GoogleOAuthProvider, ADSENSE_OAUTH_START_PATH, GOOGLE_PROPERTIES_PATH, GOOGLE_OAUTH_START_PATH, GOOGLE_OAUTH_AUTHORIZE_URL, googleOAuthRedirectUri } from "@noticeos/contract/google-oauth";
+import { setReportReturnParams, type ReportReturn } from '@noticeos/contract/report-return';
 import type { SettingsPayload } from "@shared/settings";
 import type { SitesPayload } from "@shared/site-discovery";
 import { SITE_NAME_PATH } from "@shared/site-name";
@@ -1573,9 +1574,12 @@ async function personalProfileRequest(fetch: ApiTransport, signal?: AbortSignal,
 
 /** Hosted start commits custody before answering. Only Google's fixed consent
  * endpoint and this entry's callback may become a browser navigation. */
-async function beginGoogleOAuthRequest(fetch: ApiTransport, origin: string | undefined, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google'): Promise<string> {
+async function beginGoogleOAuthRequest(fetch: ApiTransport, origin: string | undefined, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google', report?: ReportReturn): Promise<string> {
   if (!origin) throw new Error('Google sign-in requires a bound browser entry.');
-  const response = await fetch(provider === 'adsense' ? ADSENSE_OAUTH_START_PATH : GOOGLE_OAUTH_START_PATH, { method: 'POST', signal,
+  const start = provider === 'adsense' ? ADSENSE_OAUTH_START_PATH : GOOGLE_OAUTH_START_PATH;
+  const params = new URLSearchParams();
+  if (report) setReportReturnParams(params, report);
+  const response = await fetch(params.size ? `${start}?${params}` : start, { method: 'POST', signal,
     headers: { accept: 'application/json' } });
   if (!response.ok) throw new ApiError('Google sign-in could not start.', response.status);
   const value: unknown = await response.json();
@@ -1724,7 +1728,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchMembers: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'members', after, signal)),
     fetchInvitations: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'invitations', after, signal)),
     manageMembership: bind(manageMembershipRequest),
-    beginGoogleOAuth: bind((fetch: ApiTransport, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google') => beginGoogleOAuthRequest(fetch, entryOrigin, signal, provider)),
+    beginGoogleOAuth: bind((fetch: ApiTransport, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google', report?: ReportReturn) => beginGoogleOAuthRequest(fetch, entryOrigin, signal, provider, report)),
     fetchMediavineStatus: bind(fetchMediavineStatusRequest),
     syncMediavine: bind(syncMediavineRequest),
     saveMediavineSettings: bind(saveMediavineSettingsRequest),

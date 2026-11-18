@@ -88,7 +88,16 @@ test('local customer Tower uses real invitations, workspace selection and durabl
   try {
     db = await skipWithoutPostgres(t, () => openDevelopmentStart(plan, { profile: 'hosted' }));
     if (!db) return;
-    app = await startLocalCustomer(plan, db);
+    const exchanges = [];
+    app = await startLocalCustomer(plan, db, { async fixtureProvider(request) {
+      assert.equal(request.url, 'https://oauth2.googleapis.com/token');
+      assert.equal(request.method, 'POST');
+      const form = new URLSearchParams(await request.text());
+      const provider = new URL(form.get('redirect_uri')).pathname.split('/')[3];
+      exchanges.push({ provider, code: form.get('code') });
+      const scopes = provider === 'adsense' ? ['adsense.readonly'] : ['analytics.readonly', 'webmasters.readonly'];
+      return Response.json({ refresh_token: 'synthetic-refresh', scope: scopes.map(scope => `https://www.googleapis.com/auth/${scope}`).join(' ') });
+    } });
     const origin = app.publicOrigin;
     const http = (route, { body, headers = {}, method = body === undefined ? 'GET' : 'POST' } = {}) => fetch(origin + route, {
       method, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -161,6 +170,67 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     assert.equal((await profile(eastOwner, { displayName: ' ' })).status, 400);
     assert.equal((await profile(eastOwner, { displayName: 'X'.repeat(121) })).status, 400);
     assert.equal((await http('/api/auth/update-user', { headers: eastOwner, body: { name: displayName } })).status, 403);
+    await t.test('provider consent returns only the authenticated workspace’s recorded report', async subtest => {
+      const source = 'source.example.test', other = 'other.example.test';
+      subtest.after(() => db.cluster.run(`DELETE FROM noticeos.integration_connections
+        WHERE workspace_id=:'east'::uuid AND provider IN ('google','adsense','google-oauth-app','adsense-oauth-app');
+        DELETE FROM noticeos.assets WHERE (workspace_id, asset_id) IN ((:'east'::uuid, :'source'), (:'west'::uuid, :'other'));`,
+      { vars: { east: east.workspaceId, west: west.workspaceId, source, other } }));
+      for (const [workspace, asset] of [[east, source], [west, other]]) {
+        db.cluster.run(`INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,list_position)
+          VALUES (:'workspace'::uuid, :'asset', :'asset', 'live', 1)`, { vars: { workspace: workspace.workspaceId, asset } });
+      }
+      const headers = { cookie: ownEast.cookie, [WORKSPACE_SESSION_HEADER]: ownEast.sessionId, [WORKSPACE_SELECTION_HEADER]: east.workspaceId };
+      async function issue(provider, from = '') {
+        const response = await http(`/api/integrations/${provider}/oauth/start${from}`, { method: 'POST', headers });
+        assert.equal(response.status, 200, await response.clone().text());
+        const target = new URL((await response.json()).authorizeUrl);
+        assert.equal(target.origin, 'https://accounts.google.com');
+        assert.equal(target.searchParams.has('asset'), false);
+        const state = target.searchParams.get('state');
+        assert.match(state, /^[a-z0-9_-]{43}$/iu);
+        return state;
+      }
+      async function callback(provider, state, outcome, cookie = ownEast.cookie) {
+        const response = await fetch(`${origin}/api/integrations/${provider}/oauth/callback?state=${state}&${outcome}`, {
+          headers: { cookie, 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' },
+          redirect: 'manual', signal: AbortSignal.timeout(30_000),
+        });
+        assert.equal(response.status, 302);
+        assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+        const target = new URL(response.headers.get('location'));
+        assert.equal(target.origin + target.pathname, origin + '/integrations');
+        assert.equal(target.searchParams.get('connect'), provider);
+        assert.equal(target.searchParams.has('code'), false);
+        assert.equal(target.searchParams.has('state'), false);
+        return Object.fromEntries(target.searchParams);
+      }
+      const returnQuery = (asset, tab) => `?asset=${asset}&fromReport=${tab}&range=90`;
+      for (const [provider, report, prefix] of [['google', 'journeys', 'GOOGLE'], ['adsense', 'financials', 'ADSENSE']]) {
+        const saved = await http(`/api/integrations/${provider}-oauth-app/credential`, { headers, method: 'PUT', body: { fields: {
+          [`${prefix}_OAUTH_CLIENT_ID`]: 'generated.apps.googleusercontent.com', [`${prefix}_OAUTH_CLIENT_SECRET`]: 'generated-credential',
+        } } });
+        assert.equal(saved.status, 204, await saved.clone().text());
+        const state = await issue(provider, returnQuery(source, report));
+        assert.deepEqual(await callback(provider, state, 'code=synthetic-wrong-session', ownWest.cookie), { connect: provider, google: 'state_invalid' });
+        assert.deepEqual(await callback(provider, state, 'code=synthetic-consent'), {
+          connect: provider, google: 'connected', asset: source, fromReport: report, range: '90', reportWorkspace: east.workspaceId,
+        });
+        assert.deepEqual(await callback(provider, state, 'code=synthetic-replay'), { connect: provider, google: 'state_invalid' });
+        const cancelled = await issue(provider, returnQuery(source, report));
+        assert.deepEqual(await callback(provider, cancelled, 'error=access_denied'), {
+          connect: provider, google: 'denied', asset: source, fromReport: report, range: '90', reportWorkspace: east.workspaceId,
+        });
+      }
+      const foreign = await issue('google', returnQuery(other, 'search'));
+      assert.deepEqual(await callback('google', foreign, 'error=access_denied'), { connect: 'google', google: 'denied' });
+      const ordinary = await issue('google');
+      assert.deepEqual(await callback('google', ordinary, 'error=access_denied'), { connect: 'google', google: 'denied' });
+      for (const suffix of ['?asset=source.example.test&fromReport=%2F%2Felsewhere.invalid', `${returnQuery(source, 'search')}&range=7`, `${returnQuery(source, 'search')}&redirect=/other`]) {
+        assert.equal((await http(`/api/integrations/google/oauth/start${suffix}`, { method: 'POST', headers })).status, 403);
+      }
+      assert.deepEqual(exchanges, ['google', 'adsense'].map(provider => ({ provider, code: 'synthetic-consent' })));
+    });
     assert.equal((await readSession(ownEast.cookie, west.workspaceId)).status, 403);
     const invitation = await member(ownWest, west.workspaceId, { kind: 'invite', email: east.email, role: 'viewer' });
     assert.equal(invitation.status, 200);

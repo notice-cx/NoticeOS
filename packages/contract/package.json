@@ -6,6 +6,10 @@
   "type": "module",
   "description": "Shared NoticeOS signal contracts: pulse envelopes, provider read models, and volume-aware flag rules (docs/02).",
   "exports": {
+    "./report-return": {
+      "types": "./src/report-return.d.mts",
+      "default": "./src/report-return.mjs"
+    },
     "./local-model-settings": {
       "types": "./src/local-model-settings.d.mts",
       "default": "./src/local-model-settings.mjs"

@@ -1,0 +1,39 @@
+import { ASSET_ID_MAX, CONFIG_ASSET_KEY_RE } from './configuration.mjs';
+
+export const REPORT_RANGES = [7, 28, 90] as const;
+const REPORT_TABS = ['journeys', 'growth', 'search', 'financials'] as const;
+export const REPORT_RETURN_PARAMETERS = ['asset', 'fromReport', 'range'] as const;
+export const REPORT_RETURN_WORKSPACE_PARAM = 'reportWorkspace';
+export interface ReportReturn {
+  readonly asset: string;
+  readonly report: typeof REPORT_TABS[number];
+  readonly range?: typeof REPORT_RANGES[number];
+}
+type ParamReader = { get(key: string): string | null; getAll(key: string): string[] };
+type ParamWriter = { set(key: string, value: string): void; delete(key: string): void };
+
+export function readReportReturn(input: unknown): ReportReturn | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const { asset, report, range } = input as Record<string, unknown>;
+  if (Object.keys(input).some(key => !['asset', 'report', 'range'].includes(key))
+    || typeof asset !== 'string' || asset.length > ASSET_ID_MAX || !CONFIG_ASSET_KEY_RE.test(asset)) return null;
+  const tab = REPORT_TABS.find(candidate => candidate === report);
+  const days = REPORT_RANGES.find(candidate => candidate === range);
+  if (!tab || (range !== undefined && days === undefined)) return null;
+  return Object.freeze({ asset, report: tab, ...(days === undefined ? {} : { range: days }) });
+}
+
+export function reportReturnFromParams(params: ParamReader): ReportReturn | null {
+  if (REPORT_RETURN_PARAMETERS.some(key => params.getAll(key).length > 1)) return null;
+  const raw = params.get('range');
+  const range = raw === null ? undefined : REPORT_RANGES.find(days => String(days) === raw);
+  if (raw !== null && range === undefined) return null;
+  return readReportReturn({ asset: params.get('asset'), report: params.get('fromReport'), range });
+}
+
+export function setReportReturnParams(params: ParamWriter, destination: ReportReturn): void {
+  params.set('asset', destination.asset);
+  params.set('fromReport', destination.report);
+  if (destination.range === undefined) params.delete('range');
+  else params.set('range', String(destination.range));
+}

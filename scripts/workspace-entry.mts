@@ -16,6 +16,7 @@ import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProvid
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, googleOAuthProvider, ADSENSE_INTEGRATION_START, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
+import type { ReportReturn } from '../packages/contract/src/report-return.mjs';
 import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.js';
 import type { WatchQueryHistoryInput } from '../packages/contract/src/create-watch-window.js';
 import { deepEqual } from './config-documents.mjs';
@@ -335,7 +336,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
  * in Tower and never from a supplied context, actor, action or verified flag. */
 export async function withGoogleWorkspaceEntry<T>(env: object, request: Request,
   phase: 'start' | 'callback',
-  work: (call: WorkspaceEntryCall, state?: string) => Promise<T>,
+  work: (call: WorkspaceEntryCall, state?: string, report?: ReportReturn) => Promise<T>,
   adapters: { openCustody: typeof openIntegrationOAuthCustody; withStore: typeof withHostedWorkspaceStore } = {
     openCustody: openIntegrationOAuthCustody, withStore: withHostedWorkspaceStore,
   }): Promise<T> {
@@ -358,16 +359,16 @@ export async function withGoogleWorkspaceEntry<T>(env: object, request: Request,
       claim: (original, authorize) => reader().claimGoogleCallback(original, authorize),
     },
   });
-  const admitted = (context: WorkspaceContext, state?: string) => work(Object.freeze({ context,
+  const admitted = (context: WorkspaceContext, state?: string, report?: ReportReturn) => work(Object.freeze({ context,
     withStore<U>(callContext: CallContext, use: (store: WorkspaceStore) => Promise<U>): Promise<U> {
       admission.assertContext(context, 'integrations.write');
       return adapters.withStore({ transport, workspace: { workspaceId: context.workspaceId } }, callContext, use);
     },
-  }), state);
+  }), state, report);
   try {
     return phase === 'start'
       ? await admission.withGoogleStart(crypto.randomUUID(), proof, admitted)
-      : await admission.withGoogleCallback(crypto.randomUUID(), proof, admitted);
+      : await admission.withGoogleCallback(crypto.randomUUID(), proof, (context, report) => admitted(context, undefined, report ?? undefined));
   } catch { return refuse(); }
   finally { if (custody) { try { await custody.close(); } catch { refuse(); } } }
 }

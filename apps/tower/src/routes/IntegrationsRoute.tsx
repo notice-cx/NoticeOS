@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { GOOGLE_OAUTH_RESULT_PARAM, GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
+import { REPORT_RETURN_PARAMETERS, REPORT_RETURN_WORKSPACE_PARAM, reportReturnFromParams } from '@noticeos/contract/report-return';
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { connectsInPanel, providerName } from "@shared/connect-panel";
 import { connectionStatus, type ConnectionStatus } from "@shared/connection-status";
@@ -61,11 +62,11 @@ import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
  * Replace and Disconnect at its top.
  */
 export function IntegrationsRoute() {
-  const offerLoopback = useBrowserRuntime().owner.mode === 'standalone';
+  const { owner } = useBrowserRuntime();
+  const offerLoopback = owner.mode === 'standalone';
   const toast = useOwnerToast();
   const { importEnvCredentials, deleteProviderCredential, saveProviderCredential, testProviderCredential, saveProviderExpiry } = useTowerApi();
   const api = useTowerApi();
-  const googleStart = useGoogleOAuthStart();
   const { data, isError, error, isFetching, refetch } = useIntegrationProviders();
   const queryClient = useQueryClient();
   const readOnly = !useCanEditWorkspace();
@@ -73,12 +74,17 @@ export function IntegrationsRoute() {
   const monitoring = useIntegrationHealth();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const reportPath = sourceReportPath(params);
+  const returnWorkspaces = params.getAll(REPORT_RETURN_WORKSPACE_PARAM);
+  const wrongReturnWorkspace = returnWorkspaces.length !== 0 &&
+    (returnWorkspaces.length !== 1 || owner.mode !== 'hosted' || returnWorkspaces[0] !== owner.workspaceId);
+  const report = wrongReturnWorkspace ? null : reportReturnFromParams(params);
+  const reportPath = report ? sourceReportPath(report) : null;
+  const googleStart = useGoogleOAuthStart('google', report ?? undefined);
   const serviceAccountParams = new URLSearchParams(params);
   serviceAccountParams.delete("connect");
   serviceAccountParams.set("provider", "google");
   serviceAccountParams.set("setup", "page");
-  const [returnedFromGoogle] = useState(() => params.get(GOOGLE_OAUTH_RESULT_PARAM) === "connected");
+  const [returnedFromGoogle] = useState(() => !wrongReturnWorkspace && params.get(GOOGLE_OAUTH_RESULT_PARAM) === "connected");
   // The open panel: which provider, whether it opened on the key form, its
   // sites or Replace, and the site it was opened for. A site's Data sources
   // row opens the same panel over that site's page; a link here with ?asset=
@@ -118,7 +124,15 @@ export function IntegrationsRoute() {
   // Coming back from Google: the callback is a full-page navigation, so its
   // outcome arrives as a query parameter, lands as a toast, and is cleared so
   // a refresh does not replay it.
-  const oauthResult = params.get(GOOGLE_OAUTH_RESULT_PARAM);
+  const oauthResult = wrongReturnWorkspace ? null : params.get(GOOGLE_OAUTH_RESULT_PARAM);
+  useEffect(() => {
+    if (!wrongReturnWorkspace) return;
+    setParams(previous => {
+      const next = new URLSearchParams(previous);
+      for (const name of [...REPORT_RETURN_PARAMETERS, REPORT_RETURN_WORKSPACE_PARAM, GOOGLE_OAUTH_RESULT_PARAM, 'connect']) next.delete(name);
+      return next;
+    }, { replace: true });
+  }, [wrongReturnWorkspace, setParams]);
   useEffect(() => {
     if (readOnly) return;
     const notice = googleOAuthNotice(oauthResult, window.location.origin, params.get('connect') === 'adsense' ? 'adsense' : 'google', offerLoopback);
@@ -180,7 +194,7 @@ export function IntegrationsRoute() {
   // `?setup=page` keeps a provider's own page (Google's service-account path).
   const providerParam = params.get("provider");
   const tempoSelected = !readOnly && providerParam === "tempo-mpp";
-  const linked = readOnly ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
+  const linked = readOnly || wrongReturnWorkspace ? null : panelTarget(params.get("connect"), true) ?? (params.get("setup") === "page" ? null : panelTarget(providerParam, providerParam === "stripe"));
   useEffect(() => {
     if (!linked) return;
     const opened = linked.provider.connect?.kind !== "site-tokens" && connectionState(linked.credential) === "failing"
@@ -346,6 +360,7 @@ export function IntegrationsRoute() {
               opened={connecting.opened}
               asset={connecting.asset}
               googleSetup={connecting.googleSetup}
+              reportReturn={report ?? undefined}
               googleServiceAccountHref={reportPath ? `/integrations?${serviceAccountParams}` : undefined}
               onOpenGoogleServiceAccount={() => setConnecting(null)}
               canConnect={blockers.length === 0}

@@ -2,6 +2,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { googleOAuthRequest } from './workspace-operations.mjs';
 import { agentActions, bearerToken } from './agent-access.mjs';
+import { readReportReturn } from '../packages/contract/src/report-return.mjs';
 const rule = (category, demo = false) => Object.freeze({ category, demo });
 const ACTIONS = Object.freeze({
     'evidence.read': rule('stored-read', true),
@@ -224,10 +225,15 @@ export function createWorkspaceAdmission(input) {
             snapshot = authorized;
         };
         let state;
+        let report;
         if (phase === 'start')
             state = await fresh(() => google.issue(proof, requested, authorize));
-        else
-            await fresh(() => google.claim(proof, authorize));
+        else {
+            const returned = await fresh(() => google.claim(proof, authorize));
+            report = readReportReturn(returned) ?? undefined;
+            if (returned && report === undefined)
+                refuse();
+        }
         if (calls !== 1 || !snapshot || (phase === 'start' && (typeof state !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(state))))
             refuse();
         // Adapter resolution means the identity transaction committed. A late
@@ -238,7 +244,7 @@ export function createWorkspaceAdmission(input) {
             profile, action: 'integrations.write', correlationId, allowedActions: snapshot.allowedActions });
         live.add(context);
         try {
-            return await work(context, state);
+            return await work(context, state, report);
         }
         finally {
             live.delete(context);
@@ -362,7 +368,9 @@ export function createWorkspaceAdmission(input) {
             return googleOperation('start', correlationId, request, (context, state) => work(context, state));
         },
         withGoogleCallback(correlationId, request, work) {
-            return googleOperation('callback', correlationId, request, work);
+            if (typeof work !== 'function')
+                refuse();
+            return googleOperation('callback', correlationId, request, (context, _state, report) => work(context, report ?? null));
         },
     });
 }

@@ -13,6 +13,7 @@ import { MCP_METHODS, parseMcpMessage } from './mcp-protocol.mjs';
 import { WATCH_QUERY_MAX_CHARS, WATCH_SERIES } from '../packages/contract/src/watch-series.mjs';
 import { VIEW_PREFERENCE_PATH } from '../packages/contract/src/views.mjs';
 import { CLOUDFLARE_D1_PATH, cloudflareAccountId, d1DatabaseId, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
+import { REPORT_RETURN_PARAMETERS, reportReturnFromParams } from '../packages/contract/src/report-return.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 export class OperationRefused extends Error {
     name = 'OperationRefused';
@@ -358,10 +359,13 @@ export function googleOAuthRequest(request, trustedOrigin, phase) {
         refuse();
     if (phase === 'start') {
         const workspaceId = request.headers.get(WORKSPACE_SELECTION_HEADER);
-        if (url.search || !workspaceId
+        if (!workspaceId
             || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(workspaceId))
             refuse();
-        return emptyRequestBody(request).then(() => Object.freeze({ workspaceId }));
+        const report = reportReturnFromParams(url.searchParams);
+        if (url.search && (!report || [...url.searchParams.keys()].some(key => !REPORT_RETURN_PARAMETERS.some(allowed => allowed === key))))
+            refuse();
+        return emptyRequestBody(request).then(() => Object.freeze({ workspaceId, ...(report ? { report } : {}) }));
     }
     if (request.headers.has(WORKSPACE_SELECTION_HEADER))
         refuse();

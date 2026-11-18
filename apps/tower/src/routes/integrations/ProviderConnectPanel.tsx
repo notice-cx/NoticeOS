@@ -32,6 +32,7 @@ import { ConnectionSchedule } from "./ConnectionSchedule";
 import { invertSettingOp, useFieldStructuralSave } from "@/hooks/useConfigSave";
 import { useConfigSaveDelay } from "@/hooks/config-backed-queries";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
+import type { ReportReturn } from '@noticeos/contract/report-return';
 import { ProviderMappings } from "./ProviderMappings";
 import { CloudflareD1Panel } from './CloudflareD1Panel';
 
@@ -54,6 +55,7 @@ export interface ProviderConnectPanelProps {
   /** The site the panel was opened for: it leads the site list. */
   asset: string | null;
   googleSetup?: boolean;
+  reportReturn?: ReportReturn;
   googleServiceAccountHref?: string;
   onOpenGoogleServiceAccount?: () => void;
   /** False while this install cannot store a credential yet. */
@@ -79,10 +81,10 @@ export interface ProviderConnectPanelProps {
  * is one. Route wiring, not a component: it binds the registered pieces to
  * the API.
  */
-export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, googleServiceAccountHref, onOpenGoogleServiceAccount, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
+export function ProviderConnectPanel({ status, opened, asset, googleSetup = false, reportReturn, googleServiceAccountHref, onOpenGoogleServiceAccount, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
   const queryClient = useQueryClient();
-  const googleStart = useGoogleOAuthStart(status.provider.id === 'adsense' ? 'adsense' : 'google');
+  const googleStart = useGoogleOAuthStart(status.provider.id === 'adsense' ? 'adsense' : 'google', reportReturn);
   const offerLoopback = useBrowserRuntime().owner.mode === 'standalone';
   const { deleteProviderCredential, connectProviderCredential, saveProviderCredential } = useTowerApi();
   const [started, setStarted] = useState(false);
