@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,6 +11,7 @@ import { CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, customerSchedules } from './customer-
 import { DATAFORSEO_ACCOUNT_PATH, DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from './customer-dataforseo-egress.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
+import { loadCustomerWorkflowModule } from './local-customer-workflow-module.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
 import { startPlan } from './start.mjs';
@@ -18,7 +20,7 @@ import { sealedProviderSql } from './test-fixtures/customer-backup.mjs';
 import { availableCustomerPort } from './test/customer-ports.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
-test('an attached customer buys only approved due DataForSEO reports using a separate Worker', { timeout: 150_000 }, async t => {
+test('an attached customer buys approved reports and recovers a paid result under its original date', { timeout: 150_000 }, async t => {
   const fetch = globalThis.fetch;
   t.mock.method(globalThis, 'fetch', (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input);
@@ -132,6 +134,86 @@ test('an attached customer buys only approved due DataForSEO reports using a sep
     assert.equal((await workers.paidWorker.fetch(CUSTOMER_GOOGLE_ARCHIVE_PLAN_URL, { method: 'POST',
       headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspaceId: east }) })).status, 403);
     assert.equal(paidCalls.length, 2);
+
+    const captureAt = Math.floor(Date.now() / 86_400_000) * 86_400_000 - 60_000;
+    const reportDate = new Date(captureAt).toISOString().slice(0, 10);
+    const capturedApproval = { ...approval, approvedMonthlyCapUsd: 1, assets: [{ asset: gamma, families: ['backlinks-summary'] }] };
+    const blockArchiveStatus = status => db.cluster.run(`CREATE FUNCTION public.reject_fixture_paid_recovery() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'Synthetic manifest write failed'; END $$;
+      CREATE TRIGGER fixture_paid_recovery BEFORE INSERT ON noticeos.archive_runs FOR EACH ROW
+      WHEN (NEW.workspace_id=:'workspace'::uuid AND NEW.asset_id=:'asset'
+        AND NEW.report_date=:'date'::date AND NEW.status=:'status') EXECUTE FUNCTION public.reject_fixture_paid_recovery();`,
+    { vars: { workspace: east, asset: gamma, date: reportDate, status } });
+    const permitArchive = () => db.cluster.run('DROP TRIGGER fixture_paid_recovery ON noticeos.archive_runs; DROP FUNCTION public.reject_fixture_paid_recovery();');
+    writeConstants(east, { ...settings, monthly_caps: { data_usd: 1 } });
+    const { runCustomerDataForSeo, DATAFORSEO_CHECKPOINT_PREFIX } = await loadCustomerWorkflowModule(plan.root, root, `
+      export { runCustomerDataForSeo } from './customer-dataforseo.ts';
+      export { DATAFORSEO_CHECKPOINT_PREFIX } from './dataforseo-dumps.ts';
+    `);
+    const priorStore = openWorkspaceStore(db.address, { workspaceId: east });
+    try {
+      blockArchiveStatus('error');
+      await assert.rejects(runCustomerDataForSeo({
+        STORE: priorStore, NOTICEOS_WORKSPACE_PROFILE: 'hosted', CREDENTIALS_KEY: credentialsKey,
+        RAW_SIGNALS: { get: key => bucket.get(key), async put(key, body, metadata) {
+          if (key.startsWith(`workspaces/${east}/raw/`)) throw new Error('Synthetic final archive write failed');
+          return bucket.put(key, body, metadata);
+        } },
+      }, { job: 'dataforseo', approval: capturedApproval, signal: new AbortController().signal, authorizePurchase: async () => {} },
+      { nowMs: captureAt, fetchImpl: transport }), /Synthetic manifest write failed/u);
+    } finally { await priorStore.close(); permitArchive(); }
+    const listed = await bucket.list({ prefix: `workspaces/${east}/${DATAFORSEO_CHECKPOINT_PREFIX}/${gamma}/${reportDate}/` });
+    assert.equal(listed.objects.length, 1);
+    const checkpointKey = listed.objects[0].key;
+    const checkpoint = await bucket.get(checkpointKey);
+    const staged = await checkpoint.text();
+    const metadata = checkpoint.customMetadata;
+    assert.equal(paidCalls.length, 3);
+    assert.equal(accountCalls.length, 1);
+    await bucket.put(checkpointKey, staged, { customMetadata: { ...metadata, workspaceId: west } });
+    const runtime = JSON.parse(readFileSync(file, 'utf8'));
+    writeConstants(east, settings);
+    writeFileSync(file, JSON.stringify({ ...runtime,
+      paidDataForSeo: [{ ...approval, weekly: false, recovery: true, assets: capturedApproval.assets }],
+    }), { mode: 0o600 });
+    const restartForRecovery = async offset => {
+      await app.close(); app = undefined;
+      app = await startAttachedCustomer(attached, file, { dataForSeoTransport: transport, startSchedules(options) {
+        bucket = options.bucket;
+        return startLocalCustomerSchedules({ ...options, now: () => scheduledAt + offset * 60_000 });
+      } });
+      await app.whenIdle();
+    };
+    const recoveryRows = () => db.cluster.script(`SELECT report_date::text,status,error_code,cost_usd::text AS cost
+      FROM noticeos.archive_runs WHERE workspace_id=:'workspace'::uuid AND asset_id=:'asset'
+        AND report_date=:'date'::date ORDER BY finished_at, run_id;`, { vars: { workspace: east, asset: gamma, date: reportDate } });
+    await restartForRecovery(1);
+    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete']);
+    assert.ok(await bucket.head(checkpointKey));
+    await bucket.put(checkpointKey, staged, { customMetadata: metadata });
+
+    blockArchiveStatus('success');
+    await restartForRecovery(2);
+    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete', 'local_store_failed']);
+    assert.ok(await bucket.head(checkpointKey));
+    permitArchive();
+    await restartForRecovery(3);
+    assert.deepEqual(recoveryRows().at(-1), { report_date: reportDate, status: 'success', error_code: null, cost: '0.000000' });
+    assert.equal(await bucket.head(checkpointKey), null);
+    const [published] = db.cluster.script(`SELECT o.object_key
+      FROM noticeos.archive_runs r JOIN noticeos.archive_objects o USING (workspace_id, object_seq)
+      WHERE r.workspace_id=:'workspace'::uuid AND r.asset_id=:'asset'
+        AND r.report_date=:'date'::date AND r.status='success';`, { vars: { workspace: east, asset: gamma, date: reportDate } });
+    const envelope = JSON.parse(gunzipSync(Buffer.from(await (await bucket.get(published.object_key)).arrayBuffer())));
+    assert.equal(envelope.reportDate, reportDate);
+    assert.deepEqual(envelope.pages[0].response, JSON.parse(staged).page.response);
+    assert.deepEqual(db.cluster.sql(`SELECT state FROM noticeos.hosted_job_occurrences
+      WHERE lane='dataforseo-recovery' ORDER BY occurrence`),
+    [{ state: 'exhausted' }, { state: 'exhausted' }, { state: 'succeeded' }]);
+    assert.deepEqual(db.cluster.sql(`SELECT asset_id,provider_cost_usd::text AS cost FROM noticeos.dataforseo_request_charges ORDER BY asset_id`),
+      [{ asset_id: alpha, cost: '0.020000' }, { asset_id: beta, cost: '0.020000' }, { asset_id: gamma, cost: '0.020000' }]);
+    assert.equal(paidCalls.length, 3);
+    assert.equal(accountCalls.length, 1);
   } finally {
     try { await app?.close(); }
     finally { await db?.close(); rmSync(root, { recursive: true, force: true }); }
