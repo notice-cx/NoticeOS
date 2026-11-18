@@ -84,7 +84,8 @@ test('app jobs wait for the running profile and customer startup cannot dispatch
   });
   assert.equal(runningContainerProfile(startup(100)), 'standalone');
   assert.equal(runningContainerProfile(startup(101)), null);
-  for (const argv of [['backup'], ['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
+  assert.equal(await containerMain(['backup'], { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
+  for (const argv of [['run-job', '0 6 * * *'], ['customer-archive', '--plan']]) {
     assert.equal(await containerMain(argv, { err, environment, runningProfile: () => runningContainerProfile(startup(101)) }), 1);
     assert.equal(await containerMain(argv, { err, environment, runningProfile: () => 'customer' }), 2);
   }
