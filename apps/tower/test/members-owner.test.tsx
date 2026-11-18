@@ -114,23 +114,40 @@ it('holds the roster action lock during an offline refresh and keeps people visi
     onlineManager.setOnline(wasOnline);
   }
 });
-it('a denied refresh hides cached people and only an authorized roster read restores editing', async () => {
-  let denied = false;
-  const fetch = vi.fn<ApiTransport>(async (input, init) => denied ? Response.json({ ok: false }, { status: 403 }) : roster(input, init));
+it('a refusal from either read hides cached people until a complete authorized refresh succeeds', async () => {
+  let mode: 'allowed' | 'mixed' | 'temporary' = 'allowed';
+  const denied = deferred();
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const request = JSON.parse(String(init?.body));
+    if (mode === 'allowed') return roster(input, init);
+    if (mode === 'mixed' && request.collection === 'members') {
+      await denied.promise;
+      return Response.json({ ok: false }, { status: 403 });
+    }
+    return Response.json({ ok: false }, { status: 503 });
+  });
   const revalidate = vi.fn(async () => {});
   const value = runtime(fetch);
-  value.queries.setDefaultOptions({ queries: { retry: false } });
+  value.queries.setDefaultOptions({ queries: { retry: 1, retryDelay: 0 } });
   mount(value, 'owner', undefined, revalidate);
   await screen.findByText(member.name);
   fireEvent.change(screen.getByLabelText('Email *'), { target: { value: invitation.email } });
   const refresh = screen.getByRole('button', { name: 'Refresh access' });
   const invite = screen.getByRole('button', { name: /^Invite$/u });
-  denied = true;
+  mode = 'mixed';
   fireEvent.click(refresh);
+  try { await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4)); }
+  finally { await act(async () => denied.resolve()); }
   await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+  expect(fetch).toHaveBeenCalledTimes(4);
   expect(invite).toBeDisabled();
   expect(revalidate).toHaveBeenCalledTimes(1);
-  denied = false;
+  mode = 'temporary';
+  fireEvent.click(refresh);
+  await vi.waitFor(() => expect(refresh).toBeEnabled());
+  expect(screen.queryByText(member.name)).toBeNull();
+  expect(invite).toBeDisabled();
+  mode = 'allowed';
   fireEvent.click(refresh);
   expect(await screen.findByText(member.name)).toBeVisible();
   expect(invite).toBeEnabled();

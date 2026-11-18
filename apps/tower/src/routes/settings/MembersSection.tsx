@@ -30,22 +30,25 @@ function OwnerMembers() {
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const issuing = useRef(false);
   // An offline refresh must settle while it holds the roster lock.
-  const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster> => {
+  const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster | null> => {
     const deadline = AbortSignal.any([signal, AbortSignal.timeout(10_000)]);
-    const [members, invitations] = await Promise.all([runtime.api.fetchMembers(undefined, deadline), runtime.api.fetchInvitations(undefined, deadline)]);
-    return { members, invitations };
+    const [members, invitations] = await Promise.allSettled([runtime.api.fetchMembers(undefined, deadline), runtime.api.fetchInvitations(undefined, deadline)]);
+    // A refused read drops cached people until a complete roster is authorized again.
+    if ([members, invitations].some(result => result.status === 'rejected' && accessDenied(result.reason))) return null;
+    if (members.status === 'rejected') throw members.reason;
+    if (invitations.status === 'rejected') throw invitations.reason;
+    return { members: members.value, invitations: invitations.value };
   } });
-  const roster = accessDenied(read.error) ? undefined : read.data;
+  const roster = read.data;
   const update = runtime.guard((callback: () => void) => callback());
   async function refreshAccess() {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      await read.refetch({ throwOnError: true });
-    } catch (error) {
-      if (accessDenied(error)) {
-        if (runtime.guard(() => true)() === true) void recheckAccess?.();
-      } else update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
+      const result = await read.refetch({ throwOnError: true });
+      if (result.data === null && runtime.guard(() => true)() === true) void recheckAccess?.();
+    } catch {
+      if (runtime.queries.getQueryData(QUERY) != null) update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
     } finally {
       issuing.current = false; update(() => setBusy(false));
     }
@@ -102,7 +105,7 @@ function OwnerMembers() {
       </form>
       {notice ? <div role="status" data-status-for="members" className={`mt-3 text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
     </SettingsPanel>
-    {!roster ? read.isError ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
+    {!roster ? read.isError || roster === null ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void refreshAccess()} />
       : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
       <SettingsPanel title="People">
         <ul className="divide-y divide-border">{roster.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}
