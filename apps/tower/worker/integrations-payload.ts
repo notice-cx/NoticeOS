@@ -241,6 +241,7 @@ export interface IntegrationsDeps {
   /** config/constants.json `no_nightly_report` — the assets declared as
    * sending no nightly report, whose derived lane is Not using. */
   noNightlyReport?: readonly string[] | null;
+  backupPreview?: boolean;
 }
 
 /** The stored settings the matrix is built from, as the Tower's config
@@ -284,7 +285,7 @@ export async function recordTodaysSourceHistory(store: WorkspaceStore, deps: Int
 /** The matrix without its history: every cell, lane and summary. */
 async function assembleIntegrationsMatrix(
   store: WorkspaceStore,
-  { now, integrations, pullConfig, monthlyCaps, serpPanel, noNightlyReport }: IntegrationsDeps,
+  { now, integrations, pullConfig, monthlyCaps, serpPanel, noNightlyReport, backupPreview }: IntegrationsDeps,
 ): Promise<Omit<IntegrationsMatrix, "history">> {
   const evidence = await loadIntegrationEvidence(store, { now, integrations, serpPanel, presentation: 'full' });
   const catalog = evidence.catalog;
@@ -342,7 +343,7 @@ async function assembleIntegrationsMatrix(
     sharedCredential: sharedCredentialInsight(catalog, cells),
     dataSpend: {
       period: utcMonth(now),
-      ...(await loadDataForSeoSpend(store, now)),
+      ...(await loadDataForSeoSpend(store, now, 'month', backupPreview)),
       capUsd: monthlyCaps.dataUsd,
     },
   };

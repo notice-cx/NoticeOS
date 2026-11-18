@@ -172,7 +172,7 @@ test('operator enrollment preserves a populated standalone workspace through own
     assert.equal(unavailableMail.status, 1);
     assert.equal(existsSync(inbox), false);
     writePlan({ workspaceId: randomUUID() });
-    await must('send-code', renewed.enrollmentId);
+    assert.equal((await cmd('send-code', renewed.enrollmentId)).status, 1);
     assert.equal(existsSync(inbox), false);
     writePlan();
     await must('send-code', renewed.enrollmentId);

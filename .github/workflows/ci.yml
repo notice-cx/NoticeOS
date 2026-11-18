@@ -165,6 +165,10 @@ jobs:
       - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
         if: matrix.shard == 1
+      - run: node --import ./scripts/script-tests-setup.mjs --test scripts/local-customer-people.test.mjs
+        if: matrix.shard == 1
+        env:
+          NOTICEOS_TEST_CUSTOMER_PEOPLE: '1'
       - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request --shard=${{ matrix.shard }}/2
         env:
           JOURNEY_WORKERS: 3
@@ -210,6 +214,10 @@ jobs:
       # here, the journey harness and the UX flow gate there. The journeys'
       # types are checked in tower-unit.
       - uses: ./.github/actions/journey-browser
+      - run: node --import ./scripts/script-tests-setup.mjs --test scripts/local-customer-people.test.mjs
+        if: matrix.shard == 1
+        env:
+          NOTICEOS_TEST_CUSTOMER_PEOPLE: '1'
       - run: pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3
         env:
           # Browser workers, each with its own fixture server. Unset, a run

@@ -55,7 +55,7 @@ Shown only on a standalone installation: where it is installed and what it runs,
 
 ### Members
 
-Shown only when this installation manages members: where people are invited to the workspace.
+Owners can open **Members** in a customer workspace. Enter an email address, choose an owner, operator or viewer role, and select **Invite**. The recipient opens the invitation, verifies their email with a code, and joins the workspace. Select **Refresh access** to see who has joined. Under **People**, choose a new role and select **Save role**, or select **Remove** and **Confirm removal** to end access to this workspace. The last owner keeps the owner role and stays in the workspace.
 
 ## What you can do
 

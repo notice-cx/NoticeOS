@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { projectShadowJourneys, validShadowJourneys } from './customer-shadow-journeys.mjs';
 import { importShadowEvidence } from './customer-shadow-import.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { findPostgres } from './postgres-dev.mjs';
@@ -12,11 +13,35 @@ import { POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
+import { prepareShadowDisplay } from './test-fixtures/customer-shadow-display.mjs';
+import { parseWallConfig } from './wall-layout.mjs';
 
 const executable = path.join(import.meta.dirname, 'customer-shadow-export.mjs');
 const digest = value => createHash('sha256').update(value).digest('hex');
 const cli = (...args) => spawnSync(process.execPath, [executable, ...args], { encoding: 'utf8', timeout: 30_000 });
 const noSecrets = /fixture-source-secret|fixture-unlisted-setting|fixture-unlisted-audit|foreign\.example|fixture-unlisted-field|fixture-provider-key|fixture-task-id/u;
+const firstPartyJourney = {
+  id: 'signup', label: 'Signup 👋', goal: 'Start a trial', source: 'first-party', kind: 'funnel', status: 'active', version: 1,
+  steps: [{ id: 'enter', label: 'Entered', alternatives: [] }, { id: 'signup', label: 'Completed', alternatives: [] }],
+};
+
+test('the saved journey projection accepts Unicode scalars and checks only the integration settings it uses', () => {
+  const asset = 'canopy.example';
+  const assets = new Set([asset]);
+  const events = definition => ({ assets: { [asset]: { journeys: [definition] } } });
+  const entries = projectShadowJourneys(events(firstPartyJourney), [], assets);
+  assert.deepEqual(entries, [{ asset, definitions: [firstPartyJourney] }]);
+  assert.equal(validShadowJourneys(entries), true);
+  const ga4 = { ...firstPartyJourney, source: undefined,
+    steps: firstPartyJourney.steps.map(step => ({ ...step, alternatives: [{ eventName: step.id }] })) };
+  assert.throws(() => projectShadowJourneys(events(ga4), [], assets), /invalid integration settings/u);
+  for (const label of ['Bad\0label', 'Bad\uD800label']) {
+    const invalid = { ...firstPartyJourney, label };
+    assert.throws(() => projectShadowJourneys(events(invalid), [], assets), /unsupported text/u);
+    assert.equal(validShadowJourneys([{ asset, definitions: [invalid] }]), false);
+  }
+});
+
 
 test('offline transfer preserves workspace evidence through export, restore, import and replay', {
   timeout: 120_000,
@@ -69,7 +94,9 @@ test('offline transfer preserves workspace evidence through export, restore, imp
       INSERT INTO noticeos.task_daily_counts(workspace_id,project,day,captured_at,open,in_progress,blocked,closed_ids)
       VALUES (:'workspace'::uuid,'Historical fixture',:'date'::date,:'at'::timestamptz,3,2,1,'["fixture-task-id"]');
       INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by)
-      VALUES (:'workspace'::uuid,'constants','{"os_time_zone":"Europe/Paris","fixture_unlisted":"fixture-unlisted-setting"}',3,:'at'::timestamptz,'fixture');
+      VALUES (:'workspace'::uuid,'constants','{"os_time_zone":"Europe/Paris","monthly_caps":{"data_usd":81,"other":"fixture-unlisted-setting"},"fixture_unlisted":"fixture-unlisted-setting"}',3,:'at'::timestamptz,'fixture'),
+        (:'workspace'::uuid,'integrations','[]',1,:'at'::timestamptz,'fixture'),
+        (:'workspace'::uuid,'value-events',:'value_events'::json,1,:'at'::timestamptz,'fixture');
       INSERT INTO noticeos.config_changes(workspace_id,document_key,ops,reason,actor,version_before,version_after,changed_at)
       VALUES (:'workspace'::uuid,'constants',
         '[{"kind":"file-json-set","file":"config/constants.json","pointer":"/os_time_zone","value":"Europe/Paris"}]',:'reason','fixture',1,2,:'at'::timestamptz),
@@ -83,7 +110,9 @@ test('offline transfer preserves workspace evidence through export, restore, imp
       INSERT INTO noticeos.connection_secrets(workspace_id,connection_id,secret_version,ciphertext,iv,key_version,field_names,created_at)
       VALUES (:'workspace'::uuid,:'connection'::uuid,1,convert_to('fixture-source-secret','UTF8'),decode(repeat('00',12),'hex'),1,'[]',:'at'::timestamptz);`,
     { vars: { workspace: workspaceId, foreign, connection, date, at, asset, report, reason, hash: digest(report),
+      value_events: JSON.stringify({ assets: { [asset]: { journeys: [firstPartyJourney] } } }),
       envelope: JSON.stringify({ asset, generatedAt: at, capabilities: ['signups'], metrics: { signups: { last24h: 15, avg7d: 6, total: 45 } } }) } });
+    const display = prepareShadowDisplay(pg, workspaceId, asset, at);
     const backupDir = path.join(root, 'backup');
     const first = path.join(backupDir, POSTGRES_DUMP_FILE);
     mkdirSync(path.dirname(first), { recursive: true, mode: 0o700 });
@@ -112,7 +141,7 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     assert.equal(manifest.omitted.rawArchiveObjects, 2);
     assert.equal(manifest.omitted.legacyArchiveObjects, 1);
     assert.equal(manifest.omitted.credentialAndIdentityState, true);
-    assert.equal(manifest.omitted.unlistedSettings, 1);
+    assert.equal(manifest.omitted.unlistedSettings, 3);
     assert.equal(manifest.omitted.unlistedAudit, 1);
     const out = path.join(root, 'bundle');
     const exported = cli('--dump', first, '--workspace', workspaceId, '--out', out);
@@ -135,9 +164,15 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     assert.equal(single('asset_insight_snapshots').content_sha256, digest(report));
     assert.equal(single('counter_readings').value, '9007199254740993');
     const settings = JSON.parse(readFileSync(path.join(out, 'settings.json'), 'utf8'));
-    assert.deepEqual(settings.values, { os_time_zone: 'Europe/Paris' });
+    assert.deepEqual(settings.values, { os_time_zone: 'Europe/Paris', monthly_caps: { data_usd: 81 } });
+    assert.deepEqual(settings.journeys, [{ asset, definitions: [firstPartyJourney] }]);
     assert.equal(settings.audit[0].changedAt, single('pulses').generated_at);
     assert.equal(settings.audit[0].reason, reason);
+    assert.deepEqual(settings.display.tower.body.wall, parseWallConfig(display.wall));
+    assert.deepEqual(settings.display['recurring-costs'].body.costs, display.costs);
+    assert.deepEqual(settings.display['domain-costs'].body.domains, display.domains);
+    const spend = [{ day: date, asset, usd: '3.500000', unknown: 1 }, { day: date, asset: null, usd: '4.250000', unknown: 0 }];
+    assert.deepEqual(settings.metered, spend);
 
     pg.onDatabase('postgres').run('CREATE DATABASE noticeos_shadow_export_dev');
     execFileSync(path.join(bin, 'pg_restore'), [...socket, '--exit-on-error', '--dbname=noticeos_shadow_export_dev', first]);
@@ -159,6 +194,14 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     const discovered = cli('--dump', sole, '--only-workspace');
     assert.equal(discovered.status, 0, discovered.stderr);
     assert.equal(JSON.parse(discovered.stdout).workspaceId, workspaceId);
+    const invalid = path.join(root, 'invalid-wall.dump');
+    pg.onDatabase('noticeos_shadow_export_dev').run(`UPDATE noticeos.config_documents
+      SET body='{"wall":{"layout":{"version":0}}}'::json WHERE document_key='tower'`);
+    dump('noticeos_shadow_export_dev', invalid);
+    const refused = cli('--dump', invalid, '--workspace', workspaceId, '--out', path.join(root, 'refused-wall'));
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /invalid saved Wall layout/u);
+    assert.equal(existsSync(path.join(root, 'refused-wall')), false);
 
     const targetRoot = path.join(root, 'target'), dataDir = path.join(targetRoot, 'postgres/data');
     mkdirSync(targetRoot, { mode: 0o700 });
@@ -193,12 +236,28 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     await assert.rejects(importBundle, /Stop the shadow before importing/u);
     assert.equal(readFileSync(lock, 'utf8'), 'fixture reader');
     rmSync(lock);
+    const settingsPath = path.join(out, 'settings.json'), manifestPath = path.join(out, 'manifest.json');
+    const priorSettings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    delete priorSettings.journeys;
+    const legacyBytes = JSON.stringify(priorSettings) + '\n';
+    const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    Object.assign(legacyManifest.files.find(entry => entry.name === 'settings'), {
+      bytes: Buffer.byteLength(legacyBytes), sha256: digest(legacyBytes),
+    });
+    writeFileSync(settingsPath, legacyBytes);
+    writeFileSync(manifestPath, JSON.stringify(legacyManifest) + '\n');
     const reportFile = path.join(out, 'tables/asset_insight_snapshots.jsonl'), pristine = readFileSync(reportFile);
     writeFileSync(reportFile, Buffer.concat([pristine, Buffer.from('x')]));
     await assert.rejects(importBundle, /bundle file changed after export/u);
     assert.equal(target.sql('SELECT count(*)::text AS count FROM noticeos.assets')[0].count, '0');
     writeFileSync(reportFile, pristine);
     assert.equal((await importBundle()).imported, true);
+    assert.deepEqual(JSON.parse(target.sql(`SELECT (body::jsonb->'wall')::text AS wall FROM noticeos.config_documents
+      WHERE document_key='tower'`)[0].wall), parseWallConfig(display.wall));
+    assert.deepEqual(target.sql(`SELECT day::text,asset_id AS asset,spent_usd::text AS usd,unknown_prices::text AS unknown
+      FROM noticeos_shadow.metered_spend ORDER BY day,asset_id NULLS LAST`),
+      spend.map(row => ({ ...row, unknown: String(row.unknown) })));
+    assert.deepEqual(target.sql('SELECT run_id FROM noticeos.archive_runs'), []);
     assert.deepEqual(target.sql(`SELECT payload::text,content_sha256,created_at::text
       FROM noticeos.asset_insight_snapshots`), [{ payload: report, content_sha256: digest(report), created_at: '2026-10-02 23:30:00+00' }]);
     assert.equal(target.sql('SELECT value::text FROM noticeos.counter_readings')[0].value, '9007199254740993');
