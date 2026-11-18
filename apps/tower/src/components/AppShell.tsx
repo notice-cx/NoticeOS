@@ -173,7 +173,7 @@ export function Sidebar({
         <BrandLockup />
       </Link>
 
-      <AccountMenu className="mx-2 mb-2 justify-start" />
+      <AccountMenu className="mx-2 mb-2 hidden justify-start md:flex" />
       <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {sidebarItems(view.nav).map((item) =>
           // Assets is the one noun whose objects are also destinations.

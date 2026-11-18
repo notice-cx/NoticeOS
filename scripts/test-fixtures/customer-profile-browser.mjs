@@ -82,6 +82,12 @@ export async function useCustomerProfileBrowser({ origin, outbox, email, workspa
   await expect(details.getByText(email, { exact: true })).toBeVisible();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, kind + '-phone.png'), animations: 'disabled' });
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  const drawer = page.getByRole('dialog', { name: 'Navigation', exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Account menu', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
   await page.getByRole('link', { name: 'Back to workspace', exact: true }).click();
   await expect(page).toHaveURL(origin + '/');
   await account.click();
