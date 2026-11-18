@@ -211,12 +211,19 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
         checked = await probe(targetImage);
       }
       if (checked.code !== 0) fail('The checkout\'s packages do not match this image. Run pnpm os:dev without --image to build a matching one.');
+      const checkedValue=JSON.parse(checked.stdout);
+      if(!Number.isSafeInteger(checkedValue.freeBytes) || checkedValue.freeBytes<12*1024**3) fail('Development dependency volumes need 4 GiB headroom while keeping 8 GiB free.');
+      const dependencies=checkedValue.dependencies;
+      if(dependencies.schema!=='noticeos-development-dependencies/1') fail('Invalid Linux dependency description.');
       const stateSource=before.noticeos.mounts.find(m=>m.target==='/state' && m.type==='bind')?.source;
-      const dependencyFile=path.join(dir,`dependencies-${targetImage.slice(7)}.json`);
+      const previousRecord=path.join(dir,`dependencies-${targetImage.slice(7)}.json`);
+      const dependencyFile=dependencies.patches ? path.join(dir,`dependencies-with-patches-${targetImage.slice(7)}.json`) : previousRecord;
       const override = developmentOverride(root,targetImage,{project:selector.project,stateSource,dependencyFile});
       const oldOverride = active ? regular(overrideFile) : null;
       previousOverride = oldOverride;
-      if (oldOverride !== null && oldOverride !== json(override) &&
+      const provenOldMount = dependencies.patches && oldOverride === json(developmentOverride(root,targetImage,
+        {project:selector.project,stateSource,dependencyFile:previousRecord}));
+      if (oldOverride !== null && oldOverride !== json(override) && !provenOldMount &&
         !(rebuilt && JSON.parse(oldOverride).services?.noticeos?.labels?.['cx.noticeos.checkout'] === override.services.noticeos.labels['cx.noticeos.checkout'])) {
         fail('Run pnpm os:prod before selecting another checkout or dependency image.');
       }
@@ -226,10 +233,6 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       // Compared with the stack as declared without development, so a new
       // dependency image may replace the old one's volumes.
       assertDevelopmentComposition(baseModel.value,afterModel.value,override);
-      const checkedValue=JSON.parse(checked.stdout);
-      if(!Number.isSafeInteger(checkedValue.freeBytes) || checkedValue.freeBytes<12*1024**3) fail('Development dependency volumes need 4 GiB headroom while keeping 8 GiB free.');
-      const dependencies=checkedValue.dependencies;
-      if(dependencies.schema!=='noticeos-development-dependencies/1') fail('Invalid Linux dependency description.');
       const dependencyBytes=json(dependencies);
       if(fs.existsSync(dependencyFile)) {if(regular(dependencyFile)!==dependencyBytes) fail('The dependency image record changed.');}
       else fs.writeFileSync(dependencyFile,dependencyBytes,{flag:'wx',mode:0o644});

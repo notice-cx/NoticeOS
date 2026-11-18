@@ -179,13 +179,22 @@ async function runCustomer(stop) {
   const state = '/state/.local/compose-customer';
   privateDirectory(state, !existsSync(state));
   const workerState = composeArchiveState('/state', { lstatSync }, folder => { if (!existsSync(folder)) mkdirSync(folder, { mode: 0o700 }); });
-  const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation, backup: Boolean(backup) });
-  const backupProblem = await backup?.check(db.signal);
-  if (backupProblem) process.stderr.write(`NoticeOS backup unavailable. ${backupProblem}\n`);
-  // A backed-up store remains accessible so its owner can replace a revoked credential.
-  const app = await startPreparedCustomer(plan, db, { deployment: {
-    artifactRoot, archiveBucket, workerState, listenPort: 5173, bridgePeer, backup,
-  } });
+  const launch = async artifactRoot => {
+    const db = await openCustomerTarget(plan, operating, path.join(state, 'customer'), path.join(state, 'target.json'), { activation, backup: Boolean(backup) });
+    // A backed-up store remains accessible so its owner can replace a revoked credential.
+    try {
+      const backupProblem = await backup?.check(db.signal);
+      if (backupProblem) process.stderr.write(`NoticeOS backup unavailable. ${backupProblem}\n`);
+    } catch (error) { await db.close(); throw error; }
+    return startPreparedCustomer(plan, db, { deployment: {
+      artifactRoot, archiveBucket, workerState, listenPort: 5173, bridgePeer, backup,
+    } });
+  };
+  if (process.env.NOTICEOS_LIVE_SOURCE_ROOT) {
+    const { runLiveCustomer } = await import('../../scripts/customer-development.mjs');
+    return runLiveCustomer({ root: plan.root, state, launch, stop });
+  }
+  const app = await launch(artifactRoot);
   try {
     const status = await Promise.race([stop.then(() => 0), app.whenLost.then(() => 1)]);
     if (status === 1) process.stderr.write('NoticeOS customer runtime lost its scheduler lease.\n');
@@ -249,12 +258,20 @@ if (!isMainThread && workerData?.composeCustomer === true) {
 } else if (process.argv[1] === import.meta.filename) {
   if (process.argv[2] === '--check') {
     try {
-      const { backup, operating } = await prepareCustomer();
+      const { backup, operating, plan } = await prepareCustomer();
       await verifyComposeCustomerCollection(operating);
       const problem = await backup?.check();
       if (problem) throw new ContainerRefusal(problem);
-      const { readDemoArtifact } = await import('../../scripts/hosted-demo-server.mjs');
-      readDemoArtifact(artifactRoot);
+      if (process.env.NOTICEOS_LIVE_SOURCE_ROOT) {
+        const { customerSourceRevision, prepareLiveCustomerArtifact } = await import('../../scripts/customer-development.mjs');
+        const revision = customerSourceRevision(plan.root);
+        const candidate = await prepareLiveCustomerArtifact('/state/.local', revision);
+        candidate.dispose();
+        if (revision !== customerSourceRevision(plan.root)) throw new ContainerRefusal('The checkout changed during preflight. Check again after saving edits.');
+      } else {
+        const { readDemoArtifact } = await import('../../scripts/hosted-demo-server.mjs');
+        readDemoArtifact(artifactRoot);
+      }
       process.stdout.write('The prepared customer target passed preflight.\n');
     } catch (error) { reportRefusal(error); process.exitCode = 1; }
   } else if (process.argv[2] === '--backup') {

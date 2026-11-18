@@ -95,7 +95,11 @@ test('customer nightly and manual backup need independently scoped Ntasks custod
       assert.deepEqual(fs.readFileSync(file), saved);
     }
     connect(tasks.backupToken, 4);
+    assert.equal(await backup.check(), null);
+    assert.equal(backup.healthy(), true);
     await tasks.revokeBackup();
+    assert.notEqual(await backup.check(), null);
+    assert.equal(backup.healthy(), false);
     assert.equal((await scheduler.manualBackup()).stage, 'taskHub');
     assert.equal(backup.healthy(), false);
     assert.equal(handed.length, 2);
