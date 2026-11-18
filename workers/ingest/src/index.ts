@@ -276,6 +276,12 @@ async function route(request: Request, env: IngestEnv): Promise<Response> {
   return json({ error: 'not_found' }, 404);
 }
 
+declare global {
+  interface IngestEnv {
+    NOTICEOS_GOOGLE_SETUP_REQUIRED?: boolean;
+  }
+}
+
 export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
   // Every way in runs with its own store, opened for the call and closed when
   // it ends (call-store.ts). A module function, never a method: every public
@@ -787,7 +793,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     if (profile !== 'standalone') {
       if (profile !== 'hosted' || !(proof instanceof Request)) throw new WorkspaceEntryRefused();
       const { origin, provider } = await googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'start');
-      if (!googleRedirectVerdict(origin).usable) {
+      if (this.env.NOTICEOS_GOOGLE_SETUP_REQUIRED === true || !googleRedirectVerdict(origin).usable) {
         createBrowserRequestPolicy(origin, localTowerOrigin(this.env)).assertEffect(proof);
         return { ok: false, error: 'redirect_unusable' };
       }
@@ -810,6 +816,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
       const selected = googleOAuthArguments(input, proof, workspaceEntryOrigin(this.env), 'callback');
       if (!('code' in selected)) throw new WorkspaceEntryRefused();
+      if (this.env.NOTICEOS_GOOGLE_SETUP_REQUIRED === true) return { ok: false, error: 'state_invalid' };
       return withGoogleWorkspaceEntry(this.env, proof, 'callback', (call, _state, destination) => {
         if (selected.error !== null && !destination) return Promise.resolve({ ok: false, error: 'denied' } as const);
         return call.withStore(this.ctx, async (store) => {

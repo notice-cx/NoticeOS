@@ -79,7 +79,8 @@ function identityOptions(env: WorkspaceEntryBindings, origin: string): IdentityO
 /** Read-only browser bootstrap. Profiles and readers belong to the server.
  * The returned identifiers select UI state; each subsequent action must still
  * pass its own current workspace admission. No active-org cookie is written. */
-export async function handleBrowserSessionRequest(request: Request, env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean },
+export async function handleBrowserSessionRequest(request: Request,
+  env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean; NOTICEOS_GOOGLE_SETUP_REQUIRED?: boolean },
   adapters: BrowserSessionReaders = readers): Promise<Response> {
   try {
     if (!(request instanceof Request) || request.method !== 'GET' || request.url.length > 8192) refuse();
@@ -113,7 +114,8 @@ export async function handleBrowserSessionRequest(request: Request, env: Workspa
     }
     const snapshot = await adapters.session(options, new Headers(request.headers), selected, after);
     return Response.json({ mode, ...(snapshot ?? { session: null, workspaces: [], nextCursor: null, selectedWorkspace: null }),
-      ...(env.NOTICEOS_CUSTOMER_SHADOW === true ? { backupPreview: true } : {}) },
+      ...(env.NOTICEOS_CUSTOMER_SHADOW === true ? { backupPreview: true } : {}),
+      ...(snapshot?.session && env.NOTICEOS_GOOGLE_SETUP_REQUIRED === true ? { googleSetupRequired: true } : {}) },
       { headers: RESPONSE_HEADERS });
   } catch {
     return Response.json({ error: 'browser_session_unavailable' }, { status: 403, headers: RESPONSE_HEADERS });

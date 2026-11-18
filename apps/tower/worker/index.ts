@@ -119,6 +119,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
   POSTGRES?: StoreBinding;
   NOTICEOS_PORTFOLIO?: PortfolioSummaryBucket;
   NOTICEOS_CUSTOMER_SHADOW?: boolean;
+  NOTICEOS_GOOGLE_SETUP_REQUIRED?: boolean;
   NOTICEOS_CUSTOMER_SCHEDULES?: { fetch(request: Request): Promise<Response> };
   INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader & ModelBudgetWriter &
     ConfigDocumentReader &

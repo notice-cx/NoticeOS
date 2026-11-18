@@ -145,6 +145,65 @@ test('historical archive preparation uses the existing app container and refuses
   assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','customer-archive', ...args]]);
   assert.throws(() => actionArgs('customer-archive', ['--prepare', workspace, '--backup-bytes', '0']), /verified complete backup/u);
 });
+test('Google setup replaces only the selected app, keeps its custom port, and closes after refusal or interruption', async () => {
+  const normal = 'a'.repeat(64), setup = 'b'.repeat(64), image = 'sha256:' + 'd'.repeat(64);
+  const model = { ports: [{ host_ip: '127.0.0.1', published: '25173', target: 5173, protocol: 'tcp' }],
+    environment: { NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1', NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' },
+    image: 'noticeos-local:synthetic' };
+  const updates = [];
+  const controller = new AbortController();
+  let current = normal, appId = rows()[0].ID, healthy = true, failure, standalone = false;
+  const run = async (command, args, { env }) => {
+    assert.equal(command, 'docker');
+    assert.deepEqual(args.slice(0, 2), ['--host', selector.dockerHost]);
+    const answer = stdout => ({ code: 0, stdout });
+    if (args[2] === 'image') return answer(image);
+    if (args[2] === 'inspect') {
+      assert.equal(args.at(-1), appId);
+      return answer(`${image} ${current}`);
+    }
+    const [action, ...rest] = args.slice(9);
+    if (action === 'ps') return answer(JSON.stringify(rows().map(row => row.Service === 'noticeos'
+      ? { ...row, ID: appId, Health: healthy ? 'healthy' : 'unhealthy' } : row)));
+    if (action === 'config') return rest[0] === '--hash'
+      ? answer(`noticeos ${env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal}`)
+      : answer(JSON.stringify({ services: { noticeos: model } }));
+    if (action === 'exec') return { code: standalone ? 1 : 0, stdout: '' };
+    assert.equal(action, 'up');
+    assert.deepEqual(rest, ['--detach', '--no-deps', '--no-build', '--pull', 'never', '--force-recreate', '--wait', '--wait-timeout', '90', 'noticeos']);
+    updates.push([env.NOTICEOS_CUSTOMER_GOOGLE_SETUP, env.NOTICEOS_TOWER_BIND]);
+    appId = String(updates.length + 3).repeat(64).slice(0, 64);
+    current = env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' ? setup : normal;
+    healthy = !(failure === 'unhealthy' && current === setup);
+    if (failure === 'interrupt' && current === setup) controller.abort();
+    return { code: healthy ? 0 : 1, stdout: '', stderr: 'private login' };
+  };
+  let output = '';
+  const command = (verb, signal) => stackControl('customer-google-setup', selector, { args: [verb], run, signal,
+    out: { write: line => { output += line; } } });
+  await command('open');
+  assert.match(output, /http:\/\/127\.0\.0\.1:25173\/integrations/u);
+  await command('open');
+  assert.deepEqual(updates, [['1', '127.0.0.1']]);
+  healthy = false;
+  await command('close');
+  await command('close');
+  assert.deepEqual(updates, [['1', '127.0.0.1'], ['0', undefined]]);
+  failure = 'unhealthy';
+  await assert.rejects(command('open'), /usual Tower address is available again/u);
+  failure = 'interrupt';
+  await assert.rejects(command('open', controller.signal), /usual Tower address is available again/u);
+  assert.equal(current, normal);
+  assert.deepEqual(updates.slice(2), [['1', '127.0.0.1'], ['0', undefined], ['1', '127.0.0.1'], ['0', undefined]]);
+  model.ports.push({ ...model.ports[0], host_ip: '0.0.0.0' });
+  await assert.rejects(command('open'), /one loopback-only Tower port/u);
+  model.ports.pop();
+  standalone = true;
+  await assert.rejects(command('open'), /Customer profile check failed/u);
+  assert.equal(updates.length, 6);
+  assert.throws(() => actionArgs('customer-google-setup', ['--port', '15400']), /Usage/u);
+});
+
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
   const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));

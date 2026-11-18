@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import { get as getHttp } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { startPlan, prepareFolder } from './start.mjs';
@@ -28,6 +29,7 @@ const enabled = process.env.NOTICEOS_TEST_CONTAINER === '1';
 const customerDevelopment = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_DEVELOPMENT === '1';
 const customer = customerDevelopment || process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER === '1';
 const customerLan = customerDevelopment || (customer && process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_LAN === '1');
+const googleSetup = process.env.NOTICEOS_TEST_CONTAINER_CUSTOMER_GOOGLE_SETUP === '1';
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const write = (file, value) => fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
 function fixtureSource(base) {
@@ -359,6 +361,45 @@ test('the application container runs its schedules with no task service, preserv
         const mcp = await post('/api/mcp', { jsonrpc: '2.0', id: 1, method: 'tools/list' }, headers);
         assert.equal(mcp.status, 200);
         assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'property_report'));
+      }
+      if (googleSetup) {
+        assert.ok(customerLan, 'the Google setup proof starts with the customer LAN profile');
+        if (!selectorFile) {
+          const envFile = path.join(base, 'customer-lan-fixture.env');
+          fs.writeFileSync(envFile, Object.entries(appEnv).filter(([key]) => key.startsWith('NOTICEOS_') || key === 'TOWER_ALLOWED_HOSTS')
+            .map(([key, value]) => `${key}=${JSON.stringify(value)}`).join('\n') + '\n', { mode: 0o600 });
+          selectorFile = path.join(base, 'stack.json');
+          write(selectorFile, { dockerHost: endpoint, project: pg.project, files: [appFile, isolatedDatabases], envFile });
+        }
+        const settingsFile = read(selectorFile).envFile;
+        const savedSettings = fs.readFileSync(settingsFile);
+        const control = verb => runCommand(process.execPath, [path.join(ROOT, 'scripts/stack-control.mjs'),
+          'customer-google-setup', verb, '--config', selectorFile], { cwd: ROOT, env: toolEnv, timeoutMs: 150_000 });
+        const status = host => new Promise((resolve, reject) => {
+          getHttp({ hostname: '127.0.0.1', port: plan.port, path: '/api/session', headers: { host },
+            signal: AbortSignal.timeout(10_000) }, response => { response.resume(); resolve(response.statusCode); }).on('error', reject);
+        });
+        const loopback = `127.0.0.1:${plan.port}`, lanHost = new URL(lanOrigin).host;
+        assert.equal(await status(lanHost), 200);
+        assert.equal(await status(loopback), 400);
+        const opened = await control('open');
+        assert.equal(opened.code, 0, opened.stderr);
+        assert.ok(opened.stdout.includes(`http://${loopback}/integrations`));
+        const openedId = (await compose(['ps', '--quiet', 'noticeos'])).stdout.trim();
+        assert.notEqual(openedId, currentContainer);
+        assert.equal(await db(), dbId);
+        assert.equal((await compose(['port', 'noticeos', '5173'])).stdout.trim(), loopback);
+        assert.equal(await status(loopback), 200);
+        assert.equal(await status(lanHost), 400);
+        const closed = await control('close');
+        assert.equal(closed.code, 0, closed.stderr);
+        currentContainer = (await compose(['ps', '--quiet', 'noticeos'])).stdout.trim();
+        assert.notEqual(currentContainer, openedId);
+        assert.equal(await db(), dbId);
+        assert.equal(await status(lanHost), 200);
+        assert.equal(await status(loopback), 400);
+        assert.deepEqual(fs.readFileSync(settingsFile), savedSettings);
+        assert.match((await ownerSql("SELECT count(*) FROM pg_stat_activity WHERE application_name='noticeos-local-customer-scheduler'")).stdout, /^\s*1\s*$/mu);
       }
       fs.unlinkSync(marker);
       await restart();

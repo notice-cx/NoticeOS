@@ -129,6 +129,11 @@ test('the same container explicitly selects one customer clock, exact loopback i
   assert.throws(() => composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173' }), ContainerRefusal);
   const lan = { NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173', TOWER_ALLOWED_HOSTS: 'test-tower.local' };
   assert.equal(composeCustomerPlan(lan, 'http://test-tower.local:25173').url, 'http://test-tower.local:25173');
+  const setup = { ...lan, NOTICEOS_CUSTOMER_GOOGLE_SETUP: '1' };
+  assert.throws(() => composeCustomerPlan(setup, 'http://test-tower.local:25173'), ContainerRefusal);
+  assert.deepEqual(composeCustomerPlan({ ...setup, NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1' }, 'http://test-tower.local:25173'), {
+    ...plan, googleSetup: true, savedTowerOrigin: 'http://test-tower.local:25173',
+  });
   for (const origin of ['http://other.local:25173', 'http://test-tower.local:25174', 'http://public.example:25173']) {
     assert.throws(() => composeCustomerPlan(lan, origin), ContainerRefusal);
   }

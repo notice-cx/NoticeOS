@@ -36,6 +36,7 @@ export function containerEnvironment(env = process.env, { fs: io = fs, checkDepe
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new ContainerRefusal('The prepared bootstrap credentials are incomplete.');
   const selected = {};
   for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', ...HOST_FACTS]) if (env[key] !== undefined) selected[key] = env[key];
+  if (env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1') selected.NOTICEOS_CUSTOMER_GOOGLE_SETUP = '1';
   // The backup worker asks this app by its service name; Vite's host guard refuses names it was not given.
   selected.TOWER_ALLOWED_HOSTS = [env.TOWER_ALLOWED_HOSTS, new URL(BACKUP_APP_ORIGIN).hostname].filter(Boolean).join(',');
   // The standalone runtime serves through Vite; its React transforms need development mode.
@@ -94,6 +95,9 @@ export async function main(argv = process.argv.slice(2), { environment = contain
     // Fresh setup runs in a one-off container before the application starts.
     const profile = argv.length ? runningProfile() ?? (argv[0] === 'setup' ? selectedCustomerProfile() : null) : selectedCustomerProfile();
     if (profile === null) throw new ContainerRefusal('The running application profile is not recorded yet.');
+    if (env.NOTICEOS_CUSTOMER_GOOGLE_SETUP === '1' && profile !== 'customer') {
+      throw new ContainerRefusal('Google setup requires the customer runtime.');
+    }
     if (argv.length === 0) recordContainerProfile(profile);
     command = containerCommand(argv, profile);
     if (!command) { err.write('NoticeOS customer runtime uses the Tower and scoped agent access for supported operations. This standalone job is unavailable.\n'); return 2; }

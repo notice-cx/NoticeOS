@@ -10,6 +10,25 @@ function googleDailyQuery(url, method, extendedArchives) {
   return url.origin === 'https://www.googleapis.com' && /^\/webmasters\/v3\/sites\/[^/]+\/searchAnalytics\/query$/u.test(url.pathname);
 }
 
+async function googleSetupRequest(url, request) {
+  if (request.method === 'POST' && url.href === 'https://oauth2.googleapis.com/token'
+    && request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) {
+    const fields = new URLSearchParams(await request.clone().text());
+    return ['authorization_code', 'refresh_token'].includes(fields.get('grant_type'));
+  }
+  if (request.method !== 'GET' || !request.headers.get('authorization')?.startsWith('Bearer ')) return false;
+  if (url.origin === 'https://www.googleapis.com' && !url.search) {
+    return ['/oauth2/v3/userinfo', '/webmasters/v3/sites'].includes(url.pathname);
+  }
+  if (url.origin === 'https://analyticsadmin.googleapis.com') {
+    return url.pathname === '/v1beta/accountSummaries' && url.search === '?pageSize=200'
+      || /^\/v1beta\/properties\/[0-9]+\/dataStreams$/u.test(url.pathname) && !url.search;
+  }
+  return url.origin === 'https://adsense.googleapis.com' && /^\/v2\/accounts(?:\/pub-[0-9]+\/sites)?$/u.test(url.pathname)
+    && url.searchParams.get('pageSize') === '100'
+    && (url.searchParams.size === 1 || url.searchParams.size === 2 && Boolean(url.searchParams.get('pageToken')));
+}
+
 function stripeReport(url, method) {
   if (method !== 'GET' || url.origin !== 'https://api.stripe.com') return false;
   return /^\/v1\/(?:account|balance|balance_transactions(?:\/txn_[a-zA-Z0-9_]+)?|subscriptions|checkout\/sessions(?:\/cs_[a-zA-Z0-9_]+\/line_items)?|invoice_payments|invoices\/in_[a-zA-Z0-9_]+\/lines|charges\/(?:ch|py)_[a-zA-Z0-9_]+|refunds\/(?:re|pyr)_[a-zA-Z0-9_]+)$/u.test(url.pathname);
@@ -37,7 +56,7 @@ function clarityReport(url, method) {
 
 /** Workers have no fallback to public fetch. The controller belongs to the
  * scheduler lease and also cancels an accepted request if that lease ends. */
-export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], siteChecks = [], revenueNotices = [], signal, transport = fetch } = {}) {
+export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, googleSetup = false, googleSetupTransport, extendedArchives = false, collectorProviders = [], sitePulls = [], siteChecks = [], revenueNotices = [], signal, transport = fetch } = {}) {
   const allowed = new Set(collectorProviders);
   const pullUrls = new Set(sitePulls.flatMap(site => site.urls));
   const siteOrigins = siteChecks.flatMap(site => site.origins);
@@ -47,6 +66,7 @@ export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, exten
     if (url.username || url.password || url.hash) return new Response(null, { status: 403 });
     const ntasksAllowed = url.origin === ntasksOrigin && hostedTaskProviderOperation(url.pathname, request.method);
     const googleAllowed = googleDaily && googleDailyQuery(url, request.method, extendedArchives);
+    const setupAllowed = googleSetup && await googleSetupRequest(url, request);
     const stripeAllowed = allowed.has('stripe') && stripeReport(url, request.method);
     const bingAllowed = allowed.has('bing-webmaster') && bingReport(url, request.method, extendedArchives);
     const posthogAllowed = allowed.has('posthog') && posthogReport(url, request.method);
@@ -56,7 +76,7 @@ export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, exten
     const website = siteOrigins.length > 0 && request.method === 'GET' && siteCheckAddress(url, siteOrigins)
       && !request.headers.has('authorization') && !request.headers.has('cookie');
     const discord = request.method === 'POST' && webhooks.has(revenueWebhookId(url));
-    if (!(website || discord || ntasksAllowed || googleAllowed || stripeAllowed || bingAllowed || mediavineAllowed || posthogAllowed || clarityAllowed || pullAllowed)) return new Response(null, { status: 403 });
+    if (!(website || discord || ntasksAllowed || googleAllowed || setupAllowed || stripeAllowed || bingAllowed || mediavineAllowed || posthogAllowed || clarityAllowed || pullAllowed)) return new Response(null, { status: 403 });
     const timeout = AbortSignal.timeout(10000);
     const bounded = AbortSignal.any([timeout, ...(signal ? [signal] : []), ...(request.signal ? [request.signal] : [])]);
     bounded.throwIfAborted();
@@ -65,7 +85,8 @@ export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, exten
       if (request.headers.has(name)) headers.set(name, request.headers.get(name));
     }
     headers.set('accept-encoding', 'identity');
-    const response = await transport(url.href, { method: request.method, headers: Object.fromEntries(headers),
+    const send = setupAllowed && googleSetupTransport ? googleSetupTransport : transport;
+    const response = await send(url.href, { method: request.method, headers: Object.fromEntries(headers),
       body: request.body ? await request.arrayBuffer() : undefined, redirect: 'manual', signal: bounded });
     if (response.status >= 300 && response.status < 400 && !(website)) {
       await response.body?.cancel();
