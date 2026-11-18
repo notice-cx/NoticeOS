@@ -31,6 +31,7 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
   } : null;
   let run: AnalysisRun | null = null;
   let nextRunRead: { started: (signal: AbortSignal | null | undefined) => void; release: Promise<void> } | undefined;
+  let nextReconciliation: { started: () => void; release: Promise<void> } | undefined;
   const traffic: { path: string; method: string; key: string | null | undefined; body: unknown }[] = [];
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
     const path = new URL(String(input)).pathname;
@@ -85,6 +86,12 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
       return Response.json({ assignment }, { status: 202 });
     }
     if (path === `${PATH}/${WORKFLOW}/runs/${RUN}/assignment/reconcile` && method === 'POST' && run?.assignment) {
+      const held = nextReconciliation;
+      if (held) {
+        nextReconciliation = undefined;
+        held.started();
+        await held.release;
+      }
       const assignment = { ...run.assignment, taskId: 'test-example' };
       run = { ...run, assignment };
       return Response.json({ assignment });
@@ -96,12 +103,20 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
     }
     return Response.json({ error: 'not_found' }, { status: 404 });
   });
-  return { fetch, traffic, holdNextRunRead() {
-    const started = deferred<AbortSignal | null | undefined>();
-    const release = deferred();
-    nextRunRead = { started: started.resolve, release: release.promise };
-    return { started: started.promise, release: release.resolve };
-  } };
+  return { fetch, traffic,
+    holdNextRunRead() {
+      const started = deferred<AbortSignal | null | undefined>();
+      const release = deferred();
+      nextRunRead = { started: started.resolve, release: release.promise };
+      return { started: started.promise, release: release.resolve };
+    },
+    holdNextReconciliation() {
+      const started = deferred();
+      const release = deferred();
+      nextReconciliation = { started: started.resolve, release: release.promise };
+      return { started: started.promise, release: release.resolve };
+    },
+  };
 }
 
 function Address() {
@@ -129,7 +144,7 @@ afterEach(() => { cleanup(); for (const runtime of runtimes.splice(0)) runtime.r
 describe('customer analysis workflows', () => {
   it('creates a template with selected assets and a weekly trigger, then keeps each finding’s cited asset', async () => {
     const requests = fixture(false, true);
-    const { container } = mount(requests);
+    const { container, queries } = mount(requests);
     fireEvent.click(await screen.findByRole('button', { name: 'Create workflow' }));
     const form = screen.getByRole('form', { name: 'Create workflow' });
     expect(within(form).getByRole('button', { name: 'Save workflow' })).toBeDisabled();
@@ -161,8 +176,22 @@ describe('customer analysis workflows', () => {
     expect(assign).toBeDisabled();
     fireEvent.change(within(assignment).getByLabelText('Task project'), { target: { value: PROJECT } });
     fireEvent.click(assign);
+    const reconciliation = requests.holdNextReconciliation();
     fireEvent.click(await within(assignment).findByRole('button', { name: 'Check assignment' }));
-    expect(await within(assignment).findByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example?project=search-review');
+    await reconciliation.started;
+    const olderRun = requests.holdNextRunRead();
+    const refetch = queries.invalidateQueries({ queryKey: [...ANALYSIS_QUERY, WORKFLOW, RUN], exact: true });
+    const signal = await olderRun.started;
+    try {
+      reconciliation.release();
+      expect(await within(assignment).findByRole('link', { name: 'View assigned task' })).toHaveAttribute('href', '/tasks/test-example?project=search-review');
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      reconciliation.release();
+      olderRun.release();
+      await act(() => refetch);
+    }
+    expect(within(assignment).getByRole('link', { name: 'View assigned task' })).toBeVisible();
     expect(requests.traffic.filter(event => event.path.endsWith('/assignment')).map(event => event.body)).toEqual([{ projectId: PROJECT }]);
     expect(requests.traffic.some(event => event.path.endsWith('/complete'))).toBe(false);
     const result = screen.getByRole('form', { name: 'Record result' });

@@ -38,7 +38,10 @@ export function AnalysisRunAssignment({ run, writable }: { run: AnalysisRun; wri
     mutationFn: (projectId: string | null) => projectId === null
       ? api.reconcileAnalysisAssignment(run.workflowId, run.id)
       : api.assignAnalysisRun(run.workflowId, run.id, projectId),
-    onSuccess: ({ assignment }) => cache.setQueryData<{ run: AnalysisRun }>(queryKey, current => current ? { run: { ...current.run, assignment } } : current),
+    async onSuccess({ assignment }) {
+      await cache.cancelQueries({ queryKey, exact: true });
+      cache.setQueryData<{ run: AnalysisRun }>(queryKey, current => current ? { run: { ...current.run, assignment } } : current);
+    },
     onError: () => void cache.invalidateQueries({ queryKey, exact: true }),
   });
   if (!assignment && !awaitingResult) return null;
