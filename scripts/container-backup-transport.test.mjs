@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BACKUP_PATHS } from './container-backup-profile.mjs';
 import { writeSecrets } from './postgres-secrets.mjs';
+import { readResourceNames } from './resource-names.mjs';
 import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
 
 function fixture(t) {
@@ -30,13 +31,21 @@ function fixture(t) {
 
 test('recovery custody keeps the bootstrap, credentials and declarations and rejects their rotation', async t => {
   const f = fixture(t); const options = { fs: f.io, fsSync: f.sync };
+  const names = { rawSignalsBucket: 'fixture-legacy-raw-signals' };
+  f.write('/state/installation/resource-names.json', names);
   const result = await copyContainerRecovery(f.output, options);
   const kept = fs.readdirSync(f.map(f.output));
-  for (const name of ['bootstrap.json', 'worker-profile.json', 'beads.json', 'postgres', 'recovery.json']) assert.ok(kept.includes(name), name);
+  for (const name of ['bootstrap.json', 'worker-profile.json', 'beads.json', 'postgres', 'recovery.json', 'resource-names.json']) assert.ok(kept.includes(name), name);
   assert.equal(kept.includes('task-client.json') || kept.includes('task-host.json') || kept.includes('spokes'), false);
   assert.equal(result.files, Object.keys(JSON.parse(fs.readFileSync(f.map(path.join(f.output, 'recovery.json')), 'utf8')).files).length);
   assert.equal(fs.statSync(f.map(path.join(f.output, 'bootstrap.json'))).mode & 0o777, 0o600);
+  assert.deepEqual(readResourceNames({ root: f.root, env: { NOTICEOS_INSTALLATION_DIR: f.map(f.output) } }), names);
   await verifyContainerRecovery(f.output, options);
+  f.write('/state/installation/resource-names.json', { rawSignalsBucket: 'another-bucket' });
+  await assert.rejects(verifyContainerRecovery(f.output, options), { message: 'resource-names.json: file changed during backup.' });
+  f.write('/state/installation/resource-names.json', { rawSignalsBucket: 'Invalid name' });
+  await assert.rejects(copyContainerRecovery(f.output + '-invalid-names', options), { message: 'resource-names.json: resource names are invalid.' });
+  f.write('/state/installation/resource-names.json', names);
   f.write('/state/installation/beads.json', { version: 1, projects: [{ asset: 'changed' }] });
   await assert.rejects(verifyContainerRecovery(f.output, options), { message: 'beads.json: file changed during backup.' });
 });

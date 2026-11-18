@@ -707,6 +707,7 @@ replacing an existing installation requires an explicitly approved maintenance w
   recorded migration hashes. Reconcile rows, archive references and application
   reads/writes before accepting recovery. No existing database is replaced here.
 - R2: copy \`r2/\` back over \`.wrangler/state/v3/r2/\`.
+  If present, restore \`recovery/resource-names.json\` into the new installation's settings folder before starting the app.
 - Analytical history: copy the whole \`history/\` tree into a new scratch folder.
   Run \`verifyAnalyticalHistoryBackup\` from \`scripts/analytical-history-backup.mjs\`
   against that folder, then use the existing history readers with its published

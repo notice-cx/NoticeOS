@@ -82,6 +82,8 @@ R2, the Ntasks export while Ntasks is connected, approved exporter output,
 restore instructions and private recovery material. The recovery material
 includes the bootstrap bindings, database credentials, the saved task projects
 when the installation has exported them, and the worker/exporter declarations.
+The recovery folder also keeps `resource-names.json` when the installation uses
+a saved archive bucket name.
 Customer backups also keep the private customer runtime declaration and its
 database role credentials in `recovery/customer-runtime.json`. If a source credential or
 declaration changes during capture, the set is not published.
@@ -121,6 +123,8 @@ endpoint and credentials selector. For a customer restore, prepare the identity
 and schedule-service database logins and their `CONNECT` grants on the new
 destination. The dump contains the workspace, identity tables and workspace
 service grants. The database login setup uses the protected recovery declaration.
+If present, restore `recovery/resource-names.json` to the new installation's own
+settings folder before starting the app. It selects the bucket used by the archived objects.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local
