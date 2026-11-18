@@ -10,6 +10,7 @@ import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials, bankingValue } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
 import { fetchMembershipsRequest, manageMembershipRequest } from './membership-client';
+import { PERSONAL_PROFILE_PATH, type PersonalProfile } from '../../../../scripts/identity-protocol.mjs';
 import {
   ALERT_HISTORY_PAGE,
   type AlertHistoryPayload,
@@ -1558,6 +1559,17 @@ async function importEnvCredentialsRequest(fetch: ApiTransport): Promise<EnvImpo
  * The lifetime check also covers decoding, including helpers that catch errors. */
 export type ApiTransport = typeof globalThis.fetch;
 
+async function personalProfileRequest(fetch: ApiTransport, signal?: AbortSignal, displayName?: string): Promise<PersonalProfile> {
+  const response = await fetch(PERSONAL_PROFILE_PATH, { signal, ...(displayName === undefined ? {} : {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ displayName }),
+  }) });
+  if (!response.ok) throw new ApiError('Could not read or update your profile.', response.status);
+  const value: unknown = await responseJson(response, 'Profile');
+  if (!isRecord(value) || typeof value.displayName !== 'string' || typeof value.email !== 'string'
+    || typeof value.editable !== 'boolean') throw new Error('Profile response is incomplete.');
+  return { displayName: value.displayName, email: value.email, editable: value.editable };
+}
+
 /** Hosted start commits custody before answering. Only Google's fixed consent
  * endpoint and this entry's callback may become a browser navigation. */
 async function beginGoogleOAuthRequest(fetch: ApiTransport, origin: string | undefined, signal?: AbortSignal, provider: GoogleOAuthProvider = 'google'): Promise<string> {
@@ -1685,6 +1697,8 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
       return await response.json() as D1Receipt;
     }),
     fetchDemoPresentation: bind(fetchDemoPresentationRequest),
+    fetchPersonalProfile: bind((fetch: ApiTransport, signal?: AbortSignal) => personalProfileRequest(fetch, signal)),
+    savePersonalDisplayName: bind((fetch: ApiTransport, displayName: string) => personalProfileRequest(fetch, undefined, displayName)),
     fetchMembers: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'members', after, signal)),
     fetchInvitations: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'invitations', after, signal)),
     manageMembership: bind(manageMembershipRequest),
@@ -1766,6 +1780,8 @@ export const {
   exportD1Database,
   fetchDemoPresentation,
   fetchMembers,
+  fetchPersonalProfile,
+  savePersonalDisplayName,
   fetchInvitations,
   manageMembership,
   beginGoogleOAuth,

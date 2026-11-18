@@ -57,6 +57,7 @@ export const deskRoutes: RouteObject[] = [
   // Settings is tabbed on the same contract: `/settings` is General and
   // `/settings/<tab>` the rest (`settings/SettingsTabs.tsx` names them).
   { path: "/settings/:tab?", ...lazyPage(() => import("@/routes/SettingsRoute")) },
+  { path: "/profile", ...lazyPage(() => import("@/routes/ProfileRoute")) },
   // The television's layout is edited on the desk, never on the television:
   // `/wall/edit` is a shell page, and `/wall` below stays outside the shell
   // with no edit affordance anywhere on it.

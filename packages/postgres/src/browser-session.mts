@@ -2,9 +2,10 @@
  * This one read owns and closes its connection; there is no active-organization
  * fallback and no public arbitrary workspace-summary lookup. */
 import { sql } from 'kysely';
-import { identityEngine, openIdentityDatabase, validateIdentityOptions, UUID,
+import { identityEngine, identityMembership, openIdentityDatabase, validateIdentityOptions, UUID,
   IdentityRefused, type IdentityOptions } from './identity-engine.mjs';
 import type { MembershipRole, SessionFacts, WorkspaceStatus } from './identity.mjs';
+import { normalizedDisplayName, type PersonalProfile } from '../../../scripts/identity-protocol.mjs';
 
 export const WORKSPACE_CHOICES_PAGE_SIZE = 100;
 export interface BrowserWorkspaceChoice {
@@ -33,6 +34,32 @@ function choice(value: unknown): BrowserWorkspaceChoice {
     || !['owner', 'operator', 'viewer'].includes(String(row.role))) refuse();
   return Object.freeze({ workspaceId: row.workspace_id, displayName: row.display_name,
     status: row.status as WorkspaceStatus, role: row.role as MembershipRole });
+}
+
+/** The captured session and its current membership select the verified person. */
+export async function personalProfile(options: IdentityOptions, headers: Headers, workspace: string,
+  session: string, editable: boolean, name?: string): Promise<PersonalProfile> {
+  validateIdentityOptions(options);
+  if (!UUID.test(workspace) || !UUID.test(session)
+    || (name !== undefined && (!editable || normalizedDisplayName(name) !== name))) refuse();
+  const { database } = await openIdentityDatabase(options);
+  try {
+    return await database.transaction().execute(async trx => {
+      if (name === undefined) await sql`SET TRANSACTION READ ONLY`.execute(trx);
+      await sql`SELECT set_config('statement_timeout','5000',true), set_config('lock_timeout','5000',true)`.execute(trx);
+      const auth = identityEngine(trx, options, { transaction: false, validateSchema: false, readOnlySession: true });
+      const member = await identityMembership(trx, auth, headers, workspace, true, name !== undefined);
+      if (member?.sessionId !== session || member.workspaceStatus !== 'active') return refuse();
+      const { rows: [person] } = await sql<{ name: string; email: string }>`
+        SELECT name, email FROM noticeos_identity.auth_user
+        WHERE id=${member.principalId}::uuid AND email_verified=true
+        ${name === undefined ? sql`` : sql`FOR UPDATE`}`.execute(trx);
+      if (!person) return refuse();
+      if (name !== undefined && name !== person.name
+        && !(await auth.api.updateUser({ headers, body: { name } })).status) return refuse();
+      return { displayName: name ?? person.name, email: person.email, editable };
+    });
+  } finally { await database.destroy(); }
 }
 
 /** Keyset pages keep responses bounded by membership count. A page cursor is

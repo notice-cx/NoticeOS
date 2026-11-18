@@ -1,4 +1,5 @@
-import { useBrowserContext, useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserRuntime, useOwnerPreferences } from '@/lib/browser-context';
+import { AccountMenu } from '@/components/AccountMenu';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
@@ -172,7 +173,7 @@ export function Sidebar({
         <BrandLockup />
       </Link>
 
-      <WorkspaceButton className="mx-2 mb-2" />
+      <AccountMenu className="mx-2 mb-2 justify-start" />
       <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {sidebarItems(view.nav).map((item) =>
           // Assets is the one noun whose objects are also destinations.
@@ -581,7 +582,7 @@ export function AppShell({
             >
               <BrandLockup size="compact" />
             </Link>
-            <WorkspaceButton className="ml-auto max-w-44" />
+            <AccountMenu className="ml-auto" align="end" />
           </div>
 
           <WorkspaceDataStatus />
@@ -722,14 +723,3 @@ function NavDrawer({
 }
 
 export default AppShell;
-
-/** Workspace selection is tab-local; its label is a verified bootstrap fact. */
-function WorkspaceButton({ className }: { className?: string }) {
-  const { workspaceLabel, switchWorkspace, logout } = useBrowserContext();
-  return switchWorkspace && workspaceLabel ? <div className={cn('flex min-w-0 items-center gap-1', className)}>
-    <Button variant="outline" className="min-w-0 flex-1" aria-label={`Switch workspace: ${workspaceLabel}`} onClick={switchWorkspace}>
-      <span className="truncate">{workspaceLabel}</span>
-    </Button>
-    <Button variant="ghost" onClick={() => void logout?.()} aria-label="Sign out">Sign out</Button>
-  </div> : null;
-}

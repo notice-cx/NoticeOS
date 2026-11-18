@@ -11,6 +11,14 @@ export const EMAIL_ENROLLMENT_HEADERS = Object.freeze({
 });
 export const MEMBERSHIP_PATH = '/api/memberships';
 export const ACCEPT_INVITATION_PATH = '/api/invitations/accept';
+export const PERSONAL_PROFILE_PATH = '/api/profile';
+export const DISPLAY_NAME_LIMIT = 120;
+export function normalizedDisplayName(value) {
+    if (typeof value !== 'string' || /\p{Cc}/u.test(value))
+        return null;
+    const name = value.trim();
+    return name && name.length <= DISPLAY_NAME_LIMIT ? name : null;
+}
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 /** A mailbox-bound enrollment selector, never email, code or authority. */
 export function emailEnrollmentUrl(origin, enrollment) {

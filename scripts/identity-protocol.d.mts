@@ -11,6 +11,14 @@ export declare const EMAIL_ENROLLMENT_HEADERS: Readonly<{
 }>;
 export declare const MEMBERSHIP_PATH = "/api/memberships";
 export declare const ACCEPT_INVITATION_PATH = "/api/invitations/accept";
+export declare const PERSONAL_PROFILE_PATH = "/api/profile";
+export declare const DISPLAY_NAME_LIMIT = 120;
+export interface PersonalProfile {
+    readonly displayName: string;
+    readonly email: string;
+    readonly editable: boolean;
+}
+export declare function normalizedDisplayName(value: unknown): string | null;
 export interface EmailEnrollment {
     readonly kind: 'platform' | 'invitation';
     readonly id: string;
