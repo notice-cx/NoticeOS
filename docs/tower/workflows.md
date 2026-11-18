@@ -56,7 +56,7 @@ A count under the list shows how many of the installed workflows are listed.
 
 ## Weekly search review
 
-**Search review tasks** files an Ntasks assignment when an asset’s weekly search report is published. A successful execution records the filing check. Open the assignment to see its report version, the reviewer’s findings and any follow-up. The workflow detail links to the [four-step search runbook](../20-signal-panels.md#weekly-search-review-workflow).
+**Search review tasks** checks hourly for a fresh DataForSEO collection. It files one Ntasks assignment after the published panel includes that collection and skips reviews already filed for the same asset and collection date. A successful execution records the filing check. Open the assignment to see its report version, the reviewer’s findings and any follow-up. The workflow detail links to the [four-step search runbook](../20-signal-panels.md#weekly-search-review-workflow).
 
 ## Notification delivery
 
