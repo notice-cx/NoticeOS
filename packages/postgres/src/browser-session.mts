@@ -42,7 +42,7 @@ function choice(value: unknown): BrowserWorkspaceChoice {
 export async function readBrowserSession(input: IdentityOptions, headers: Headers,
   requestedWorkspaceId: string | null = null, afterWorkspaceId: string | null = null): Promise<BrowserSessionSnapshot | null> {
   const options = Object.freeze({ connectionString: input.connectionString,
-    trustedOrigin: input.trustedOrigin, sessionSecret: input.sessionSecret });
+    trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin, sessionSecret: input.sessionSecret });
   validateIdentityOptions(options);
   const selected = selector(requestedWorkspaceId), after = selector(afterWorkspaceId);
   const proof = new Headers(headers);

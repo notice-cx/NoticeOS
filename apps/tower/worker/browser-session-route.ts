@@ -1,7 +1,7 @@
 import { openIdentity, type IdentityOptions, type WorkspaceSummary } from '@noticeos/postgres/identity';
 import { readBrowserSession, type BrowserSessionSnapshot } from '@noticeos/postgres/browser-session';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
-import { workspaceEntryOrigin, workspaceProfile, WORKSPACE_SELECTION_HEADER,
+import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, WORKSPACE_SELECTION_HEADER,
   type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 
 export const BROWSER_SESSION_PATH = '/api/session';
@@ -28,7 +28,7 @@ function identityOptions(env: WorkspaceEntryBindings, origin: string): IdentityO
   const connectionString = env[PRODUCT_ENV.identityDatabase.name];
   const sessionSecret = env[PRODUCT_ENV.identitySecret.name];
   if (typeof connectionString !== 'string' || typeof sessionSecret !== 'string') refuse();
-  return Object.freeze({ connectionString, sessionSecret, trustedOrigin: origin });
+  return Object.freeze({ connectionString, sessionSecret, trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env) });
 }
 
 /** Read-only browser bootstrap. Profiles and readers belong to the server.

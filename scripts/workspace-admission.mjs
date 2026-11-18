@@ -102,7 +102,7 @@ export function createWorkspaceAdmission(input) {
     if (typeof kind !== 'string' || !['hosted', 'standalone', 'demo', 'service'].includes(kind) || typeof entry.profile !== 'symbol')
         refuse();
     const specific = kind === 'hosted' ? ['trustedOrigin', 'membership'] : kind === 'demo' ? ['workspaceId', 'workspaceStatus'] : ['authority'];
-    keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth', 'agent'] : [])]);
+    keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth', 'agent', 'localTowerOrigin'] : [])]);
     if (entry.now !== undefined && typeof entry.now !== 'function')
         refuse();
     const clock = (entry.now ?? Date.now);
@@ -122,7 +122,7 @@ export function createWorkspaceAdmission(input) {
     let browserPolicy = null;
     if (kind === 'hosted') {
         try {
-            browserPolicy = createBrowserRequestPolicy(entry.trustedOrigin);
+            browserPolicy = createBrowserRequestPolicy(entry.trustedOrigin, entry.localTowerOrigin);
         }
         catch {
             refuse();

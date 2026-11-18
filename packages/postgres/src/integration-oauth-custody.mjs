@@ -40,7 +40,7 @@ function readBinding(value, redirectUri, provider) {
         refuse();
     return Object.freeze(row);
 }
-async function proof(request, origin, action) {
+async function proof(request, origin, action, localTowerOrigin) {
     if (!(request instanceof Request) || request.url.length > 12288)
         refuse();
     let cloned;
@@ -52,7 +52,7 @@ async function proof(request, origin, action) {
     }
     if (action === 'start') {
         await googleOAuthRequest(cloned, origin, 'start');
-        createBrowserRequestPolicy(origin).assertEffect(cloned);
+        createBrowserRequestPolicy(origin, localTowerOrigin).assertEffect(cloned);
     }
     else
         googleOAuthRequest(cloned, origin, 'callback');
@@ -77,7 +77,7 @@ async function lockedFacts(trx, options, request, workspaceId) {
 /** Lazy request-owned resources; malformed original proof never opens a pool.
  * `authorize` is the server's shared policy callback, never request input. */
 export function openIntegrationOAuthCustody(input) {
-    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, sessionSecret: input.sessionSecret });
+    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin, sessionSecret: input.sessionSecret });
     const origin = validateIdentityOptions(options);
     let resources;
     let validation;
@@ -108,7 +108,7 @@ export function openIntegrationOAuthCustody(input) {
             return run(async () => {
                 if (typeof workspaceId !== 'string' || !UUID.test(workspaceId) || typeof authorize !== 'function')
                     refuse();
-                const original = await proof(request, origin, 'start');
+                const original = await proof(request, origin, 'start', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
                 const redirectUri = `${origin}${provider === 'adsense' ? ADSENSE_INTEGRATION_CALLBACK : GOOGLE_INTEGRATION_CALLBACK}`;
                 const selected = original.headers.get(WORKSPACE_SELECTION_HEADER);
@@ -136,7 +136,7 @@ export function openIntegrationOAuthCustody(input) {
             return run(async () => {
                 if (typeof authorize !== 'function')
                     refuse();
-                const original = await proof(request, origin, 'callback');
+                const original = await proof(request, origin, 'callback', options.localTowerOrigin);
                 const provider = googleOAuthProvider(original);
                 const redirectUri = `${origin}${new URL(original.url).pathname}`;
                 const identifier = NAMESPACE + new URL(original.url).searchParams.get('state');

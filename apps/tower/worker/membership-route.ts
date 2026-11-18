@@ -3,7 +3,7 @@ import { openMembershipLifecycle, InvitationDeliveryFailed, type MembershipComma
 import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH, emailEnrollmentUrl } from '../../../scripts/identity-protocol.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { createWorkspaceAdmission } from '../../../scripts/workspace-admission.mjs';
-import { workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
+import { localTowerOrigin, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
 import { captureIdentityMail, type IdentityMailBindings } from './identity-mail';
 
@@ -40,7 +40,7 @@ export async function handleMembershipRequest(request: Request, env: Bindings,
     if (!(request instanceof Request) || workspaceProfile(env) !== 'hosted' || request.url.length > 4096) refuse();
     const url = new URL(request.url), accept = url.pathname === ACCEPT_INVITATION_PATH;
     if ((!accept && url.pathname !== MEMBERSHIP_PATH) || request.method !== 'POST' || url.search || url.hash) refuse();
-    const origin = workspaceEntryOrigin(env); createBrowserRequestPolicy(origin).assertEffect(request);
+    const origin = workspaceEntryOrigin(env); createBrowserRequestPolicy(origin, localTowerOrigin(env)).assertEffect(request);
     const session = request.headers.get(WORKSPACE_SESSION_HEADER), workspace = request.headers.get(WORKSPACE_SELECTION_HEADER);
     if (!session || !UUID.test(session) || (accept ? workspace !== null : !workspace || !UUID.test(workspace))) refuse();
     // Capture truthful metadata separately. Reading the capped original body
@@ -53,9 +53,9 @@ export async function handleMembershipRequest(request: Request, env: Bindings,
     const send = !accept && (input.kind === 'invite' || input.kind === 'resend') ? captureIdentityMail(env) : null;
     const connectionString = env[PRODUCT_ENV.identityDatabase.name], sessionSecret = env[PRODUCT_ENV.identitySecret.name];
     if (typeof connectionString !== 'string' || typeof sessionSecret !== 'string') refuse();
-    client = open({ connectionString, sessionSecret, trustedOrigin: origin,
+    client = open({ connectionString, sessionSecret, trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),
       authorize: async (original, facts) => {
-        const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol('membership-entry'), trustedOrigin: origin,
+        const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol('membership-entry'), trustedOrigin: origin, localTowerOrigin: localTowerOrigin(env),
           membership: async () => facts });
         await admission.withAdmission('memberships.manage', { requestedWorkspaceId: facts.workspaceId, correlationId: crypto.randomUUID() }, original, async () => undefined);
       },

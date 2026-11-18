@@ -1,3 +1,4 @@
+import { bytesToHex, randomBytes } from "@noble/hashes/utils.js";
 import type { FileOp } from "@shared/changeset";
 import { configRegister, duplicateIssue, rowIssue } from "@shared/config-registers";
 import { PERIOD_PATTERN, type RecurringCost } from "@shared/financials";
@@ -60,5 +61,5 @@ export function recurringPriceOps(
 }
 
 export function recurringPriceId(id: string): string {
-  return `${id.slice(0, 27).replace(/-+$/, "")}-${crypto.randomUUID()}`;
+  return `${id.slice(0, 27).replace(/-+$/, "")}-${bytesToHex(randomBytes(16))}`;
 }

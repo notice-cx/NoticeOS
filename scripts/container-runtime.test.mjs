@@ -125,6 +125,11 @@ test('the same container explicitly selects one customer clock, exact loopback i
   const plan = composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '127.0.0.1', NOTICEOS_HOST_TOWER_PORT: '25173' });
   assert.equal(plan.url, 'http://127.0.0.1:25173');
   assert.throws(() => composeCustomerPlan({ NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173' }), ContainerRefusal);
+  const lan = { NOTICEOS_HOST_TOWER_ADDRESS: '0.0.0.0', NOTICEOS_HOST_TOWER_PORT: '25173', TOWER_ALLOWED_HOSTS: 'test-tower.local' };
+  assert.equal(composeCustomerPlan(lan, 'http://test-tower.local:25173').url, 'http://test-tower.local:25173');
+  for (const origin of ['http://other.local:25173', 'http://test-tower.local:25174', 'http://public.example:25173']) {
+    assert.throws(() => composeCustomerPlan(lan, origin), ContainerRefusal);
+  }
   const header = 'Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n';
   const route = 'eth0 00000000 010011AC 0003 0 0 0 00000000 0 0 0\n';
   const subnet = 'eth0 000011AC 00000000 0001 0 0 0 0000FFFF 0 0 0\n';
@@ -181,7 +186,7 @@ test('customer readiness does not fall back to stale standalone state or ignore 
       checks.push([url, options.host]); return 204;
     } };
   assert.equal(await containerHealthy(health), true);
-  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:25173']]);
+  assert.deepEqual(checks, [['http://127.0.0.1:5173/_noticeos/ready', '127.0.0.1:5173']]);
   assert.equal(await containerHealthy({ ...health, customerProbe: async () => 404 }), false);
   for (const available of [true, false]) {
     assert.equal(await containerHealthy({ ...health, backupStatus: async () => ({ configured: true, available }) }), false);

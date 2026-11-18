@@ -13,6 +13,7 @@ export interface PlatformProvisioningOptions {
   readonly platformConnectionString: string;
   readonly identityConnectionString: string;
   readonly trustedOrigin: string;
+  readonly localTowerOrigin?: string;
   readonly sessionSecret: string;
   /** Fixed trusted server composition. It verifies the real physical target,
    * checks factory custody in its own realm, and awaits cleanup on cancellation.
@@ -146,9 +147,10 @@ const ROLE_SQL = `SELECT session_user::text AS session_role,current_user::text A
 export function openPlatformProvisioning(input: PlatformProvisioningOptions): PlatformProvisioning {
   const options = Object.freeze({ platformConnectionString: boundedConnection(input.platformConnectionString),
     identityConnectionString: boundedConnection(input.identityConnectionString), trustedOrigin: input.trustedOrigin,
+    localTowerOrigin: input.localTowerOrigin,
     sessionSecret: input.sessionSecret, verifyProject: input.verifyProject });
   validateIdentityOptions({ connectionString: options.identityConnectionString,
-    trustedOrigin: options.trustedOrigin, sessionSecret: options.sessionSecret });
+    trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret });
   if (typeof options.verifyProject !== 'function') refuse();
   const documents = JSON.stringify(releasedDefaultDocuments());
   let database: Kysely<IdentityDatabase> | undefined;
@@ -162,7 +164,7 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
       // Full supported identity preflight uses its existing low-privilege role;
       // platform role never gains protocol-table SELECT merely for introspection.
       const identity = await openIdentity({ connectionString: options.identityConnectionString,
-        trustedOrigin: options.trustedOrigin, sessionSecret: options.sessionSecret });
+        trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret });
       await identity.close();
       const pool = new Pool({ connectionString: options.platformConnectionString, max: 2,
         connectionTimeoutMillis: 5000, idleTimeoutMillis: 1000, statement_timeout: 5000,
@@ -200,7 +202,7 @@ export function openPlatformProvisioning(input: PlatformProvisioningOptions): Pl
   }
   async function addFirstOwner(trx: Transaction<IdentityDatabase>, organizationId: string, userId: string): Promise<void> {
     await identityEngine(trx, { connectionString: options.platformConnectionString,
-      trustedOrigin: options.trustedOrigin, sessionSecret: options.sessionSecret },
+      trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret },
     { transaction: false, validateSchema: false }).api.addMember({ body: { organizationId, userId, role: 'owner' } });
   }
   return Object.freeze({

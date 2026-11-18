@@ -121,7 +121,7 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
  * connection/query. The trusted peer and fixed action are server facts; caller
  * headers never choose a rate bucket. Close in finally after the last action. */
 export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
-  options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin,
+  options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin,
     sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
     ...(options.standaloneOwnerWorkspaceId === undefined ? {} : { standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId }) });
   const trustedOrigin = validateIdentityOptions(options);
@@ -133,7 +133,7 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
     throw new IdentityRefused('Identity enrollment refused');
   }
   const peer = normalizeIP(options.peerAddress);
-  const policy = createBrowserRequestPolicy(trustedOrigin);
+  const policy = createBrowserRequestPolicy(trustedOrigin, options.localTowerOrigin);
   let resources: ReturnType<typeof openIdentityDatabase> | undefined;
   let validated: Promise<void> | undefined;
   let closing: Promise<void> | undefined;

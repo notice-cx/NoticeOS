@@ -66,13 +66,13 @@ function oauthQuery(value) {
     return value;
 }
 export function openAgentSignIn(input) {
-    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin,
+    const options = Object.freeze({ connectionString: input.connectionString, trustedOrigin: input.trustedOrigin, localTowerOrigin: input.localTowerOrigin,
         sessionSecret: input.sessionSecret });
     const origin = validateIdentityOptions(options);
     if (typeof input.peerAddress !== 'string' || !isValidIP(input.peerAddress))
         refuse();
     const peer = normalizeIP(input.peerAddress);
-    const policy = createBrowserRequestPolicy(origin);
+    const policy = createBrowserRequestPolicy(origin, options.localTowerOrigin);
     let resources;
     let validated;
     let closing;

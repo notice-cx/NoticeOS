@@ -4,7 +4,7 @@
  * its own fixed method; never accept a serialized result, action, actor or profile.
  * Admission, identity, capabilities and standalone compatibility live elsewhere.
  */
-import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { isPrivateTowerOrigin, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { TEMPO_MPP_POINTER, TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 import { parsePointer, validateSchemaAndSafety } from './config-documents.mjs';
 import { fieldOf, isRowToken, matchKnob, matchRegister } from './config-registers.mjs';
@@ -223,7 +223,8 @@ export function localSiteReportsEnabled(env) {
         return false;
     try {
         const url = new URL(fields.NOTICEOS_WORKSPACE_ORIGIN);
-        return url.origin === fields.NOTICEOS_WORKSPACE_ORIGIN && url.protocol === 'http:' && url.hostname === '127.0.0.1' && !!url.port;
+        return url.origin === fields.NOTICEOS_WORKSPACE_ORIGIN && url.protocol === 'http:' && !!url.port
+            && (url.hostname === '127.0.0.1' || (url.origin === fields.NOTICEOS_LOCAL_TOWER_ORIGIN && isPrivateTowerOrigin(url.origin)));
     }
     catch {
         return false;

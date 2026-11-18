@@ -12,4 +12,6 @@ export declare class BrowserRequestRefused extends Error {
     name: string;
     constructor();
 }
-export declare function createBrowserRequestPolicy(trustedOrigin: string): BrowserRequestPolicy;
+/** Only a server-declared origin may opt an OrbStack browser into private HTTP. */
+export declare function isPrivateTowerOrigin(value: unknown): value is string;
+export declare function createBrowserRequestPolicy(trustedOrigin: string, localTowerOrigin?: string): BrowserRequestPolicy;
