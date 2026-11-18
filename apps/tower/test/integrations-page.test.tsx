@@ -708,16 +708,27 @@ describe("the metered provider says how much of the month's cap is left", () => 
     meter:
       reading === null
         ? null
-        : { window: "portfolio-month", period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, ...reading },
+        : { window: "portfolio-month", period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25,
+          budget: { heldUsd: 0, availableUsd: Math.max(0, Number(((reading.capUsd ?? 25) - (reading.spentUsd ?? 0)).toFixed(6))) }, ...reading },
   });
 
   it("prints what is left of the portfolio's month, as one line", () => {
     // The cap is portfolio-wide, so it is not repeated per asset.
     renderCard(spendStatus({ spentUsd: 1.122_772, unknownPrices: 0 }));
     const block = document.querySelector("[data-provider-meter]");
-    expect(block).toHaveTextContent("$23.88 of $25 left");
+    expect(block).toHaveTextContent("$23.877228 of $25 left");
     expect(block).toHaveTextContent("Data budget, Sep");
     expect(document.querySelectorAll("[data-meter-line]")).toHaveLength(1);
+  });
+
+  it("shows exactly what is held and does not promise a calendar reset for a hold", () => {
+    renderCard(spendStatus({ spentUsd: 24.75, budget: { heldUsd: 0.25, availableUsd: 0 } }));
+    const block = document.querySelector("[data-provider-meter]");
+    expect(block).toHaveTextContent("$0.00 of $25 left");
+    expect(block).toHaveTextContent("$24.75 spent");
+    expect(block).toHaveTextContent("$0.25 held pending price");
+    expect(block).toHaveTextContent("Budget held");
+    expect(block).not.toHaveTextContent("Paused until");
   });
 
   it("shows unpriced calls beside known spend without changing the remaining budget", () => {

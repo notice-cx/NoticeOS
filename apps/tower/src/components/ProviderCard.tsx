@@ -1014,7 +1014,7 @@ interface BudgetLine {
   cap: number;
   ariaLabel: string;
   /** The remaining figure as a plain number, for the DOM hook a test asserts on. */
-  remaining: number;
+  remaining?: number;
 }
 
 /**
@@ -1070,6 +1070,12 @@ function MeterNote({
           </li>
         ))}
       </ul>
+      {reading.window === "portfolio-month" && reading.budget && reading.budget.heldUsd > 0 ? (
+        <p className="flex flex-wrap gap-x-3 text-xs tabular-nums text-muted-foreground">
+          <span>{formatUsd(reading.spentUsd, { fractionalCents: true })} spent</span>
+          <span>{formatUsd(reading.budget.heldUsd, { fractionalCents: true })} held pending price</span>
+        </p>
+      ) : null}
       {/* Only a prepaid account has a credit to report. */}
       {meter.window === "portfolio-month" ? <AccountCredit balance={balance} /> : null}
     </div>
@@ -1135,18 +1141,23 @@ function budgetLines(
   if (meter.window === "portfolio-month") {
     if (reading.window !== "portfolio-month" || reading.capUsd <= 0) return [];
     const month = formatPeriodMonth(reading.period);
-    const remaining = meterRemaining(reading.capUsd, reading.spentUsd);
+    const remaining = reading.budget?.availableUsd;
+    const held = reading.budget?.heldUsd ?? 0;
+    const cap = formatUsd(reading.capUsd);
     return [
       {
         key: "portfolio",
         label: `Data budget, ${month}`,
         // The cap fails closed and lifts at the UTC month's turn.
         href: "/settings#budget",
-        paused: remaining <= 0 ? `Paused until ${formatPeriodMonth(nextPeriod(reading.period))} 1` : undefined,
-        left: `${formatUsd(remaining, { cents: true })} of ${formatUsd(reading.capUsd)} left`,
-        spent: reading.spentUsd,
+        paused: remaining === 0 ? (held > 0 && reading.spentUsd < reading.capUsd ? "Budget held"
+          : `Paused until ${formatPeriodMonth(nextPeriod(reading.period))} 1`) : undefined,
+        left: remaining === undefined ? `${formatUsd(reading.spentUsd, { cents: true })} of ${cap} spent`
+          : `${formatUsd(remaining, { fractionalCents: true })} of ${cap} left`,
+        spent: reading.spentUsd + held,
         cap: reading.capUsd,
-        ariaLabel: `Data budget in ${month}: ${formatUsd(reading.spentUsd, { cents: true })} of ${formatUsd(reading.capUsd)} spent`,
+        ariaLabel: held > 0 ? `Data spend and holds against the ${month} cap`
+          : `Data budget in ${month}: ${formatUsd(reading.spentUsd, { cents: true })} of ${cap} spent`,
         remaining,
       },
     ];

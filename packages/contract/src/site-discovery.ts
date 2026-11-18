@@ -171,6 +171,7 @@ export interface SiteSpendPreview {
   unknownPrices: number;
   /** `monthly_caps.data_usd`. */
   capUsd: number;
+  budget: import('./metered-spend.js').MeteredBudgetAvailability;
   /** What one site's weekly reports cost on average over the recorded weeks,
    * or null when nothing has been recorded yet. */
   perSiteWeekUsd: number | null;

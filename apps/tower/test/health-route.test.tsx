@@ -1,5 +1,5 @@
 import { integrationStatus } from '@shared/integration-status';
-import { fireEvent, render, screen } from "./render";
+import { fireEvent, render, screen, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -301,6 +301,23 @@ describe("/health — the page leads with what to unblock next", () => {
     openPanel("spend");
     expect(queryByRole("button", { name: "About Data spend" })).toBeNull();
     expect(container.querySelector("button button, a button")).toBeNull();
+  });
+
+  it("shows a balance held for unsettled charges until settlement releases money", () => {
+    const { dataSpend } = blocked;
+    const { container, rerender } = renderHealth({
+      dataSpend: { ...dataSpend, spentUsd: 24, budget: { heldUsd: 1, availableUsd: 0 } },
+    });
+    openPanel("spend");
+    expect(within(container.querySelector("[data-spend-capped]")!).getByText("Budget held")).toBeVisible();
+
+    state.data = { ...blocked, dataSpend: { ...dataSpend, spentUsd: 24.5, budget: { heldUsd: 0, availableUsd: 0.5 } } };
+    rerender(<MemoryRouter><HealthRoute /></MemoryRouter>);
+    expect(container.querySelector("[data-spend-capped]")).toBeNull();
+
+    state.data = { ...blocked, dataSpend: { ...dataSpend, spentUsd: 25, budget: { heldUsd: 0, availableUsd: 0 } } };
+    rerender(<MemoryRouter><HealthRoute /></MemoryRouter>);
+    expect(within(container.querySelector("[data-spend-capped]")!).getByText("Cap reached")).toBeVisible();
   });
 
   const wiring = matrix(

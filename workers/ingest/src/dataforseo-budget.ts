@@ -1,31 +1,17 @@
-import { METERED_ARCHIVE_COST, METERED_DATA_PROVIDER, RESEARCH_COLLECTOR_ACTOR, meteredSpendBounds } from '@noticeos/contract';
+import { METERED_BUDGET_SQL, meteredBudgetParams } from '@noticeos/contract';
 import type { Transaction, WorkspaceStore } from '@noticeos/postgres';
 import { dataForSeoConnectionMatches, type DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
 import { sha256Hex } from './shared.js';
 
 const budgetName = 'noticeos.dataforseo-budget';
 
-// Older archives and ad-hoc logged purchases still count. New archives retain
-// their reported costs and identify the share held by individual attempts.
-const CAN_SPEND_SQL = `WITH used AS (
-  SELECT coalesce((SELECT sum(${METERED_ARCHIVE_COST})
-    FROM noticeos.archive_runs WHERE integration=$5 AND requested_at >= $1 AND requested_at < $2), 0)
-  + coalesce((SELECT sum(cost_usd) FROM noticeos.research_log
-    WHERE provider=$5 AND actor <> $6 AND bought_at >= $1 AND bought_at < $2), 0)
-  + coalesce((SELECT sum(coalesce(provider_cost_usd, reserve_usd)) FROM noticeos.dataforseo_request_charges
-    WHERE reserved_at >= $1 AND reserved_at < $2), 0) AS usd
-), saved AS (
-  SELECT CASE WHEN jsonb_typeof(body::jsonb #> '{monthly_caps,data_usd}') = 'number'
-    THEN (body::jsonb #>> '{monthly_caps,data_usd}')::numeric END AS cap
-  FROM noticeos.config_documents WHERE document_key='constants'
-)
-SELECT usd + $3::numeric <= least($4::numeric, (SELECT cap FROM saved))
-  AND (NOT $7::boolean OR (SELECT cap FROM saved) > 0) AS allowed FROM used`;
+const CAN_SPEND_SQL = `${METERED_BUDGET_SQL}
+SELECT cap > 0 AND spent + held + $7::numeric <= cap AS allowed FROM budget`;
 
 async function canSpend(tx: Transaction, nowMs: number, reserveUsd: number, capUsd: number, requireSavedCap: boolean): Promise<boolean> {
   if (!Number.isFinite(capUsd) || capUsd <= 0 || !Number.isFinite(reserveUsd) || reserveUsd <= 0) return false;
   const [result] = await tx.query<{ allowed: boolean }>(CAN_SPEND_SQL, [
-    ...meteredSpendBounds(new Date(nowMs)), reserveUsd, capUsd, METERED_DATA_PROVIDER, RESEARCH_COLLECTOR_ACTOR, requireSavedCap,
+    ...meteredBudgetParams(new Date(nowMs), capUsd, requireSavedCap), reserveUsd,
   ]);
   return result?.allowed === true;
 }

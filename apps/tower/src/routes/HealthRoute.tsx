@@ -34,6 +34,7 @@ import { IntegrationMatrix } from "@/components/IntegrationMatrix";
 import { IntegrationSummaryStrip } from "@/components/IntegrationSummaryStrip";
 import { PageHeader } from "@/components/PageHeader";
 import { SegmentBar } from "@/components/SegmentBar";
+import { DataBudgetRows } from "@/components/DataBudgetRows";
 import { StateChip } from "@/components/StateChip";
 import { HeroChart } from "@/components/surface/HeroChart";
 import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
@@ -354,7 +355,9 @@ function Layers({
     return urgency(b.id) - urgency(a.id) || a.at.localeCompare(b.at);
   });
   const spend = matrix.dataSpend;
+  const heldUsd = spend.budget?.heldUsd ?? 0;
   const atCap = spend.capUsd > 0 && spend.spentUsd >= spend.capUsd;
+  const heldAtCap = spend.capUsd > 0 && !atCap && heldUsd > 0 && spend.budget?.availableUsd === 0;
 
   return (
     <>
@@ -457,31 +460,35 @@ function Layers({
               className="min-w-0 grid-cols-[minmax(0,1fr)]"
               label="Data spend"
               value={<>{formatUsd(spend.spentUsd, { cents: true })}<UnknownPriceCount count={spend.unknownPrices} /></>}
-              valueTone={atCap ? "warn" : "default"}
+              valueTone={atCap || heldAtCap ? "warn" : "default"}
               caption={`of ${formatUsd(spend.capUsd)} in ${formatPeriodMonth(spend.period)}`}
-              footer={
+              footer={<>
                 <SegmentBar
                   className="mt-2"
-                  ariaLabel={`${formatUsd(spend.spentUsd, { cents: true })} of the ${formatUsd(spend.capUsd)} monthly cap is spent`}
+                  ariaLabel={heldUsd > 0 ? "Data spend and holds against the monthly cap"
+                    : `${formatUsd(spend.spentUsd, { cents: true })} of the ${formatUsd(spend.capUsd)} monthly cap is spent`}
                   segments={[
                     {
                       name: "spent",
                       value: spend.spentUsd,
                       fill: atCap ? "bg-warn" : "bg-foreground/70",
                     },
+                    ...(heldUsd > 0 ? [{ name: "held", value: heldUsd, fill: "bg-warn" }] : []),
                     {
-                      name: "left",
-                      value: Math.max(0, spend.capUsd - spend.spentUsd),
+                      name: spend.budget ? "available" : "unspent",
+                      value: spend.budget?.availableUsd ?? Math.max(0, spend.capUsd - spend.spentUsd),
                       fill: "bg-muted-foreground/25",
                     },
                   ]}
                 />
-              }
+                {spend.budget && heldUsd > 0 ? <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 text-xs"><DataBudgetRows budget={spend.budget} /></dl> : null}
+              </>}
             />
         </KpiStrip>
         <DataSpend
           spend={spend}
           atCap={atCap}
+          heldAtCap={heldAtCap}
           displayNames={new Map(matrix.assets.map((a) => [a.id, a.displayName]))}
         />
       </Panel>
@@ -536,10 +543,12 @@ function Panel({
 function DataSpend({
   spend,
   atCap,
+  heldAtCap,
   displayNames,
 }: {
   spend: DataSpendSummary;
   atCap: boolean;
+  heldAtCap: boolean;
   displayNames: Map<string, string>;
 }) {
   const rows = spend.byAsset.length > 0 || spend.unattributedUsd > 0 || spend.unattributedUnknownPrices > 0;
@@ -582,10 +591,10 @@ function DataSpend({
           Nothing metered has been bought this month.
         </p>
       )}
-      {atCap ? (
+      {atCap || heldAtCap ? (
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-spend-capped>
-          <StateChip tone="caution" label="Cap reached" subject="budget:portfolio" />
-          Metered pulls paused until next month
+          <StateChip tone="caution" label={heldAtCap ? "Budget held" : "Cap reached"} subject="budget:portfolio" />
+          {heldAtCap ? "Purchases can resume when held funds are released." : "Metered pulls paused until next month"}
         </p>
       ) : null}
     </div>

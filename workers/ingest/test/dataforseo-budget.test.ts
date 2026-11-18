@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
-import { loadMeteredDataSpend } from '@noticeos/contract';
-import type { WorkspaceStore } from '@noticeos/postgres';
+import { loadMeteredDataBudget, loadMeteredDataSpend } from '@noticeos/contract';
+import { openWorkspaceStore, type WorkspaceStore } from '@noticeos/postgres';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../src/dataforseo-budget.js';
 import { DATAFORSEO_CHECKPOINT_PREFIX, runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
@@ -8,7 +8,7 @@ import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { runCustomerDataForSeo } from '../src/customer-dataforseo.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
 import { EgressGate, openEgressLaneRecord } from '../src/egress.js';
-import { ARCHIVE_RUNS, cutUplink, emptyTables, pgFirst, reset } from './helpers.js';
+import { ARCHIVE_RUNS, asOwner, cutUplink, emptyTables, pgFirst, reset } from './helpers.js';
 
 const AUGUST = Date.parse('2026-08-31T23:59:59.000Z');
 const SEPTEMBER = Date.parse('2026-09-01T00:00:00.000Z');
@@ -108,6 +108,53 @@ it('counts billed retries once in the month of each purchase even when the repor
   expect((await loadMeteredDataSpend(env.STORE, new Date(SEPTEMBER))).byAsset).toEqual([
     { asset: 'northwind.example', spentUsd: 0.05, unknownPrices: 0 },
   ]);
+});
+
+it('reads the same balance the collector enforces and moves a held charge to confirmed spend once', async () => {
+  await saveCap(1);
+  const primary = openWorkspaceStore(env.POSTGRES.connectionString, { workspaceId: await env.STORE.workspaceId() });
+  const otherId = crypto.randomUUID();
+  await asOwner(`INSERT INTO noticeos.workspaces(workspace_id,slug,display_name) VALUES('${otherId}','budget-fixture','Budget fixture');
+    INSERT INTO noticeos.assets (workspace_id,asset_id,display_name,status) VALUES('${otherId}','northwind.example','Northwind','live');`);
+  const other = openWorkspaceStore(env.POSTGRES.connectionString, { workspaceId: otherId });
+  const reserve = async (store: WorkspaceStore, key: string, month: number) => {
+    const result = await reserveDataForSeo(store, { asset: 'northwind.example', requestKey: key.repeat(64),
+      requestClock: () => month, reserveUsd: 0.25, capUsd: 1, fenceUnsettled: true });
+    if (result.kind !== 'reserved') throw new Error(`Unexpected reservation result: ${result.kind}`);
+    return result.attemptId;
+  };
+  const read = (store: WorkspaceStore, month: number) => loadMeteredDataBudget(store, new Date(month), 2);
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Budget reads use the local store'));
+  try {
+    await reserve(primary, 'a', AUGUST);
+    const confirmed = await reserve(primary, 'b', SEPTEMBER);
+    await settleDataForSeo(primary, confirmed, 0.12, true);
+    const held = await reserve(primary, 'c', SEPTEMBER);
+    await reserve(other, 'c', SEPTEMBER);
+    const previous = await read(primary, AUGUST);
+    const neighbor = await read(other, SEPTEMBER);
+    expect(previous).toMatchObject({ spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 0.75 } });
+    expect(neighbor).toMatchObject({ spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 1.75 } });
+    expect(await loadMeteredDataBudget(other, new Date(SEPTEMBER), 2, true))
+      .toMatchObject({ capUsd: 0, spentUsd: 0, budget: { heldUsd: 0.25, availableUsd: 0 } });
+    expect(await canReserveDataForSeo(other, SEPTEMBER, 0.25, 2, true)).toBe(false);
+    expect(await canReserveDataForSeo(other, SEPTEMBER, 1.75, 2)).toBe(true);
+    const balance = await loadMeteredDataBudget(primary, new Date(SEPTEMBER), 2, true);
+    expect(balance).toMatchObject({ capUsd: 1, spentUsd: 0.12, budget: { heldUsd: 0.25, availableUsd: 0.63 } });
+    expect(await canReserveDataForSeo(primary, SEPTEMBER, balance.budget.availableUsd, 2, true)).toBe(true);
+    expect(await canReserveDataForSeo(primary, SEPTEMBER, 0.630001, 2, true)).toBe(false);
+    await settleDataForSeo(primary, held, 0.05, true);
+    await expect(settleDataForSeo(primary, held, 0.05, true)).rejects.toThrow();
+    expect(await read(primary, SEPTEMBER)).toMatchObject({ spentUsd: 0.17, budget: { heldUsd: 0, availableUsd: 0.83 } });
+    expect(await read(primary, AUGUST)).toEqual(previous);
+    expect(await read(other, SEPTEMBER)).toEqual(neighbor);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  } finally {
+    fetchSpy.mockRestore();
+    await Promise.all([primary.close(), other.close()]);
+    await asOwner(['dataforseo_request_charges', 'assets', 'workspace_counters', 'workspaces']
+      .map(table => `DELETE FROM noticeos.${table} WHERE workspace_id='${otherId}';`).join('\n'));
+  }
 });
 
 it.each([

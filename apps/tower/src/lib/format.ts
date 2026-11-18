@@ -16,6 +16,13 @@ const USD_CENTS = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const USD_FRACTIONAL_CENTS = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 6,
+});
+
 const INT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const COMPACT = new Intl.NumberFormat("en-US", {
@@ -25,8 +32,8 @@ const COMPACT = new Intl.NumberFormat("en-US", {
 
 /** Dollars. An exact amount (`ExactUsd`, a number's digits as text) is
  * formatted from the decimal itself, never through a float. */
-export function formatUsd(n: number | `${number}`, opts?: { cents?: boolean }): string {
-  return (opts?.cents ? USD_CENTS : USD).format(n);
+export function formatUsd(n: number | `${number}`, opts?: { cents?: boolean; fractionalCents?: boolean }): string {
+  return (opts?.fractionalCents ? USD_FRACTIONAL_CENTS : opts?.cents ? USD_CENTS : USD).format(n);
 }
 
 export function formatInt(n: number): string {

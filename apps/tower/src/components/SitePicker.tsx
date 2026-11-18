@@ -599,7 +599,8 @@ function Refusal({ error }: { error: CollectNowRefusal }) {
  * month against the cap, as label/value pairs. */
 function SpendPreview({ spend, sites }: { spend: NonNullable<SitesPayload["spend"]>; sites: number }) {
   const { weekUsd, ceilingUsd } = spendFor(spend, sites);
-  const projected = spend.spentUsd + (weekUsd ?? ceilingUsd);
+  const budget = spend.budget;
+  const projected = spend.spentUsd + (budget?.heldUsd ?? 0) + (weekUsd ?? ceilingUsd);
   return (
     <div className="flex flex-col gap-2" data-spend-preview>
       <Meter value={projected} max={spend.capUsd} ariaLabel="This month's spend with these reports" />
@@ -613,6 +614,7 @@ function SpendPreview({ spend, sites }: { spend: NonNullable<SitesPayload["spend
           {formatUsd(spend.spentUsd, { cents: true })} of {formatUsd(spend.capUsd)}
           <UnknownPriceCount count={spend.unknownPrices} />
         </dd>
+        {budget && budget.heldUsd > 0 ? <DataBudgetRows budget={budget} /> : null}
       </dl>
     </div>
   );
@@ -631,3 +633,4 @@ function SpentFact({ sites }: { sites: CollectNowSite[] }) {
 
 export default SitePicker;
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
+import { DataBudgetRows } from "@/components/DataBudgetRows";

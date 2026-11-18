@@ -680,7 +680,7 @@ const towerHandler = {
                       if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
                       return { integrations: cfg.integrations, capUsd: cfg.monthlyCaps.dataUsd };
                     },
-                    spend: (now, capUsd) => loadSpendPreview(store, now, capUsd),
+                    spend: (now, capUsd) => loadSpendPreview(store, now, capUsd, true),
                   }, readiness.provider, 'sites');
                 });
             if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
@@ -833,13 +833,14 @@ const towerHandler = {
           if (pathname === TEMPO_MPP_SETTINGS_PATH) {
             return call.withStore(ctx, store => handleTempoMppSetup(request, store));
           }
+          const budgetContext = { backupPreview: env.NOTICEOS_CUSTOMER_SHADOW === true, requireSavedCap: profile === 'hosted' };
           const response = storedRead
             ? await call.withStore(ctx, async store =>
                 await handleDemoPresentationRead(request, store, env)
                 ?? await handleHostedWorkflowRead(request, store, Date.now(), profile === 'hosted' ? env.NOTICEOS_CUSTOMER_SCHEDULES : undefined)
-                ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date(), backupPreview: env.NOTICEOS_CUSTOMER_SHADOW === true })
+                ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date(), ...budgetContext })
                 ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted', refreshTaskSnapshot,
-                  backupPreview: env.NOTICEOS_CUSTOMER_SHADOW === true,
+                  ...budgetContext,
                   portfolioSummary: profile === 'hosted'
                     ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId, env.NOTICEOS_CUSTOMER_SHADOW) : undefined }))
             : await handleConfigRequest(request, { ingest, config });

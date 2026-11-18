@@ -62,7 +62,9 @@ function credential(value: unknown, provider: string): boolean {
 function meter(value: unknown): boolean {
   return value === null || fields(value, { window: window => window === 'asset-day', day,
     assets: list(asset => fields(asset, { asset: string, spent: integer })) })
-    || fields(value, { window: window => window === 'portfolio-month', period: month, spentUsd: number, unknownPrices: integer, capUsd: number });
+    || fields(value, { window: window => window === 'portfolio-month', period: month, spentUsd: number, unknownPrices: integer, capUsd: number }, {
+      budget: entry => fields(entry, { heldUsd: amount => number(amount) && amount >= 0, availableUsd: amount => number(amount) && amount >= 0 }),
+    });
 }
 export function decodeIntegrationProviders(value: unknown): IntegrationCredentialsPayload {
   if (!fields(value, { generatedAt: instant, keyPresent: boolean, blockers: list(oneOf(['key-missing', 'key-invalid'])), keyReason: nullable(string),

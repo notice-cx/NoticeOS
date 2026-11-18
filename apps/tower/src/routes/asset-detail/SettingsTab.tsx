@@ -34,7 +34,6 @@ import {
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT,
   SERP_PANEL_TERM_WEEKLY_USD,
-  capReserveExceeded,
 } from "@noticeos/contract/dataforseo";
 import { ArrowRight, Check, ChevronRight, Lock, Pencil, TriangleAlert } from "lucide-react";
 import { scheduleLabel, scheduleTimezone } from "@shared/scheduled-jobs";
@@ -42,6 +41,7 @@ import { CollectionEditor } from "@/components/CollectionEditor";
 import { Meter } from "@/components/Meter";
 import { formatCalendarDate, formatInt, formatUsd } from "@/lib/format";
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
+import { DataBudgetRows } from "@/components/DataBudgetRows";
 import {
   entityLabel,
   entityMoveOps,
@@ -805,15 +805,16 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
     );
   }
   const spend = priced.data?.spend ?? null;
+  const budget = spend?.budget;
   const last = spend?.panelRuns[assetId] ?? null;
   const estimateUsd = last?.costUsd ?? null;
-  const overCap = spend !== null && capReserveExceeded(spend.spentUsd, 1, spend.capUsd);
+  const overCap = budget !== undefined && budget.availableUsd < MAX_REPORT_COST_USD;
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-3" data-collect-now data-collect-estimate>
-      {spend ? (
+      {spend && budget ? (
         <>
           <Meter
-            value={spend.spentUsd + (estimateUsd ?? MAX_REPORT_COST_USD)}
+            value={spend.spentUsd + budget.heldUsd + (estimateUsd ?? MAX_REPORT_COST_USD)}
             max={spend.capUsd}
             ariaLabel="This month's data spend with this collection"
           />
@@ -829,9 +830,10 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
               {formatUsd(spend.spentUsd, { cents: true })} of {formatUsd(spend.capUsd)}
               <UnknownPriceCount count={spend.unknownPrices} />
             </dd>
+            {budget.heldUsd > 0 ? <DataBudgetRows budget={budget} /> : null}
           </dl>
         </>
-      ) : priced.isError || (priced.data && !spend) ? (
+      ) : priced.isError || priced.data ? (
         <p role="alert" className="m-0 text-sm text-error">
           Cost not available · try again
         </p>
@@ -840,14 +842,14 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
           Reading the cost…
         </p>
       )}
-      {overCap ? <CollectRefusal assetId={assetId} error="over-cap" /> : null}
+      {overCap ? <CollectRefusal assetId={assetId} error="over-cap" capDisabled={spend?.capUsd === 0} /> : null}
       {collect.isError ? (
         <p role="alert" className="m-0 text-sm text-error">
           Collection failed · try again
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={demoReadonly || spend === null || overCap || collect.isPending} onClick={() => collect.mutate()}>
+        <Button type="button" size="sm" disabled={demoReadonly || !budget || overCap || collect.isPending} onClick={() => collect.mutate()}>
           {collect.isPending ? "Collecting…" : "Collect"}
         </Button>
         <Button type="button" size="sm" variant="ghost" disabled={collect.isPending} onClick={() => setOpen(false)}>
@@ -878,11 +880,11 @@ function CollectedLine({ assetId, result }: { assetId: string; result: CollectNo
   );
 }
 
-function CollectRefusal({ assetId, error }: { assetId: string; error: keyof typeof COLLECT_REFUSAL_LABEL }) {
+function CollectRefusal({ assetId, error, capDisabled }: { assetId: string; error: keyof typeof COLLECT_REFUSAL_LABEL; capDisabled?: boolean }) {
   return (
     <p role="status" data-status-for={`serp-panel-collect:${assetId}`} className="m-0 flex flex-wrap items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
       <TriangleAlert className="size-4 shrink-0" aria-hidden />
-      {COLLECT_REFUSAL_LABEL[error]}
+      {capDisabled ? "Set a positive monthly data cap to collect." : COLLECT_REFUSAL_LABEL[error]}
       {error === "over-cap" ? (
         <Link to="/settings#budget" className="text-xs underline underline-offset-4">
           Data cap
