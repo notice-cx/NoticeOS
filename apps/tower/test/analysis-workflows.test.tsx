@@ -10,6 +10,7 @@ import { createBrowserRuntime } from '@/lib/browser-runtime';
 import WorkflowsRoute from '@/routes/WorkflowsRoute';
 import { ANALYSIS_QUERY } from '@/routes/workflows/analysis-workflow-links';
 import { wallMoneyResponse } from './critical-response-fixtures';
+import { deferred } from './deferred';
 
 const WORKFLOW = '11111111-1111-4111-8111-111111111111';
 const RUN = '22222222-2222-4222-8222-222222222222';
@@ -96,8 +97,8 @@ function fixture(prepared = false, loseFirstStartResponse = false) {
     return Response.json({ error: 'not_found' }, { status: 404 });
   });
   return { fetch, traffic, holdNextRunRead() {
-    const started = Promise.withResolvers<AbortSignal | null | undefined>();
-    const release = Promise.withResolvers<void>();
+    const started = deferred<AbortSignal | null | undefined>();
+    const release = deferred();
     nextRunRead = { started: started.resolve, release: release.promise };
     return { started: started.promise, release: release.resolve };
   } };
