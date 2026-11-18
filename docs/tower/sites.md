@@ -5,7 +5,7 @@ description: "Which assets need your attention, and one asset's own page: its st
 
 # Portfolio
 
-An **asset** is one website or product you added to NoticeOS. The **Portfolio** page compares them all side by side, and each asset's name opens its own page, which shows everything about that one asset.
+An **asset** is one website or product you added to NoticeOS. The **Assets** tab in **Portfolio** compares them side by side. Select an asset's name to open its own page. Use the [**Money** tab](financials.md) for the portfolio's revenue, costs and net.
 
 The Portfolio page shows which assets need your attention.
 

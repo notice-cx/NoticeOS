@@ -5,7 +5,7 @@ description: "The month's net, where revenue and cost come from, and the costs y
 
 # Money
 
-The Money page shows this month's net, and where the money comes from and goes. The sidebar calls it **Money**; its address is `/financials`.
+Open **Portfolio → Money** to see this month's net, revenue and costs. The tab opens at `/financials`. A link with `?period=YYYY-MM` opens that accounting month.
 
 ![The Money page in the synthetic demo: October's revenue minus cost as the net, the month's days as bars, where the cost goes, and each asset's revenue, share and net.](../images/tower-money.webp)
 

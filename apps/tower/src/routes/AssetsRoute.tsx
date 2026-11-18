@@ -9,7 +9,6 @@ import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { sitePath } from "@shared/first-run";
 import { AddSiteButton } from "@/components/AddSite";
 import { EmptyState } from "@/components/EmptyState";
-import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
 import { LiveSiteArrange } from "@/components/SiteArrange";
 import { ASSETS_ROUTE, SITES_ARRANGE_PARAM } from "@/components/nav-items";
@@ -39,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AssetsTable } from "@/routes/assets/AssetsTable";
 import { HealthSplit } from "@/routes/assets/HealthSplit";
+import { PortfolioPage } from "@/routes/assets/PortfolioPage";
 import { ChannelsModule } from "@/routes/home/ChannelsModule";
 import { GapsModule } from "@/routes/home/GapsModule";
 
@@ -143,25 +143,19 @@ export function AssetsRoute() {
   ].join(" · ");
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
-      <PageHeader
-        title="Portfolio"
-        actions={
-          // Opens Add a site over this page: adding a site is one question,
-          // not a page of its own.
-          <AddSiteButton>
-            <Plus aria-hidden /> Add an asset
-          </AddSiteButton>
-        }
-        meta={
-          data && all.length > 0 ? (
-            <span className="text-xs text-muted-foreground" data-assets-age>
-              updated {formatAge(ageMs(now, data.generatedAt))} ago
-            </span>
-          ) : undefined
-        }
-      />
-
+    <PortfolioPage
+      tab="assets"
+      actions={
+        <AddSiteButton>
+          <Plus aria-hidden /> Add an asset
+        </AddSiteButton>
+      }
+      meta={data && all.length > 0 ? (
+        <span className="text-xs text-muted-foreground" data-assets-age>
+          updated {formatAge(ageMs(now, data.generatedAt))} ago
+        </span>
+      ) : undefined}
+    >
       {/* The machinery arrives with something to compare: over no sites the
           answer, split and controls would surround an empty state, and over
           one they would sort a single row. So no sites is the header's Add a
@@ -283,7 +277,7 @@ export function AssetsRoute() {
           {reports}
         </>
       )}
-    </div>
+    </PortfolioPage>
   );
 }
 

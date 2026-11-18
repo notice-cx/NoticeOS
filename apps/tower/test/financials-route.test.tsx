@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "./render";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type DomainOrder,
@@ -63,6 +63,7 @@ vi.mock("@/hooks/useWall", () => ({
 }));
 
 import { FinancialsPeriodError, fetchFinancials } from "@/lib/api";
+import { AssetsRoute } from "@/routes/AssetsRoute";
 import FinancialsRoute from "@/routes/FinancialsRoute";
 
 function payload(overrides: Partial<FinancialsPayload> = {}): FinancialsPayload {
@@ -299,6 +300,50 @@ afterEach(() => {
 });
 
 describe("/financials — picking a period", () => {
+  it("switches Portfolio tabs by keyboard and keeps a bookmarked month in history", async () => {
+    function Back() {
+      const navigate = useNavigate();
+      return <button onClick={() => void navigate(-1)}>Back</button>;
+    }
+
+    stubLane();
+    state.data = payload({ period: "2026-07" });
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/financials?period=2026-07"]}>
+          <Routes>
+            <Route path="/financials" element={<FinancialsRoute />} />
+            <Route path="/assets" element={<AssetsRoute />} />
+          </Routes>
+          <Back />
+          <Location />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const money = screen.getByRole("tab", { name: "Money", selected: true });
+    const assets = screen.getByRole("tab", { name: "Assets", selected: false });
+    expect(picker()).toHaveValue("2026-07");
+    expect(screen.getByRole("tabpanel", { name: "Money" })).toBeVisible();
+    money.focus();
+    fireEvent.keyDown(money, { key: "ArrowLeft" });
+    expect(assets).toHaveFocus();
+    expect(money).toHaveAttribute("aria-selected", "true");
+
+    const reads = state.asked.length;
+    fireEvent.keyDown(assets, { key: " " });
+    expect(await screen.findByRole("tabpanel", { name: "Assets" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add an asset" })).toBeEnabled();
+    expect(screen.queryByRole("combobox", { name: "Accounting period" })).toBeNull();
+    expect(state.asked).toHaveLength(reads);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByRole("tabpanel", { name: "Money" })).toBeVisible();
+    expect(screen.getByTestId("search")).toHaveTextContent("?period=2026-07");
+    expect(state.asked.at(-1)).toBe("2026-07");
+  });
+
   it("offers every month the ledger holds, named in full, newest first", () => {
     renderPage(payload());
 
@@ -1833,7 +1878,7 @@ describe("/financials — one asset states its money once", () => {
     openPanel("days");
     const revenue = screen.getByRole("region", { name: "Daily revenue" });
     expect(revenue.querySelector("[data-source-coverage]")).toBeNull();
-    expect(container.textContent).not.toMatch(/portfolio/i);
+    expect(screen.getByRole("tabpanel", { name: "Money" })).not.toHaveTextContent(/portfolio/i);
     expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$82");
   });
 
