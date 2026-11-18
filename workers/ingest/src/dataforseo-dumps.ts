@@ -1411,6 +1411,7 @@ async function collectReport(
 type DataForSeoAttemptStatus = 'success' | 'unchanged' | 'error';
 
 const CHECKPOINT_REPAIR_LIMIT = 12;
+const CHECKPOINT_ORPHAN_RESERVE = CHECKPOINT_REPAIR_LIMIT / 2;
 const CHECKPOINT_ORPHAN_LOOKBACK_DAYS = 7;
 const CHECKPOINT_OBJECT_LIMIT = 512;
 const CHECKPOINT_REPAIR_FAILED = 'dataforseo_checkpoint_incomplete';
@@ -1450,27 +1451,32 @@ async function repairCandidates(env: IngestEnv, plan: PlannedReport[], today: st
         AND r.report_date=c.date AND r.status IN ('success','unchanged'))
     GROUP BY c.asset,c.report,c.date ORDER BY bool_or(c.failed) DESC, max(c.last_repair) ASC NULLS LAST, c.date, c.asset, c.report`,
   [scope, today, LOCAL_STORE_FAILED, CHECKPOINT_REPAIR_FAILED, CHECKPOINT_ORPHAN_LOOKBACK_DAYS]));
-  const available: { item: PlannedReport; date: string }[] = [];
+  const recorded: { item: PlannedReport; date: string }[] = [];
+  const orphans: typeof recorded = [];
   const knownReports = new Map<string, Set<string>>();
   const selected = new Map(plan.map(item => [planKey(item.target.asset, item.report.name), item]));
   for (const candidate of candidates) {
     signal?.throwIfAborted();
     const item = selected.get(planKey(candidate.asset, candidate.report));
     if (!item) continue;
-    if (!candidate.failed) {
-      const prefix = objects.key(checkpointPrefix(candidate.asset, candidate.date)) + '/';
-      let reports = knownReports.get(prefix);
-      if (!reports) {
-        const found = await env.RAW_SIGNALS.list({ prefix, delimiter: '/', limit: CHECKPOINT_OBJECT_LIMIT });
-        reports = new Set(found.delimitedPrefixes.map(key => key.slice(prefix.length, -1)));
-        knownReports.set(prefix, reports);
-      }
-      if (!reports.has(candidate.report)) continue;
+    if (candidate.failed) {
+      if (recorded.length < CHECKPOINT_REPAIR_LIMIT) recorded.push({ item, date: candidate.date });
+      continue;
     }
-    available.push({ item, date: candidate.date });
-    if (available.length === CHECKPOINT_REPAIR_LIMIT) break;
+    const prefix = objects.key(checkpointPrefix(candidate.asset, candidate.date)) + '/';
+    let reports = knownReports.get(prefix);
+    if (!reports) {
+      const found = await env.RAW_SIGNALS.list({ prefix, delimiter: '/', limit: CHECKPOINT_OBJECT_LIMIT });
+      reports = new Set(found.delimitedPrefixes.map(key => key.slice(prefix.length, -1)));
+      knownReports.set(prefix, reports);
+    }
+    if (!reports.has(candidate.report)) continue;
+    orphans.push({ item, date: candidate.date });
+    if (orphans.length >= Math.max(CHECKPOINT_ORPHAN_RESERVE, CHECKPOINT_REPAIR_LIMIT - recorded.length)) break;
   }
-  return available;
+  // Recent charges expire from discovery. Give their saved responses time to leave a durable receipt.
+  return [...orphans.slice(0, CHECKPOINT_ORPHAN_RESERVE), ...recorded, ...orphans.slice(CHECKPOINT_ORPHAN_RESERVE)]
+    .slice(0, CHECKPOINT_REPAIR_LIMIT);
 }
 
 async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[], panel: SerpPanelConfig, requestedAt: string,
@@ -1543,7 +1549,9 @@ async function confirmedDataForSeoCheckpoint(env: IngestEnv, objects: SignalObje
   report: ReportSpec, date: string, body: Record<string, unknown>, label: string | undefined,
   remainingBytes: number): Promise<{ checkpoint: DataForSeoRequestCheckpoint; bytes: number } | null> {
   if (!objects.owns(key)) return null;
-  const saved = await env.RAW_SIGNALS.get(key);
+  const saved = await env.RAW_SIGNALS.get(key).catch(() => {
+    throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The saved DataForSEO response could not be read.');
+  });
   const hash = key.slice(key.lastIndexOf('/') + 1, -5);
   const meta = saved?.customMetadata;
   if (!saved || saved.size > Math.min(remainingBytes, RESPONSE_BYTE_LIMIT + 32 * 1024) || meta?.workspaceId !== objects.workspaceId

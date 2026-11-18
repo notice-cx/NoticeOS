@@ -149,7 +149,7 @@ test('an attached customer buys approved reports and recovers a paid result unde
     const { runCustomerDataForSeo, DATAFORSEO_CHECKPOINT_PREFIX } = await loadCustomerWorkflowModule(plan.root, root, `
       export { runCustomerDataForSeo } from './customer-dataforseo.ts';
       export { DATAFORSEO_CHECKPOINT_PREFIX } from './dataforseo-dumps.ts';
-    `);
+    `, path.join(plan.root, 'workers/ingest/test/fixture-config'));
     const priorStore = openWorkspaceStore(db.address, { workspaceId: east });
     try {
       blockArchiveStatus('error');
@@ -170,12 +170,37 @@ test('an attached customer buys approved reports and recovers a paid result unde
     const metadata = checkpoint.customMetadata;
     assert.equal(paidCalls.length, 3);
     assert.equal(accountCalls.length, 1);
+
+    const recoveryRows = () => db.cluster.script(`SELECT report_date::text,status,error_code,cost_usd::text AS cost
+      FROM noticeos.archive_runs WHERE workspace_id=:'workspace'::uuid AND asset_id=:'asset'
+        AND report_date=:'date'::date ORDER BY run_seq;`, { vars: { workspace: east, asset: gamma, date: reportDate } });
+    assert.deepEqual(recoveryRows(), []);
+    db.cluster.run(`INSERT INTO noticeos.archive_runs (workspace_id,run_id,asset_id,integration,report,credential_ref,property_ref,
+      report_date,requested_at,finished_at,status,data_state,schema_version,provider_rows,request_count,provider_truncated,error_code,
+      error_message,cost_usd,cost_state)
+      SELECT :'workspace'::uuid,'fixture-repair-' || i,:'asset','dataforseo','serp-competitors','fixture',:'asset',
+        :'date'::date-i,now(),now(),'error','provider-snapshot',1,0,0,false,'local_store_failed','Synthetic older failure',0,'reported'
+      FROM generate_series(1,12) AS i;`, { vars: { workspace: east, asset: beta, date: reportDate } });
+    const recoveryApproval = { ...approval, weekly: false, recovery: true, assets: capturedApproval.assets };
+    const recoveryStore = openWorkspaceStore(db.address, { workspaceId: east });
+    try {
+      const repaired = await runCustomerDataForSeo({
+        STORE: recoveryStore, NOTICEOS_WORKSPACE_PROFILE: 'hosted', CREDENTIALS_KEY: credentialsKey,
+        RAW_SIGNALS: { list: options => bucket.list(options), async get(key) {
+          if (key === checkpointKey) throw new Error('Synthetic temporary R2 read failure');
+          return bucket.get(key);
+        } },
+      }, { job: 'dataforseo-recovery', approval: { ...recoveryApproval, assets: [approval.assets[1], ...recoveryApproval.assets] },
+        signal: new AbortController().signal, authorizePurchase: async () => {} },
+      { nowMs: scheduledAt, fetchImpl: transport });
+      assert.equal(repaired.outcomes.filter(row => row.asset === beta).length, 11);
+      assert.equal(repaired.outcomes.find(row => row.asset === gamma)?.errorCode, 'dataforseo_checkpoint_incomplete');
+      assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete']);
+    } finally { await recoveryStore.close(); }
     await bucket.put(checkpointKey, staged, { customMetadata: { ...metadata, workspaceId: west } });
     const runtime = JSON.parse(readFileSync(file, 'utf8'));
     writeConstants(east, settings);
-    writeFileSync(file, JSON.stringify({ ...runtime,
-      paidDataForSeo: [{ ...approval, weekly: false, recovery: true, assets: capturedApproval.assets }],
-    }), { mode: 0o600 });
+    writeFileSync(file, JSON.stringify({ ...runtime, paidDataForSeo: [recoveryApproval] }), { mode: 0o600 });
     const restartForRecovery = async offset => {
       await app.close(); app = undefined;
       app = await startAttachedCustomer(attached, file, { dataForSeoTransport: transport, startSchedules(options) {
@@ -184,17 +209,14 @@ test('an attached customer buys approved reports and recovers a paid result unde
       } });
       await app.whenIdle();
     };
-    const recoveryRows = () => db.cluster.script(`SELECT report_date::text,status,error_code,cost_usd::text AS cost
-      FROM noticeos.archive_runs WHERE workspace_id=:'workspace'::uuid AND asset_id=:'asset'
-        AND report_date=:'date'::date ORDER BY finished_at, run_id;`, { vars: { workspace: east, asset: gamma, date: reportDate } });
     await restartForRecovery(1);
-    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete']);
+    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete', 'dataforseo_checkpoint_incomplete']);
     assert.ok(await bucket.head(checkpointKey));
     await bucket.put(checkpointKey, staged, { customMetadata: metadata });
 
     blockArchiveStatus('success');
     await restartForRecovery(2);
-    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete', 'local_store_failed']);
+    assert.deepEqual(recoveryRows().map(row => row.error_code), ['dataforseo_checkpoint_incomplete', 'dataforseo_checkpoint_incomplete', 'local_store_failed']);
     assert.ok(await bucket.head(checkpointKey));
     permitArchive();
     await restartForRecovery(3);
