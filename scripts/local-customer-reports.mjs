@@ -42,7 +42,7 @@ async function loadReportHelpers(sourceRoot, privateRoot) {
     const outfile = path.join(buildRoot, 'reports.mjs');
     await build({ absWorkingDir: sourceRoot, outfile, bundle: true, platform: 'node', format: 'esm', target: 'node24', logLevel: 'silent',
       stdin: { resolveDir: path.join(sourceRoot, 'workers/ingest/src'), loader: 'ts', contents: `
-        export { readPanelSource, readPanelObject } from './panel-source.ts';
+        export { panelReportReader } from './panel-source.ts';
         export { writeInsightSnapshot } from './insight-snapshots.ts';
       ` },
       banner: { js: 'import { createRequire as reportRequire } from "node:module"; const require = reportRequire(import.meta.url);' },
@@ -69,7 +69,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
       const valueEvents = storedValueEvents(documents);
       const market = storedSearchMarket(documents, asset);
       const start = performance.now();
-      let reads = 0, heads = 0, objectBytes = 0, cost, fetchedTag;
+      let reads = 0, archiveReads = 0, heads = 0, objectBytes = 0, cost, fetchedTag;
       const env = { NOTICEOS_WORKSPACE_PROFILE: 'hosted', STORE: store, RAW_SIGNALS: { async get(key) {
         signal.throwIfAborted();
         reads++;
@@ -78,10 +78,11 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
         fetchedTag = content?.etag;
         return content;
       } } };
-      const { readPanelSource, readPanelObject, writeInsightSnapshot } = await (helpers ??= loadReportHelpers(sourceRoot, root)
+      const { panelReportReader, writeInsightSnapshot } = await (helpers ??= loadReportHelpers(sourceRoot, root)
         .catch(error => { helpers = undefined; throw error; }));
+      const reader = panelReportReader(env);
       const windowDays = Math.min(400, roster.windowDays);
-      const input = await readPanelSource(env, asset, windowDays, Date.parse(at));
+      const input = await reader.source(asset, windowDays, Date.parse(at));
       const work = path.join(root, workspaceId);
       if (!input.manifest.length) {
         const known = await access(path.join(work, 'downloads', asset, DOWNLOADS_MANIFEST)).then(() => true, error => {
@@ -94,8 +95,9 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
         async get(key) {
           signal.throwIfAborted();
           fetchedTag = undefined;
-          const body = await readPanelObject(env, key);
+          const body = await reader.object(key);
           if (body === null) throw new Error('Could not recover the archived report (HTTP 404).');
+          archiveReads++;
           parseArchive(body, { asset, source: 'durable report archive' });
           return { etag: fetchedTag, bytes: Buffer.from(body.endsWith('\n') ? body : `${body}\n`) };
         },
@@ -144,7 +146,7 @@ export function localCustomerReports({ sourceRoot, root, bucket }) {
           return result;
         },
       });
-      return { publication: report.publication, archivesFetched: reads, trendRows: report.trendRows,
+      return { publication: report.publication, archivesFetched: archiveReads, trendRows: report.trendRows,
         objectReads: reads, objectHeads: heads, objectBytes, elapsedMs: Math.round(performance.now() - start), cost };
     },
   });
