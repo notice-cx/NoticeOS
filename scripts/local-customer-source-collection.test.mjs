@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -7,7 +7,7 @@ import { verifyComposeCustomerCollection } from '../deploy/compose/customer-entr
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
-import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
+import { readCustomerGoogleArchiveScope, startLocalCustomerSchedules } from './local-customer-schedules.mjs';
 import { startPlan } from './start.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
 import { testFixtureRoot } from './test-fixture-root.mjs';
@@ -16,6 +16,7 @@ import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { sealedProviderSql } from './test-fixtures/customer-backup.mjs';
 
 const property = '123456', project = '424242', laterProject = '525252', site = 'https://fixture.example/', asset = 'fixture-site', laterAsset = 'later-site';
+const comingSite = 'https://coming.example/', comingAsset = 'coming-site', retiredAsset = 'retired-fixture';
 const counterUrl = 'https://fixture.example/metrics';
 const changedUrl = 'https://fixture.example/new-metrics';
 const bg = 'https://ssl.bing.com/webmaster/api.svc/json/';
@@ -123,8 +124,8 @@ test('the native customer schedule continues scoped counters and free archive fa
       const method = url.pathname.split('/').at(-1);
       assert.equal(url.searchParams.get('apikey'), tokens.bing);
       requests.push(method);
-      if (method === 'GetUserSites') return Response.json({ d: [{ Url: site }] });
-      assert.equal(url.searchParams.get('siteUrl'), site);
+      if (method === 'GetUserSites') return Response.json({ d: [{ Url: site }, { Url: comingSite }] });
+      assert.ok([site, comingSite].includes(url.searchParams.get('siteUrl')));
       return Response.json({ d: [] });
     }
     if (url.href === posthog + '/api/projects/' + project + '/') {
@@ -161,21 +162,23 @@ test('the native customer schedule continues scoped counters and free archive fa
     app = await startLocalCustomer(source, db);
     const [east, west] = app.workspaces;
     const keys = JSON.parse(readFileSync(path.join(db.customer, 'settings.json'), 'utf8'));
-    const register = { assets: { [asset]: { ga4: { status: 'live', propertyId: property, timeZone: 'UTC' },
-      gsc: { status: 'live', siteUrl: site }, 'bing-webmaster': { status: 'live' }, posthog: { host: 'us', projectId: project } } } };
+    const register = { assets: { [asset]: { 'bing-webmaster': { status: 'live' }, posthog: { host: 'us', projectId: project } } } };
     for (const { workspaceId } of app.workspaces) {
-      db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,domain,status,list_position) VALUES (:'workspace'::uuid,:'asset','Fixture','fixture.example','live',1)",
+      db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,domain,status,list_position) VALUES (:'workspace'::uuid,:'asset','Fixture','fixture.example','onboarding',1)",
         { vars: { workspace: workspaceId, asset } });
       write(workspaceId, 'constants', { schedules });
       write(workspaceId, 'integrations', register);
       write(workspaceId, 'counters', countConfig(counterUrl));
     }
-    db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,domain,status,list_position) VALUES (:'workspace'::uuid,:'asset','Later','later.example','live',2)",
-      { vars: { workspace: east.workspaceId, asset: laterAsset } });
-    register.assets[laterAsset] = { 'bing-webmaster': { status: 'skipped' }, posthog: { host: 'us', projectId: laterProject } };
+    db.cluster.run(`INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,domain,status,list_position) VALUES
+      (:'workspace'::uuid,:'later','Later','later.example','live',2),
+      (:'workspace'::uuid,:'coming','Coming','coming.example','pre-launch',3),
+      (:'workspace'::uuid,:'retired','Retired','retired.example','retired',4)`,
+    { vars: { workspace: east.workspaceId, later: laterAsset, coming: comingAsset, retired: retiredAsset } });
+    register.assets[laterAsset] = { ga4: { status: 'skipped' }, 'bing-webmaster': { status: 'skipped' }, posthog: { host: 'us', projectId: laterProject } };
     write(east.workspaceId, 'integrations', register);
     write(east.workspaceId, 'value-events', { assets: { [asset]: { journeys: [definition] } } });
-    db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,is_os,list_position) VALUES (:'workspace'::uuid,'fixture-os','Fixture OS','live',true,3)",
+    db.cluster.run("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,is_os,list_position) VALUES (:'workspace'::uuid,'fixture-os','Fixture OS','live',true,5)",
       { vars: { workspace: east.workspaceId } });
     const owed = `ga4:journeys-${'a'.repeat(64)}:2026-10-15`;
     db.cluster.run(`INSERT INTO noticeos.flags(workspace_id,flag_number,asset_id,fired_at,severity,kind,rule_id,rule_inputs)
@@ -189,7 +192,8 @@ test('the native customer schedule continues scoped counters and free archive fa
       ['google', { GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({ archive: {
         service_account_b64: Buffer.from(JSON.stringify({ client_email: 'fixture@example.test',
           private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) })).toString('base64'),
-        properties: { [asset]: { ga4_property_id: property, gsc_site_url: site, time_zone: 'UTC' } },
+        properties: { [asset]: { ga4_property_id: property, gsc_site_url: site, time_zone: 'UTC' },
+          [laterAsset]: { ga4_property_id: property }, [retiredAsset]: { ga4_property_id: property } },
       } }) }],
       ['bing-webmaster', { BING_WEBMASTER_API_KEY: tokens.bing }],
       ['posthog', { POSTHOG_KEYS: JSON.stringify({ [asset]: tokens.posthog, [laterAsset]: tokens.posthog }) }],
@@ -209,8 +213,14 @@ test('the native customer schedule continues scoped counters and free archive fa
     const restart = async () => {
       await app.close(); app = undefined;
       app = await startAttachedCustomer(attached, file, { collectorTransport: transport,
-        startSchedules(options) {
+        async startSchedules(options) {
           archiveBucket = options.bucket;
+          if (!requests.length) {
+            const [eastScope, westScope] = await Promise.all([east, west].map(({ workspaceId }) => readCustomerGoogleArchiveScope(options.worker, workspaceId)));
+            assert.deepEqual(eastScope, [{ asset, provider: 'ga4' }, { asset, provider: 'gsc' }]);
+            assert.deepEqual(westScope, []);
+            await assert.rejects(readCustomerGoogleArchiveScope(options.worker, randomUUID()));
+          }
           return startLocalCustomerSchedules({ ...options, now: () => clock });
         } });
       await app.whenIdle();
@@ -225,6 +235,8 @@ test('the native customer schedule continues scoped counters and free archive fa
     assert.ok([...families].some(family => family.startsWith('ga4/journeys-')));
     assert.ok(collected.some(row => row.integration === 'gsc' && row.report === 'page-country' && row.status === 'error'));
     assert.ok(collected.some(row => row.integration === 'posthog' && row.status === 'error'));
+    assert.ok(collected.some(row => row.asset_id === comingAsset && row.integration === 'bing-webmaster' && row.status === 'success'));
+    assert.ok(collected.every(row => row.asset_id !== retiredAsset && (row.asset_id !== laterAsset || row.integration === 'clarity')));
     assert.deepEqual(db.cluster.sql("SELECT resolved_at IS NULL AS unresolved FROM noticeos.flags WHERE rule_id='os-egress-down'"), [{ unresolved: 't' }]);
     assert.ok(collected.every(row => row.workspace_id === east.workspaceId &&
       (row.status === 'error' || row.object_key?.startsWith('workspaces/' + east.workspaceId + '/raw/'))));
