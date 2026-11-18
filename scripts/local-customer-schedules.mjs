@@ -77,8 +77,8 @@ export function customerScheduleClock({ workspaces, read, run, now = Date.now, r
             && scheduleTimezone(old.schedule) === scheduleTimezone(item.schedule);
           let due = matching ? old.due : next(item.schedule, at - 1);
           const since = item.job === 'backup' ? backupResumeSince : ['counters', 'signal-dumps'].includes(item.job) ? resumeSince : undefined;
-          const resuming = entry.initial && Number.isFinite(since);
-          if (!matching && old?.schedule.enabled !== false && (item.job === 'panel-refresh' || resuming)) {
+          const resuming = Number.isFinite(since);
+          if (entry.initial && (item.job === 'panel-refresh' || resuming)) {
             const cron = new Cron(item.schedule.cron, { timezone: scheduleTimezone(item.schedule), paused: true });
             const previous = cron.previousRuns(1, new Date(at + 1000))[0]?.getTime();
             const earliest = resuming ? Math.max(since, at - 24 * HOUR) : at - 24 * HOUR;

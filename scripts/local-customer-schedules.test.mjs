@@ -153,10 +153,9 @@ test('restart resumes only the latest eligible collection or backup since that s
   assert.deepEqual(await resumed(undefined, at - 3_600_000), []);
 });
 
-test('a paused report stays listed and resumes at its next scheduled time', async () => {
+test('a paused report stays listed and schedule edits only affect future runs', async () => {
   const workspace = { workspaceId: 'fixture' };
-  let now = Date.parse('2026-11-17T09:04:00Z'), enabled = false;
-  const cron = '5 * * * *';
+  let now = Date.parse('2026-11-17T09:04:00Z'), enabled = false, cron = '5 * * * *';
   const runs = [];
   const clock = customerScheduleClock({ workspaces: [workspace], now: () => now,
     read: async () => [{ job: 'panel-refresh', schedule: { enabled, cron }, assets: ['site'] }],
@@ -179,5 +178,11 @@ test('a paused report stays listed and resumes at its next scheduled time', asyn
     assert.deepEqual(runs, []);
     await tick('2026-11-17T10:05:00Z');
     assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z']);
+    cron = '45 * * * *';
+    const edited = await tick('2026-11-17T11:00:00Z');
+    assert.deepEqual(edited.jobs, [{ id: 'panel-refresh', enabled: true, cron, nextRun: '2026-11-17T11:45:00.000Z' }]);
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z']);
+    await tick('2026-11-17T11:45:00Z');
+    assert.deepEqual(runs, ['2026-11-17T10:05:00.000Z', '2026-11-17T11:45:00.000Z']);
   } finally { await clock.close(); }
 });
