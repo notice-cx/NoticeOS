@@ -6,9 +6,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { BACKUP_PATHS } from './container-backup-profile.mjs';
+import { readLocalIdentityMail, smtpIdentityMail } from './local-identity-mail.mjs';
 import { writeSecrets } from './postgres-secrets.mjs';
 import { readResourceNames } from './resource-names.mjs';
 import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
+import { identitySmtpFixture } from './test-fixtures/identity-smtp.mjs';
 
 function fixture(t) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-backup-transport-')));
@@ -87,6 +89,28 @@ test('customer recovery keeps one validated relay file privately and notices cha
   await assert.rejects(copyContainerRecovery(f.output + '-missing', options), /identity-mail: the declared private relay file is unavailable/u);
   f.write(runtime, { format: 'noticeos-compose-customer/1', mailDelivery: '../relay.json' });
   await assert.rejects(copyContainerRecovery(f.output + '-foreign', options), /identity-mail: the declared private relay file is unavailable/u);
+});
+
+test('the restored relay configuration still authenticates to the configured inbox', async t => {
+  const f = fixture(t);
+  const relay = await identitySmtpFixture(f.root);
+  try {
+    const mailDelivery = 'relay.json';
+    f.write('/state/installation/customer-runtime.json', { format: 'noticeos-compose-customer/1', mailDelivery });
+    f.write('/state/installation/relay.json', relay.declaration);
+    await copyContainerRecovery(f.output, { fs: f.io, fsSync: f.sync, customer: true });
+    const restore = f.map('/restore');
+    fs.mkdirSync(restore, { mode: 0o700 });
+    const plan = path.join(restore, 'customer-runtime.json');
+    fs.copyFileSync(f.map(path.join(f.output, 'customer-runtime.json')), plan);
+    fs.copyFileSync(f.map(path.join(f.output, 'identity-mail', mailDelivery)), path.join(restore, mailDelivery));
+    const config = readLocalIdentityMail(JSON.parse(fs.readFileSync(plan, 'utf8')).mailDelivery, plan);
+    const recipient = 'owner@example.test';
+    await smtpIdentityMail(config, email => email === recipient, { launch: relay.launch })({ from: config.from, to: recipient,
+      subject: 'Fixture recovery', text: 'Delivered after restore.' });
+    assert.deepEqual(relay.recipients, [recipient]);
+    assert.equal(relay.inbox[0]?.wire.split('\r\n\r\n')[1], 'Delivered after restore.');
+  } finally { await relay.close(); }
 });
 
 test('task projects the Tower exported readable by others are kept, and only as a private copy', async t => {
