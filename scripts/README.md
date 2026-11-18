@@ -984,6 +984,8 @@ and read the code in the printed mailbox.
 To send invitations and sign-in codes to inboxes, configure `mailDelivery`.
 Omit `mailRecipients` to use the prepared workspaces' active members and
 pending invitations. Keep the list to limit delivery to specific addresses.
+Invitation links from this command use `127.0.0.1:4747`. Open them on the
+computer running the Tower.
 [Configure the SMTP relay](../deploy/compose/README.md#deliver-sign-in-codes-to-an-inbox).
 
 Provider HTTP starts disabled. Add `ntasksOrigin` for a separately running

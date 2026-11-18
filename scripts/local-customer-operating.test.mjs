@@ -10,6 +10,7 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH } from './identity-protocol.mjs';
 import { localCustomerOutbound } from './local-customer-egress.mjs';
 import { readCustomerOperating, openCustomerOperating } from './local-customer-operating.mjs';
+import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { startLocalCustomer } from './local-customer.mjs';
 import { startLocalCustomerSchedules } from './local-customer-schedules.mjs';
@@ -190,7 +191,7 @@ async function exerciseSignInDelivery(app, relay, email, workspaceId, db) {
   relay.reject(false);
 }
 
-async function exerciseMembershipMail(app, relay, db, owner, otherOwner, otherEmail) {
+async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, otherEmail, identitySecret }) {
   const origin = app.publicOrigin;
   const workspaceId = owner[WORKSPACE_SELECTION_HEADER];
   const route = (pathname, body, headers) => fetch(origin + pathname, { method: 'POST',
@@ -238,7 +239,7 @@ async function exerciseMembershipMail(app, relay, db, owner, otherOwner, otherEm
   assert.equal((await route(ACCEPT_INVITATION_PATH, { invitationId }, { cookie,
     [WORKSPACE_SESSION_HEADER]: prepared.session.sessionId })).status, 200);
   assert.deepEqual((await session()).workspaces.map(({ workspaceId, role }) => ({ workspaceId, role })), [{ workspaceId, role: 'viewer' }]);
-  assert.equal(await request(email).then(response => response.status), 202);
+  assert.equal((await request(email.toUpperCase())).status, 202);
   assert.deepEqual(relay.recipients.slice(before), [email, email, email]);
 
   resetCodeRate(db);
@@ -251,6 +252,32 @@ async function exerciseMembershipMail(app, relay, db, owner, otherOwner, otherEm
   db.cluster.run("UPDATE noticeos_identity.auth_invitation SET expires_at=clock_timestamp()-interval '1 minute' WHERE id=:'id'::uuid", { vars: { id: expiredId } });
   await noCode(cancelled, cancelledId);
   await noCode(expired, expiredId);
+
+  resetCodeRate(db);
+  const legacyEmail = 'Legacy-Member@example.test', legacyId = randomUUID();
+  db.cluster.run(`INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
+    VALUES (:'user'::uuid,'Legacy member',:'email',true);
+    INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at)
+    VALUES (gen_random_uuid(),:'workspace'::uuid,:'user'::uuid,'viewer',now());`,
+  { vars: { user: legacyId, email: legacyEmail, workspace: workspaceId } });
+  await noCode(legacyEmail);
+  const legacyInvitation = await invite(legacyEmail.toLowerCase());
+  await noCode(legacyEmail, legacyInvitation);
+  let issuedCode;
+  const prior = openEmailCodeLogin({ connectionString: db.identityDatabase, trustedOrigin: origin,
+    sessionSecret: identitySecret, peerAddress: '192.0.2.17', deliver: async ({ code }) => { issuedCode = code; } });
+  try {
+    const pending = { kind: 'invitation', id: legacyInvitation };
+    const request = new Request(origin + EMAIL_CODE_PATHS.request, { method: 'POST',
+      headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ email: legacyEmail }) });
+    assert.equal((await prior.requestCode(request, pending)).status, 202);
+    assert.ok(issuedCode, 'a code exists from before the membership-mail policy');
+  } finally { await prior.close(); }
+  const refused = await route(EMAIL_CODE_PATHS.verify, { email: legacyEmail, otp: issuedCode }, headers(legacyInvitation));
+  assert.equal(refused.status, 400);
+  assert.equal(refused.headers.has('set-cookie'), false);
+  assert.deepEqual(db.cluster.sql("SELECT id,email FROM noticeos_identity.auth_user WHERE lower(email)='legacy-member@example.test'"),
+    [{ id: legacyId, email: legacyEmail }]);
 }
 
 async function recordedGoogle(archive) {
@@ -343,7 +370,7 @@ test('an attached customer owns one scheduler and releases it on shutdown or dat
     assert.equal(resources.resumeSince, undefined);
     await app.whenIdle();
     await archive.verify({ db, options: resources, t });
-    await exerciseMembershipMail(app, relay, db, owner, otherOwner, otherEmail);
+    await exerciseMembershipMail(app, relay, db, { owner, otherOwner, otherEmail, identitySecret });
     const archived = provider.calls();
     const backend = db.cluster.sql(`SELECT pid FROM pg_stat_activity WHERE application_name='noticeos-local-customer-scheduler'`);
     assert.equal(backend.length, 1);

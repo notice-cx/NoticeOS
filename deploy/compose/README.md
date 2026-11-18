@@ -337,6 +337,8 @@ hostname.
 
 Choose an SMTP relay that supports implicit TLS and authentication. Use a From address approved by that relay. In `customer-runtime.json`, set `mailDelivery` to `customer-mail.json`. Omit `mailRecipients` to use the workspace membership and invitation records for delivery. Owners can invite people from **Settings → Members** without changing files or restarting the app. Returning users receive codes while they have access to a configured workspace. Invitees use the emailed link until they accept. Keep `mailRecipients` in the file if you want to restrict delivery to those addresses.
 
+Invitation links use the Tower address. With the default loopback address, they open only on the computer running the Tower. Set `towerOrigin` before inviting people who use another device. [Configure the home-network Tower address](#customer-mode-on-the-existing-app-service)
+
 Place `customer-mail.json` beside `customer-runtime.json`. Set its owner to the application UID and mode to `0600`.
 
 ```json

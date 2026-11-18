@@ -80,6 +80,7 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
   if (standaloneOwnerWorkspaceId !== undefined && enrollment?.kind !== 'platform') return { allowed: false };
   if (!enrollment) {
     if (mailWorkspaceIds) {
+      // The OTP adapter also looks up the normalized address by exact equality.
       const result = await sql<{ allowed: boolean }>`SELECT EXISTS (
         SELECT 1 FROM noticeos_identity.auth_user u
         JOIN noticeos_identity.auth_member m ON m.user_id=u.id
@@ -177,7 +178,14 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
       const bucket = createRateLimitKey(peer, path);
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
       if (body) await sql`SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-      const eligible = body ? await eligibility(trx, body.email, enrollment, options) : { allowed: true };
+      let eligible = body ? await eligibility(trx, body.email, enrollment, options) : { allowed: true };
+      if (body && eligible.allowed && enrollment && options.mailWorkspaceIds) {
+        // An invitation can create a person. Do not create a new normalized
+        // identity when a legacy row already represents the same mailbox.
+        const existing = await sql`SELECT id FROM noticeos_identity.auth_user
+          WHERE lower(email)=${body.email} AND email<>${body.email} LIMIT 1`.execute(trx);
+        if (existing.rows.length) eligible = { allowed: false };
+      }
       const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
         ...(action === 'logout' ? { readOnlySession: true as const } : {}),
         peer, eligible: eligible.allowed, deliver: (message) => { mail.push(message); } });
