@@ -519,6 +519,20 @@ Return to the prepared image it ran before with:
 pnpm os:prod
 ```
 
+The command first compares the prepared image's frozen migrations with the
+applied migration history. If they differ, the app keeps serving the checkout.
+After upgrading the database, select a matching prepared release from a clean
+`main` checkout at that release. Use the selector for the existing installation
+and the full local image ID:
+
+```sh
+pnpm os:prod -- --config /absolute/path/to/stack.json --image sha256:ID
+```
+
+The command verifies the image's source, revision, schema and platform before
+replacing the app. To resume live edits, run `pnpm os:dev` from the checkout
+you edit, using the same selector. Its new fallback is the verified release.
+
 The private `stack-development/previous.json` and journal beside the selector
 record recovery. The switch shares the update lock and restores the old
 app if startup fails, provided the stores and declarations still match.
