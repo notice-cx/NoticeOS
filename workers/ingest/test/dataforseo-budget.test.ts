@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { loadMeteredDataSpend } from '@noticeos/contract';
+import type { WorkspaceStore } from '@noticeos/postgres';
 import { beforeEach, expect, it } from 'vitest';
 import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from '../src/dataforseo-budget.js';
 import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
@@ -14,6 +15,12 @@ const SEPTEMBER = Date.parse('2026-09-01T00:00:00.000Z');
 const options = { nowMs: AUGUST, login: 'fixture-login', password: 'fixture-password', retryBackoffMs: [0],
   scope: { asset: 'northwind.example', families: ['backlinks-summary'] } };
 
+function gate<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
 beforeEach(async () => {
   await reset();
   await emptyTables(['config_documents']);
@@ -21,15 +28,43 @@ beforeEach(async () => {
 });
 
 it('serializes competing reservations and keeps an unsettled request out of replay', async () => {
-  const reserve = (key: string, nowMs = AUGUST, fenceUnsettled = false) => reserveDataForSeo(env.STORE, {
+  const reserve = (key: string, nowMs = AUGUST, fenceUnsettled = false, store = env.STORE) => reserveDataForSeo(store, {
     asset: 'northwind.example', requestKey: key.repeat(64), requestClock: () => nowMs, capUsd: 0.25, reserveUsd: 0.25, fenceUnsettled,
   });
-  const results = await Promise.all([reserve('a'), reserve('b')]);
-  expect(results.map(result => result.kind).sort()).toEqual(['budget_exhausted', 'reserved']);
-  const first = results.findIndex(result => result.kind === 'reserved');
-  const winning = results[first]!;
-  const key = first === 0 ? 'a' : 'b';
-  expect((await reserve(key, SEPTEMBER, true)).kind).toBe('dataforseo_uncertain');
+  const written = gate<void>(), release = gate<void>(), entered = gate<number>();
+  const uncommitted: WorkspaceStore = { ...env.STORE, write: work => env.STORE.write(async tx => {
+    const result = await work(tx);
+    written.resolve();
+    await release.promise;
+    return result;
+  }) };
+  const contender: WorkspaceStore = { ...env.STORE, write: work => env.STORE.write(async tx => {
+    const [row] = await tx.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+    entered.resolve(row!.pid);
+    return work(tx);
+  }) };
+  const first = reserve('a', AUGUST, false, uncommitted);
+  let second: ReturnType<typeof reserve> | undefined, secondFinished = false;
+  try {
+    await Promise.race([written.promise, first]);
+    second = reserve('b', AUGUST, false, contender).finally(() => { secondFinished = true; });
+    const pid = await Promise.race([entered.promise, second.then(() => 0)]);
+    const until = Date.now() + 5_000;
+    const waiting = await env.STORE.read(async tx => {
+      while (!secondFinished && Date.now() < until) {
+        const [row] = await tx.query<{ waiting: boolean }>('SELECT cardinality(pg_blocking_pids($1::int)) > 0 AS waiting', [pid]);
+        if (row?.waiting) return true;
+      }
+      return false;
+    });
+    expect(waiting).toBe(true);
+  } finally {
+    release.resolve();
+    await Promise.allSettled([first, second]);
+  }
+  const winning = await first;
+  expect((await second)?.kind).toBe('budget_exhausted');
+  expect((await reserve('a', SEPTEMBER, true)).kind).toBe('dataforseo_uncertain');
   expect((await reserve('c', SEPTEMBER)).kind).toBe('reserved');
   if (winning.kind !== 'reserved') throw new Error('The budget must admit one request.');
   await settleDataForSeo(env.STORE, winning.attemptId, 0.05);
