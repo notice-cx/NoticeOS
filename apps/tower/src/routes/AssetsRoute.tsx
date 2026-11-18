@@ -1,4 +1,4 @@
-import { useWorkspaceReadOnlyReason } from "@/lib/browser-context";
+import { useBackupPreview, useDemoReadonly, useWorkspaceReadOnlyReason } from "@/lib/browser-context";
 import { ArrowDownUp, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -36,6 +36,7 @@ import {
   type SitesOrder,
 } from "@/lib/sites-index";
 import { cn } from "@/lib/utils";
+import { tabPath } from "@/routes/asset-detail/AssetTabs";
 import { AssetsTable } from "@/routes/assets/AssetsTable";
 import { HealthSplit } from "@/routes/assets/HealthSplit";
 import { PortfolioPage } from "@/routes/assets/PortfolioPage";
@@ -72,6 +73,8 @@ export function AssetsRoute() {
   const sort = readKey<SitesOrder>(params.get("sort"), ORDERS.map((option) => option.value));
 
   const readOnly = useWorkspaceReadOnlyReason();
+  const backupPreview = useBackupPreview();
+  const demoReadonly = useDemoReadonly();
   const arranging = !readOnly && params.get(SITES_ARRANGE_PARAM) === "1";
 
   function setFilter(name: string, value: string) {
@@ -126,11 +129,22 @@ export function AssetsRoute() {
     : split;
   const answer = sitesAnswer(lines);
   const figures = data ? [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)].filter((figure) => figure !== null) : [];
-  const showChannels = assets.some((asset) => asset.channels?.rows.length || asset.product?.funnel?.largestDrop);
+  const hasChannels = assets.some((asset) => asset.channels != null);
+  const sourcesAsset = hasChannels ? undefined : assets.find((asset) => asset.status !== "retired");
+  const showChannels = hasChannels || sourcesAsset || assets.some((asset) => asset.product?.funnel?.largestDrop);
   const reports = (
     <div className="grid gap-4 lg:grid-cols-2">
-      {showChannels ? <ChannelsModule cards={assets} /> : null}
-      <GapsModule cards={assets} />
+      {showChannels ? <ChannelsModule cards={assets} missing={sourcesAsset ? (
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>No channel totals are available for the listed assets.</p>
+          {backupPreview || demoReadonly ? null : readOnly
+            ? <p>An owner or operator can check Google Analytics in the asset’s data sources.</p>
+            : <Link className="font-medium underline underline-offset-4" to={tabPath(sourcesAsset.id, "sources")}>
+              Review data sources for {sourcesAsset.displayName}
+            </Link>}
+        </div>
+      ) : undefined} /> : null}
+      <GapsModule cards={assets} readOnly={demoReadonly || readOnly !== null} />
     </div>
   );
 

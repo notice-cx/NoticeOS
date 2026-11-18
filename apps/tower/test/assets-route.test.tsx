@@ -8,6 +8,12 @@ import type { SiteDisplay } from "@shared/site-display";
 const state = vi.hoisted(() => ({
   data: null as WallPayload | null,
   isPending: false,
+  readOnly: null as string | null,
+}));
+
+vi.mock("@/lib/browser-context", async importOriginal => ({
+  ...await importOriginal<typeof import("@/lib/browser-context")>(),
+  useWorkspaceReadOnlyReason: () => state.readOnly,
 }));
 
 vi.mock("@/hooks/useWall", () => ({
@@ -189,6 +195,7 @@ function pressed(group: string): string[] {
 afterEach(() => {
   state.data = null;
   state.isPending = false;
+  state.readOnly = null;
   window.localStorage.clear();
 });
 
@@ -518,6 +525,29 @@ describe("Portfolio reports", () => {
     const more = within(gaps).queryByRole("button", { name: /show \d+ more/i });
     if (more) fireEvent.click(more);
     expect(within(gaps).getByRole("button", { name: "Make a task for Diversify search referrals" })).toBeInTheDocument();
+  });
+
+  it.each([false, true])("shows a permitted next step when saved channel data is missing (read-only: %s)", restricted => {
+    state.readOnly = restricted ? "Viewer access" : null;
+    renderAssets("/assets", [ASSETS[0]!]);
+    const growth = screen.getByRole("region", { name: "Where visitors come from" });
+    if (restricted) {
+      expect(within(growth).getByText(/owner or operator/u)).toBeVisible();
+      expect(within(growth).queryByRole("link")).toBeNull();
+    } else {
+      const source = within(growth).getByRole("link", { name: "Review data sources for Meadow Board" });
+      expect(source).toHaveAttribute("href", "/assets/meadow.example/sources");
+      fireEvent.click(source);
+      expect(screen.getByText("Asset page")).toBeVisible();
+    }
+  });
+
+  it("keeps a reported zero out of channel setup guidance", () => {
+    renderAssets("/assets", [{ ...ASSETS[0]!, channels: { windowStart: "2026-07-04", windowEnd: "2026-07-31",
+      rows: [{ channel: "Organic Search", sessions: 0, share: 0 }] } }]);
+    const growth = screen.getByRole("region", { name: "Where visitors come from" });
+    expect(within(growth).getByRole("listitem")).toHaveTextContent("0%");
+    expect(within(growth).queryByRole("link")).toBeNull();
   });
 
   it("retains filters, unrelated query state, and an explicit saved order when clearing filters", () => {

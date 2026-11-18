@@ -19,7 +19,7 @@ export function PortfolioPage({ tab, actions, meta, children }: {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <PageHeader title="Portfolio" documentTitle={tab === "money" ? "Money" : "Portfolio"} actions={actions} meta={meta}>
-        <Tabs label="Portfolio" tabs={tabs} idBase={TAB_IDS} panelId={PANEL_ID} />
+        <Tabs label="Portfolio" tabs={tabs} idBase={TAB_IDS} panelId={PANEL_ID} retainKeyboardFocus />
       </PageHeader>
       <TabPanel id={PANEL_ID} idBase={TAB_IDS} activeKey={tab} className="gap-5">
         {children}

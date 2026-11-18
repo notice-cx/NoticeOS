@@ -3850,6 +3850,28 @@ test("Settings stays within reach while the portfolio navigation scrolls", { tag
   await expect(main.getByRole("link", { name: "Integrations" })).not.toHaveAttribute("aria-current", "page");
 });
 
+test("keyboard navigation keeps focus on the new Portfolio tab", desktopOnly("keyboard focus is the same across viewport widths", PR_SMOKE), async ({ page }) => {
+  await page.goto("/assets");
+  const portfolio = page.getByRole("tablist", { name: "Portfolio", exact: true });
+  const assets = portfolio.getByRole("tab", { name: "Assets", exact: true });
+  const money = portfolio.getByRole("tab", { name: "Money", exact: true });
+  await assets.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(money).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(money).toHaveAttribute("aria-selected", "true");
+  await expect(money).toBeFocused();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(assets).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(assets).toHaveAttribute("aria-selected", "true");
+  await expect(assets).toBeFocused();
+  await page.goBack();
+  await expect(money).toHaveAttribute("aria-selected", "true");
+  await expect(money).not.toBeFocused();
+});
+
 test("the desktop sidebar remembers its width and the phone drawer keeps full labels", desktopOnly("the same saved desktop choice is checked at phone and desktop widths", PR_SMOKE), async ({ page }) => {
   await wallScene(page, "six", { layout: WALL_PRESETS.product });
   await page.setViewportSize({ width: 1200, height: 720 });
