@@ -25,7 +25,7 @@ test('role preparation stages a private mount for a checkout HBA and refuses an 
   const file = path.join(root, 'shared.conf'), envFile = path.join(root, 'installation.env'), compose = path.join(root, 'compose.yaml');
   const config = path.join(root, 'stack.json'), directory = path.join(root, 'plan');
   const selector = { project: 'noticeos-role-fixture', files: [compose], envFile, dockerHost: 'unix:///tmp/local-fixture.sock' };
-  fs.writeFileSync(file, baseline); fs.writeFileSync(envFile, ''); fs.writeFileSync(compose, ''); write(config, selector);
+  fs.writeFileSync(file, baseline, { mode: 0o644 }); fs.writeFileSync(envFile, ''); fs.writeFileSync(compose, ''); write(config, selector);
   const services = spec(file, 25432), declaration = { services, volumes: { data: { name: 'role-fixture-data' } } };
   const run = async (_bin, args) => {
     assert.deepEqual(args.slice(-3), ['config', '--format', 'json']);
@@ -40,6 +40,15 @@ test('role preparation stages a private mount for a checkout HBA and refuses an 
   assert.equal(fs.statSync(directory).mode & 0o777, 0o700);
   await assert.rejects(customerPostgresRoles('apply', { config, directory, confirmation: 'other' }, { run }), /exact selected/u);
   await assert.rejects(customerPostgresRoles('apply', { config, directory, confirmation: selector.project }, { run }), /private mount/u);
+  const credentialsPath = path.join(directory, 'credentials.json');
+  const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+  const accidentalCopy = new URL(credentials.noticeos_platform.loopback);
+  accidentalCopy.password = 'x'.repeat(32);
+  credentials.noticeos_platform.loopback = accidentalCopy.href;
+  write(credentialsPath, credentials);
+  services.postgres.volumes[0].source = path.join(directory, 'pg_hba.conf');
+  await assert.rejects(customerPostgresRoles('apply', { config: path.join(directory, 'stack.with-private-hba.json'), directory,
+    confirmation: selector.project }, { run }), /credentials do not match/u);
   services.postgres.ports[0].host_ip = '0.0.0.0';
   assert.throws(() => roleStack(selector, declaration), /loopback/u);
 });
@@ -64,7 +73,7 @@ test('disposable OrbStack keeps the identical HBA bind and older credentials acr
   const shared = path.join(root, 'shared', 'pg_hba.conf');
   const installed = path.join(root, 'stack', 'db/postgres/host/pg_hba.conf');
   const seed = path.join(root, '10-roles.sql');
-  for (const file of [shared, installed]) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, baseline); }
+  for (const file of [shared, installed]) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, baseline, { mode: 0o644 }); }
   const appPassword = randomBytes(24).toString('base64url');
   const roles = fs.readFileSync(new URL('../db/postgres/roles.sql', import.meta.url), 'utf8');
   fs.writeFileSync(seed, `${roles}\nALTER ROLE noticeos_app LOGIN PASSWORD '${scramVerifier(appPassword)}';

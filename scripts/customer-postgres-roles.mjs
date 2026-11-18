@@ -70,9 +70,7 @@ function prepare(directory, selector, target) {
   fs.mkdirSync(directory, { mode: 0o700 });
   const passwords = roles.map(role => {
     const password = randomBytes(24).toString('base64url');
-    const loopback = connectionString(role, password, target.port);
-    const internal = new URL(loopback); internal.hostname = 'postgres'; internal.port = '5432';
-    return { role, verifier: scramVerifier(password), loopback, internal: internal.href };
+    return { role, verifier: scramVerifier(password), ...roleAddresses(role, password, target.port) };
   });
   let hba = target.hba;
   if (!target.owned) {
@@ -91,6 +89,12 @@ function prepare(directory, selector, target) {
   return { project: target.project, database: DATABASE, roles, privateMountPrepared: !target.owned };
 }
 
+function roleAddresses(role, password, port) {
+  const loopback = connectionString(role, password, port);
+  const internal = new URL(loopback); internal.hostname = 'postgres'; internal.port = '5432';
+  return { loopback, internal: internal.href };
+}
+
 function readPlan(directory, target) {
   const stat = fs.lstatSync(directory);
   if (!stat.isDirectory() || stat.uid !== process.getuid() || stat.mode & 0o077 || fs.realpathSync(directory) !== directory) refuse('Use the private role plan directory.');
@@ -101,7 +105,19 @@ function readPlan(directory, target) {
       typeof value !== 'string' || !/^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/u.test(value))) {
     refuse('The role plan and selected installation do not match. A shared HBA needs the staged private mount.');
   }
-  return { ...plan, base: safeFile(path.join(directory, 'original-hba.conf'), { privateFile: true }) };
+  const creds = JSON.parse(safeFile(path.join(directory, 'credentials.json'), { privateFile: true }));
+  for (const [index, role] of roles.entries()) {
+    let password;
+    try { password = new URL(creds[role]?.loopback).password; } catch { /* Invalid below. */ }
+    const verifier = plan.verifiers[index];
+    const salt = Buffer.from(verifier.slice(verifier.indexOf(':') + 1, verifier.lastIndexOf('$')), 'base64');
+    const addresses = roleAddresses(role, password, plan.port);
+    if (!/^[A-Za-z0-9_-]{32}$/u.test(password ?? '') || salt.length !== 16 || creds[role].loopback !== addresses.loopback
+      || creds[role].internal !== addresses.internal || scramVerifier(password, { salt }) !== verifier) {
+      refuse('The prepared credentials do not match this role plan.');
+    }
+  }
+  return { ...plan, creds, base: safeFile(path.join(directory, 'original-hba.conf'), { privateFile: true }) };
 }
 
 function roleUnit(plan, enable) {
@@ -216,13 +232,9 @@ export async function customerPostgresRoles(action, { directory, config, confirm
     return facts === (enabled ? '0|1|0' : '0|0|0');
   };
   const checkLogins = async () => {
-    const creds = JSON.parse(safeFile(path.join(directory, 'credentials.json'), { privateFile: true }));
     const { Client } = createRequire(new URL('../packages/postgres/package.json', import.meta.url))('pg');
     return await Promise.all(roles.map(async role => {
-      const url = new URL(creds[role]?.loopback);
-      if (url.protocol !== 'postgresql:' || url.hostname !== '127.0.0.1' || url.port !== String(target.port)
-        || url.username !== role || url.pathname !== `/${DATABASE}` || url.search !== '?sslmode=disable' || url.hash) refuse('A prepared login no longer matches the selected database.');
-      const client = new Client({ connectionString: url.href, connectionTimeoutMillis: 2600, query_timeout: 2600 });
+      const client = new Client({ connectionString: plan.creds[role].loopback, connectionTimeoutMillis: 2600, query_timeout: 2600 });
       try { await client.connect(); return (await client.query('SELECT current_user AS role')).rows[0]?.role === role; }
       catch (error) { if (['28P01', '28000', '42501'].includes(error.code)) return false; refuse('The local login readback could not connect.'); }
       finally { await client.end().catch(() => {}); }

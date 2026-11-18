@@ -757,27 +757,21 @@ update can load it (`scripts/postgres-migrate.test.mjs`).
 installation's one workspace, once. The rest is in
 [db/postgres/README.md](../db/postgres/README.md#applying-it-to-an-installations-own-database).
 
-## Enroll the owner of an existing standalone workspace
-
-`db:adopt-owner` prepares a selected existing workspace for customer sign-in.
-Apply the standalone owner handoff migration through the approved operator
-migration procedure first. The command uses the specified local database
-and workspace UUID. It keeps the workspace active and preserves its reports
-and configuration. Preparation works only for one active standalone
-workspace without an owner or other customer authority.
-
-### Prepare the Postgres logins on the existing local stack
+## Prepare the Postgres logins on the existing local stack
 
 `db:prepare-customer-roles` prepares the three dedicated logins for the selected
 local Compose project. The platform login is for enrollment. The identity and
 service grant logins are for customer mode. The command leaves active or
 independently prepared credentials in place and stops if it finds them.
 
-1. Use the explicit absolute stack selector and a new private plan directory.
-   `prepare` previews the target and writes the original host access file and
-   new credentials into the plan. It makes no database change.
+1. Replace the example paths with the absolute stack selector and a new plan
+   directory under an existing private folder. `prepare` previews the target
+   and writes a copy of the host access file and the new credentials into the
+   plan.
 
    ```sh
+   role_stack=/absolute/path/to/stack.json
+   role_plan=/absolute/private/folder/customer-role-plan
    pnpm db:prepare-customer-roles -- prepare --config "$role_stack" --plan "$role_plan"
    ```
 
@@ -790,11 +784,11 @@ independently prepared credentials in place and stops if it finds them.
    as the explicit selector for `pnpm os:apply`. The resulting Postgres bind
    starts with the original rules. The apply plan shows the Postgres service
    recreation and dependent service restart. Keep the original selector.
-   Use the staged selector for subsequent stack commands. An installation with
-   its own HBA file keeps using its existing selector.
+   Set `role_stack` to the staged selector for subsequent stack commands.
+   An installation with its own HBA file keeps using its existing selector.
 
-4. Set `role_stack` to the approved effective selector and `role_project` to
-   the preview's project name. Apply, then read back all three logins. This
+4. Replace `your-compose-project` with the name from the preview. Apply,
+   then read back all three logins. This
    updates only the selected database's dedicated roles and adds a SCRAM rule
    for those roles on its directly connected networks. The command reloads
    the file in the existing bind and checks the local logins. If interrupted,
@@ -802,6 +796,7 @@ independently prepared credentials in place and stops if it finds them.
    credentials for a partially applied plan.
 
    ```sh
+   role_project=your-compose-project
    pnpm db:prepare-customer-roles -- apply --config "$role_stack" --plan "$role_plan" --confirm "$role_project"
    pnpm db:prepare-customer-roles -- status --config "$role_stack" --plan "$role_plan"
    ```
@@ -822,6 +817,15 @@ selector returns to the original mount afterward.
 pnpm db:prepare-customer-roles -- rollback --config "$role_stack" --plan "$role_plan" --confirm "$role_project"
 pnpm db:prepare-customer-roles -- status --config "$role_stack" --plan "$role_plan"
 ```
+
+## Enroll the owner of an existing standalone workspace
+
+`db:adopt-owner` prepares a selected existing workspace for customer sign-in.
+Apply the standalone owner handoff migration through the approved operator
+migration procedure first. The command uses the specified local database
+and workspace UUID. It keeps the workspace active and preserves its reports
+and configuration. Preparation works only for one active standalone
+workspace without an owner or other customer authority.
 
 Supply an absolute path to an operator-owned, mode `0600` JSON plan. Set
 `format` to `noticeos-standalone-owner/1` and provide `workspaceId`,
