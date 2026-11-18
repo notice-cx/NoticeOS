@@ -137,7 +137,6 @@ const ALLOWED_PHRASES = [
   // 4. SEARCH ALIASES in the command palette's `keywords`, which are matched
   //    against and never rendered: an operator who knows the old word should
   //    still find the page.
-  '"knobs", "preferences"',
   // 5. WALL METRIC TILES: individual figures/charts within whole sections,
   //    a separate editable object defined in doc 14's Lexicon.
   'Row tiles',

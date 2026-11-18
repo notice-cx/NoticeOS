@@ -1,4 +1,4 @@
-import { useOwnerPreferences } from '@/lib/browser-context';
+import { useCanManageMembers, useOwnerPreferences } from '@/lib/browser-context';
 import { ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +7,7 @@ import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
-import { PAGE_ITEMS, shownPages } from "@/components/nav-items";
+import { MEMBERS_ITEM, PAGE_ITEMS, shownPages } from "@/components/nav-items";
 import {
   Command,
   CommandDialog,
@@ -154,7 +154,8 @@ function PaletteBody({
   const navigate = useNavigate();
   const preferences = useOwnerPreferences();
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
-  const pages = useMemo(() => shownPages(PAGE_ITEMS), []);
+  const managesMembers = useCanManageMembers();
+  const pages = useMemo(() => shownPages(managesMembers ? [...PAGE_ITEMS, MEMBERS_ITEM] : PAGE_ITEMS), [managesMembers]);
   const destinations = useMemo(() => {
     const map = new Map<string, { to: string; label: string }>();
     for (const page of pages) {

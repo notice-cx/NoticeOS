@@ -41,6 +41,10 @@ export function useBackupPreview() { return useContext(BrowserContext)?.backupPr
 /** The existing immutable viewer and hosted synthetic workspace share only
  * presentation restrictions. Server admission remains the write authority. */
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
+export function useCanManageMembers() {
+  const { runtime, workspaceRole, backupPreview } = useBrowserContext();
+  return runtime.owner.mode === "hosted" && workspaceRole === "owner" && !backupPreview;
+}
 export function useCanEditWorkspace() {
   const { runtime, workspaceRole, backupPreview } = useBrowserContext();
   const demoReadonly = useDemoReadonly();

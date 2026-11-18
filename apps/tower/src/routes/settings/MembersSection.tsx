@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { ReadFailed } from '@/components/ReadFailed';
-import { useBrowserContext } from '@/lib/browser-context';
+import { useBrowserContext, useCanManageMembers } from '@/lib/browser-context';
 import { SettingsPanel } from '@/routes/settings/SettingsPanel';
 import { MembershipRefused, type MemberCommand, type MemberRole, type MembershipPage, type WorkspaceMember, type WorkspaceInvitation } from '@/lib/membership-client';
 
@@ -11,9 +11,7 @@ const ROLES: MemberRole[] = ['owner', 'operator', 'viewer'];
 const QUERY = ['workspace-members'];
 type Roster = { members: MembershipPage<WorkspaceMember>; invitations: MembershipPage<WorkspaceInvitation> };
 export function MembersSection() {
-  const context = useBrowserContext();
-  if (context.runtime.owner.mode !== 'hosted' || context.workspaceRole !== 'owner') return null;
-  return <OwnerMembers />;
+  return useCanManageMembers() ? <OwnerMembers /> : null;
 }
 
 /** Administration uses the captured runtime; bootstrap role only hides controls.

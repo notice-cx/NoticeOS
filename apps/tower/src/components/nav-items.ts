@@ -12,6 +12,8 @@ import {
   Settings,
   Tv,
   Wallet,
+  UsersRound,
+  Activity,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -63,7 +65,7 @@ export const AGENTS_ROUTE = "/agents";
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
-  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs", "delivery"] },
+  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["runbooks", "analysis", "automation", "runs", "delivery"] },
   {
     to: ASSETS_ROUTE,
     label: "Portfolio",
@@ -136,8 +138,15 @@ export const SITES_ARRANGE_ITEM: NavItem = {
   keywords: ["order", "reorder", "drag", "hide", "show", "sites", "tv"],
 };
 
+export const MEMBERS_ITEM: NavItem = {
+  to: "/settings/members", label: "Members", icon: UsersRound, keywords: ["invite", "people", "team", "roles", "permissions"],
+};
+const OPERATIONS_ITEM: NavItem = {
+  to: "/health/operations", label: "Background operations", icon: Activity, keywords: ["jobs", "schedules", "collection", "sync history"],
+};
+
 /** Every page the palette can jump to, in the sidebar's order. */
-export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, SETTINGS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
+export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, SETTINGS_ITEM, OPERATIONS_ITEM, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
 
 /** Every core page remains reachable even when its service is unavailable. */
 export function shownPages(items: readonly NavItem[]): NavItem[] {

@@ -459,7 +459,7 @@ describe("the small-screen drawer", () => {
       "/financials",
     );
 
-    expect(within(drawer).getByRole("button", { name: "Close", exact: true })).toHaveFocus();
+    expect(within(drawer).getByRole("button", { name: "Close" })).toHaveFocus();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("button", { name: "Open navigation" })).toHaveFocus();
     expect(screen.queryByRole("dialog", { name: "Navigation" })).toBeNull();

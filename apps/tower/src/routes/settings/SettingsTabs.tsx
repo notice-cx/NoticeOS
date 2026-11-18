@@ -5,6 +5,7 @@ import { Tabs, type TabSpec } from "@/components/Tabs";
  * live, and the host. `general` is the index tab: `/settings` is General. */
 export const SETTINGS_TABS = [
   "general",
+  "members",
   "ai",
   "alert-rules",
   "notifications",
@@ -13,7 +14,6 @@ export const SETTINGS_TABS = [
   "ownership",
   "task-projects",
   "installation",
-  "members",
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

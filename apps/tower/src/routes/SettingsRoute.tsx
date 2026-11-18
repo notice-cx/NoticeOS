@@ -65,7 +65,7 @@ import { useWall } from "@/hooks/useWall";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { backupStatus, lastGoodCopy } from "@/lib/backups";
 import { cn } from "@/lib/utils";
-import { useBrowserContext } from "@/lib/browser-context";
+import { useCanManageMembers, useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 import { NtasksConnection, ntasksProjectColumn } from "@/routes/settings/TaskServicePanel";
@@ -103,8 +103,8 @@ import {
  * needs a paragraph.
  */
 export function SettingsRoute() {
-  const { runtime, workspaceRole } = useBrowserContext();
-  const managesMembers = runtime.owner.mode === 'hosted' && workspaceRole === 'owner';
+  const { runtime } = useBrowserContext();
+  const managesMembers = useCanManageMembers();
   // Only a standalone installation has a folder, ports and versions of its own to show.
   const showsInstallation = runtime.owner.mode === 'standalone';
   const shown = SETTINGS_TABS.filter(
