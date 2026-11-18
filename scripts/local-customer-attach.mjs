@@ -43,7 +43,7 @@ export async function startPreparedCustomer(plan, db, {
       grantConnectionString: operating.grantAddress, credentialsKey: operating.credentialsKey,
       identitySecret: operating.identitySecret, ntasksOrigin: operating.ntasksOrigin,
       startSchedules, resumeSince: db.resumeSince, backupResumeSince: db.backupResumeSince, deployment,
-      operating: { googleDaily: operating.googleDaily, collectorTransport,
+      operating: { googleDaily: operating.googleDaily, extendedArchives: operating.extendedArchives, collectorTransport,
         collectorProviders: operating.collectorProviders, sitePulls: operating.sitePulls,
         siteReports: operating.siteReports, signal } });
     db.ready();

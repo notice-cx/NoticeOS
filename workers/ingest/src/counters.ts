@@ -68,6 +68,8 @@ export interface CountersOptions {
   /** Override the outbound fetcher (tests stub the scrape responses). */
   fetchImpl?: typeof fetch;
   nowMs?: number;
+  /** A customer occurrence carries only its admitted site's bearer. */
+  credential?: { asset: string; token: string };
   /** Where this run's config came from, per file, reported on the completion line. */
   configSources?: ConfigSourceMap;
 }
@@ -89,10 +91,11 @@ async function scrapeAsset(
   { asset, cards, source }: ScrapableAsset,
   observedAt: string,
   fetchImpl: typeof fetch,
+  credential?: CountersOptions['credential'],
 ): Promise<CounterAssetOutcome> {
   let status: number | null = null;
   try {
-    const token = tokenFor(env.ASSET_TOKENS, asset);
+    const token = credential ? credential.token : tokenFor(env.ASSET_TOKENS, asset);
     if (!token) throw new Error('no pull token configured for asset');
 
     const res = await fetchScrape(fetchImpl, source.url, token, 'text/plain');
@@ -157,14 +160,14 @@ export async function runCountersScrape(
   // Skipped, never fetched: a property with no `source` (its cards are fed by
   // its nightly report instead), a paused lane, or nothing to read.
   const scrapable = Object.entries(config.assets).flatMap(([asset, entry]) =>
-    entry.source?.enabled === true && entry.cards.length > 0
+    (!opts.credential || opts.credential.asset === asset) && entry.source?.enabled === true && entry.cards.length > 0
       ? [{ asset, source: entry.source, cards: entry.cards }]
       : [],
   );
 
   const outcomes: CounterAssetOutcome[] = [];
   for (const entry of scrapable) {
-    outcomes.push(await scrapeAsset(env, entry, observedAt, fetchImpl));
+    outcomes.push(await scrapeAsset(env, entry, observedAt, fetchImpl, opts.credential));
   }
   const succeeded = outcomes.filter((o) => o.ok).length;
   const result = {

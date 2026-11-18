@@ -1,10 +1,11 @@
 import { hostedTaskProviderOperation } from './hosted-task-request.mjs';
 import { cloudflareD1DownloadAddress } from './cloudflare-d1-download.mjs';
 
-function googleDailyQuery(url, method) {
+function googleDailyQuery(url, method, extendedArchives) {
   if (method !== 'POST' || url.search || url.hash || url.username || url.password) return false;
   if (url.origin === 'https://oauth2.googleapis.com') return url.pathname === '/token';
-  if (url.origin === 'https://analyticsdata.googleapis.com') return /^\/v1beta\/properties\/[0-9]+:runReport$/u.test(url.pathname);
+  if (url.origin === 'https://analyticsdata.googleapis.com') return /^\/v1beta\/properties\/[0-9]+:runReport$/u.test(url.pathname)
+    || extendedArchives && /^\/v1alpha\/properties\/[0-9]+:runFunnelReport$/u.test(url.pathname);
   return url.origin === 'https://www.googleapis.com' && /^\/webmasters\/v3\/sites\/[^/]+\/searchAnalytics\/query$/u.test(url.pathname);
 }
 
@@ -13,28 +14,43 @@ function stripeReport(url, method) {
   return /^\/v1\/(?:account|balance|balance_transactions(?:\/txn_[a-zA-Z0-9_]+)?|subscriptions|checkout\/sessions(?:\/cs_[a-zA-Z0-9_]+\/line_items)?|invoice_payments|invoices\/in_[a-zA-Z0-9_]+\/lines|charges\/(?:ch|py)_[a-zA-Z0-9_]+|refunds\/(?:re|pyr)_[a-zA-Z0-9_]+)$/u.test(url.pathname);
 }
 
-function bingReport(url, method) {
+function bingReport(url, method, extendedArchives) {
   if (method !== 'GET' || url.origin !== 'https://ssl.bing.com' || !url.searchParams.get('apikey')) return false;
   if (url.pathname === '/webmaster/api.svc/json/GetUserSites') return url.searchParams.size === 1;
-  return url.pathname === '/webmaster/api.svc/json/GetRankAndTrafficStats'
+  return (url.pathname === '/webmaster/api.svc/json/GetRankAndTrafficStats' || extendedArchives
+    && /^\/webmaster\/api\.svc\/json\/Get(?:QueryStats|PageStats|CrawlStats|CrawlIssues|Feeds)$/u.test(url.pathname))
     && url.searchParams.size === 2 && !!url.searchParams.get('siteUrl');
+}
+
+function posthogReport(url, method) {
+  if (!['https://us.posthog.com', 'https://eu.posthog.com'].includes(url.origin) || url.search) return false;
+  return method === 'GET' && /^\/api\/projects\/[0-9]+\/$/u.test(url.pathname)
+    || method === 'POST' && /^\/api\/projects\/[0-9]+\/query\/$/u.test(url.pathname);
+}
+
+function clarityReport(url, method) {
+  return method === 'GET' && url.origin === 'https://www.clarity.ms'
+    && url.pathname === '/export-data/api/v1/project-live-insights'
+    && url.searchParams.size === 2 && url.searchParams.get('numOfDays') === '3' && url.searchParams.get('dimension1') === 'URL';
 }
 
 /** Workers have no fallback to public fetch. The controller belongs to the
  * scheduler lease and also cancels an accepted request if that lease ends. */
-export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, collectorProviders = [], sitePulls = [], signal, transport = fetch } = {}) {
+export function localCustomerOutbound({ ntasksOrigin, googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [], signal, transport = fetch } = {}) {
   const allowed = new Set(collectorProviders);
   const pullUrls = new Set(sitePulls.flatMap(site => site.urls));
   return async request => {
     const url = new URL(request.url);
     if (url.username || url.password || url.hash) return new Response(null, { status: 403 });
     const ntasksAllowed = url.origin === ntasksOrigin && hostedTaskProviderOperation(url.pathname, request.method);
-    const googleAllowed = googleDaily && googleDailyQuery(url, request.method);
+    const googleAllowed = googleDaily && googleDailyQuery(url, request.method, extendedArchives);
     const stripeAllowed = allowed.has('stripe') && stripeReport(url, request.method);
-    const bingAllowed = allowed.has('bing-webmaster') && bingReport(url, request.method);
+    const bingAllowed = allowed.has('bing-webmaster') && bingReport(url, request.method, extendedArchives);
+    const posthogAllowed = allowed.has('posthog') && posthogReport(url, request.method);
+    const clarityAllowed = allowed.has('clarity') && clarityReport(url, request.method);
     const mediavineAllowed = allowed.has('mediavine') && request.method === 'POST' && url.href === 'https://api-publishers.mediavine.com/graphql';
     const pullAllowed = request.method === 'GET' && pullUrls.has(url.href);
-    if (!(ntasksAllowed || googleAllowed || stripeAllowed || bingAllowed || mediavineAllowed || pullAllowed)) return new Response(null, { status: 403 });
+    if (!(ntasksAllowed || googleAllowed || stripeAllowed || bingAllowed || mediavineAllowed || posthogAllowed || clarityAllowed || pullAllowed)) return new Response(null, { status: 403 });
     const timeout = AbortSignal.timeout(10000);
     const bounded = AbortSignal.any([timeout, ...(signal ? [signal] : []), ...(request.signal ? [request.signal] : [])]);
     bounded.throwIfAborted();

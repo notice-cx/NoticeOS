@@ -6,7 +6,7 @@ import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic } from './workfl
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { stepResult } from './workflow-trace.mjs';
 import type { WorkflowStepDiagnostics, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
-import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
+import { ALL_SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
 import { hostedJobDefinitionHash } from './hosted-job-definition.mjs';
 
 /** The registry is executable deployment code, never a request or saved config.
@@ -217,7 +217,7 @@ export function createHostedJobRunner(options: {
     const { input, hash: inputHash } = inputCopy(definition.parseInput(raw));
     const token = randomUUID(), correlation = token;
     const selected = [workspaceId, lane, occurrence] as const;
-    const scheduledJob = SCHEDULED_JOBS.find(job => job.id === lane);
+    const scheduledJob = ALL_SCHEDULED_JOBS.find(job => job.id === lane);
     const publishAttempts = async (tx: Transaction, row: Stored): Promise<void> => {
       if (!scheduledJob) return;
       // Same transaction as terminal attempt evidence: retrying delivery cannot

@@ -1,6 +1,6 @@
 import { ASSET_ID_RE } from '../packages/contract/src/configuration.mjs';
 
-export const CUSTOMER_PROVIDERS = ['mediavine', 'stripe', 'bing-webmaster'] as const;
+export const CUSTOMER_PROVIDERS = ['mediavine', 'stripe', 'bing-webmaster', 'posthog', 'clarity'] as const;
 export type CustomerProvider = typeof CUSTOMER_PROVIDERS[number];
 export interface CustomerSitePull {
   workspaceId: string;
@@ -10,6 +10,7 @@ export interface CustomerSitePull {
 }
 export interface CustomerCollectionPolicy {
   googleDaily: boolean;
+  extendedArchives: boolean;
   collectorProviders: CustomerProvider[];
   sitePulls: CustomerSitePull[];
 }
@@ -40,13 +41,22 @@ function sitePull(value: unknown): value is CustomerSitePull {
  * disable a target, but cannot redirect its existing bearer elsewhere. */
 export function customerCollectionPolicy(value: unknown): CustomerCollectionPolicy {
   if (!isRecord(value)) throw new Error('Invalid local customer collection settings.');
-  const { googleDaily = false, collectorProviders = [], sitePulls = [] } = value;
-  if (typeof googleDaily !== 'boolean' || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
+  const { googleDaily = false, extendedArchives = false, collectorProviders = [], sitePulls = [] } = value;
+  if (typeof googleDaily !== 'boolean' || typeof extendedArchives !== 'boolean'
+    || !Array.isArray(collectorProviders) || !collectorProviders.every(provider)
     || new Set(collectorProviders).size !== collectorProviders.length || !Array.isArray(sitePulls) || sitePulls.length > 64
     || !sitePulls.every(sitePull) || new Set(sitePulls.map(site => JSON.stringify([site.workspaceId, site.asset]))).size !== sitePulls.length) {
     throw new Error('Invalid local customer collection settings.');
   }
-  return { googleDaily, collectorProviders, sitePulls };
+  return { googleDaily, extendedArchives, collectorProviders, sitePulls };
+}
+
+export function selectedCustomerCounter<T>(policy: CustomerCollectionPolicy | undefined, workspaceId: string, asset: string, entry: T) {
+  const approved = policy?.sitePulls.find(site => site.workspaceId === workspaceId && site.asset === asset);
+  if (!approved || !isRecord(entry) || !isRecord(entry.source) || entry.source.kind !== 'prometheus'
+    || entry.source.enabled !== true || typeof entry.source.url !== 'string' || !approved.urls.includes(entry.source.url)
+    || !Array.isArray(entry.cards) || !entry.cards.length) return null;
+  return { entry, token: approved.token };
 }
 
 export function selectedCustomerPull<T>(policy: CustomerCollectionPolicy | undefined, workspaceId: string, asset: string, pulls: readonly T[] | undefined) {
