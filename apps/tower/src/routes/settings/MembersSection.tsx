@@ -33,6 +33,7 @@ function OwnerMembers() {
   const issuing = useRef(false);
   const rosterVersion = useRef(0);
   const pagination = useRef<AbortController | null>(null);
+  useEffect(() => () => pagination.current?.abort(), []);
   // An offline refresh must settle while it holds the roster lock.
   const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster | null> => {
     const pending = new AbortController();
@@ -111,10 +112,11 @@ function OwnerMembers() {
         runtime.queries.setQueryData(QUERY, { ...previous, [collection]: { items, nextCursor: next.nextCursor } });
       });
     } catch (error) {
+      if (page.signal.aborted) return;
       if (accessDenied(error)) {
         await runtime.queries.cancelQueries({ queryKey: QUERY, exact: true });
-        update(() => runtime.queries.setQueryData(QUERY, null));
-      } else if (!page.signal.aborted) {
+        if (!page.signal.aborted) update(() => runtime.queries.setQueryData(QUERY, null));
+      } else {
         update(() => setNotice({ error: true, text: collection === 'members' ? 'More people could not be loaded. Try again.' : 'More invitations could not be loaded. Try again.' }));
       }
     } finally {

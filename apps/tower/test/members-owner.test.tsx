@@ -172,6 +172,32 @@ it.each(['page', 'refresh'] as const)('403 during %s clears and retires paginati
   } finally { page.resolve(Response.json({ ok: false }, { status: 503 })); }
 });
 
+it('leaving Members aborts a page and prevents a late answer from changing a remounted roster', async () => {
+  const oldPage = deferred<Response>();
+  let signal: AbortSignal | undefined;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.after) { signal = init?.signal ?? undefined; return oldPage.promise; }
+    if (command.collection === 'members') return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+    return roster(input, init);
+  });
+  const value = runtime(fetch);
+  const original = mount(value);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    original.unmount();
+    expect(signal?.aborted).toBe(true);
+    const revalidate = vi.fn(async () => {});
+    mount(value, 'owner', undefined, revalidate);
+    await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+    await act(async () => oldPage.resolve(Response.json({ ok: false }, { status: 403 })));
+    expect(screen.getByText(member.name)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'More people' })).toBeEnabled();
+    expect(revalidate).not.toHaveBeenCalled();
+  } finally { oldPage.resolve(Response.json({ ok: false }, { status: 403 })); }
+});
+
 it('a refusal from either read hides cached people until a complete authorized refresh succeeds', async () => {
   let mode: 'allowed' | 'mixed' | 'temporary' = 'allowed';
   const denied = deferred();
