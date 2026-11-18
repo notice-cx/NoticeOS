@@ -254,12 +254,15 @@ async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, other
   await noCode(expired, expiredId);
 
   resetCodeRate(db);
-  const legacyEmail = 'Legacy-Member@example.test', legacyId = randomUUID();
-  db.cluster.run(`INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
+  const legacyEmail = 'Ipek@example.test', legacyId = randomUUID();
+  db.cluster.run(`ALTER TABLE noticeos_identity.auth_user ALTER COLUMN email TYPE text COLLATE pg_catalog."tr-x-icu";
+    INSERT INTO noticeos_identity.auth_user(id,name,email,email_verified)
     VALUES (:'user'::uuid,'Legacy member',:'email',true);
     INSERT INTO noticeos_identity.auth_member(id,organization_id,user_id,role,created_at)
     VALUES (gen_random_uuid(),:'workspace'::uuid,:'user'::uuid,'viewer',now());`,
   { vars: { user: legacyId, email: legacyEmail, workspace: workspaceId } });
+  assert.deepEqual(db.cluster.sql("SELECT lower(email) AS normalized FROM noticeos_identity.auth_user WHERE email='Ipek@example.test'"),
+    [{ normalized: 'ıpek@example.test' }]);
   await noCode(legacyEmail);
   const legacyInvitation = await invite(legacyEmail.toLowerCase());
   await noCode(legacyEmail, legacyInvitation);
@@ -276,7 +279,7 @@ async function exerciseMembershipMail(app, relay, db, { owner, otherOwner, other
   const refused = await route(EMAIL_CODE_PATHS.verify, { email: legacyEmail, otp: issuedCode }, headers(legacyInvitation));
   assert.equal(refused.status, 400);
   assert.equal(refused.headers.has('set-cookie'), false);
-  assert.deepEqual(db.cluster.sql("SELECT id,email FROM noticeos_identity.auth_user WHERE lower(email)='legacy-member@example.test'"),
+  assert.deepEqual(db.cluster.sql("SELECT id,email FROM noticeos_identity.auth_user WHERE email IN ('Ipek@example.test','ipek@example.test')"),
     [{ id: legacyId, email: legacyEmail }]);
 }
 

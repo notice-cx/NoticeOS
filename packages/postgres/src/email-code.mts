@@ -183,7 +183,8 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
         // An invitation can create a person. Do not create a new normalized
         // identity when a legacy row already represents the same mailbox.
         const existing = await sql`SELECT id FROM noticeos_identity.auth_user
-          WHERE lower(email)=${body.email} AND email<>${body.email} LIMIT 1`.execute(trx);
+          WHERE lower(email COLLATE pg_catalog.pg_unicode_fast)=${body.email}
+            AND email COLLATE pg_catalog.pg_unicode_fast<>${body.email} LIMIT 1`.execute(trx);
         if (existing.rows.length) eligible = { allowed: false };
       }
       const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
