@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { chmodSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -12,6 +12,7 @@ import { EMAIL_CODE_PATHS } from '../identity-protocol.mjs';
 import { applyMigrations, bootstrapWorkspace } from '../postgres-migrate.mjs';
 import { prepareShadowDisplay } from '../test-fixtures/customer-shadow-display.mjs';
 import { parseWallConfig } from '../wall-layout.mjs';
+import { journeyDefinitionId } from '../../packages/contract/src/journeys.mjs';
 
 function command(script, args, input) {
   const child = spawn(process.execPath, [fileURLToPath(new URL('../' + script, import.meta.url)), ...args],
@@ -54,22 +55,71 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
   const workspaceId = randomUUID();
   const ownerEmail = 'chain-owner@example.test';
   const date = '2026-11-09';
+  const at = date + 'T00:00:00Z';
+  const day = new Date().toISOString().slice(0, 10);
+  const ga4 = { id: 'signup', label: 'Saved signup journey', kind: 'funnel', status: 'active', goal: 'Create an account', version: 1,
+    steps: [{ id: 'begin', label: 'Start', alternatives: [{ eventName: 'form_start' }] },
+      { id: 'finish', label: 'Create account', alternatives: [{ eventName: 'sign_up' }] }] };
+  const deleted = { ...ga4, id: 'oldSignup', label: 'Removed journey' };
+  const firstParty = { ...ga4, id: 'orders', label: 'Saved checkout', source: 'first-party',
+    steps: ga4.steps.map(step => ({ id: step.id, label: step.label, alternatives: [] })) };
+  const propertyId = '123456';
+  const snapshot = (asset, definitions) => JSON.stringify({ asset, journeys: {
+    source: 'ga4', countingUnit: 'activeUsers', generatedAt: at, definitions,
+    funnels: definitions.map(definition => ({ journeyId: definition.id, definitionId: journeyDefinitionId(definition),
+      propertyId, timeZone: 'UTC', identity: 'ga4-active-users', collectedAt: at, prior7: null, current28: null, prior28: null, weekly: [],
+      current7: { kind: 'current7', startDate: '2026-11-01', endDate: '2026-11-07', complete: true, quality: 'complete',
+        steps: [{ id: 'begin', users: 100 }, { id: 'finish', users: 22 }] } })),
+    exploration: { state: 'unsupported', reason: 'No session paths were collected.' },
+  } });
+  const snapshots = [['chain.example', [ga4, deleted]], ['empty.example', [deleted]], ['skipped.example', [ga4]]]
+    .map(([asset, definitions]) => {
+      const payload = snapshot(asset, definitions);
+      return { asset, payload, sha: createHash('sha256').update(payload).digest('hex') };
+    });
+  const firstPartyFunnels = Array.from({ length: 21 }, (_, i) => ({
+    schemaVersion: 1, source: 'first-party', journeyId: firstParty.id, journeyVersion: 1, definitionId: 'site-ordered-counts',
+    date: new Date(Date.parse(day) - (i + 1) * 86400000).toISOString().slice(0, 10), timeZone: 'UTC', unit: 'orders',
+    steps: [{ id: 'begin', count: 12 }, { id: 'finish', count: 4 }],
+  }));
   bootstrapWorkspace(source, { workspaceId, slug: 'chain', displayName: 'Chain workspace' });
   source.run([
     'INSERT INTO noticeos.assets(workspace_id,asset_id,domain,display_name,status,list_position)',
-    "  VALUES (:'workspace'::uuid,'chain.example','chain.example','Chain site','live',1);",
+    "  VALUES (:'workspace'::uuid,'chain.example','chain.example','Chain site','live',1),",
+    "    (:'workspace'::uuid,'empty.example','empty.example','Empty site','live',2),",
+    "    (:'workspace'::uuid,'skipped.example','skipped.example','Skipped site','live',3);",
     'INSERT INTO noticeos.pulses(workspace_id,pulse_number,asset_id,pulse_date,generated_at,received_at,capabilities,envelope)',
-    "  VALUES (:'workspace'::uuid,1,'chain.example',:'day'::date,:'day'::timestamptz,:'day'::timestamptz,'[]',",
-    "    json_build_object('asset','chain.example','generatedAt',:'day' || 'T00:00:00Z','capabilities',json_build_array()));",
-  ].join('\n'), { vars: { workspace: workspaceId, day: date } });
-  const current = new Date().toISOString();
-  const period = current.slice(0, 7);
-  const display = prepareShadowDisplay(source, workspaceId, 'chain.example', current);
+    "  VALUES (:'workspace'::uuid,1,'chain.example',:'day'::date,:'day'::timestamptz,:'day'::timestamptz,'[]',:'report'::json);",
+    'INSERT INTO noticeos.asset_insight_snapshots(workspace_id,snapshot_id,asset_id,generated_at,window_start,window_end,source_archive_count,content_sha256,payload)',
+    "  SELECT :'workspace'::uuid,'snapshot-' || item.asset,item.asset,:'at'::timestamptz,:'date'::date,:'date'::date,1,item.sha,item.payload::json",
+    "  FROM json_to_recordset(:'snapshots'::json) AS item(asset text,sha text,payload text);",
+    'INSERT INTO noticeos.signal_runs(workspace_id,run_id,asset_id,integration,credential_ref,property_ref,started_at,finished_at,status,window_start,window_end,data_state,provider_rows,observation_count)',
+    "  VALUES (:'workspace'::uuid,'old-skipped-ga4','skipped.example','ga4','fixture-no-copy',:'property'::text,",
+    "    :'at'::timestamptz,:'at'::timestamptz,'success',:'date'::date,:'date'::date,'final',0,0);",
+    'INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at)',
+    "  VALUES (:'workspace'::uuid,'value-events',:'valueEvents'::json,2,:'at'::timestamptz),",
+    "    (:'workspace'::uuid,'integrations',:'integrations'::json,2,:'at'::timestamptz)",
+    '  ON CONFLICT(workspace_id,document_key) DO UPDATE SET body=excluded.body,version=excluded.version;',
+  ].join('\n'), { vars: { workspace: workspaceId, day, date, at, snapshots: JSON.stringify(snapshots), property: propertyId,
+    report: JSON.stringify({ asset: 'chain.example', generatedAt: day + 'T00:00:00Z', capabilities: [], firstPartyFunnels }),
+    valueEvents: JSON.stringify({ assets: {
+      'chain.example': { journeys: [ga4, firstParty], valueEvents: ['fixture-no-copy'] },
+      'empty.example': { journeys: [] }, 'skipped.example': { journeys: [ga4] },
+      'missing.example': { journeys: [deleted] },
+    } }),
+    integrations: JSON.stringify({ assets: {
+      'chain.example': { ga4: { status: 'active', propertyId, secret: 'fixture-no-copy' }, ntasks: { token: 'fixture-no-copy' } },
+      'skipped.example': { ga4: { status: 'skipped', propertyId } },
+    } }),
+  } });
+  const recordedAt = new Date().toISOString();
+  const period = recordedAt.slice(0, 7);
+  const display = prepareShadowDisplay(source, workspaceId, 'chain.example', recordedAt);
   source.run(`INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by)
     VALUES (:'workspace'::uuid,'constants','{"monthly_caps":{"data_usd":81}}',2,:'at'::timestamptz,'fixture');
     INSERT INTO noticeos.ledger_entries(workspace_id,kind,asset_id,period_month,family,amount_minor,currency,booking_state,recorded_at)
     VALUES (:'workspace'::uuid,'cost','chain.example',(:'period' || '-01')::date,'infra',2500,'USD','estimated',:'at'::timestamptz);`,
-  { vars: { workspace: workspaceId, at: current, period } });
+  { vars: { workspace: workspaceId, at: recordedAt, period } });
   const evidence = () => source.sql('SELECT (SELECT md5(json_agg(a)::text) FROM noticeos.assets a) AS assets, (SELECT md5(json_agg(p)::text) FROM noticeos.pulses p) AS pulses');
   const before = evidence();
   const dump = path.join(root, 'chain.dmp');
@@ -100,6 +150,8 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
 
   const exported = await command('customer-shadow-export.mjs', ['--dump', dump, '--workspace', workspaceId, '--out', bundle]).finished;
   assert.equal(exported.code, 0, exported.stderr);
+  const projected = readFileSync(path.join(bundle, 'settings.json'), 'utf8');
+  assert.doesNotMatch(projected, /fixture-no-copy|missing\.example/u);
   const towerPort = await availablePort();
   const databasePort = await availablePort();
   const expectedPlan = { format: 'noticeos-shadow-plan-v1', bundle, workspaceId, ownerEmail, slug: 'chain',
@@ -208,9 +260,9 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
       const wall = await http('/api/wall', undefined, headers);
       assert.equal(wall.status, 200, await wall.clone().text());
       const wallData = await wall.json();
-      assert.deepEqual(wallData.assets.map(asset => asset.id), ['chain.example']);
+      assert.deepEqual(wallData.assets.map(asset => asset.id), ['chain.example', 'empty.example', 'skipped.example']);
       assert.deepEqual(wallData.dashboard.wall, parseWallConfig(display.wall));
-      assert.equal(wallData.system.spendTodayUsd, wallData.generatedAt.slice(0, 10) === current.slice(0, 10) ? display.spent : 0);
+      assert.equal(wallData.system.spendTodayUsd, wallData.generatedAt.slice(0, 10) === recordedAt.slice(0, 10) ? display.spent : 0);
       const integration = await http('/api/integrations', undefined, headers);
       assert.equal(integration.status, 200);
       const { dataSpend } = await integration.json();
@@ -223,6 +275,23 @@ export async function assertCustomerShadowTarget({ root, cluster, ntasksOrigin, 
       assert.deepEqual(money.recurringCosts, display.costs);
       assert.deepEqual(money.domainOrders, display.domains);
       assert.equal(money.domains[0].perMonth, 10);
+      const journeys = async asset => {
+        const result = await http(`/api/assets/${asset}?view=journeys`, undefined, { ...selected, [WORKSPACE_SESSION_HEADER]: session.session.sessionId });
+        assert.equal(result.status, 200, await result.clone().text());
+        return result.json();
+      };
+      const current = await journeys('chain.example');
+      assert.deepEqual(current.journeys.definitions.map(row => row.id), ['signup', 'orders']);
+      assert.deepEqual(current.journeys.funnels.map(row => row.current7.steps.map(step => step.users)), [[100, 22]]);
+      assert.equal(current.firstPartyFunnels[0].journeyId, 'orders');
+      assert.ok(current.firstPartyFunnels[0].weekly.some(period => period.quality === 'complete'
+        && period.steps[0].users === 84 && period.steps[1].users === 28));
+      const empty = await journeys('empty.example');
+      assert.deepEqual(empty.journeys.definitions, []);
+      assert.deepEqual(empty.journeys.funnels, []);
+      const skipped = await journeys('skipped.example');
+      assert.deepEqual(skipped.journeys.definitions.map(row => row.id), ['signup']);
+      assert.deepEqual(skipped.journeys.funnels, []);
     } finally { await stopTower(); }
   } finally { await stopDatabase(); }
   assert.equal(existsSync(path.join(prepared, 'postgres', 'data', 'postmaster.pid')), false);

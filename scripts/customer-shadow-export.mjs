@@ -10,6 +10,7 @@ import { POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { findPsql } from './postgres-tools.mjs';
 import { SHADOW_DISPLAY_DOCUMENTS, shadowDisplayAssets, shadowDisplayDocument } from './customer-shadow-display.mjs';
 import { SHADOW_SPEND_SOURCES, recordShadowSpend, shadowSpendRows } from './customer-shadow-spend.mjs';
+import { projectShadowJourneys } from './customer-shadow-journeys.mjs';
 
 export const SHADOW_EVIDENCE_FORMAT = 'noticeos-shadow-evidence-v1';
 export const SHADOW_RUN_REFERENCE = 'offline-shadow';
@@ -44,6 +45,7 @@ const COPY_HEADER = /^COPY noticeos\.([a-z][a-z0-9_]*) \(([a-z0-9_, ]+)\) FROM s
 const MIN_DISK_BYTES = 8 * 1024 ** 3;
 const DISK_CHECK_INTERVAL = 32 * 1024 ** 2;
 const MAX_LINE = 32 * 1024 ** 2;
+export const SHADOW_SETTINGS_MAX_BYTES = 32 * 1024 ** 2;
 const TIMEOUT_MS = 15 * 60_000;
 const digest = text => createHash('sha256').update(text).digest('hex');
 
@@ -218,6 +220,7 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
   const settings = { values: {}, document: null, audit: [] };
   const display = {};
   const metered = new Map();
+  const journeyDocuments = new Map();
   const omitted = { credentialAndIdentityState: true, jobState: true, providerDiagnostics: true, closedTaskIdentifiers: true, rawArchiveObjects: 0,
     legacyArchiveObjects: 0, unlistedSettings: 0, unlistedAudit: 0, unavailableTables: [] };
   let active = null, accountedArchiveCosts = false;
@@ -261,6 +264,12 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
           try { display[row.document_key] = { body: shadowDisplayDocument(row.document_key, jsonRecord(row.body)), updatedAt: row.updated_at }; }
           catch (error) { refuse(error.message); }
           return;
+        }
+        if (['value-events', 'integrations'].includes(row.document_key)) {
+          if (journeyDocuments.has(row.document_key)) refuse('The backup contains duplicate journey settings.');
+          const body = row.document_key === 'integrations' ? JSON.parse(row.body) : jsonRecord(row.body);
+          if (row.document_key === 'value-events' && body === null) refuse('The backup has invalid journey settings.');
+          journeyDocuments.set(row.document_key, body);
         }
         if (row.document_key !== 'constants') { omitted.unlistedSettings++; return; }
         if (settings.document !== null || !/^[1-9][0-9]*$/u.test(row.version ?? '')) refuse('The backup contains invalid workspace settings metadata.');
@@ -314,15 +323,18 @@ async function readEvidence({ tool, handle, root, workspaceId, snapshotAt, sourc
       refuse('The backup contains incomplete metered charge evidence.');
     }
     if (seen.has('archive_runs') && seen.has('research_log')) settings.metered = shadowSpendRows(metered);
+    settings.journeys = projectShadowJourneys(journeyDocuments.get('value-events'), journeyDocuments.get('integrations'), assets);
     omitted.unavailableTables = SHADOW_EVIDENCE_TABLES.filter(name => !seen.has(name));
     const settingsText = JSON.stringify(settings, null, 2) + '\n';
+    const settingsBytes = Buffer.byteLength(settingsText);
+    if (settingsBytes > SHADOW_SETTINGS_MAX_BYTES) refuse('The saved workspace settings exceed the supported bundle size.');
     if (root !== null) {
-      await freeSpace(root, Buffer.byteLength(settingsText));
+      await freeSpace(root, settingsBytes);
       await fs.writeFile(path.join(root, 'settings.json'), settingsText, { mode: 0o600, flag: 'wx' });
     }
     return { format: SHADOW_EVIDENCE_FORMAT, workspaceId, snapshotAt, snapshotTimeZone: null, sourceBytes, encoding: 'postgres-copy-text-jsonl',
       files: [...files.values()].map(file => file.result()).concat({
-        name: 'settings', path: 'settings.json', rows: settings.audit.length, bytes: Buffer.byteLength(settingsText), sha256: digest(settingsText),
+        name: 'settings', path: 'settings.json', rows: settings.audit.length, bytes: settingsBytes, sha256: digest(settingsText),
       }), omitted, refusals: [] };
   } finally { await Promise.all([...files.values()].map(file => file.close())); }
 }

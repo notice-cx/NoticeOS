@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { SHADOW_EVIDENCE_FORMAT, SHADOW_EVIDENCE_TABLES, SHADOW_RUN_ERROR, SHADOW_RUN_REFERENCE,
+import { SHADOW_EVIDENCE_FORMAT, SHADOW_EVIDENCE_TABLES, SHADOW_RUN_ERROR, SHADOW_RUN_REFERENCE, SHADOW_SETTINGS_MAX_BYTES,
   validShadowColumns, validShadowSetting } from './customer-shadow-export.mjs';
 import { openPrivateShadowFile as privateFile, privateShadowDirectory as privateDirectory,
   readPrivateShadowFile as readPrivate, ShadowTargetRefused, verifyShadowTargetReceipt } from './customer-shadow-receipt.mjs';
@@ -15,6 +15,7 @@ import { findPsql } from './postgres-tools.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
 import { SHADOW_DISPLAY_DOCUMENTS, shadowDisplayAssets, shadowDisplayDocument } from './customer-shadow-display.mjs';
 import { checkShadowSpendRows } from './customer-shadow-spend.mjs';
+import { validShadowJourneys } from './customer-shadow-journeys.mjs';
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -64,9 +65,10 @@ function safeText(value) {
   return typeof value === 'string' && !value.includes('\0');
 }
 function checkSettings(value) {
-  if (!exact(value, ['values', 'document', 'audit', ...(value?.display === undefined ? [] : ['display']),
+  const hasJourneys = record(value) && Object.hasOwn(value, 'journeys');
+  if (!exact(value, ['values', 'document', 'audit', ...(hasJourneys ? ['journeys'] : []), ...(value?.display === undefined ? [] : ['display']),
     ...(value?.metered === undefined ? [] : ['metered'])])
-    || !record(value.values) || !Array.isArray(value.audit)
+    || (hasJourneys && !validShadowJourneys(value.journeys)) || !record(value.values) || !Array.isArray(value.audit)
     || !Object.entries(value.values).every(([key, data]) => validShadowSetting(key, data))) refuse('The bundle has invalid saved settings.');
   if (value.display !== undefined) {
     try {
@@ -213,10 +215,22 @@ function transferSql(manifest, settings, manifestHash) {
     const baseline = defaults.find(row => row.key === key);
     return [key, { body: literal(JSON.stringify({ ...JSON.parse(baseline.body), ...body })), updatedAt: literal(updatedAt) }];
   }));
+  const journeys = settings.journeys ?? [];
+  const byDocument = new Map([
+    ['value-events', Object.fromEntries(journeys.map(({ asset, definitions }) => [asset, { journeys: definitions }]))],
+    ['integrations', Object.fromEntries(journeys.filter(entry => entry.ga4).map(({ asset, ga4 }) => [asset, { ga4 }]))],
+  ]);
+  const journeyBodies = new Map();
+  for (const [key, assets] of byDocument) {
+    if (Object.keys(assets).length) {
+      const baseline = defaults.find(row => row.key === key);
+      journeyBodies.set(key, JSON.stringify({ ...JSON.parse(baseline.body), assets }));
+    }
+  }
   const registers = includeChanges => {
     const bodies = defaults.map(row => {
       const changed = includeChanges && change && row.key === 'constants';
-      const displayBody = includeChanges ? display.get(row.key)?.body : undefined;
+      const displayBody = includeChanges ? (display.get(row.key)?.body ?? (journeyBodies.has(row.key) ? literal(journeyBodies.get(row.key)) : undefined)) : undefined;
       return `(${literal(row.key)}::text,${displayBody ?? literal(row.body)}::jsonb${changed ? ' || ' + settingsBody + '::jsonb' : ''},
         ${changed ? version : displayBody ? 2 : 1},${literal(changed ? saved.updatedBy : displayBody ? 'offline-shadow' : 'platform-provisioning')}::text)`;
     }).join(',');
@@ -236,6 +250,10 @@ function transferSql(manifest, settings, manifestHash) {
     SELECT 1 FROM jsonb_array_elements_text(${literal(JSON.stringify(displayAssets))}::jsonb) selected(asset)
     WHERE NOT EXISTS (SELECT 1 FROM pg_temp.shadow_assets a WHERE a.asset_id=selected.asset))`,
   'Saved cost evidence does not belong to an imported asset') : '';
+  sql += journeys.length ? verifySql(`NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(${literal(JSON.stringify(journeys.map(entry => entry.asset)))}::jsonb) selected(asset)
+    WHERE NOT EXISTS (SELECT 1 FROM pg_temp.shadow_assets a WHERE a.asset_id=selected.asset))`,
+  'Saved journeys do not belong to an imported asset') : '';
   sql += "SELECT to_regclass('noticeos_shadow.evidence_import') IS NOT NULL AS shadow_replay \\gset\n\\if :shadow_replay\n";
   sql += verifySql(`(SELECT count(*) FROM noticeos_shadow.evidence_import)=1
     AND EXISTS (SELECT 1 FROM noticeos_shadow.evidence_import WHERE workspace_id=${workspace}::uuid AND manifest_sha256=${literal(manifestHash)})`,
@@ -304,6 +322,10 @@ function transferSql(manifest, settings, manifestHash) {
       updated_at=${updatedAt}::timestamptz
       WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
   }
+  for (const [key, body] of journeyBodies) {
+    sql += `UPDATE noticeos.config_documents SET body=${literal(body)}::jsonb::json, version=2, updated_at=clock_timestamp(),
+      updated_by='offline-shadow' WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
+  }
   sql += `CREATE SCHEMA noticeos_shadow AUTHORIZATION postgres;
 REVOKE ALL ON SCHEMA noticeos_shadow FROM PUBLIC;
 CREATE TABLE noticeos_shadow.evidence_import (workspace_id uuid PRIMARY KEY, manifest_sha256 text NOT NULL);
@@ -366,7 +388,7 @@ export async function importShadowEvidence({ bundle: bundleInput, target: target
   const manifestBytes = await readPrivate(path.join(bundle, 'manifest.json'), 512 * 1024);
   const manifest = validatedManifest(JSON.parse(manifestBytes));
   const settingsFile = manifest.files.find(file => file.name === 'settings');
-  const settingsBytes = await readPrivate(path.join(bundle, 'settings.json'), 32 * 1024 ** 2);
+  const settingsBytes = await readPrivate(path.join(bundle, 'settings.json'), SHADOW_SETTINGS_MAX_BYTES);
   if (settingsBytes.length !== settingsFile.bytes || sha256(settingsBytes) !== settingsFile.sha256) refuse('The saved settings no longer match the export manifest.');
   const settings = checkSettings(JSON.parse(settingsBytes));
   if (settings.audit.length !== settingsFile.rows) refuse('The settings count no longer matches the export manifest.');

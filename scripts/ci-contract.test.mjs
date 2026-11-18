@@ -79,6 +79,7 @@ const BROWSER_INSTALL = './.github/actions/journey-browser';
 const BROWSER_ACTION = path.join(REPO_ROOT, '.github', 'actions', 'journey-browser', 'action.yml');
 const DEMO_NTASKS = 'node scripts/demo-ntasks-build.mjs --out "$RUNNER_TEMP/ntasks" >> "$GITHUB_ENV"';
 const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
+const CUSTOMER_PEOPLE = 'node --import ./scripts/script-tests-setup.mjs --test scripts/local-customer-people.test.mjs';
 // The journeys run as one matrix job of shards; each runs its share.
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
 const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE} --shard=\${{ matrix.shard }}/2`;
@@ -89,15 +90,15 @@ const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, TOWER_TESTS],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
-  smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
-  browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
+  smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, CUSTOMER_PEOPLE, SMOKE],
+  browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, CUSTOMER_PEOPLE, JOURNEYS],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, WALKER],
   // The demo's suites get the demo's pinned Ntasks first.
   'demo-ntasks': [INSTALL, POSTGRES_STEP, DEMO_NTASKS, 'pnpm test:demo-ntasks'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, WALKER, 'pnpm test:demo-ntasks'];
+  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, CUSTOMER_PEOPLE, WALKER, 'pnpm test:demo-ntasks'];
 /** A suite's command without the arguments that pick its share of tests. */
 const suiteOf = (command) => command.replace(/ (?:-- .*|--shard=\S+)$/u, '');
 /** The lanes: a pull request whose change reaches every job it can run, and every other run. */
@@ -298,6 +299,10 @@ test('the Tower unit suite, the smoke journeys, the root suite, the task store a
   assert.match(tower, /UNIT_TEST_WORKERS: 100%\n {8}if: matrix\.part != 'typecheck'\n/u, 'the typecheck runner runs no tests');
   const smoke = jobBlock(workflow, 'smoke');
   assert.equal(shards('smoke'), 2);
+  for (const job of [smoke, jobBlock(workflow, 'browser')]) {
+    const people = job.split(/\n(?= {6}- )/u).find(step => runCommands(step).includes(CUSTOMER_PEOPLE));
+    assert.match(people ?? '', /\n {8}if: matrix\.shard == 1\n {8}env:\n {10}NOTICEOS_TEST_CUSTOMER_PEOPLE: '1'\n?/u);
+  }
   assert.match(smoke, /- run: pnpm --filter @noticeos\/tower run test:journey-harness\n {8}if: matrix\.shard == 1\n/u, 'the harness runs once');
   assert.match(smoke, /name: smoke-journey-browser-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each smoke shard keeps its own evidence');
   for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['demo-ntasks', 'pnpm test:demo-ntasks']]) {
