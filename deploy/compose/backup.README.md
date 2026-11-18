@@ -124,7 +124,11 @@ and schedule-service database logins and their `CONNECT` grants on the new
 destination. The dump contains the workspace, identity tables and workspace
 service grants. The database login setup uses the protected recovery declaration.
 If present, restore `recovery/resource-names.json` to the new installation's own
-settings folder before starting the app. It selects the bucket used by the archived objects.
+settings folder before starting the app. For older sets without this file, keep
+the original declaration or set `rawSignalsBucket` to the verified archive
+bucket before starting customer mode. If the restore contains several buckets,
+verify which physical bucket contains the indexed report objects before choosing
+the name.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local

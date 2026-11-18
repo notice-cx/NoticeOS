@@ -708,6 +708,8 @@ replacing an existing installation requires an explicitly approved maintenance w
   reads/writes before accepting recovery. No existing database is replaced here.
 - R2: copy \`r2/\` back over \`.wrangler/state/v3/r2/\`.
   If present, restore \`recovery/resource-names.json\` into the new installation's settings folder before starting the app.
+  For older sets without it, keep the original declaration or set \`rawSignalsBucket\` to the verified archive bucket before starting customer mode.
+  If the restore contains several buckets, verify which physical bucket contains the indexed report objects before choosing the name.
 - Analytical history: copy the whole \`history/\` tree into a new scratch folder.
   Run \`verifyAnalyticalHistoryBackup\` from \`scripts/analytical-history-backup.mjs\`
   against that folder, then use the existing history readers with its published
