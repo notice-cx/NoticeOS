@@ -3522,6 +3522,69 @@ test("the TV downloads no desk editing or task code, and none of the widgets the
 
 // ── the asset page's tabs and the command palette ───────────────────────────
 
+test("navigation tabs stay readable and contained while moving keyboard focus", { tag: PR_SMOKE }, async ({ page }) => {
+  await addAssetByApi(page);
+  const base = `/assets/${JOURNEY_ASSET}`;
+  await page.goto(base);
+  const list = page.getByRole("tablist", { name: "Asset sections" });
+  const overview = list.getByRole("tab", { name: "Overview", exact: true });
+  await expect(overview).toHaveAttribute("aria-selected", "true");
+  const tabs = list.getByRole("tab");
+  const last = tabs.last();
+  const href = (await last.getAttribute("href"))!;
+  const insideStrip = (tab: Element) => {
+    const strip = tab.closest('[role="tablist"]')!.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    return box.left >= strip.left - 1 && box.right <= strip.right + 1;
+  };
+  const hasUnderline = (tab: Element) => {
+    const style = getComputedStyle(tab);
+    const neighboring = getComputedStyle(tab.parentElement!.querySelector('[aria-selected="false"]')!);
+    return parseFloat(style.borderBottomWidth) >= 2 && style.borderBottomColor !== neighboring.borderBottomColor;
+  };
+  const hasFocusOutline = (tab: Element) => {
+    const style = getComputedStyle(tab);
+    return style.outlineStyle === "solid" && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) < 0;
+  };
+
+  const sizes = await tabs.evaluateAll(elements => elements.map(element => ({
+    height: element.getBoundingClientRect().height,
+    size: parseFloat(getComputedStyle(element).fontSize),
+    weight: parseInt(getComputedStyle(element).fontWeight, 10),
+  })));
+  expect(sizes.every(({ height, size, weight }) => height >= 44 && size >= 16 && weight >= 600)).toBe(true);
+  await overview.focus();
+  const pageScroll = await page.evaluate(() => [scrollX, scrollY]);
+  await page.keyboard.press("End");
+  await expect(last).toBeFocused();
+  await expect(overview).toHaveAttribute("aria-selected", "true");
+  expect(await last.evaluate(insideStrip)).toBe(true);
+  expect(await overview.evaluate(hasUnderline)).toBe(true);
+  expect(await last.evaluate(hasFocusOutline)).toBe(true);
+  expect(await page.evaluate(() => [scrollX, scrollY])).toEqual(pageScroll);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+
+  await page.keyboard.press("Space");
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(url => url.pathname === href.split("?")[0]);
+  await page.goBack();
+  await expect(overview).toHaveAttribute("aria-selected", "true");
+
+  await page.goto(href);
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => last.evaluate(insideStrip)).toBe(true);
+
+  await page.evaluate(() => localStorage.setItem("noticeos:theme", "light"));
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/\blight\b/u);
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  await last.focus();
+  await page.keyboard.press("Home");
+  await expect(overview).toBeFocused();
+  expect(await last.evaluate(hasUnderline)).toBe(true);
+  expect(await overview.evaluate(hasFocusOutline)).toBe(true);
+});
+
 test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
