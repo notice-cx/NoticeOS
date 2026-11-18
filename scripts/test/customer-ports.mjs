@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import net from 'node:net';
 import { MANAGED_START_PORTS } from '../start-postgres.mjs';
 
@@ -15,8 +16,11 @@ export async function availableCustomerPort() {
       return server.address().port;
     };
     try {
-      const port = await bind(0);
-      if (port > 65_533 || [port, port + 2].some(value => MANAGED_START_PORTS.includes(value))) continue;
+      // The fixture reuses this port after shutdown. Keep it away from the
+      // default ephemeral sockets used by connections and other test servers.
+      const candidate = randomInt(20_000, 30_000);
+      if ([candidate, candidate + 2].some(value => MANAGED_START_PORTS.includes(value))) continue;
+      const port = await bind(candidate);
       await bind(port + 2);
       return port;
     } catch (error) {
