@@ -28,7 +28,8 @@ function OwnerMembers() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const issuing = useRef(false);
-  const read = useQuery({ queryKey: QUERY, queryFn: async ({ signal }): Promise<Roster> => {
+  // An offline refresh must settle while it holds the roster lock.
+  const read = useQuery({ queryKey: QUERY, networkMode: 'always', refetchOnReconnect: true, queryFn: async ({ signal }): Promise<Roster> => {
     const [members, invitations] = await Promise.all([runtime.api.fetchMembers(undefined, signal), runtime.api.fetchInvitations(undefined, signal)]);
     return { members, invitations };
   } });
@@ -37,8 +38,8 @@ function OwnerMembers() {
     if (issuing.current || runtime.guard(() => true)() !== true) return;
     issuing.current = true; setBusy(true); setNotice(null);
     try {
-      await recheckAccess?.();
-      if (runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
+      const verified = await recheckAccess?.();
+      if (verified === true && runtime.guard(() => true)() === true) await read.refetch({ throwOnError: true });
     } catch {
       update(() => setNotice({ error: true, text: 'People and invitations could not be refreshed. Try again.' }));
     } finally {

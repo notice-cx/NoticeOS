@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MembersSection } from '@/routes/settings/MembersSection';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
@@ -28,7 +28,7 @@ function roster(input: unknown, init?: RequestInit) {
     items: command.collection === 'members' ? [member] : [], nextCursor: null });
 }
 function mount(value: ReturnType<typeof runtime>, role: 'owner' | 'operator' | 'viewer' = 'owner', refreshSession = vi.fn(async () => {}),
-  revalidateSession?: () => Promise<void>) {
+  revalidateSession?: () => Promise<boolean>) {
   return render(<BrowserRuntimeProvider value={{ runtime: value, workspaceLabel: 'Generated workspace', workspaceRole: role, refreshSession, revalidateSession }}>
     <QueryClientProvider client={value.queries}><MembersSection /></QueryClientProvider>
   </BrowserRuntimeProvider>);
@@ -67,7 +67,7 @@ it("another member's role change rechecks access without rebuilding the page", a
     return roster(input, init);
   });
   const refreshSession = vi.fn(async () => {});
-  const revalidateSession = vi.fn(async () => {});
+  const revalidateSession = vi.fn(async () => true);
   mount(runtime(fetch), 'owner', refreshSession, revalidateSession);
   await screen.findByText('Generated operator');
   fireEvent.change(screen.getByLabelText('Role for operator@example.test'), { target: { value: 'viewer' } });
@@ -77,7 +77,7 @@ it("another member's role change rechecks access without rebuilding the page", a
   await vi.waitFor(() => expect(revalidateSession).toHaveBeenCalledTimes(1));
   expect(refreshSession).not.toHaveBeenCalled();
 });
-it('refresh serializes with pagination and keeps the existing roster available when reloading fails', async () => {
+it('refresh waits for verified access, excludes pagination and leaves the roster retryable offline', async () => {
   const colleague = { id: other, name: 'Generated viewer', email: 'viewer@example.test', role: 'viewer' };
   let reloadFails = false;
   const fetch = vi.fn<ApiTransport>(async (input, init) => {
@@ -87,22 +87,30 @@ it('refresh serializes with pagination and keeps the existing roster available w
     if (reloadFails) return Response.json({ ok: false }, { status: 503 });
     return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
   });
-  let finishRecheck!: () => void;
-  const revalidate = () => new Promise<void>(resolve => { finishRecheck = resolve; });
+  let finishRecheck!: (verified: boolean) => void;
+  const revalidate = () => new Promise<boolean>(resolve => { finishRecheck = resolve; });
   const value = runtime(fetch);
   value.queries.setDefaultOptions({ queries: { retry: false } });
   mount(value, 'owner', undefined, revalidate);
   await screen.findByText(member.name);
+  const refresh = screen.getByRole('button', { name: 'Refresh access' });
   const more = screen.getByRole('button', { name: 'More people' });
-  reloadFails = true;
-  fireEvent.click(screen.getByRole('button', { name: 'Refresh access' }));
-  expect(more).toBeDisabled();
-  fireEvent.click(more);
+  fireEvent.click(refresh);
+  await act(async () => finishRecheck(false));
   expect(fetch).toHaveBeenCalledTimes(2);
-  await act(async () => finishRecheck());
-  await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
-  expect(screen.getByText(member.name)).toBeVisible();
-  expect(more).toBeEnabled();
+  const wasOnline = onlineManager.isOnline();
+  onlineManager.setOnline(false);
+  try {
+    reloadFails = true;
+    fireEvent.click(refresh);
+    expect(more).toBeDisabled();
+    fireEvent.click(more);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => finishRecheck(true));
+    await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
+    expect(screen.getByText(member.name)).toBeVisible();
+    expect(more).toBeEnabled();
+  } finally { onlineManager.setOnline(wasOnline); }
   fireEvent.click(more);
   expect(await screen.findByText(colleague.name)).toBeVisible();
 });

@@ -148,6 +148,18 @@ describe('verified tab entry', () => {
     await vi.waitFor(() => expect(value.snapshot().phase).toBe('ready'));
     expect(value.snapshot().runtime?.ownerKey).not.toBe(old.ownerKey);
   });
+  it('verifies an unchanged runtime and waits for a role transition before returning', async () => {
+    let role = 'owner';
+    const value = entry(async (_input, init) => Response.json(snapshot(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER), A, SA, role)));
+    await value.refresh(); await value.choose(WA);
+    const old = value.snapshot().runtime;
+    expect(await value.revalidate()).toBe(true);
+    expect(value.snapshot().runtime).toBe(old);
+    role = 'operator';
+    expect(await value.revalidate()).toBe(false);
+    expect(old?.guard(() => true)()).toBeUndefined();
+    expect(value.snapshot().session).toMatchObject({ selectedWorkspace: { role: 'operator' } });
+  });
   it("a page's first pageshow keeps the lifetime it already read", async () => {
     let reads = 0;
     const value = entry(async () => { reads++; return Response.json({ mode: 'standalone' }); });

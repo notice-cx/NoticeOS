@@ -281,36 +281,35 @@ export function createBrowserEntry(options: {
     if (!expected || expected.mode !== 'hosted' || !expected.session) { await refresh(); return; }
     await completeSignIn(expected);
   }
-  /** A returning tab keeps its runtime and cache while the server still names
-   * the same lifetime; any difference or failure is an ordinary refresh. */
-  async function revalidate() {
-    if (disposed || appRelease.snapshot() !== 'current') return;
+  /** True only when the server verifies the runtime the caller started with. */
+  async function revalidate(): Promise<boolean> {
+    if (disposed || appRelease.snapshot() !== 'current') return false;
     const kept = state;
-    if (kept.phase !== 'ready' || kept.runtime === null || kept.session === null) { void refresh(); return; }
+    if (kept.phase !== 'ready' || kept.runtime === null || kept.session === null) { await refresh(); return false; }
     const probe = new AbortController();
     releaseProbe?.abort(); releaseProbe = probe;
     const ticket = revision;
     const live = () => current(ticket) && releaseProbe === probe && !probe.signal.aborted && state === kept;
     try {
       if (appRelease.enabled) await appRelease.check(AbortSignal.any([probe.signal, AbortSignal.timeout(10_000)]));
-    } catch { return; }
-    if (!live()) return;
+    } catch { return false; }
+    if (!live()) return false;
     let session: BrowserSession;
     try {
       session = await readSession({ base: options.base, signal: probe.signal });
-      if (!live()) return;
+      if (!live()) return false;
       const selected = session.mode === 'hosted' && session.session ? remembered(session.session) : undefined;
       if (selected !== undefined) {
         const selectedSession = await readSession({ base: options.base, selected, signal: probe.signal });
-        if (!live()) return;
-        if (!samePerson(session, selectedSession)) { void refresh(); return; }
+        if (!live()) return false;
+        if (!samePerson(session, selectedSession)) { await refresh(); return false; }
         session = selectedSession;
       }
     } catch {
-      if (live()) void refresh();
-      return;
+      if (live()) await refresh();
+      return false;
     }
-    if (!sameLifetime(kept.session, session)) { void refresh(); return; }
+    if (!sameLifetime(kept.session, session)) { await refresh(); return false; }
     releaseProbe = null;
     set({ ...kept, session, choices: session.mode === 'hosted' ? session.workspaces : [] });
     if (session.mode === 'hosted' && session.session) {
@@ -318,6 +317,7 @@ export function createBrowserEntry(options: {
       const remaining = Date.parse(session.session.expiresAt) - Date.now();
       expiry = setTimeout(() => void refresh(), Math.min(remaining, 2_147_483_647));
     }
+    return true;
   }
   // A page's first `pageshow` follows its own load, often after the entry has
   // already read the session; only a page that was hidden reads it again.
