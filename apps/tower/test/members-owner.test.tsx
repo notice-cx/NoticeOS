@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MembersSection } from '@/routes/settings/MembersSection';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
@@ -8,6 +8,7 @@ import type { ApiTransport } from '@/lib/api';
 import { MembershipRefused } from '@/lib/membership-client';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 import { MEMBERSHIP_PATH } from '../../../scripts/identity-protocol.mjs';
+import { deferred } from './deferred';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const other = '22222222-2222-4222-8222-222222222222';
@@ -76,6 +77,192 @@ it("another member's role change rechecks access without rebuilding the page", a
   await screen.findByText('Access updated.');
   await vi.waitFor(() => expect(revalidateSession).toHaveBeenCalledTimes(1));
   expect(refreshSession).not.toHaveBeenCalled();
+});
+it('holds the roster action lock during an offline refresh and keeps people visible on a temporary failure', async () => {
+  const colleague = { id: other, name: 'Generated viewer', email: 'viewer@example.test', role: 'viewer' };
+  const reload = deferred<Response>();
+  let refreshing = false;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const request = JSON.parse(String(init?.body));
+    if (request.collection !== 'members') return roster(input, init);
+    if (request.after === other) return Response.json({ ok: true, collection: 'members', items: [colleague], nextCursor: null });
+    if (refreshing) return reload.promise;
+    return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+  });
+  const value = runtime(fetch);
+  value.queries.setDefaultOptions({ queries: { retry: false } });
+  mount(value);
+  await screen.findByText(member.name);
+  const more = screen.getByRole('button', { name: 'More people' });
+  const wasOnline = onlineManager.isOnline();
+  onlineManager.setOnline(false);
+  try {
+    refreshing = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh access' }));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+    expect(more).toBeDisabled();
+    fireEvent.click(more);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    await act(async () => reload.resolve(Response.json({ ok: false }, { status: 503 })));
+    await vi.waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/try again/i));
+    expect(screen.getByText(member.name)).toBeVisible();
+    expect(more).toBeEnabled();
+    fireEvent.click(more);
+    expect(await screen.findByText(colleague.name)).toBeVisible();
+  } finally {
+    reload.resolve(Response.json({ ok: false }, { status: 503 }));
+    onlineManager.setOnline(wasOnline);
+  }
+});
+it('a page from an earlier roster cannot overwrite a newer first page or its cursor', async () => {
+  const oldPage = deferred<Response>();
+  let cursor = other;
+  const newCursor = '33333333-3333-4333-8333-333333333333';
+  const oldMember = { ...member, id: other, name: 'Former page member', role: 'viewer' };
+  const newMember = { ...oldMember, id: newCursor, name: 'Current page member' };
+  const response = (items: typeof member[], nextCursor: string | null) =>
+    Response.json({ ok: true, collection: 'members', items, nextCursor });
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.collection !== 'members') return roster(input, init);
+    if (command.after === other) return oldPage.promise;
+    if (command.after === newCursor) return response([newMember], null);
+    return response([member], cursor);
+  });
+  const value = runtime(fetch); mount(value);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    cursor = newCursor;
+    await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+    await act(async () => oldPage.resolve(response([oldMember], null)));
+    expect(screen.queryByText(oldMember.name)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More people' }));
+    expect(await screen.findByText(newMember.name)).toBeVisible();
+  } finally { oldPage.resolve(response([oldMember], null)); }
+});
+
+it.each(['page', 'refresh'] as const)('403 during %s clears and retires pagination before retry', async deniedBy => {
+  const page = deferred<Response>();
+  let pageSignal: AbortSignal | undefined;
+  let denyRefresh = false;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.collection !== 'members') return roster(input, init);
+    if (command.after) { pageSignal = init?.signal ?? undefined; return page.promise; }
+    if (denyRefresh) return Response.json({ ok: false }, { status: 403 });
+    return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+  });
+  const revalidate = vi.fn(async () => {});
+  const value = runtime(fetch); mount(value, 'owner', undefined, revalidate);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    await vi.waitFor(() => expect(pageSignal).toBeDefined());
+    if (deniedBy === 'refresh') {
+      denyRefresh = true;
+      await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+      expect(pageSignal?.aborted).toBe(true);
+    } else await act(async () => page.resolve(Response.json({ ok: false }, { status: 403 })));
+    await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+    await vi.waitFor(() => expect(revalidate).toHaveBeenCalledTimes(1));
+    denyRefresh = false;
+    page.resolve(Response.json({ ok: false }, { status: 503 }));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(member.name)).toBeVisible();
+  } finally { page.resolve(Response.json({ ok: false }, { status: 503 })); }
+});
+
+it('leaving Members aborts a page and prevents a late answer from changing a remounted roster', async () => {
+  const oldPage = deferred<Response>();
+  let signal: AbortSignal | undefined;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.after) { signal = init?.signal ?? undefined; return oldPage.promise; }
+    if (command.collection === 'members') return Response.json({ ok: true, collection: 'members', items: [member], nextCursor: other });
+    return roster(input, init);
+  });
+  const value = runtime(fetch);
+  const original = mount(value);
+  fireEvent.click(await screen.findByRole('button', { name: 'More people' }));
+  try {
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    original.unmount();
+    expect(signal?.aborted).toBe(true);
+    const revalidate = vi.fn(async () => {});
+    mount(value, 'owner', undefined, revalidate);
+    await act(() => value.queries.invalidateQueries({ queryKey: ['workspace-members'] }));
+    await act(async () => oldPage.resolve(Response.json({ ok: false }, { status: 403 })));
+    expect(screen.getByText(member.name)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'More people' })).toBeEnabled();
+    expect(revalidate).not.toHaveBeenCalled();
+  } finally { oldPage.resolve(Response.json({ ok: false }, { status: 403 })); }
+});
+
+it('a refusal from either read hides cached people until a complete authorized refresh succeeds', async () => {
+  let mode: 'allowed' | 'mixed' | 'temporary' = 'allowed';
+  const denied = deferred();
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const request = JSON.parse(String(init?.body));
+    if (mode === 'allowed') return roster(input, init);
+    if (mode === 'mixed' && request.collection === 'members') {
+      await denied.promise;
+      return Response.json({ ok: false }, { status: 403 });
+    }
+    return Response.json({ ok: false }, { status: 503 });
+  });
+  const revalidate = vi.fn(async () => {});
+  const value = runtime(fetch);
+  value.queries.setDefaultOptions({ queries: { retry: 1, retryDelay: 0 } });
+  mount(value, 'owner', undefined, revalidate);
+  await screen.findByText(member.name);
+  fireEvent.change(screen.getByLabelText('Email *'), { target: { value: invitation.email } });
+  const refresh = screen.getByRole('button', { name: 'Refresh access' });
+  const invite = screen.getByRole('button', { name: /^Invite$/u });
+  mode = 'mixed';
+  fireEvent.click(refresh);
+  try { await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4)); }
+  finally { await act(async () => denied.resolve()); }
+  await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+  expect(fetch).toHaveBeenCalledTimes(4);
+  expect(invite).toBeDisabled();
+  expect(revalidate).toHaveBeenCalledTimes(1);
+  mode = 'temporary';
+  fireEvent.click(refresh);
+  await vi.waitFor(() => expect(refresh).toBeEnabled());
+  expect(screen.queryByText(member.name)).toBeNull();
+  expect(invite).toBeDisabled();
+  mode = 'allowed';
+  fireEvent.click(refresh);
+  expect(await screen.findByText(member.name)).toBeVisible();
+  expect(invite).toBeEnabled();
+  expect(screen.getByLabelText('Email *')).toHaveValue(invitation.email);
+});
+it('a background refusal hides the roster, cancels the pending read and rechecks access', async () => {
+  const stalled = deferred<Response>();
+  let deny = false;
+  let invitationsSignal: AbortSignal | null | undefined;
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    if (!deny) return roster(input, init);
+    if (JSON.parse(String(init?.body)).collection === 'members') return Response.json({ ok: false }, { status: 403 });
+    invitationsSignal = init?.signal;
+    return stalled.promise;
+  });
+  const revalidate = vi.fn(async () => {});
+  const value = runtime(fetch);
+  mount(value, 'owner', undefined, revalidate);
+  await screen.findByText(member.name);
+  deny = true;
+  const read = value.queries.refetchQueries();
+  try {
+    await vi.waitFor(() => expect(screen.queryByText(member.name)).toBeNull());
+    expect(invitationsSignal?.aborted).toBe(true);
+    expect(revalidate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status')).toHaveTextContent('HTTP 403');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  } finally {
+    stalled.resolve(Response.json({ ok: false }, { status: 503 }));
+    await read;
+  }
 });
 it('saved delivery failure clears new-invite draft and Resend reuses the existing invitation ID', async () => {
   let saved = false;

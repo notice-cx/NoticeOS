@@ -104,8 +104,29 @@ export default function WorkflowsRoute({ surface = 'workflow' }: { surface?: Wor
   const oldActivity = ['activity', 'state', 'q', 'group', 'sort', 'view'].some(key => search.has(key));
   const definition = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === id);
   if (definition && definition.surface !== surface) return <Navigate replace to={`${workflowBasePath(definition.surface)}/${id}${location.search}`} />;
+  if (backupPreview) return id && id !== 'schedule'
+    ? <Navigate replace to={workflowBasePath(surface)} />
+    : <BackupWorkflows surface={surface} schedule={id === 'schedule'} />;
   if (!id && customerAnalysis && (search.has('workflow') || !oldActivity)) return <AnalysisWorkflows />;
   return id && id !== 'schedule' ? <WorkflowDetail key={id} id={id} surface={surface} /> : <WorkflowIndex schedule={id === 'schedule'} surface={surface} analysisAvailable={customerAnalysis} />;
+}
+
+function BackupWorkflows({ surface, schedule }: { surface: WorkflowSurface; schedule: boolean }) {
+  const system = surface === 'system';
+  const base = workflowBasePath(surface);
+  return <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
+    <PageHeader title={system ? 'System health' : 'Workflows'} />
+    {system && <HealthNavigation />}
+    <div id={system ? 'health-view-panel' : undefined} role={system ? 'tabpanel' : undefined} aria-labelledby={system ? 'health-view-operations' : undefined} className="space-y-6">
+      <Tabs label={system ? 'Operation views' : 'Workflow views'} idBase="workflow-view" panelId="workflow-view-panel"
+        tabs={[{ key: 'overview', to: base, label: 'Activity', end: true }, { key: 'schedule', to: `${base}/schedule`, label: 'Schedule', end: true }]} />
+      <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={schedule ? 'schedule' : 'overview'}>
+        <p role="status" data-status-for={schedule ? 'preview:schedule' : 'preview:workflow-history'} className="text-sm text-muted-foreground">
+          {schedule ? 'Scheduled jobs are off in this backup preview.' : 'Workflow history was left out of this backup preview.'}
+        </p>
+      </TabPanel>
+    </div>
+  </div>;
 }
 
 function WorkflowIndex({ schedule, surface, analysisAvailable }: { schedule: boolean; surface: WorkflowSurface; analysisAvailable: boolean }) {

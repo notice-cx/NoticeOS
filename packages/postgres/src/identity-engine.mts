@@ -104,6 +104,13 @@ export function validateIdentityOptions(input: IdentityOptions): string {
   return baseURL;
 }
 
+export async function hasConflictingLegacyMailbox(db: Kysely<IdentityDatabase>, email: string): Promise<boolean> {
+  const existing = await sql`SELECT id FROM noticeos_identity.auth_user
+    WHERE lower(email COLLATE pg_catalog.pg_unicode_fast)=${email}
+      AND email COLLATE pg_catalog.pg_unicode_fast<>${email} LIMIT 1`.execute(db);
+  return existing.rows.length > 0;
+}
+
 export async function openIdentityDatabase(input: IdentityOptions) {
   validateIdentityOptions(input);
   // Request-owned pool. Workers timers cannot unref(), so no allowExitOnIdle.

@@ -48,6 +48,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `db:prepare-customer-roles` | Preview, enable or reverse the dedicated Postgres logins for a local customer workspace. | `scripts/customer-postgres-roles.mjs` |
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
+| `db:provision-workspace` | Prepare a new local customer workspace and enroll its verified first owner. | `scripts/local-workspace-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
 | `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
 | `db:shadow-export` | Preview or export selected workspace evidence from a private offline PostgreSQL backup. | `scripts/customer-shadow-export.mjs` |

@@ -65,6 +65,7 @@ export interface MeteredDataSpend {
   unattributedUsd: number;
   unattributedUnknownPrices: number;
 }
+export type MeteredSpendRow = { asset: string | null; spent: string; unknown: number | string };
 
 /** The instant the window opens, ISO UTC — the same string both tables compare
  * their timestamp column against, so one call cannot window two ways. */
@@ -107,9 +108,8 @@ export async function loadMeteredDataSpend(
 ): Promise<MeteredDataSpend> {
   const [since, next] = meteredSpendBounds(now, window);
 
-  type Spent = { asset: string | null; spent: string; unknown: number };
   const [collected, requests, research] = await store.read(async (tx) => [
-    await tx.query<Spent>(
+    await tx.query<MeteredSpendRow>(
       `SELECT asset_id AS asset, COALESCE(SUM(${METERED_ARCHIVE_COST}), 0)::text AS spent,
               count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
          FROM noticeos.archive_runs
@@ -117,14 +117,14 @@ export async function loadMeteredDataSpend(
         GROUP BY asset_id`,
       [METERED_DATA_PROVIDER, since, next],
     ),
-    await tx.query<Spent>(
+    await tx.query<MeteredSpendRow>(
       `SELECT asset_id AS asset, sum(provider_cost_usd)::text AS spent, 0 AS unknown
          FROM noticeos.dataforseo_request_charges
         WHERE provider_cost_usd IS NOT NULL AND reserved_at >= $1::timestamptz AND reserved_at < $2::timestamptz
         GROUP BY asset_id`,
       [since, next],
     ),
-    await tx.query<Spent>(
+    await tx.query<MeteredSpendRow>(
       `SELECT asset_id AS asset, COALESCE(SUM(cost_usd), 0)::text AS spent,
               count(*) FILTER (WHERE cost_state = 'unknown')::int AS unknown
          FROM noticeos.research_log
@@ -133,11 +133,14 @@ export async function loadMeteredDataSpend(
       [METERED_DATA_PROVIDER, since, next, RESEARCH_COLLECTOR_ACTOR],
     ),
   ]);
+  return summarizeMeteredDataSpend([...collected, ...requests, ...research]);
+}
 
+export function summarizeMeteredDataSpend(rows: readonly MeteredSpendRow[]): MeteredDataSpend {
   const perAsset = new Map<string, MeteredSpendAsset>();
   let unattributedUsd = 0;
   let unattributedUnknownPrices = 0;
-  for (const row of [...collected, ...requests, ...research]) {
+  for (const row of rows) {
     const spent = finite(row.spent);
     const unknownPrices = finite(row.unknown);
     if (spent === 0 && unknownPrices === 0) continue;

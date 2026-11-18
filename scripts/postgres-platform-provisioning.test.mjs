@@ -14,7 +14,7 @@ import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
-import { openPlatformProvisioning } from '../packages/postgres/src/platform-provisioning.mjs';
+import { openPlatformProvisioning, PlatformProjectReserved } from '../packages/postgres/src/platform-provisioning.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { openIdentity } from '../packages/postgres/src/identity.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
@@ -141,6 +141,43 @@ test('platform preparation is inactive and activation checks locked current evid
       assert.equal((await admin.query('SELECT count(*)::int n FROM noticeos_identity.auth_member WHERE organization_id=$1', [prepared.workspaceId])).rows[0].n, 0);
       assert.equal((await admin.query('SELECT email,activated_at FROM noticeos_identity.platform_enrollment WHERE id=$1', [prepared.enrollmentId])).rows[0].email, 'first@example.test');
       assert.equal(verificationCalls, 0);
+    });
+    await t.test('a competing preparation waits for the first project reservation to commit', async () => {
+      const projectId = randomUUID(), workspaceId = randomUUID();
+      const project = () => ({ projectId, executorRef: randomUUID(), credentialRef: randomUUID(), databaseKey: 'n_' + randomUUID().replaceAll('-', '') });
+      const old = project();
+      const holder = await platform.pool.connect();
+      let held = false, attempt, finished = false;
+      try {
+        await holder.query('BEGIN');
+        held = true;
+        const { rows: [{ pid }] } = await holder.query('SELECT pg_backend_pid() AS pid');
+        await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))', ['noticeos:initial-task-project:' + projectId]);
+        await holder.query(`INSERT INTO noticeos_platform.task_project_directory(workspace_id,project_id,executor_ref,credential_ref,database_key)
+          VALUES($1,$2,$3,$4,$5)`, [prepared.workspaceId, projectId, old.executorRef, old.credentialRef, old.databaseKey]);
+        attempt = module.prepare({ workspaceId, slug: `fixture-${workspaceId}`, displayName: 'Contending workspace',
+          intendedEmail: 'contender@example.test', expiresAt: new Date(Date.now() + 3600000).toISOString() }, project())
+          .then(() => null, error => error).finally(() => { finished = true; });
+        let waiting = false;
+        const deadline = Date.now() + 3000;
+        while (!waiting && !finished && Date.now() < deadline) {
+          const { rows: [state] } = await admin.query(`SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity WHERE wait_event='advisory' AND $1::int=ANY(pg_blocking_pids(pid))) AS waiting`, [pid]);
+          waiting = state.waiting;
+        }
+        assert.ok(waiting, 'the contender reaches the reservation before the first transaction commits');
+        await holder.query('COMMIT');
+        held = false;
+        assert.ok(await attempt instanceof PlatformProjectReserved);
+      } finally {
+        let broken = false;
+        try { if (held) await holder.query('ROLLBACK'); }
+        catch (error) { broken = true; throw error; }
+        finally { holder.release(broken); await attempt; }
+      }
+      assert.deepEqual((await admin.query('SELECT workspace_id FROM noticeos_platform.task_project_directory WHERE project_id=$1', [projectId])).rows,
+        [{ workspace_id: prepared.workspaceId }]);
+      assert.equal((await admin.query('SELECT 1 FROM noticeos.workspaces WHERE workspace_id=$1', [workspaceId])).rowCount, 0);
     });
     await t.test('collisions and malformed envelopes roll back the entire preparation', async () => {
       await assert.rejects(module.prepare({ workspaceId: prepared.workspaceId, slug: 'other', displayName: 'Other', intendedEmail: 'first@example.test', expiresAt: new Date(Date.now() + 3600000).toISOString() }), refused);

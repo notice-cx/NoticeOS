@@ -110,6 +110,7 @@ export interface BuildOptions {
   schedules?: ScheduleOverrides | null;
   reportGa4Today?: boolean;
   refreshTaskSnapshot?: TaskSnapshotRefresh;
+  backupPreview?: boolean;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -437,6 +438,7 @@ export async function buildWallPayload(
     schedules,
     reportGa4Today = false,
     refreshTaskSnapshot,
+    backupPreview,
   }: BuildOptions,
 ): Promise<WallPayload> {
   const nowMs = now.getTime();
@@ -703,7 +705,7 @@ export async function buildWallPayload(
   // `loadDataForSeoSpend` — the same function the Health page's spend summary
   // and `/settings`' budget meter call, windowed to today. UTC days, matching
   // `daysInMonthUTC` above, so numerator and denominator share one calendar.
-  const { spentUsd: spendTodayUsd } = await loadDataForSeoSpend(store, now, "day");
+  const { spentUsd: spendTodayUsd } = await loadDataForSeoSpend(store, now, "day", backupPreview);
 
   const system: SystemBand = {
     assetId: osAsset?.id ?? null,

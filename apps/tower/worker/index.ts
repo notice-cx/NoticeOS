@@ -836,8 +836,9 @@ const towerHandler = {
             ? await call.withStore(ctx, async store =>
                 await handleDemoPresentationRead(request, store, env)
                 ?? await handleHostedWorkflowRead(request, store, Date.now(), profile === 'hosted' ? env.NOTICEOS_CUSTOMER_SCHEDULES : undefined)
-                ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date() })
+                ?? await handleIntegrationSummaryRead(request, { store, config, ingest, now: new Date(), backupPreview: env.NOTICEOS_CUSTOMER_SHADOW === true })
                 ?? handleStoredRead(request, { store, config, compiledTimeZone: fallbacks.osTimeZone, reportGa4Today: profile === 'hosted', refreshTaskSnapshot,
+                  backupPreview: env.NOTICEOS_CUSTOMER_SHADOW === true,
                   portfolioSummary: profile === 'hosted'
                     ? portfolioSummaryStore(env.NOTICEOS_PORTFOLIO, call.context.workspaceId, env.NOTICEOS_CUSTOMER_SHADOW) : undefined }))
             : await handleConfigRequest(request, { ingest, config });

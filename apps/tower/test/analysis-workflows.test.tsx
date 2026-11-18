@@ -182,8 +182,10 @@ describe('customer analysis workflows', () => {
   it.each([['/workflows', true], ['/health/operations', undefined], ['/workflows?activity=1', undefined]] as const)('keeps existing workflow operation routes outside the analysis API (%s)', async (path, preview) => {
     const requests = fixture(true);
     mount(requests, path, 'owner', preview);
-    await waitFor(() => expect(requests.traffic.some(event => event.path === '/api/workflows')).toBe(true));
+    if (preview) await screen.findByRole('status');
+    else await waitFor(() => expect(requests.traffic.some(event => event.path === '/api/workflows')).toBe(true));
     expect(screen.queryByRole('button', { name: 'Create workflow' })).toBeNull();
     expect(requests.traffic.some(event => event.path.startsWith(PATH))).toBe(false);
+    if (preview) expect(requests.traffic.some(event => event.path === '/api/workflows')).toBe(false);
   });
 });
