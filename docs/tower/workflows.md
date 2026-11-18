@@ -5,15 +5,22 @@ description: "What NoticeOS runs on its own for your assets and your work, when 
 
 # Workflows
 
-A **workflow** is something NoticeOS does on its own, on a schedule or when an event occurs, for your assets and your work: reading outcome checks, updating the tasks that track them, filing review tasks, sending notifications. Each has a purpose, a trigger and a history of runs. The **Workflows** page lists them; the jobs that keep NoticeOS itself running, such as collection and backups, are on **System health** > **Background operations** instead.
+A **workflow** has a purpose, a trigger and a history of runs. Saved analyses can run manually or weekly. Existing automatic workflows run outcome checks, update tasks, file review tasks and deliver notifications. **System health** > **Background operations** lists collection and backups.
 
-The Workflows page shows whether anything NoticeOS runs on its own is failing, and when each one runs next.
+In a customer workspace, **Workflows** opens your saved analysis workflows. Select **Workflow activity** for existing automatic workflows, or **Background operations** for collection and backups. Standalone installations open the activity list directly.
+
+## Saved analysis workflows
+
+- Select **Create workflow**, choose **Weekly search review** or **SEO & AI search visibility**, then choose the assets and a manual or weekly trigger. The template lists its steps and the reports it uses. Weekly runs use the workspace time zone.
+- **Start run** saves the template version and the evidence available for those assets. Open a run to read its steps, source dates and coverage. Follow **Check background operations** to investigate a missing report.
+- Select **Assign analysis** to create a review task in a connected task project. The task and its run stay linked. Record findings with citations from the run, a reason to take no action, insufficient evidence, or the reason the analysis could not complete.
+- Workspace owners and operators create, pause and run analyses, assign reviews and record results. Viewers can open saved workflows and runs.
 
 ## What you see
 
 **The summary.** **1 of 5 workflows need attention** counts the ones that failed or whose state cannot be confirmed; otherwise **No workflows need attention**. The line under it counts every other state once, such as **3 succeeded · 1 paused**. The header shows which time zone every time on the page is in: **Times in** your browser's zone.
 
-**Two tabs.** **Activity** (`/workflows`) shows the last 24 hours; **Schedule** (`/workflows/schedule`) shows the next 24.
+**Two tabs.** **Activity** shows the last 24 hours; **Schedule** (`/workflows/schedule`) shows the next 24.
 
 **The list.** One row per workflow, grouped by category (**Outcomes**, **Tasks**, **Notifications** and the rest), each group heading counting its states:
 

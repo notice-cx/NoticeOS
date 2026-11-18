@@ -24,6 +24,14 @@ declare const ACTIONS: Readonly<{
         category: Category;
         demo: boolean;
     }>;
+    'mcp.connect': Readonly<{
+        category: Category;
+        demo: boolean;
+    }>;
+    'analysis.read': Readonly<{
+        category: Category;
+        demo: boolean;
+    }>;
     'integrations.summary.read': Readonly<{
         category: Category;
         demo: boolean;
@@ -65,6 +73,14 @@ declare const ACTIONS: Readonly<{
         demo: boolean;
     }>;
     'workflows.run': Readonly<{
+        category: Category;
+        demo: boolean;
+    }>;
+    'analysis.complete': Readonly<{
+        category: Category;
+        demo: boolean;
+    }>;
+    'analysis.assign': Readonly<{
         category: Category;
         demo: boolean;
     }>;

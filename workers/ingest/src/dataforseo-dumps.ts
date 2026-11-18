@@ -7,6 +7,7 @@ import { observeIntegration, tryHealthConnection, type HealthConnection } from '
 
 import {
   archiveCollectedDump,
+  ARCHIVE_BYTE_LIMIT,
   LOCAL_STORE_FAILED,
   localStoreError,
   archiveDumpFailure,
@@ -51,7 +52,7 @@ import {
   sourcedCredentialRef,
 } from './credentials.js';
 import { readDataForSeoAccount, recordDataForSeoBalance } from './dataforseo-balance.js';
-import { canReserveDataForSeo, reserveDataForSeo, settleDataForSeo } from './dataforseo-budget.js';
+import { canReserveDataForSeo, customerDataForSeoRequestKey, reserveDataForSeo, settleDataForSeo } from './dataforseo-budget.js';
 import {
   type LaneMappingSource,
   type LaneRegister,
@@ -700,20 +701,22 @@ export async function runDataForSeoRecovery(
   options: Omit<DataForSeoDumpsOptions, 'scope'> = {},
 ): Promise<DataForSeoDumpsResult> {
   const owed = await openEgressLaneRecord(env, 'dataforseo');
-  if (owed === null) {
+  const repairCheckpoints = options.fenceUnsettled === true && options.scheduledAssets !== undefined;
+  if (owed === null && !repairCheckpoints) {
     return { attempted: 0, succeeded: 0, unchanged: 0, failed: 0, costUsd: 0, outcomes: [] };
   }
-  return await runCollector(env, { ...options, scope: null }, owed);
+  return await runCollector(env, { ...options, scope: null }, owed, repairCheckpoints);
 }
 
 async function runCollector(
   env: IngestEnv,
   options: DataForSeoDumpsOptions,
   owed: EgressLaneRecord | null,
+  repairCheckpoints = false,
 ): Promise<DataForSeoDumpsResult> {
   const nowMs = options.nowMs ?? Date.now();
   const workspaceId = await env.STORE.workspaceId();
-  const claim = claimLane(workspaceId, nowMs, options.scope ?? null, owed !== null, options.preserveRecoveryLock === true);
+  const claim = claimLane(workspaceId, nowMs, options.scope ?? null, owed !== null || repairCheckpoints, options.preserveRecoveryLock === true);
   if (claim.blockedBy) {
     // Neither a start nor a complete line: "one start, no complete" keeps
     // meaning an interrupted run.
@@ -743,7 +746,7 @@ async function runCollector(
     };
   }
   try {
-    return await collectDueReports(env, options, nowMs, owed);
+    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints);
   } finally {
     releaseLane(workspaceId, claim.token);
   }
@@ -762,8 +765,9 @@ async function collectDueReports(
   options: DataForSeoDumpsOptions,
   nowMs: number,
   owed: EgressLaneRecord | null,
+  repairCheckpoints: boolean,
 ): Promise<DataForSeoDumpsResult> {
-  const recovery = owed !== null;
+  const recovery = owed !== null || repairCheckpoints;
   const requestedAt = new Date(nowMs).toISOString();
   const reportDate = requestedAt.slice(0, 10);
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -811,6 +815,11 @@ async function collectDueReports(
   );
   const familiesFor = (asset: string) => scope?.families ?? approved?.get(asset);
   const sweep = sweepPlan(targets, panel, familiesFor);
+  const recovered = repairCheckpoints && sweep.length
+    ? await recoverDataForSeoCheckpoints(env, sweep, panel, requestedAt, options.signal) : [];
+  if (repairCheckpoints && owed === null) {
+    return dumpResult(recovered);
+  }
   // The daily re-collection narrows the sweep to what the outage skipped; the
   // due check below still applies, so a family collected since is not re-bought.
   const fullPlan =
@@ -883,7 +892,7 @@ async function collectDueReports(
       outcomes.push({ ...outcome, costUsd: 0, retries: 0 });
     }
     const egressOutcome = await egress.gate.finalize(egressCoverage);
-    return { ...finish(outcomes, scope, skippedFresh, options.configSources, false, egressOutcome, recovery), ...collectionMonitoring(monitoring) };
+    return { ...finish([...recovered, ...outcomes], scope, skippedFresh, options.configSources, false, egressOutcome, recovery), ...collectionMonitoring(monitoring) };
   }
 
   if (!Number.isFinite(monthlyCapUsd) || monthlyCapUsd <= 0) {
@@ -948,7 +957,7 @@ async function collectDueReports(
     credentialSource === 'store' && sweepWorked
       ? await refreshAccountCredit(env, authorization, fetchImpl, requestedAt, health, new Date(options.nowMs ?? Date.now()).toISOString())
       : { refreshed: false, monitoringAvailable: true };
-  return { ...finish(outcomes, scope, skippedFresh, options.configSources, creditRefreshed.refreshed, egressOutcome, recovery), ...collectionMonitoring(monitoring), ...(!creditRefreshed.monitoringAvailable ? { monitoringAvailable: false } : {}) };
+  return { ...finish([...recovered, ...outcomes], scope, skippedFresh, options.configSources, creditRefreshed.refreshed, egressOutcome, recovery), ...collectionMonitoring(monitoring), ...(!creditRefreshed.monitoringAvailable ? { monitoringAvailable: false } : {}) };
 }
 
 /** The sweep's one free account read. Free and treated as free: never weighed
@@ -1224,7 +1233,7 @@ async function collectReport(
         spec,
         body,
         target.asset,
-        await sha256Hex(JSON.stringify([target.asset, spec.name, reportDate, body])),
+        await dataForSeoRequestIdentity(target.asset, spec.name, reportDate, body),
         authorization,
         egress,
         budget,
@@ -1401,6 +1410,178 @@ async function collectReport(
 
 type DataForSeoAttemptStatus = 'success' | 'unchanged' | 'error';
 
+const CHECKPOINT_REPAIR_LIMIT = 12;
+const CHECKPOINT_ORPHAN_RESERVE = CHECKPOINT_REPAIR_LIMIT / 2;
+const CHECKPOINT_ORPHAN_LOOKBACK_DAYS = 7;
+const CHECKPOINT_OBJECT_LIMIT = 512;
+const CHECKPOINT_REPAIR_FAILED = 'dataforseo_checkpoint_incomplete';
+const checkpointPrefix = (asset: string, reportDate: string) =>
+  `${DATAFORSEO_CHECKPOINT_PREFIX}/${encodeURIComponent(asset)}/${reportDate}`;
+
+function dataForSeoRequestIdentity(asset: string, report: DataForSeoReport, reportDate: string, body: Record<string, unknown>): Promise<string> {
+  return sha256Hex(JSON.stringify([asset, report, reportDate, body]));
+}
+
+/** A failed archive identifies the original date even after prolonged downtime.
+ * Recent paid receipts also let a restart find a write that never reached SQL. */
+async function repairCandidates(env: IngestEnv, plan: PlannedReport[], today: string, objects: SignalObjectScope,
+  signal?: AbortSignal): Promise<{ item: PlannedReport; date: string }[]> {
+  const scope = JSON.stringify(plan.map(({ target, report }) => ({ asset: target.asset, property: target.propertyRef, report: report.name })));
+  const candidates = await env.STORE.read(tx => tx.query<{ asset: string; report: string; date: string; failed: boolean }>(`
+    WITH targets AS (SELECT * FROM jsonb_to_recordset($1::jsonb) t(asset text, property text, report text)),
+    recorded AS (
+      SELECT r.asset_id AS asset,r.report,r.report_date AS date,true AS failed,max(r.finished_at) AS last_repair
+      FROM noticeos.archive_runs r JOIN targets t ON t.asset=r.asset_id AND t.report=r.report AND t.property=r.property_ref
+      WHERE r.integration='dataforseo' AND r.report_date < $2::date AND r.status='error' AND r.error_code IN ($3,$4)
+      GROUP BY r.asset_id,r.report,r.report_date
+    ), paid_dates AS (
+      SELECT DISTINCT asset_id AS asset, (reserved_at AT TIME ZONE 'UTC')::date AS date
+      FROM noticeos.dataforseo_request_charges
+      WHERE asset_id IN (SELECT asset FROM targets) AND provider_completed
+        AND reserved_at >= $2::date - $5::int AND reserved_at < $2::date + 1
+    ), possible AS (
+      SELECT p.asset,t.report,p.date-d.days AS date,false AS failed,NULL::timestamptz AS last_repair
+      FROM paid_dates p JOIN targets t USING(asset) CROSS JOIN (VALUES (0),(1)) d(days)
+      WHERE p.date-d.days < $2::date
+    )
+    SELECT c.asset,c.report,c.date,bool_or(c.failed) AS failed
+    FROM (SELECT * FROM recorded UNION ALL SELECT * FROM possible) c JOIN targets t USING(asset,report)
+    WHERE NOT EXISTS (SELECT 1 FROM noticeos.archive_runs r
+      WHERE r.integration='dataforseo' AND r.asset_id=c.asset AND r.property_ref=t.property AND r.report=c.report
+        AND r.report_date=c.date AND r.status IN ('success','unchanged'))
+    GROUP BY c.asset,c.report,c.date ORDER BY bool_or(c.failed) DESC, max(c.last_repair) ASC NULLS LAST, c.date, c.asset, c.report`,
+  [scope, today, LOCAL_STORE_FAILED, CHECKPOINT_REPAIR_FAILED, CHECKPOINT_ORPHAN_LOOKBACK_DAYS]));
+  const recorded: { item: PlannedReport; date: string }[] = [];
+  const orphans: typeof recorded = [];
+  const knownReports = new Map<string, Set<string>>();
+  const selected = new Map(plan.map(item => [planKey(item.target.asset, item.report.name), item]));
+  for (const candidate of candidates) {
+    signal?.throwIfAborted();
+    const item = selected.get(planKey(candidate.asset, candidate.report));
+    if (!item) continue;
+    if (candidate.failed) {
+      if (recorded.length < CHECKPOINT_REPAIR_LIMIT) recorded.push({ item, date: candidate.date });
+      continue;
+    }
+    const prefix = objects.key(checkpointPrefix(candidate.asset, candidate.date)) + '/';
+    let reports = knownReports.get(prefix);
+    if (!reports) {
+      const found = await env.RAW_SIGNALS.list({ prefix, delimiter: '/', limit: CHECKPOINT_OBJECT_LIMIT });
+      reports = new Set(found.delimitedPrefixes.map(key => key.slice(prefix.length, -1)));
+      knownReports.set(prefix, reports);
+    }
+    if (!reports.has(candidate.report)) continue;
+    orphans.push({ item, date: candidate.date });
+    if (orphans.length >= Math.max(CHECKPOINT_ORPHAN_RESERVE, CHECKPOINT_REPAIR_LIMIT - recorded.length)) break;
+  }
+  // Recent charges expire from discovery. Give their saved responses time to leave a durable receipt.
+  return [...orphans.slice(0, CHECKPOINT_ORPHAN_RESERVE), ...recorded, ...orphans.slice(CHECKPOINT_ORPHAN_RESERVE)]
+    .slice(0, CHECKPOINT_REPAIR_LIMIT);
+}
+
+async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[], panel: SerpPanelConfig, requestedAt: string,
+  signal?: AbortSignal): Promise<DataForSeoDumpOutcome[]> {
+  const objects = await signalObjectScope(env);
+  const candidates = await repairCandidates(env, plan, requestedAt.slice(0, 10), objects, signal);
+  const recovered: DataForSeoDumpOutcome[] = [];
+  for (const { item: { target, report }, date } of candidates) {
+    signal?.throwIfAborted();
+    const keys: string[] = [];
+    const pages: DumpPage[] = [];
+    let providerRows = 0, bytes = 0, truncated = report.name === 'serp-panel';
+    try {
+      const requests = report.requests(target, date, panel);
+      for (const { body, label } of requests) {
+        signal?.throwIfAborted();
+        const key = await dataForSeoCheckpointKey(env, target, report, date, body, label);
+        const saved = await confirmedDataForSeoCheckpoint(env, objects, key, target, report, date, body, label, ARCHIVE_BYTE_LIMIT - bytes);
+        if (!saved) throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The original report cannot be reconstructed from confirmed saved responses.');
+        const { checkpoint } = saved;
+        bytes += saved.bytes;
+        keys.push(key);
+        pages.push(checkpoint.page);
+        providerRows += checkpoint.providerRows;
+        truncated ||= checkpoint.rankedKeywordsTruncated === true;
+      }
+      if (pages.length === 0) throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The original request is unavailable in the current report settings.');
+      const outcome = await archiveCollectedDump(env, { provider: 'dataforseo', target, report: report.name, reportDate: date,
+        requestedAt, dataState: 'provider-snapshot', collected: { pages, providerRows, providerTruncated: truncated }, knownZeroCost: true });
+      if (!report.independentRequests && outcome.objectKey) {
+        await removeRepairedCheckpoints(env, objects, outcome, keys);
+      }
+      recovered.push({ ...outcome, costUsd: 0, retries: 0 });
+    } catch (error) {
+      signal?.throwIfAborted();
+      const outcome = await archiveDumpFailure(env.STORE, { target, report: report.name, reportDate: date, requestedAt,
+        dataState: 'provider-snapshot', error: normalizeSignalError(error, 'The saved DataForSEO response could not be archived.'), knownZeroCost: true });
+      recovered.push({ ...outcome, costUsd: 0, retries: 0 });
+    }
+  }
+  if (recovered.length > 0) {
+    console.log(JSON.stringify({ event: 'dataforseo_archive_recovery',
+      reports: recovered.map(({ asset, report, reportDate, status, errorCode }) => ({ asset, report, reportDate, status, errorCode })) }));
+  }
+  return recovered;
+}
+
+async function removeRepairedCheckpoints(env: IngestEnv, objects: SignalObjectScope, outcome: SignalDumpOutcome,
+  keys: string[]): Promise<void> {
+  const { objectKey, asset, report, reportDate } = outcome;
+  if (!objectKey || !objects.canReadArchive(objectKey)) return;
+  try {
+    const [archive] = await env.STORE.read(tx => tx.query<{ hash: string; bytes: bigint }>(`
+      SELECT o.content_sha256 AS hash, o.object_bytes AS bytes
+      FROM noticeos.archive_runs r JOIN noticeos.archive_objects o USING(workspace_id, object_seq)
+      WHERE r.integration='dataforseo' AND r.asset_id=$1 AND r.report=$2 AND r.report_date=$3::date
+        AND r.status IN ('success','unchanged') AND o.object_key=$4 LIMIT 1`,
+    [asset, report, reportDate, objectKey]));
+    if (!archive) return;
+    const raw = await env.RAW_SIGNALS.head(objectKey);
+    const meta = raw?.customMetadata;
+    if (raw && BigInt(raw.size) === BigInt(archive.bytes) && meta?.contentSha256 === archive.hash
+      && meta.workspaceId === objects.workspaceId && meta.asset === asset && meta.report === report && meta.reportDate === reportDate) {
+      await env.RAW_SIGNALS.delete(keys);
+    }
+  } catch { console.warn('dataforseo_checkpoint_cleanup_failed'); }
+}
+
+async function confirmedDataForSeoCheckpoint(env: IngestEnv, objects: SignalObjectScope, key: string, target: DataForSeoTarget,
+  report: ReportSpec, date: string, body: Record<string, unknown>, label: string | undefined,
+  remainingBytes: number): Promise<{ checkpoint: DataForSeoRequestCheckpoint; bytes: number } | null> {
+  if (!objects.owns(key)) return null;
+  const saved = await env.RAW_SIGNALS.get(key).catch(() => {
+    throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The saved DataForSEO response could not be read.');
+  });
+  const hash = key.slice(key.lastIndexOf('/') + 1, -5);
+  const meta = saved?.customMetadata;
+  if (!saved || saved.size > Math.min(remainingBytes, RESPONSE_BYTE_LIMIT + 32 * 1024) || meta?.workspaceId !== objects.workspaceId
+    || meta.asset !== target.asset || meta.report !== report.name || meta.reportDate !== date
+    || meta.requestHash !== hash || meta.schemaVersion !== '1') return null;
+  let value: Partial<DataForSeoRequestCheckpoint>;
+  try { value = JSON.parse(await saved.text()) as Partial<DataForSeoRequestCheckpoint>; }
+  catch { return null; }
+  if (!value || value.schemaVersion !== 1 || value.asset !== target.asset || value.report !== report.name || value.reportDate !== date
+    || value.requestHash !== hash || value.costAccounted !== true || value.priceConfirmed !== true || value.taskError !== null
+    || value.page?.request?.path !== report.path || value.page.request.label !== label
+    || typeof value.page.request.attempts !== 'number' || !Number.isSafeInteger(value.page.request.attempts) || value.page.request.attempts < 1
+    || JSON.stringify(value.page.request.body) !== JSON.stringify(body)
+    || dataForSeoProviderStatus(value.page.response) !== 'completed') return null;
+  const billed = billedDataForSeoCost(value.page.response);
+  if (billed === null) return null;
+  const parsed = parseProviderResponse(200, value.page.response, report.name, report.independentRequests === true);
+  if (parsed.taskError || parsed.providerRows !== value.providerRows
+    || Boolean(parsed.rankedKeywordsTruncated) !== Boolean(value.rankedKeywordsTruncated)) return null;
+  const chargeKey = await customerDataForSeoRequestKey(await dataForSeoRequestIdentity(target.asset, report.name, date, body));
+  const [charge] = await env.STORE.read(tx => tx.query<{ settled: number; unresolved: number; cost: string | null; billed: string | null }>(`
+    SELECT count(*) FILTER (WHERE provider_completed)::int AS settled,
+      count(*) FILTER (WHERE provider_cost_usd IS NULL)::int AS unresolved,
+      sum(provider_cost_usd)::text AS cost, max(provider_cost_usd) FILTER (WHERE provider_completed)::text AS billed
+    FROM noticeos.dataforseo_request_charges WHERE asset_id=$1 AND request_key=$2`, [target.asset, chargeKey]));
+  if (charge?.settled !== 1 || charge.unresolved || charge.cost === null || charge.billed === null
+    || Number(charge.billed) !== billed || Number(charge.cost) !== dataForSeoBillAmount(value.costUsd)) return null;
+  return { checkpoint: value as DataForSeoRequestCheckpoint, bytes: saved.size };
+}
+
 async function latestDataForSeoAttempt(
   store: WorkspaceStore,
   asset: string,
@@ -1434,13 +1615,7 @@ export async function dataForSeoCheckpointKey(
   const objects = await signalObjectScope(env);
   const identity = JSON.stringify({ path: spec.path, body, label: label ?? null });
   const hash = await sha256Hex(identity);
-  return objects.key([
-    DATAFORSEO_CHECKPOINT_PREFIX,
-    encodeURIComponent(target.asset),
-    reportDate,
-    spec.name,
-    `${hash}.json`,
-  ].join('/'));
+  return objects.key(`${checkpointPrefix(target.asset, reportDate)}/${spec.name}/${hash}.json`);
 }
 
 async function writeDataForSeoCheckpoint(
@@ -1906,6 +2081,18 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function dumpResult(outcomes: DataForSeoDumpOutcome[], egress?: EgressRunOutcome): DataForSeoDumpsResult {
+  return {
+    attempted: outcomes.length,
+    succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
+    unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
+    failed: outcomes.filter((outcome) => outcome.status === 'error').length,
+    costUsd: outcomes.reduce((sum, outcome) => sum + outcome.costUsd, 0),
+    outcomes,
+    ...(egress ? { egress } : {}),
+  };
+}
+
 function finish(
   outcomes: DataForSeoDumpOutcome[],
   scope: DataForSeoCollectScope | null = null,
@@ -1915,15 +2102,7 @@ function finish(
   egress?: EgressRunOutcome,
   recovery = false,
 ): DataForSeoDumpsResult {
-  const result = {
-    attempted: outcomes.length,
-    succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
-    unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
-    failed: outcomes.filter((outcome) => outcome.status === 'error').length,
-    costUsd: outcomes.reduce((sum, outcome) => sum + outcome.costUsd, 0),
-    outcomes,
-    ...(egress ? { egress } : {}),
-  };
+  const result = dumpResult(outcomes, egress);
   const measured = outcomes.filter((outcome) => !outcome.egressDown);
   console.log(
     JSON.stringify({

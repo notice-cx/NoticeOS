@@ -36,6 +36,9 @@ import type { IntegrationsConfig } from "../shared/integrations";
 import { DEMO_READ_ONLY, demoMcpRequestAllowed, type DemoViewerDescriptor } from '../shared/demo-viewer';
 import { McpToolError, serveMcp } from "../../../scripts/mcp-protocol.mjs";
 import { READ_MODEL_TOOLS } from "../../../scripts/read-model-tools.mjs";
+import { analysisId } from "../../../scripts/analysis-workflow-request.mjs";
+import type { WorkspaceContext } from "../../../scripts/workspace-admission.mjs";
+import { AnalysisWorkflowRefused, completeAnalysisWorkflowRun, readAnalysisWorkflowRun } from "./analysis-workflow-store";
 
 /** The transport, both MCP protocol eras, is shared with the hosted task
  * endpoint (scripts/mcp-protocol.mts). The server is the Tower, so it answers
@@ -269,23 +272,78 @@ function wallOptions(deps: McpDeps) {
   };
 }
 
+const ANALYSIS_KEYS = Object.freeze({ workflowId: { type: 'string', format: 'uuid' }, runId: { type: 'string', format: 'uuid' } });
+const ANALYSIS_READ = {
+  name: 'read_analysis_run',
+  description: 'Read the runbook, frozen evidence and current result of an analysis run in the selected workspace.',
+  inputSchema: { type: 'object', properties: ANALYSIS_KEYS, required: ['workflowId', 'runId'], additionalProperties: false },
+};
+const ANALYSIS_COMPLETE = {
+  name: 'complete_analysis_run',
+  description: 'Record one sourced result for a saved run. Use citation IDs from that run. This does not collect data or create tasks.',
+  inputSchema: {
+    type: 'object', required: ['workflowId', 'runId', 'result'], additionalProperties: false,
+    properties: { ...ANALYSIS_KEYS, result: {
+      type: 'object', required: ['outcome', 'summary', 'findings'], additionalProperties: false,
+      properties: {
+        outcome: { enum: ['findings', 'no-action', 'insufficient-evidence', 'failed'] },
+        summary: { type: 'string', maxLength: 2_000 },
+        findings: { type: 'array', maxItems: 20, items: {
+          type: 'object', required: ['title', 'detail', 'citationIds'], additionalProperties: false,
+          properties: { title: { type: 'string', maxLength: 160 }, detail: { type: 'string', maxLength: 1_000 },
+            citationIds: { type: 'array', uniqueItems: true, minItems: 1, maxItems: 12, items: { type: 'string' } } },
+        } },
+      },
+    } },
+  },
+};
+
+export function isAnalysisMcpTool(name: string | null): boolean {
+  return name === ANALYSIS_READ.name || name === ANALYSIS_COMPLETE.name;
+}
+
 export async function handleMcpRequest(
   request: Request,
   store: WorkspaceStore,
-  deps: McpDeps,
+  deps: McpDeps | null,
   viewer: DemoViewerDescriptor | null = null,
+  authority?: WorkspaceContext,
 ): Promise<Response> {
+  const allowed = authority?.allowedActions;
+  const analysis = authority?.principalKind === 'agent' && authority.agentClientId ? authority : null;
+  const tools = [
+    ...(!allowed || allowed.includes('evidence.read') ? TOOLS : []),
+    ...(analysis && allowed?.includes('analysis.read') ? [ANALYSIS_READ] : []),
+    ...(analysis && allowed?.includes('analysis.complete') ? [ANALYSIS_COMPLETE] : []),
+  ];
   return serveMcp(request, {
     info: SERVER_INFO,
     instructions: INSTRUCTIONS,
     // Only tools. Declaring resources or prompts we do not serve would make a
     // client probe for capabilities that answer nothing.
-    tools: TOOLS,
+    tools,
     // A failure the caller can act on is an McpToolError, returned as a
     // result with `isError` so a model can read it and correct itself; any
     // other fault is logged by name and never echoed, because its message can
     // carry SQL and binding internals that a model would repeat.
-    call: (name, args) => TOOLS.find((tool) => tool.name === name)!.run(store, deps, args),
+    async call(name, args) {
+      if (!isAnalysisMcpTool(name)) {
+        if (!deps) throw new McpToolError('The requested report is unavailable.');
+        return TOOLS.find(tool => tool.name === name)!.run(store, deps, args);
+      }
+      const { workflowId, runId } = args;
+      if (!analysis?.agentClientId || !analysisId(workflowId) || !analysisId(runId)) throw new McpToolError('Select the workspace and saved analysis run.');
+      try {
+        const run = name === ANALYSIS_READ.name ? await readAnalysisWorkflowRun(store, workflowId, runId)
+          : await completeAnalysisWorkflowRun(store, workflowId, runId, args.result, {
+            principalId: analysis.principalId, clientId: analysis.agentClientId,
+          });
+        return { run };
+      } catch (error) {
+        if (error instanceof AnalysisWorkflowRefused) throw new McpToolError(error.code);
+        throw error;
+      }
+    },
   }, {
     maxBytes: BODY_BYTES,
     screen: (body) => demoMcpRequestAllowed(viewer, body) ? null

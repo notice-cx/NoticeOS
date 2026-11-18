@@ -91,6 +91,7 @@
     "packages/postgres/src/platform-provisioning.mts",
     "packages/postgres/src/integration-oauth-custody.mts",
     "packages/postgres/src/mutation-audit.mts",
+    "packages/postgres/src/analysis-assignment.mts",
     "packages/postgres/src/notification-events.mts"
   ]
 }

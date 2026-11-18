@@ -68,14 +68,15 @@ test('permission metadata and admission use one fresh policy; metadata never adm
   fixture.memberships.set(a, 'viewer');
   const viewer = await run(fixture.admission);
   assert.ok(viewer.allowedActions.includes('settings.read'));
+  assert.ok(viewer.allowedActions.includes('analysis.read'));
+  assert.equal(viewer.allowedActions.includes('analysis.complete'), false);
   assert.equal(viewer.allowedActions.includes('settings.write'), false);
   await assert.rejects(run(fixture.admission, 'settings.write', selection(), request({ origin })), AdmissionRefused);
   fixture.memberships.delete(a);
   await assert.rejects(run(fixture.admission), AdmissionRefused);
   const demoAdmission = createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo, workspaceStatus: async () => 'active' });
   const anonymous = await run(demoAdmission, 'settings.read', selection(demo));
-  // A demo reader reads what a viewer reads; only the viewer has a self to keep.
-  assert.deepEqual(anonymous.allowedActions, viewer.allowedActions.filter(action => action !== 'preferences.self'));
+  assert.deepEqual(anonymous.allowedActions, viewer.allowedActions.filter(action => !['preferences.self', 'analysis.read'].includes(action)));
   const service = createWorkspaceAdmission({ kind: 'service', profile: Symbol(), now: () => now,
     authority: async () => ({ principalId: 'fixture-service', workspaceId: a, workspaceStatus: 'active', expiresAt, actions: ['settings.read', 'settings.write'] }) });
   assert.deepEqual((await run(service, 'settings.read')).allowedActions, ['settings.read', 'settings.write']);

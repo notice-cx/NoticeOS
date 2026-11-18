@@ -53,6 +53,7 @@
     "scripts/agent-access.mts",
     "scripts/read-model-tools.mts",
     "scripts/identity-protocol.mts",
+    "scripts/analysis-workflow-request.mts",
     "scripts/workspace-operations.mts",
     "scripts/hosted-task-request.mts",
     "scripts/cloudflare-d1-download.mts",

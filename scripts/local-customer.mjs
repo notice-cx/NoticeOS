@@ -16,6 +16,7 @@ import { customerCollectionPolicy } from './customer-collection-policy.mjs';
 import { localDataForSeoOutbound } from './customer-dataforseo-egress.mjs';
 import { localCustomerTaskFollowups } from './local-customer-task-followups.mjs';
 import { localCustomerReports } from './local-customer-reports.mjs';
+import { localCustomerAnalysisWorkflows } from './local-customer-analysis-workflows.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { releasedDefaultDocuments } from './released-defaults.mjs';
 import { isPrivateTowerOrigin } from './browser-request-policy.mjs';
@@ -482,7 +483,8 @@ export async function startCustomerRuntime(plan, { customer, outbox, workerState
         resumeSince, backupResumeSince, collection, backup,
         taskFollowups: collection?.taskFollowups.length ? localCustomerTaskFollowups({ sourceRoot: plan.root,
           root: reportRoot, credentialsKey, ntasksOrigin, transport: operating.collectorTransport }) : undefined,
-        grantConnectionString, credentialsKey, reports: localCustomerReports({ sourceRoot: plan.root,
+        grantConnectionString, credentialsKey, analysis: localCustomerAnalysisWorkflows({ sourceRoot: plan.root, root: reportRoot }),
+        reports: localCustomerReports({ sourceRoot: plan.root,
           root: reportRoot, bucket }), worker: scheduler, paidWorker, bucket });
     }
     operating?.signal.throwIfAborted();

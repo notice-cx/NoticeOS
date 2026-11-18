@@ -41,9 +41,11 @@ export declare function parseAgentAccessLanding(input: string): AgentAccessLandi
 /** The one MCP endpoint, and so the one protected resource. */
 export declare const AGENT_RESOURCE_PATH = "/api/mcp";
 export declare const AGENT_RESOURCE_NAME = "NoticeOS";
+export declare const ANALYSIS_REVIEW_SCOPE = "analysis:review";
 /** The workspace actions each scope grants. Write implies read: a token that
  * may change tasks may also see them. */
 export declare const AGENT_SCOPES: Readonly<Record<string, readonly string[]>>;
+export declare const AGENT_DEFAULT_SCOPES: readonly string[];
 /** Requested by clients that want a refresh token; it grants no action. */
 export declare const OFFLINE_ACCESS = "offline_access";
 export declare const AGENT_ACCESS_SECONDS = 3600;

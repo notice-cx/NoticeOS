@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { availableCustomerPort as availablePort } from './test/customer-ports.mjs';
 import os from 'node:os';
@@ -179,11 +180,69 @@ test('local customer Tower uses real invitations, workspace selection and durabl
       [WORKSPACE_SELECTION_HEADER]: west.workspaceId };
     const wall = await http('/api/wall', { headers });
     assert.equal(wall.status, 200, await wall.clone().text());
-    const mcp = await http('/api/mcp', { headers, body: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
-    assert.equal(mcp.status, 200, await mcp.clone().text());
-    assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'list_properties'));
 
+    const eastHeaders = { cookie: ownEast.cookie, [WORKSPACE_SESSION_HEADER]: ownEast.sessionId,
+      [WORKSPACE_SELECTION_HEADER]: east.workspaceId };
+    const westHeaders = { cookie: ownWest.cookie, [WORKSPACE_SESSION_HEADER]: ownWest.sessionId,
+      [WORKSPACE_SELECTION_HEADER]: west.workspaceId };
     prepareCustomerSchedule({ db, app });
+    const analysis = '/api/analysis-workflows';
+    const site = 'fixture-app';
+    const requestHeaders = { ...eastHeaders, 'Idempotency-Key': 'new-analysis-workflow' };
+    const weeklySlot = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 60_000);
+    const input = { name: 'Review search', template: 'weekly-search-review', assetIds: [site],
+      trigger: { kind: 'weekly', weekday: weeklySlot.getUTCDay(), hour: weeklySlot.getUTCHours(), minute: weeklySlot.getUTCMinutes(), timeZone: 'UTC' } };
+    assert.equal((await http(analysis, { headers: { ...headers, 'Idempotency-Key': 'wrong-viewer-workflow' }, body: input })).status, 403);
+    assert.equal((await http(analysis, { headers: { ...requestHeaders, origin: 'https://untrusted.example' }, body: input })).status, 403);
+    assert.equal((await http(analysis, { headers: { ...westHeaders, 'Idempotency-Key': 'unknown-asset-workflow' },
+      body: { ...input, assetIds: ['unknown.example'] } })).status, 409);
+    const created = await http(analysis, { headers: requestHeaders, body: input });
+    assert.equal(created.status, 201, await created.clone().text());
+    const { workflow } = await created.json();
+    const workflowPath = `${analysis}/${workflow.id}`;
+    assert.equal((await (await http(analysis, { headers: requestHeaders, body: input })).json()).workflow.id, workflow.id);
+    assert.equal((await http(analysis, { headers: requestHeaders, body: { ...input, name: 'Different' } })).status, 409);
+    assert.equal((await http(workflowPath, { headers: westHeaders })).status, 404);
+    assert.deepEqual((await (await http(analysis, { headers })).json()).workflows, []);
+    const start = key => http(workflowPath + '/runs', { headers: { ...eastHeaders, 'Idempotency-Key': key }, body: {} });
+    const runs = await Promise.all([start('manual-analysis-run'), start('manual-analysis-run')]);
+    for (const response of runs) assert.equal(response.status, 201, await response.clone().text());
+    const [first, replay] = await Promise.all(runs.map(async response => (await response.json()).run));
+    assert.equal(replay.id, first.id);
+    assert.equal(first.workflow.version, 1);
+    assert.deepEqual(first.workflow.assetIds, [site]);
+    assert.ok(first.runbook.steps.length);
+    const complete = workflowPath + '/runs/' + first.id + '/complete';
+    assert.equal((await http(complete, { headers: eastHeaders, body: { outcome: 'findings', summary: 'Validate citation',
+      findings: [{ title: 'Unsupported result', detail: 'Foreign evidence', citationIds: ['another-workspace'] }] } })).status, 400);
+    const result = { outcome: 'no-action', summary: 'Review the next complete week', findings: [] };
+    const completed = await http(complete, { headers: eastHeaders, body: result });
+    assert.equal(completed.status, 200, await completed.clone().text());
+    assert.deepEqual((await completed.json()).run.result, result);
+    assert.equal((await http(complete, { headers: eastHeaders, body: result })).status, 200);
+    assert.equal((await http(complete, { headers: eastHeaders, body: { ...result, summary: 'Different' } })).status, 409);
+    const pause = (enabled, expectedVersion) => http(workflowPath + '/pause', { headers: eastHeaders, body: { enabled, expectedVersion } });
+    assert.equal((await pause(false, 1)).status, 200);
+    assert.equal((await start('after-pause-analysis')).status, 409);
+    assert.equal((await pause(true, 1)).status, 409);
+    assert.equal((await pause(true, 2)).status, 200);
+    const retried = await http(workflowPath + '/runs', { headers: { ...eastHeaders, 'Idempotency-Key': 'retry-analysis-result' },
+      body: { retryOf: first.id } });
+    assert.equal(retried.status, 201, await retried.clone().text());
+    const { run: retry } = await retried.json();
+    assert.equal(retry.retryOf, first.id);
+    assert.equal(retry.source, 'retry');
+    assert.equal(retry.workflow.version, 1);
+    assert.deepEqual(retry.evidence, first.evidence);
+    const insufficient = await http(workflowPath + '/runs/' + retry.id + '/complete', { headers: eastHeaders,
+      body: { outcome: 'insufficient-evidence', summary: 'The comparison is incomplete', findings: [] } });
+    assert.equal(insufficient.status, 200, await insufficient.clone().text());
+    assert.equal((await insufficient.json()).run.outcome, 'insufficient-evidence');
+    db.cluster.run(`UPDATE noticeos.analysis_workflows SET updated_at=:'available'::timestamptz
+      WHERE workspace_id=:'workspace'::uuid AND workflow_id=:'workflow'::uuid;`, { vars: {
+      workspace: east.workspaceId, workflow: workflow.id, available: new Date(weeklySlot.getTime() - 60_000).toISOString(),
+    } });
+
     const reportObjects = prepareCustomerReports({ db, app });
     db.cluster.run(`DELETE FROM noticeos.config_documents
       WHERE workspace_id=:'workspace'::uuid AND document_key='value-events';`, { vars: { workspace: west.workspaceId } });
@@ -205,13 +264,37 @@ test('local customer Tower uses real invitations, workspace selection and durabl
       } } });
     } });
     await app.whenIdle();
+    const detail = await http(workflowPath, { headers: eastHeaders });
+    assert.equal(detail.status, 200, await detail.clone().text());
+    const receipts = (await detail.json()).runs;
+    assert.equal(receipts.length, 3);
+    const weekly = receipts.find(receipt => receipt.source === 'weekly');
+    assert.equal(Date.parse(weekly.scheduledAt), weeklySlot.getTime());
+    assert.equal(weekly.outcome, null);
+    const weeklyPath = workflowPath + '/runs/' + weekly.id;
+    const due = await http(weeklyPath, { headers: eastHeaders });
+    assert.equal(due.status, 200, await due.clone().text());
+    const { run: dueRun } = await due.json();
+    const measured = dueRun.evidence.citations.find(citation => citation.source === 'Measurement periods');
+    assert.equal(measured.readings[0].value, 0);
+    const finding = { title: 'No open periods', detail: 'The asset had no open measurement periods at the scheduled review.',
+      citationIds: [measured.id] };
+    const published = await http(weeklyPath + '/complete', { headers: eastHeaders,
+      body: { outcome: 'findings', summary: 'Recorded the measurement-period count', findings: [finding] } });
+    assert.equal(published.status, 200, await published.clone().text());
+    assert.deepEqual((await published.json()).run.result.findings, [finding]);
+    const replayStore = openWorkspaceStore(resources.connectionString, { workspaceId: east.workspaceId });
+    try {
+      await resources.analysis.run({ store: replayStore,
+        principalId: resources.workspaces.find(binding => binding.workspaceId === east.workspaceId).serviceId,
+        workflowId: workflow.id, scheduledAt: weeklySlot.toISOString() });
+    } finally { await replayStore.close(); }
+    assert.equal((await (await http(workflowPath, { headers: eastHeaders })).json()).runs.length, 3);
     assertCustomerSchedule({ db, app });
     assert.equal(warning.mock.calls.filter(call => /report settings/u.test(String(call.arguments[0]))).length, 1);
     assert.equal(cold?.objectReads, reportObjects.length);
     await verifyCustomerReports({ db, app, resources, cold, t });
     const collected = await archive.verify({ db, options: resources, t });
-    const eastHeaders = { cookie: ownEast.cookie, [WORKSPACE_SESSION_HEADER]: ownEast.sessionId,
-      [WORKSPACE_SELECTION_HEADER]: east.workspaceId };
     const property = await http('/api/assets/fixture-app', { headers: eastHeaders });
     assert.equal(property.status, 200);
     const towerReport = (await property.json()).executive;
@@ -219,6 +302,9 @@ test('local customer Tower uses real invitations, workspace selection and durabl
     const otherProperty = await http('/api/assets/fixture-app', { headers });
     assert.equal(otherProperty.status, 200);
     assert.equal((await otherProperty.json()).executive, null);
+    const mcp = await http('/api/mcp', { headers, body: { jsonrpc: '2.0', id: 1, method: 'tools/list' } });
+    assert.equal(mcp.status, 200, await mcp.clone().text());
+    assert.ok((await mcp.json()).result.tools.some(tool => tool.name === 'list_properties'));
     const agentReport = await http('/api/mcp', { headers: eastHeaders,
       body: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'property_report', arguments: { asset: 'fixture-app' } } } });
     assert.equal(agentReport.status, 200);

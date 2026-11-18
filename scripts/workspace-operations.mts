@@ -3,6 +3,7 @@
  * its own fixed method; never accept a serialized result, action, actor or profile.
  * Admission, identity, capabilities and standalone compatibility live elsewhere.
  */
+import { analysisAssignmentRequest, analysisId, analysisWorkflowRequest } from './analysis-workflow-request.mjs';
 import { isPrivateTowerOrigin, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { TEMPO_MPP_POINTER, TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 import type { WorkspaceAction } from './workspace-admission.mjs';
@@ -594,6 +595,13 @@ export async function storedResearchReadRequest(request: Request): Promise<Store
   if (!MCP_METHODS.includes(message.method)) refuse();
   if (message.method !== 'tools/call') return Object.freeze({ method: 'mcp', body, tool: null });
   const params = message.params;
+  if (params.name === 'read_analysis_run' || params.name === 'complete_analysis_run') {
+    const args = record(params.arguments);
+    onlyKeys(args, params.name === 'read_analysis_run' ? ['workflowId', 'runId'] : ['workflowId', 'runId', 'result']);
+    if (!analysisId(args.workflowId) || !analysisId(args.runId)) refuse();
+    if (params.name === 'complete_analysis_run') record(args.result);
+    return Object.freeze({ method: 'mcp', body, tool: params.name });
+  }
   if (!['list_properties', 'property_report', 'property_history', 'research_lookup'].includes(params.name as string)) refuse();
   const args = params.arguments === undefined ? {} : record(params.arguments);
   const allowed = params.name === 'list_properties' ? [] : params.name === 'property_report' ? ['asset']
@@ -613,6 +621,9 @@ export async function storedResearchReadRequest(request: Request): Promise<Store
 async function mcp(request: Request): Promise<WorkspaceOperation> {
   const read = await storedResearchReadRequest(request);
   if (read?.method !== 'mcp') refuse();
+  if (read.tool === null) return operation('mcp.connect');
+  if (read.tool === 'read_analysis_run') return operation('analysis.read');
+  if (read.tool === 'complete_analysis_run') return operation('analysis.complete');
   return read.tool === 'research_lookup' ? operation('evidence.read', [configRead, 'researchLookup']) : evidence;
 }
 /** Classify an actual Tower request; no request field selects an entry profile. */
@@ -643,6 +654,9 @@ export async function towerOperation(request: Request): Promise<WorkspaceOperati
     return operation(configAction(body.ops), ['applyConfigOps']);
   }
   if (pathname === '/api/mcp' && method === 'POST') return mcp(request);
+  if (analysisAssignmentRequest(request)) return operation('analysis.assign', ['analysisAssignment']);
+  const workflow = analysisWorkflowRequest(request);
+  if (workflow) return operation(method === 'GET' ? 'workflows.read' : 'workflows.run');
   if (pathname === '/api/alerts/backtest') {
     if ((await storedResearchReadRequest(request))?.method !== 'backtestRule') refuse();
     return operation('evidence.read', ['backtestRule']);

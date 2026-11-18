@@ -285,6 +285,17 @@ approval before resuming paid collection. Keep this app release when returning
 to standalone after a paid run so it still applies saved reservations and
 checks for unconfirmed requests.
 
+With daily recovery enabled, the job also checks paid responses saved before
+an archive write failed. It publishes a matching response under its original
+UTC report date, using the charge already recorded for that request. Replaying
+a saved response makes no DataForSEO request. The job checks recorded archive
+failures and up to seven recent days of confirmed purchases for interrupted
+writes without a failure record. Recovery checks the currently approved assets
+and requires the saved request to match its report settings. An incomplete or
+mismatched response stays in storage and leaves a failure for that date.
+Temporary copies are removed only after the report is recorded and its
+archive is verified.
+
 For each enabled nightly site report or counter feed already pulled by this
 app, add a `sitePulls` entry with the
 enrolled `workspaceId`, its `asset` ID and the exact approved HTTPS `urls`

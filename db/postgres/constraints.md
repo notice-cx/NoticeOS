@@ -30,6 +30,69 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Row checks:** `((errors + warnings) <= open)`
 
+## `analysis_workflow_assignments`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `workflow_id` | uuid | yes |  |
+| `run_id` | uuid | yes |  |
+| `project_id` | uuid | yes |  |
+| `assigned_by` | uuid | yes |  |
+| `started_at` | timestamp with time zone | yes |  |
+| `delivery_started_at` | timestamp with time zone | no |  |
+| `task_id` | text | no | `((task_id ~ '^[a-z0-9]+-[a-z0-9]+(\.[a-z0-9]+)*$') AND (char_length(task_id) <= 128))` |
+| `linked_at` | timestamp with time zone | no |  |
+
+- **Keys:** primary (workspace_id, workflow_id, run_id); unique (workspace_id, project_id, task_id)
+- **Links:** (workspace_id, workflow_id, run_id) → `analysis_workflow_runs`
+- **Row checks:** `((task_id IS NULL) = (linked_at IS NULL))`; `((delivery_started_at IS NULL) OR (delivery_started_at >= started_at))`; `((linked_at IS NULL) OR ((delivery_started_at IS NOT NULL) AND (linked_at >= delivery_started_at)))`
+- **Triggers:** `link_analysis_workflow_assignment` (before update)
+
+## `analysis_workflow_runs`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `workflow_id` | uuid | yes |  |
+| `run_id` | uuid | yes |  |
+| `request_key` | text | yes | `((char_length(request_key) >= 8) AND (char_length(request_key) <= 135))` |
+| `source` | text | yes | `(source IN ('manual', 'weekly', 'retry'))` |
+| `retry_of` | uuid | no |  |
+| `scheduled_at` | timestamp with time zone | no |  |
+| `input` | jsonb | yes | `(jsonb_typeof(input) = 'object')` |
+| `created_by` | uuid | yes |  |
+| `created_at` | timestamp with time zone | yes |  |
+| `result` | jsonb | no | `((result IS NULL) OR ((jsonb_typeof(result) = 'object') AND (result ? 'outcome') AND (COALESCE((result ->> 'outcome'), '') IN ('findings', 'no-action', 'insufficient-evidence', 'failed'))))` |
+| `completed_by` | uuid | no |  |
+| `completed_client_id` | text | no |  |
+| `completed_at` | timestamp with time zone | no |  |
+
+- **Keys:** primary (workspace_id, workflow_id, run_id); unique (workspace_id, workflow_id, request_key)
+- **Links:** (workspace_id, workflow_id) → `analysis_workflows`; (workspace_id, workflow_id, retry_of) → `analysis_workflow_runs`
+- **Row checks:** `((source = 'retry') = (retry_of IS NOT NULL))`; `((source = 'weekly') = (scheduled_at IS NOT NULL))`; `(((result IS NULL) AND (completed_by IS NULL) AND (completed_client_id IS NULL) AND (completed_at IS NULL)) OR ((result IS NOT NULL) AND (completed_by IS NOT NULL) AND (completed_at IS NOT NULL)))`
+- **Triggers:** `complete_analysis_workflow_run` (before update)
+
+## `analysis_workflows`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `workflow_id` | uuid | yes |  |
+| `create_key` | text | yes | `(create_key ~ '^[A-Za-z0-9._-]{8,128}$')` |
+| `name` | text | yes | `((char_length(name) >= 1) AND (char_length(name) <= 120))` |
+| `template` | text | yes | `(template IN ('weekly-search-review', 'seo-ai-visibility'))` |
+| `asset_ids` | text[] | yes | `((cardinality(asset_ids) >= 1) AND (cardinality(asset_ids) <= 8))` |
+| `trigger_config` | jsonb | yes | `(jsonb_typeof(trigger_config) = 'object')` |
+| `enabled` | boolean | yes |  |
+| `version` | integer | yes | `(version >= 1)` |
+| `created_by` | uuid | yes |  |
+| `created_at` | timestamp with time zone | yes |  |
+| `updated_at` | timestamp with time zone | yes |  |
+
+- **Keys:** primary (workspace_id, workflow_id); unique (workspace_id, create_key)
+- **Links:** (workspace_id) → `workspaces`
+
 ## `analytical_exports`
 
 | Column | Type | Required | Checks |

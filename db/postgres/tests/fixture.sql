@@ -45,6 +45,17 @@ VALUES (:'ws','unknown','annotation.create',:'site','{"annotationNumber":"1","ki
 INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value, recorded_at)
 VALUES (:'ws', gen_random_uuid(), 'view', '{"view":"business","focus":["money"]}', '2026-09-01T12:30:00Z');
 
+INSERT INTO noticeos.analysis_workflows (workspace_id, workflow_id, create_key, name, template, asset_ids, trigger_config, created_by)
+VALUES (:'ws', '00000000-0000-4000-8000-000000000111', 'create-analysis-fixture', 'Weekly review',
+  'weekly-search-review', ARRAY[:'site'], '{"kind":"manual"}', :'ws');
+INSERT INTO noticeos.analysis_workflow_runs (workspace_id, workflow_id, run_id, request_key, source, input, created_by)
+VALUES (:'ws', '00000000-0000-4000-8000-000000000111', '00000000-0000-4000-8000-000000000222',
+  'manual:run-fixture', 'manual', '{}', :'ws');
+
+INSERT INTO noticeos.analysis_workflow_assignments (workspace_id, workflow_id, run_id, project_id, assigned_by)
+VALUES (:'ws', '00000000-0000-4000-8000-000000000111', '00000000-0000-4000-8000-000000000222',
+  '00000000-0000-4000-8000-000000000333', '00000000-0000-4000-8000-000000000444');
+
 INSERT INTO noticeos.portfolio_briefings (workspace_id, scope_sha256, recorded_at, payload)
 VALUES (:'ws', repeat('a', 64), '2026-09-01T12:30:00Z', '{"state":"awaiting","briefing":null}');
 
