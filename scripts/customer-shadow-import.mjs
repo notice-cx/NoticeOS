@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SHADOW_EVIDENCE_FORMAT, SHADOW_EVIDENCE_TABLES, SHADOW_RUN_ERROR, SHADOW_RUN_REFERENCE,
+import { SHADOW_EVIDENCE_FORMAT, SHADOW_EVIDENCE_TABLES, SHADOW_RUN_ERROR, SHADOW_RUN_REFERENCE, SHADOW_SETTINGS_MAX_BYTES,
   validShadowColumns, validShadowSetting } from './customer-shadow-export.mjs';
 import { openPrivateShadowFile as privateFile, privateShadowDirectory as privateDirectory,
   readPrivateShadowFile as readPrivate, ShadowTargetRefused, verifyShadowTargetReceipt } from './customer-shadow-receipt.mjs';
@@ -282,7 +282,7 @@ function transferSql(manifest, settings, manifestHash) {
       ${Number(row.versionBefore)},${Number(row.versionAfter)},${literal(row.changedAt)}::timestamptz);\n`;
   }
   for (const [key, body] of journeyBodies) {
-    sql += `UPDATE noticeos.config_documents SET body=${literal(body)}::json, version=2, updated_at=clock_timestamp(),
+    sql += `UPDATE noticeos.config_documents SET body=${literal(body)}::jsonb::json, version=2, updated_at=clock_timestamp(),
       updated_by='offline-shadow' WHERE document_key=${literal(key)} AND workspace_id=${workspace}::uuid AND version=1;\n`;
   }
   sql += `CREATE SCHEMA noticeos_shadow AUTHORIZATION postgres;
@@ -329,7 +329,7 @@ export async function importShadowEvidence({ bundle: bundleInput, target: target
   const manifestBytes = await readPrivate(path.join(bundle, 'manifest.json'), 512 * 1024);
   const manifest = validatedManifest(JSON.parse(manifestBytes));
   const settingsFile = manifest.files.find(file => file.name === 'settings');
-  const settingsBytes = await readPrivate(path.join(bundle, 'settings.json'), 32 * 1024 ** 2);
+  const settingsBytes = await readPrivate(path.join(bundle, 'settings.json'), SHADOW_SETTINGS_MAX_BYTES);
   if (settingsBytes.length !== settingsFile.bytes || sha256(settingsBytes) !== settingsFile.sha256) refuse('The saved settings no longer match the export manifest.');
   const settings = checkSettings(JSON.parse(settingsBytes));
   if (settings.audit.length !== settingsFile.rows) refuse('The settings count no longer matches the export manifest.');

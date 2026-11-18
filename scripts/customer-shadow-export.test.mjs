@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { projectShadowJourneys, validShadowJourneys } from './customer-shadow-journeys.mjs';
 import { importShadowEvidence } from './customer-shadow-import.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { findPostgres } from './postgres-dev.mjs';
@@ -17,6 +18,28 @@ const executable = path.join(import.meta.dirname, 'customer-shadow-export.mjs');
 const digest = value => createHash('sha256').update(value).digest('hex');
 const cli = (...args) => spawnSync(process.execPath, [executable, ...args], { encoding: 'utf8', timeout: 30_000 });
 const noSecrets = /fixture-source-secret|fixture-unlisted-setting|fixture-unlisted-audit|foreign\.example|fixture-unlisted-field|fixture-provider-key|fixture-task-id/u;
+const firstPartyJourney = {
+  id: 'signup', label: 'Signup 👋', goal: 'Start a trial', source: 'first-party', kind: 'funnel', status: 'active', version: 1,
+  steps: [{ id: 'enter', label: 'Entered', alternatives: [] }, { id: 'signup', label: 'Completed', alternatives: [] }],
+};
+
+test('the saved journey projection accepts Unicode scalars and checks only the integration settings it uses', () => {
+  const asset = 'canopy.example';
+  const assets = new Set([asset]);
+  const events = definition => ({ assets: { [asset]: { journeys: [definition] } } });
+  const entries = projectShadowJourneys(events(firstPartyJourney), [], assets);
+  assert.deepEqual(entries, [{ asset, definitions: [firstPartyJourney] }]);
+  assert.equal(validShadowJourneys(entries), true);
+  const ga4 = { ...firstPartyJourney, source: undefined,
+    steps: firstPartyJourney.steps.map(step => ({ ...step, alternatives: [{ eventName: step.id }] })) };
+  assert.throws(() => projectShadowJourneys(events(ga4), [], assets), /invalid integration settings/u);
+  for (const label of ['Bad\0label', 'Bad\uD800label']) {
+    const invalid = { ...firstPartyJourney, label };
+    assert.throws(() => projectShadowJourneys(events(invalid), [], assets), /unsupported text/u);
+    assert.equal(validShadowJourneys([{ asset, definitions: [invalid] }]), false);
+  }
+});
+
 
 test('offline transfer preserves workspace evidence through export, restore, import and replay', {
   timeout: 120_000,
@@ -69,7 +92,9 @@ test('offline transfer preserves workspace evidence through export, restore, imp
       INSERT INTO noticeos.task_daily_counts(workspace_id,project,day,captured_at,open,in_progress,blocked,closed_ids)
       VALUES (:'workspace'::uuid,'Historical fixture',:'date'::date,:'at'::timestamptz,3,2,1,'["fixture-task-id"]');
       INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by)
-      VALUES (:'workspace'::uuid,'constants','{"os_time_zone":"Europe/Paris","fixture_unlisted":"fixture-unlisted-setting"}',3,:'at'::timestamptz,'fixture');
+      VALUES (:'workspace'::uuid,'constants','{"os_time_zone":"Europe/Paris","fixture_unlisted":"fixture-unlisted-setting"}',3,:'at'::timestamptz,'fixture'),
+        (:'workspace'::uuid,'integrations','[]',1,:'at'::timestamptz,'fixture'),
+        (:'workspace'::uuid,'value-events',:'value_events'::json,1,:'at'::timestamptz,'fixture');
       INSERT INTO noticeos.config_changes(workspace_id,document_key,ops,reason,actor,version_before,version_after,changed_at)
       VALUES (:'workspace'::uuid,'constants',
         '[{"kind":"file-json-set","file":"config/constants.json","pointer":"/os_time_zone","value":"Europe/Paris"}]',:'reason','fixture',1,2,:'at'::timestamptz),
@@ -83,6 +108,7 @@ test('offline transfer preserves workspace evidence through export, restore, imp
       INSERT INTO noticeos.connection_secrets(workspace_id,connection_id,secret_version,ciphertext,iv,key_version,field_names,created_at)
       VALUES (:'workspace'::uuid,:'connection'::uuid,1,convert_to('fixture-source-secret','UTF8'),decode(repeat('00',12),'hex'),1,'[]',:'at'::timestamptz);`,
     { vars: { workspace: workspaceId, foreign, connection, date, at, asset, report, reason, hash: digest(report),
+      value_events: JSON.stringify({ assets: { [asset]: { journeys: [firstPartyJourney] } } }),
       envelope: JSON.stringify({ asset, generatedAt: at, capabilities: ['signups'], metrics: { signups: { last24h: 15, avg7d: 6, total: 45 } } }) } });
     const backupDir = path.join(root, 'backup');
     const first = path.join(backupDir, POSTGRES_DUMP_FILE);
@@ -112,7 +138,7 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     assert.equal(manifest.omitted.rawArchiveObjects, 2);
     assert.equal(manifest.omitted.legacyArchiveObjects, 1);
     assert.equal(manifest.omitted.credentialAndIdentityState, true);
-    assert.equal(manifest.omitted.unlistedSettings, 1);
+    assert.equal(manifest.omitted.unlistedSettings, 3);
     assert.equal(manifest.omitted.unlistedAudit, 1);
     const out = path.join(root, 'bundle');
     const exported = cli('--dump', first, '--workspace', workspaceId, '--out', out);
@@ -136,6 +162,7 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     assert.equal(single('counter_readings').value, '9007199254740993');
     const settings = JSON.parse(readFileSync(path.join(out, 'settings.json'), 'utf8'));
     assert.deepEqual(settings.values, { os_time_zone: 'Europe/Paris' });
+    assert.deepEqual(settings.journeys, [{ asset, definitions: [firstPartyJourney] }]);
     assert.equal(settings.audit[0].changedAt, single('pulses').generated_at);
     assert.equal(settings.audit[0].reason, reason);
 
@@ -195,7 +222,6 @@ test('offline transfer preserves workspace evidence through export, restore, imp
     rmSync(lock);
     const settingsPath = path.join(out, 'settings.json'), manifestPath = path.join(out, 'manifest.json');
     const priorSettings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-    assert.deepEqual(priorSettings.journeys, []);
     delete priorSettings.journeys;
     const legacyBytes = JSON.stringify(priorSettings) + '\n';
     const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
