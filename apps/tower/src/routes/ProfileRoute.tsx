@@ -56,7 +56,7 @@ function PersonalProfile() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={!canSave}>{save.isPending ? 'Saving…' : 'Save name'}</Button>
-            {save.isSuccess ? <span role="status" className="text-sm text-muted-foreground">Name saved.</span> : null}
+            {save.isSuccess ? <span role="status" data-status-for="profile:display-name" className="text-sm text-muted-foreground">Name saved.</span> : null}
             {save.isError ? <span role="alert" className="text-sm text-error">Couldn't save your name. Try again.</span> : null}
           </div>
         </form> : null}
@@ -65,6 +65,6 @@ function PersonalProfile() {
         <div className="break-words font-medium">{workspaceLabel}</div>
         <div className="text-sm capitalize text-muted-foreground">{workspaceRole}</div>
       </Panel>
-    </> : <div role="status" data-status-for="profile" className="text-sm text-muted-foreground">Loading profile…</div>}
+    </> : <div role="status" data-status-for="read:profile" className="text-sm text-muted-foreground">Loading profile…</div>}
   </div>;
 }

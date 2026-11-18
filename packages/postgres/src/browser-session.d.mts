@@ -16,7 +16,7 @@ export interface BrowserSessionSnapshot {
     readonly selectedWorkspace: BrowserWorkspaceChoice | null;
 }
 /** The captured session and its current membership select the verified person. */
-export declare function personalProfile(options: IdentityOptions, headers: Headers, workspace: string, session: string, editable: boolean, name?: string): Promise<PersonalProfile>;
+export declare function personalProfile(options: IdentityOptions, headers: Headers, workspace: string, session: string, editable: boolean, name?: string): Promise<PersonalProfile | null>;
 /** Keyset pages keep responses bounded by membership count. A page cursor is
  * only an ordering marker, not authority. Selection is read in the same SQL
  * snapshot even when it is on another page; it must be active to be selected.

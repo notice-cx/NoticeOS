@@ -16,7 +16,8 @@ export interface BrowserSessionReaders {
 }
 
 export async function handlePersonalProfileRequest(request: Request,
-  env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean }): Promise<Response> {
+  env: WorkspaceEntryBindings & { NOTICEOS_CUSTOMER_SHADOW?: boolean },
+  read = personalProfile): Promise<Response> {
   try {
     const url = new URL(request.url);
     const editable = env.NOTICEOS_CUSTOMER_SHADOW !== true;
@@ -30,20 +31,30 @@ export async function handlePersonalProfileRequest(request: Request,
     if (!workspace || !session) refuse();
     let name: string | undefined;
     if (request.method === 'PATCH') {
+      let value: unknown;
       try {
-        const value: unknown = JSON.parse(await readBoundedJsonText(request, 1024));
-        if (!value || typeof value !== 'object' || Array.isArray(value)
-          || !('displayName' in value) || Object.keys(value).length !== 1) refuse();
-        name = normalizedDisplayName(value.displayName) ?? refuse();
+        value = JSON.parse(await readBoundedJsonText(request, 1024));
       } catch {
-        return Response.json({ error: 'invalid_display_name' }, { status: 400, headers: RESPONSE_HEADERS });
+        return Response.json({ error: 'invalid_profile_request' }, { status: 400, headers: RESPONSE_HEADERS });
       }
+      if (!value || typeof value !== 'object' || Array.isArray(value)
+        || !('displayName' in value) || Object.keys(value).length !== 1) {
+        return Response.json({ error: 'invalid_profile_request' }, { status: 400, headers: RESPONSE_HEADERS });
+      }
+      const normalized = normalizedDisplayName(value.displayName);
+      if (normalized === null) return Response.json({ error: 'invalid_display_name' }, { status: 400, headers: RESPONSE_HEADERS });
+      name = normalized;
     }
-    const profile = await personalProfile(identityOptions(env, origin), new Headers(request.headers), workspace, session, editable, name);
-    return Response.json(profile, { headers: RESPONSE_HEADERS });
+    try {
+      const profile = await read(identityOptions(env, origin), new Headers(request.headers), workspace, session, editable, name);
+      if (profile) return Response.json(profile, { headers: RESPONSE_HEADERS });
+    } catch {
+      return Response.json({ error: 'profile_unavailable' }, { status: 503, headers: RESPONSE_HEADERS });
+    }
   } catch {
-    return Response.json({ error: 'profile_unavailable' }, { status: 403, headers: RESPONSE_HEADERS });
+    // The request could not establish its browser context.
   }
+  return Response.json({ error: 'profile_unavailable' }, { status: 403, headers: RESPONSE_HEADERS });
 }
 const readers: BrowserSessionReaders = {
   session: readBrowserSession,

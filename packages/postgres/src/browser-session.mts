@@ -38,10 +38,10 @@ function choice(value: unknown): BrowserWorkspaceChoice {
 
 /** The captured session and its current membership select the verified person. */
 export async function personalProfile(options: IdentityOptions, headers: Headers, workspace: string,
-  session: string, editable: boolean, name?: string): Promise<PersonalProfile> {
+  session: string, editable: boolean, name?: string): Promise<PersonalProfile | null> {
   validateIdentityOptions(options);
   if (!UUID.test(workspace) || !UUID.test(session)
-    || (name !== undefined && (!editable || normalizedDisplayName(name) !== name))) refuse();
+    || (name !== undefined && (!editable || normalizedDisplayName(name) !== name))) return null;
   const { database } = await openIdentityDatabase(options);
   try {
     return await database.transaction().execute(async trx => {
@@ -49,14 +49,14 @@ export async function personalProfile(options: IdentityOptions, headers: Headers
       await sql`SELECT set_config('statement_timeout','5000',true), set_config('lock_timeout','5000',true)`.execute(trx);
       const auth = identityEngine(trx, options, { transaction: false, validateSchema: false, readOnlySession: true });
       const member = await identityMembership(trx, auth, headers, workspace, true, name !== undefined);
-      if (member?.sessionId !== session || member.workspaceStatus !== 'active') return refuse();
+      if (member?.sessionId !== session || member.workspaceStatus !== 'active') return null;
       const { rows: [person] } = await sql<{ name: string; email: string }>`
         SELECT name, email FROM noticeos_identity.auth_user
         WHERE id=${member.principalId}::uuid AND email_verified=true
         ${name === undefined ? sql`` : sql`FOR UPDATE`}`.execute(trx);
-      if (!person) return refuse();
+      if (!person) return null;
       if (name !== undefined && name !== person.name
-        && !(await auth.api.updateUser({ headers, body: { name } })).status) return refuse();
+        && !(await auth.api.updateUser({ headers, body: { name } })).status) throw new Error('Profile update unavailable');
       return { displayName: name ?? person.name, email: person.email, editable };
     });
   } finally { await database.destroy(); }

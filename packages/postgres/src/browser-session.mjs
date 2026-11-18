@@ -29,7 +29,7 @@ export async function personalProfile(options, headers, workspace, session, edit
     validateIdentityOptions(options);
     if (!UUID.test(workspace) || !UUID.test(session)
         || (name !== undefined && (!editable || normalizedDisplayName(name) !== name)))
-        refuse();
+        return null;
     const { database } = await openIdentityDatabase(options);
     try {
         return await database.transaction().execute(async (trx) => {
@@ -39,16 +39,16 @@ export async function personalProfile(options, headers, workspace, session, edit
             const auth = identityEngine(trx, options, { transaction: false, validateSchema: false, readOnlySession: true });
             const member = await identityMembership(trx, auth, headers, workspace, true, name !== undefined);
             if (member?.sessionId !== session || member.workspaceStatus !== 'active')
-                return refuse();
+                return null;
             const { rows: [person] } = await sql `
         SELECT name, email FROM noticeos_identity.auth_user
         WHERE id=${member.principalId}::uuid AND email_verified=true
         ${name === undefined ? sql `` : sql `FOR UPDATE`}`.execute(trx);
             if (!person)
-                return refuse();
+                return null;
             if (name !== undefined && name !== person.name
                 && !(await auth.api.updateUser({ headers, body: { name } })).status)
-                return refuse();
+                throw new Error('Profile update unavailable');
             return { displayName: name ?? person.name, email: person.email, editable };
         });
     }
