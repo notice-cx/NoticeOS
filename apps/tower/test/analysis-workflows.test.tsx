@@ -171,7 +171,7 @@ describe('customer analysis workflows', () => {
     fireEvent.change(within(result).getByLabelText('Title *'), { target: { value: 'Compare the empty first week' } });
     fireEvent.change(within(result).getByLabelText('Finding and next step *'), { target: { value: 'Check impressions for the same dates.' } });
     expect(within(result).getByRole('button', { name: 'Save result' })).toBeDisabled();
-    fireEvent.click(within(result).getByRole('checkbox', { name: `Search clicks · ${ASSET}`, exact: true }));
+    fireEvent.click(within(result).getByRole('checkbox', { name: `Search clicks · ${ASSET}` }));
     fireEvent.click(within(result).getByRole('button', { name: 'Save result' }));
     const recorded = await screen.findByRole('region', { name: 'Recorded result' });
     expect(recorded).toHaveTextContent('Compare the empty first week');
