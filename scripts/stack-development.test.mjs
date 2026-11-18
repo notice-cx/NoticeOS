@@ -51,7 +51,7 @@ test('mounted dependency patches are verified by their bytes', t => {
   fs.writeFileSync(metadataFile, JSON.stringify(dependencyDescription(fixture.root)));
   fs.utimesSync(patch, 1, 1);
   assert.ok(developmentDependencies({ source: fixture.root, metadataFile }));
-  fs.writeFileSync(patch, 'edited patch');
+  fs.writeFileSync(patch, 'modified patch');
   fs.utimesSync(patch, 1, 1);
   assert.throws(() => developmentDependencies({ source: fixture.root, metadataFile }));
 });
