@@ -39,6 +39,7 @@
 | `db:prepare-customer-roles` | Preview, enable or reverse the dedicated Postgres logins for a local customer workspace. | `scripts/customer-postgres-roles.mjs` |
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:adopt-owner` | Enroll the verified first owner of an explicitly selected standalone workspace. | `scripts/standalone-owner.mjs` |
+| `db:provision-workspace` | Prepare a new local customer workspace and enroll its verified first owner. | `scripts/local-workspace-owner.mjs` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
 | `db:try-tower` | Run Tower locally with a disposable standalone store or persistent customer workspaces. | `scripts/start.mjs` |
 | `db:shadow-export` | Preview or export selected workspace evidence from a private offline PostgreSQL backup. | `scripts/customer-shadow-export.mjs` |
@@ -867,6 +868,58 @@ returns the existing grant ID while the original owner and grant are current.
 Use its `workspaceId` and `serviceId` in deployment settings. Starting or
 switching the customer runtime is a separate operator step. Switching back
 to standalone serves the same saved portfolio.
+
+## Create another workspace on a shared local customer runtime
+
+Use `db:provision-workspace` with the
+[attached local customer runtime](#run-the-customer-app-on-a-separately-prepared-local-database).
+This command adds a new workspace to the prepared database. The ordinary
+Compose customer profile supports one workspace.
+
+1. In the separate local Ntasks instance, prepare the team's workspace and
+   project. Create a service credential with write access to exactly that
+   project.
+2. Make a separate operator-owned plan file with mode `0600`. Use the fields
+   in the [owner plan above](#enroll-the-owner-of-an-existing-standalone-workspace),
+   with these values:
+   - `format` is `noticeos-local-workspace-owner/1`.
+   - `workspaceId` and `serviceId` are new lowercase UUIDs. Keep both in this
+     plan.
+   - `slug` is a unique lowercase identifier of up to 63 letters, digits or
+     dashes, starting with a letter or digit. `displayName` is the team name.
+   - `intendedEmail` is the new first owner's private address. Use a local
+     mailbox in a rehearsal.
+   - `trustedOrigin` is the existing attached Tower's loopback origin. Use its
+     identity secret and the identity and platform logins for the same
+     already prepared loopback database.
+   - `ntasks` identifies the separate loopback Ntasks origin, workspace and
+     project. Keep its service credential outside the plan.
+3. Run `prepare` and save its enrollment ID privately. Send the code using
+   `send-code`. The intended owner supplies the six-digit code on standard
+   input to `verify-code`. Then provide the Ntasks credential on standard
+   input to `activate`. Use a hidden prompt or redirect from a private file
+   when providing either value.
+
+```sh
+pnpm db:provision-workspace -- prepare /absolute/private-owner-plan.json
+pnpm db:provision-workspace -- send-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:provision-workspace -- verify-code /absolute/private-owner-plan.json <enrollment-id>
+pnpm db:provision-workspace -- activate /absolute/private-owner-plan.json <enrollment-id>
+```
+
+4. After activation, append the plan's `workspaceId` and `serviceId` to the
+   attached runtime's `workspaces`. Add the first owner's address if the
+   runtime uses an explicit `mailRecipients` list. Restart the same local
+   customer runtime with its existing Tower address and runtime folder.
+5. The new owner signs in through the Tower and connects the team's
+   project-scoped credential under **Integrations → Ntasks**. The first
+   team's membership and connection continue to use its existing workspace.
+
+Preparation leaves the workspace inactive. The owner and its scheduler
+grant are recorded together after email and project verification. If a
+verification fails, correct the input and repeat that action using the same
+enrollment ID. A duplicate workspace ID, slug or already assigned local
+Ntasks project cannot create another workspace.
 
 ---
 

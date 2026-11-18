@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { openEmailCodeLogin } from '../packages/postgres/src/email-code.mjs';
 import { createRequire } from 'node:module';
 import { availableCustomerPort as availablePort } from './test/customer-ports.mjs';
 import path from 'node:path';
@@ -10,10 +12,11 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 import { configDocumentKey } from './config-documents.mjs';
 import { applyDemoNtasksProvision, demoNtasks, demoNtasksWorker } from './demo-ntasks.mjs';
 import { hostedTaskAuthorization } from './hosted-task-request.mjs';
-import { ACCEPT_INVITATION_PATH, EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS } from './identity-protocol.mjs';
+import { EMAIL_CODE_PATHS } from './identity-protocol.mjs';
 import { startAttachedCustomer } from './local-customer-attach.mjs';
 import { assertSameStoreHandoff } from './test/customer-runtime-handoff.mjs';
-import { startLocalCustomer } from './local-customer.mjs';
+import { LOOPBACK_HBA } from './postgres-dev.mjs';
+import { scramVerifier } from './postgres-scram.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 import { startPlan } from './start.mjs';
 import { openDevelopmentStart } from './start-development.mjs';
@@ -23,6 +26,7 @@ import { assertCustomerShadowTarget } from './test/customer-shadow-target.mjs';
 import { assertNtasksShadowActivation } from './test/customer-shadow-activation.mjs';
 
 const tools = process.env.NOTICEOS_NTASKS_ROOT;
+const ownerScript = fileURLToPath(new URL('./local-workspace-owner.mjs', import.meta.url));
 
 test('the local customer Tower reads and writes to distinct workspaces in a separate Ntasks', {
   skip: !tools, timeout: 240_000,
@@ -66,30 +70,132 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       cli('load', '--api', ntasksOrigin, '--token-file', token, '--from', backup);
       actors.push({ ...seed, token: provision.tokens.tower, readonlyToken: provision.tokens.readonly });
     }
-    app = await startLocalCustomer(plan, postgres, { ntasksOrigin });
-    const origin = app.publicOrigin;
+    const origin = new URL(plan.url).origin;
+    const identitySecret = randomBytes(48).toString('base64url'), credentialsKey = randomBytes(32).toString('base64');
+    // Give the external provisioner its normal limited login on the disposable cluster.
+    const platform = new URL(postgres.address);
+    platform.username = 'noticeos_platform';
+    const platformPassword = randomBytes(32).toString('base64url');
+    platform.password = platformPassword;
+    postgres.cluster.run(`ALTER ROLE noticeos_platform LOGIN PASSWORD '${scramVerifier(platformPassword)}'`);
+    appendFileSync(path.join(postgres.cluster.root, LOOPBACK_HBA), 'host all noticeos_platform 127.0.0.1/32 scram-sha-256\n');
+    execFileSync(postgres.cluster.tools.pgCtl, ['reload', '-D', path.join(postgres.cluster.root, 'data')], { stdio: 'pipe' });
+    const mailbox = path.join(root, 'enrollment-mail');
+    const sendmail = path.join(root, 'private-sendmail');
+    writeFileSync(sendmail, `#!/bin/sh\numask 077\nexec /bin/cat > "${mailbox}"\n`, { mode: 0o700 });
+    const ownerPlan = (actor, slug) => ({
+      format: 'noticeos-local-workspace-owner/1', workspaceId: randomUUID(), serviceId: randomUUID(), slug, displayName: slug,
+      intendedEmail: `${slug}-owner@example.test`, trustedOrigin: origin, platformDatabaseUrl: platform.href,
+      identityDatabaseUrl: postgres.identityDatabase, identitySecret,
+      ntasks: { origin: ntasksOrigin, workspaceId: actor.workspaceId, projectId: actor.projectId },
+      mail: { sendmail, from: 'noticeos@example.test' },
+    });
+    const prepareFile = (slug, data) => {
+      const file = path.join(root, `${slug}-owner.json`);
+      writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
+      return file;
+    };
+    const runOwner = (action, file, { id, input, status = 0 } = {}) => {
+      const result = spawnSync(process.execPath, [ownerScript, action, file, ...(id ? [id] : [])],
+        { input, timeout: 30_000, encoding: 'utf8' });
+      assert.equal(result.status, status, `Operator ${action} returned an unexpected status.`);
+      for (const secret of [identitySecret, platformPassword, input]) {
+        if (secret) assert.equal((result.stdout + result.stderr).includes(secret), false);
+      }
+      assert.equal(/@example\.test/u.test(result.stdout + result.stderr), false);
+      return status === 0 ? JSON.parse(result.stdout) : null;
+    };
+    const verifyOwner = (file, id, email) => {
+      runOwner('send-code', file, { id });
+      const mail = readFileSync(mailbox, 'utf8');
+      assert.ok(mail.split('\n').includes(`To: ${email}`));
+      const otp = /\b(\d{6})\.\s*$/u.exec(mail)?.[1];
+      assert.ok(otp);
+      assert.equal(runOwner('verify-code', file, { id, input: otp }).emailVerified, true);
+    };
+    const [oak, elm] = actors;
+    const firstOwner = ownerPlan(oak, 'oak');
+    const firstFile = prepareFile('oak', firstOwner);
+    const first = runOwner('prepare', firstFile);
+    // The preexisting owner's original enrollment had a different trusted peer.
+    let firstCode;
+    const firstLogin = openEmailCodeLogin({ connectionString: postgres.identityDatabase, trustedOrigin: origin,
+      sessionSecret: identitySecret, peerAddress: '192.0.2.42', async deliver(message) { firstCode = message.code; } });
+    try {
+      const enrollment = { kind: 'platform', id: first.enrollmentId };
+      const request = (action, body) => new Request(origin + EMAIL_CODE_PATHS[action], { method: 'POST',
+        headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const email = firstOwner.intendedEmail;
+      assert.equal((await firstLogin.requestCode(request('request', { email }), enrollment)).status, 202);
+      assert.ok(firstCode);
+      assert.equal((await firstLogin.verifyCode(request('verify', { email, otp: firstCode }), enrollment)).status, 200);
+    } finally { await firstLogin.close(); }
+    const activate = (file, prepared, input, status) => runOwner('activate', file, { id: prepared.enrollmentId, input, status });
+    const activeFirst = activate(firstFile, first, oak.token);
+    assert.equal(activeFirst.serviceId, firstOwner.serviceId);
+    const attachedConfig = path.join(root, 'attached.json');
+    const attach = workspaces => {
+      writeFileSync(attachedConfig, JSON.stringify({ format: 'noticeos-customer-operating/1', database: {
+        app: postgres.address, identity: postgres.identityDatabase, grant: postgres.grantConnectionString,
+      }, identitySecret, credentialsKey, ntasksOrigin, mailRecipients: workspaces.map(workspace => workspace.intendedEmail),
+      workspaces: workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) }), { mode: 0o600 });
+      return startAttachedCustomer(startPlan({ dir: path.join(root, 'attached'), port: plan.port }), attachedConfig);
+    };
+    app = await attach([firstOwner]);
     const http = (route, { body, headers = {} } = {}) => fetch(origin + route, {
       ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }), headers: { origin,
         ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers }, signal: AbortSignal.timeout(30000),
     });
-    const signUp = async ({ email, url }) => {
-      const invitationId = new URL(url).hash.slice('#invitation='.length);
-      const headers = { [EMAIL_ENROLLMENT_HEADERS.kind]: 'invitation', [EMAIL_ENROLLMENT_HEADERS.id]: invitationId };
-      assert.equal((await http(EMAIL_CODE_PATHS.request, { body: { email }, headers })).status, 202);
-      const message = readdirSync(app.outbox).map(file => JSON.parse(readFileSync(path.join(app.outbox, file), 'utf8')))
+    const signIn = async ({ intendedEmail: email, workspaceId }) => {
+      const previous = new Set(readdirSync(app.outbox));
+      assert.equal((await http(EMAIL_CODE_PATHS.request, { body: { email } })).status, 202);
+      const message = readdirSync(app.outbox).filter(file => !previous.has(file)).map(file => JSON.parse(readFileSync(path.join(app.outbox, file), 'utf8')))
         .find(item => item.to === email && /[0-9]{6}\.$/u.test(item.text));
       assert.ok(message);
       const otp = message.text.match(/\b([0-9]{6})\.$/u)[1];
-      const login = await http(EMAIL_CODE_PATHS.verify, { body: { email, otp }, headers });
+      const login = await http(EMAIL_CODE_PATHS.verify, { body: { email, otp } });
       assert.equal(login.status, 200);
       const cookie = login.headers.getSetCookie().map(item => item.split(';')[0]).join('; ');
-      const { session } = await (await http('/api/session', { headers: { cookie } })).json();
-      const bound = { cookie, [WORKSPACE_SESSION_HEADER]: session.sessionId };
-      assert.equal((await http(ACCEPT_INVITATION_PATH, { body: { invitationId }, headers: bound })).status, 200);
-      return bound;
+      const session = await (await http('/api/session', { headers: { cookie, [WORKSPACE_SELECTION_HEADER]: workspaceId } })).json();
+      assert.equal(session.selectedWorkspace.workspaceId, workspaceId);
+      assert.equal(session.selectedWorkspace.role, 'owner');
+      assert.deepEqual(session.workspaces.map(workspace => workspace.workspaceId), [workspaceId]);
+      return { cookie, [WORKSPACE_SESSION_HEADER]: session.session.sessionId };
     };
+    const firstSession = await signIn(firstOwner);
+    const firstHeaders = { ...firstSession, [WORKSPACE_SELECTION_HEADER]: firstOwner.workspaceId };
+    const firstStillOwnsWorkspace = async () => {
+      const response = await http('/api/session', { headers: firstHeaders });
+      assert.equal(response.status, 200);
+      const { selectedWorkspace, workspaces } = await response.json();
+      assert.equal(selectedWorkspace.role, 'owner');
+      assert.deepEqual(workspaces.map(workspace => workspace.workspaceId), [firstOwner.workspaceId]);
+    };
+    const conflict = ownerPlan(oak, 'overlap');
+    runOwner('prepare', prepareFile('overlap', conflict), { status: 1 });
+    const secondOwner = ownerPlan(elm, 'elm');
+    const secondFile = prepareFile('elm', secondOwner);
+    const second = runOwner('prepare', secondFile);
+    runOwner('prepare', secondFile, { status: 1 });
+    activate(secondFile, second, elm.token, 1);
+    verifyOwner(secondFile, second.enrollmentId, secondOwner.intendedEmail);
+    activate(secondFile, { enrollmentId: first.enrollmentId }, elm.token, 1);
+    activate(secondFile, second, elm.readonlyToken, 1);
+    activate(secondFile, second, oak.token, 1);
+    const editedEmail = prepareFile('wrong-recipient', { ...secondOwner, intendedEmail: firstOwner.intendedEmail });
+    activate(editedEmail, second, elm.token, 1);
+    const reusedGrant = prepareFile('duplicate-grant', { ...secondOwner, serviceId: firstOwner.serviceId });
+    activate(reusedGrant, second, elm.token, 1);
+    await firstStillOwnsWorkspace();
+    assert.equal(activate(secondFile, second, elm.token).serviceId, secondOwner.serviceId);
+    activate(secondFile, second, elm.token, 1);
+    await app.close(); app = undefined;
+    app = await attach([firstOwner, secondOwner]);
+    await firstStillOwnsWorkspace();
+    assert.equal((await http('/api/wall', { headers: { ...firstHeaders, [WORKSPACE_SELECTION_HEADER]: secondOwner.workspaceId } })).status, 403);
+    const owners = [firstOwner, secondOwner];
     for (const [i, actor] of actors.slice(0, 2).entries()) {
-      const workspace = app.workspaces[i], binding = await signUp(workspace);
+      const workspace = owners[i], binding = i === 0 ? firstSession : await signIn(workspace);
       const asset = `${actor.prefix}.example`;
       postgres.cluster.run(`UPDATE noticeos.config_documents SET body=:'body'::jsonb WHERE workspace_id=:'workspace'::uuid AND document_key=:'key';
         INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status,list_position)
@@ -108,7 +214,6 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
       assert.equal(catalog.status, 200);
       assert.deepEqual((await catalog.json()).projects.map(project => project.projectId), [actor.projectId]);
     }
-    const [oak, elm] = actors;
     assert.equal((await http(`/api/tasks?project=${elm.projectId}`, { headers: oak.board })).status, 404);
     const saved = await http('/api/tasks', { headers: { ...elm.board, 'idempotency-key': 'fixture-customer-work' },
       body: { projectId: elm.projectId, title: 'Check the signup report' } });
@@ -129,14 +234,8 @@ test('the local customer Tower reads and writes to distinct workspaces in a sepa
     assert.ok(wall.workProjects[0]?.capturedAt);
     assert.equal(wall.workProjects[0].open, 0);
     assert.equal((await http(`/api/tasks/${id}/respond`, { headers: elm.board, body: { projectId: elm.projectId, response: 'A fixture answer' } })).status, 401);
-    const { identitySecret, credentialsKey } = JSON.parse(readFileSync(path.join(postgres.customer, 'settings.json'), 'utf8'));
-    const attachedConfig = path.join(root, 'attached.json');
-    writeFileSync(attachedConfig, JSON.stringify({ format: 'noticeos-customer-operating/1', database: {
-      app: postgres.address, identity: postgres.identityDatabase, grant: postgres.grantConnectionString,
-    }, identitySecret, credentialsKey, ntasksOrigin, mailRecipients: app.workspaces.map(workspace => workspace.email),
-    workspaces: app.workspaces.map(({ workspaceId, serviceId }) => ({ workspaceId, serviceId })) }), { mode: 0o600 });
     await app.close(); app = undefined;
-    app = await startAttachedCustomer(startPlan({ dir: path.join(root, 'attached'), port: plan.port }), attachedConfig);
+    app = await attach(owners);
     const reopened = await http('/api/tasks/projects', { headers: elm.board });
     assert.equal(reopened.status, 200);
     assert.deepEqual((await reopened.json()).projects.map(project => project.projectId), [elm.projectId]);

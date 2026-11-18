@@ -82,6 +82,13 @@ function intendedOwner(intendedEmail, expiresAt) {
         refuse();
     return { intendedEmail: ownerEmail(intendedEmail), expiresAt: new Date(expires).toISOString() };
 }
+function initialProject(input) {
+    const row = record(input, ['projectId', 'executorRef', 'credentialRef', 'databaseKey']);
+    if (typeof row.databaseKey !== 'string' || !/^n_[0-9a-f]{32}$/u.test(row.databaseKey))
+        refuse();
+    return { projectId: uuid(row.projectId), executorRef: uuid(row.executorRef),
+        credentialRef: uuid(row.credentialRef), databaseKey: row.databaseKey };
+}
 function standaloneBinding(row) {
     if (typeof row.ntasksOrigin !== 'string' || row.ntasksOrigin.length > 512)
         refuse();
@@ -212,12 +219,15 @@ export function openPlatformProvisioning(input) {
             trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin, sessionSecret: options.sessionSecret }, { transaction: false, validateSchema: false }).api.addMember({ body: { organizationId, userId, role: 'owner' } });
     }
     return Object.freeze({
-        prepare(input) {
+        prepare(input, projectInput) {
             if (closed)
                 return Promise.reject(new PlatformProvisioningRefused());
             let command;
+            let project;
             try {
                 command = preparation(input);
+                if (projectInput !== undefined)
+                    project = initialProject(projectInput);
             }
             catch {
                 return Promise.reject(new PlatformProvisioningRefused());
@@ -231,16 +241,28 @@ export function openPlatformProvisioning(input) {
                 const enrollmentId = result.rows[0]?.enrollment_id;
                 if (!enrollmentId || !UUID.test(enrollmentId) || signal.aborted)
                     refuse();
+                if (project) {
+                    await sql `INSERT INTO noticeos_platform.task_project_directory(workspace_id,project_id,executor_ref,credential_ref,database_key)
+            VALUES (${command.workspaceId}::uuid, ${project.projectId}::uuid, ${project.executorRef}::uuid,
+              ${project.credentialRef}::uuid, ${project.databaseKey})`.execute(trx);
+                }
+                if (signal.aborted)
+                    refuse();
                 return Object.freeze({ workspaceId: command.workspaceId, enrollmentId });
             })));
         },
-        activate(input) {
+        activate(input, schedulerInput) {
             if (closed)
                 return Promise.reject(new PlatformProvisioningRefused());
             let command;
+            let scheduler;
             try {
                 const row = record(input, ['workspaceId', 'enrollmentId', 'projectId']);
                 command = Object.freeze({ workspaceId: uuid(row.workspaceId), enrollmentId: uuid(row.enrollmentId), projectId: uuid(row.projectId) });
+                if (schedulerInput !== undefined) {
+                    const grant = record(schedulerInput, ['serviceId', 'intendedEmail']);
+                    scheduler = { serviceId: uuid(grant.serviceId), intendedEmail: ownerEmail(grant.intendedEmail) };
+                }
             }
             catch {
                 return Promise.reject(new PlatformProvisioningRefused());
@@ -256,6 +278,12 @@ export function openPlatformProvisioning(input) {
                     || row.project_id !== command.projectId || !UUID.test(row.executor_ref) || !UUID.test(row.credential_ref)
                     || !/^n_[0-9a-f]{32}$/u.test(row.database_key) || signal.aborted)
                     refuse();
+                if (scheduler) {
+                    const person = await sql `SELECT lower(email)=${scheduler.intendedEmail} AS matches
+            FROM noticeos_identity.auth_user WHERE id=${row.person_id}::uuid`.execute(trx);
+                    if (person.rows[0]?.matches !== true || signal.aborted)
+                        refuse();
+                }
                 const mapping = Object.freeze({ workspaceId: command.workspaceId, projectId: row.project_id,
                     executorRef: row.executor_ref, credentialRef: row.credential_ref, databaseKey: row.database_key });
                 // Never race away from this promise: locks remain held until the real
@@ -268,6 +296,10 @@ export function openPlatformProvisioning(input) {
                     refuse();
                 await sql `SELECT noticeos_platform.complete_workspace_activation(${command.workspaceId}::uuid,
           ${command.enrollmentId}::uuid,${command.projectId}::uuid,${documents}::jsonb)`.execute(trx);
+                if (scheduler) {
+                    await sql `INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at)
+            VALUES (${scheduler.serviceId}::uuid, ${command.workspaceId}::uuid, ARRAY['workflows.run'], clock_timestamp() + interval '1 year')`.execute(trx);
+                }
                 if (signal.aborted)
                     refuse();
                 return Object.freeze({ workspaceId: command.workspaceId, enrollmentId: command.enrollmentId });

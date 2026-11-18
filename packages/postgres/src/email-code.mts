@@ -13,6 +13,7 @@ export interface EmailCodeOptions extends IdentityOptions {
   readonly peerAddress: string;
   /** The private operator command binds its email operations to one workspace. */
   readonly standaloneOwnerWorkspaceId?: string;
+  readonly provisioningWorkspaceId?: string;
   /** Called only after database commit. No real sender is selected here. */
   readonly deliver: (message: EmailCodeMessage) => Promise<void>;
 }
@@ -74,8 +75,8 @@ async function input(request: Request): Promise<{ email: string; otp?: string }>
 }
 
 async function eligibility(trx: Transaction<IdentityDatabase>, email: string, enrollment?: EmailEnrollment,
-  standaloneOwnerWorkspaceId?: string): Promise<Eligibility> {
-  if (standaloneOwnerWorkspaceId !== undefined && enrollment?.kind !== 'platform') return { allowed: false };
+  operator?: { workspaceId: string; status: 'active' | 'provisioning' }): Promise<Eligibility> {
+  if (operator && enrollment?.kind !== 'platform') return { allowed: false };
   if (!enrollment) {
     const result = await sql<{ id: string }>`SELECT id FROM noticeos_identity.auth_user WHERE email=${email}`.execute(trx);
     return { allowed: result.rows.length === 1 };
@@ -84,7 +85,7 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
     ? await sql<{ workspace_id: string }>`SELECT workspace_id FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid`.execute(trx)
     : await sql<{ workspace_id: string }>`SELECT organization_id AS workspace_id FROM noticeos_identity.auth_invitation WHERE id=${enrollment.id}::uuid`.execute(trx);
   const workspaceId = target.rows[0]?.workspace_id;
-  if (!workspaceId || (standaloneOwnerWorkspaceId !== undefined && workspaceId !== standaloneOwnerWorkspaceId)) {
+  if (!workspaceId || (operator && workspaceId !== operator.workspaceId)) {
     return { allowed: false };
   }
   // All later invitation/provisioning lifecycle operations must use this same
@@ -97,8 +98,9 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
       AND revoked_at IS NULL AND verified_at IS NULL AND expires_at>clock_timestamp() AS allowed
       FROM noticeos_identity.platform_enrollment WHERE id=${enrollment.id}::uuid FOR UPDATE`.execute(trx);
     const status = workspace.rows[0]?.status;
-    let allowed = standaloneOwnerWorkspaceId === undefined && result.rows[0]?.allowed === true && status === 'provisioning';
-    if (status === 'active' && result.rows[0]?.allowed === true) {
+    const matches = result.rows[0]?.allowed === true && (!operator || status === operator.status);
+    let allowed = matches && status === 'provisioning';
+    if (matches && status === 'active') {
       // Before the operator applies the adoption migration, active workspace
       // enrollment keeps its original refusal.
       const installed = await sql<{ exists: boolean }>`SELECT
@@ -121,16 +123,19 @@ async function eligibility(trx: Transaction<IdentityDatabase>, email: string, en
  * connection/query. The trusted peer and fixed action are server facts; caller
  * headers never choose a rate bucket. Close in finally after the last action. */
 export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
+  const { standaloneOwnerWorkspaceId, provisioningWorkspaceId } = options;
+  const operatorWorkspaceId = standaloneOwnerWorkspaceId ?? provisioningWorkspaceId;
+  if ((standaloneOwnerWorkspaceId !== undefined && provisioningWorkspaceId !== undefined)
+    || (operatorWorkspaceId !== undefined && (typeof operatorWorkspaceId !== 'string' || !UUID.test(operatorWorkspaceId)))) {
+    throw new IdentityRefused('Identity enrollment refused');
+  }
+  const operator = operatorWorkspaceId === undefined ? undefined : { workspaceId: operatorWorkspaceId,
+    status: standaloneOwnerWorkspaceId === undefined ? 'provisioning' as const : 'active' as const };
   options = Object.freeze({ connectionString: options.connectionString, trustedOrigin: options.trustedOrigin, localTowerOrigin: options.localTowerOrigin,
-    sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver,
-    ...(options.standaloneOwnerWorkspaceId === undefined ? {} : { standaloneOwnerWorkspaceId: options.standaloneOwnerWorkspaceId }) });
+    sessionSecret: options.sessionSecret, peerAddress: options.peerAddress, deliver: options.deliver });
   const trustedOrigin = validateIdentityOptions(options);
   if (typeof options.peerAddress !== 'string' || !isValidIP(options.peerAddress) || typeof options.deliver !== 'function') {
     throw new IdentityRefused('Identity requires a trusted peer and delivery adapter');
-  }
-  if (options.standaloneOwnerWorkspaceId !== undefined && (typeof options.standaloneOwnerWorkspaceId !== 'string'
-    || !UUID.test(options.standaloneOwnerWorkspaceId))) {
-    throw new IdentityRefused('Identity enrollment refused');
   }
   const peer = normalizeIP(options.peerAddress);
   const policy = createBrowserRequestPolicy(trustedOrigin, options.localTowerOrigin);
@@ -164,7 +169,7 @@ export function openEmailCodeLogin(options: EmailCodeOptions): EmailCodeLogin {
       const bucket = createRateLimitKey(peer, path);
       await sql`SELECT pg_advisory_xact_lock(hashtextextended(${bucket}, 7350))`.execute(trx);
       if (body) await sql`SELECT pg_advisory_xact_lock(hashtextextended(${body.email}, 7349))`.execute(trx);
-      const eligible = body ? await eligibility(trx, body.email, enrollment, options.standaloneOwnerWorkspaceId) : { allowed: true };
+      const eligible = body ? await eligibility(trx, body.email, enrollment, operator) : { allowed: true };
       const engine = identityEngine(trx, options, { transaction: false, emailCode: true, validateSchema: false,
         ...(action === 'logout' ? { readOnlySession: true as const } : {}),
         peer, eligible: eligible.allowed, deliver: (message) => { mail.push(message); } });

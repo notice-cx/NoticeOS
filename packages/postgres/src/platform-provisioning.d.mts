@@ -20,8 +20,11 @@ export interface PreparedWorkspace {
     readonly enrollmentId: string;
 }
 export interface PlatformProvisioning {
-    prepare(input: unknown): Promise<PreparedWorkspace>;
-    activate(input: unknown): Promise<PreparedWorkspace>;
+    prepare(input: unknown, project?: unknown): Promise<PreparedWorkspace>;
+    activate(input: unknown, scheduler?: {
+        serviceId: string;
+        intendedEmail: string;
+    }): Promise<PreparedWorkspace>;
     prepareStandaloneOwner(input: unknown): Promise<PreparedWorkspace>;
     activateStandaloneOwner(input: unknown): Promise<PreparedWorkspace & {
         readonly serviceId: string;
