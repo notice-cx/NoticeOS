@@ -97,9 +97,9 @@ export function monthRevenue(
   const sources = assets.flatMap(({ wallDailyRevenue, revenueProjection }) =>
     wallDailyRevenue !== null && revenueProjection && revenueProjection.status !== "no-revenue" ? [revenueProjection] : []);
   if (ledgerState === null && sources.length === 0) return null;
-  // The month the figure is about. A projection is always about the month the
-  // operator is standing in; the ledger's period can be an older one.
-  const period = lead || ledgerState !== null ? portfolio.wallRevenueUsd?.period ?? portfolio.period : (sources.find(isReady) ?? sources[0]!).period;
+  // A revenue figure follows its ledger month. With only daily reports, use
+  // their projection month even when the ledger still shows an older cost.
+  const period = ledgerState !== null ? portfolio.wallRevenueUsd?.period ?? portfolio.period : (sources.find(isReady) ?? sources[0]!).period;
   const current = sources.filter((projection) => projection.period === period);
   const ready = current.filter(isReady);
 
@@ -151,7 +151,7 @@ export function monthRevenue(
 
   return {
     period,
-    periodIsCurrent: lead || ledgerState !== null ? portfolio.wallRevenueUsd?.periodIsCurrent ?? portfolio.periodIsCurrent : true,
+    periodIsCurrent: ledgerState !== null ? portfolio.wallRevenueUsd?.periodIsCurrent ?? portfolio.periodIsCurrent : true,
     revenue,
     state: ledgerState ?? "forecast",
     previousMonth,
@@ -163,10 +163,11 @@ export function monthRevenue(
 
 function monthPace(ready: readonly ReadyProjection[], recorded: ReadonlyMap<string, number>, uncoveredMinor: number, previousTotal: number | null): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
-  const datedMinor = sum([...recorded.values()]);
+  const dated = [...recorded.values()];
+  const datedMinor = sum(dated);
   // Preserve a ledger-only refund. An accounting subtotal below known daily
   // receipts cannot establish a refund against those receipts.
-  const undatedMinor = datedMinor === 0 ? uncoveredMinor : Math.max(0, uncoveredMinor - datedMinor);
+  const undatedMinor = dated.some(amount => amount !== 0) ? Math.max(0, uncoveredMinor - datedMinor) : uncoveredMinor;
   const projected = (coveredMinor + datedMinor + undatedMinor) / 100;
 
   // Day by day across the covered sites. Every ready projection carries every

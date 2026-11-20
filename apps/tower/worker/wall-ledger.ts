@@ -22,35 +22,27 @@ export const previousLedgerPeriod = (month: string) => shiftRevenueDate(monthDat
 
 /** The portfolio and per-site rows used by the Wall's current-month revenue. */
 export async function loadWallLedger(store: WorkspaceStore, currentPeriod: string, osTimeZone: string) {
-  const latestLedgerPeriod =
-    (
-      await store.read((tx) =>
-        tx.query<{ period: string | null }>(
-          `SELECT to_char(MAX(period_month), 'YYYY-MM') AS period
-             FROM noticeos.financial_ledger
-            WHERE period_month <= $1::date`,
-          [monthDate(currentPeriod)],
-        ),
+  const rows = await store.read(tx => tx.query<Omit<LedgerStateRow, 'revenueMinor' | 'costMinor'> & {
+    period: string; revenueMinor: bigint; costMinor: bigint;
+  }>(
+    `SELECT to_char(period_month, 'YYYY-MM') AS period,
+            asset_id AS asset, booking_state AS "bookingState", currency,
+            BOOL_OR(kind = 'revenue') AS "revenueRecorded",
+            ARRAY_AGG(DISTINCT source) FILTER (WHERE entry_id < 0) AS "dailySources",
+            COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE 0 END), 0)::bigint AS "revenueMinor",
+            COALESCE(SUM(CASE WHEN kind='cost'    THEN amount_minor ELSE 0 END), 0)::bigint AS "costMinor"
+       FROM noticeos.financial_ledger
+      WHERE period_month = (
+        SELECT MAX(period_month) FROM noticeos.financial_ledger WHERE period_month <= $1::date
       )
-    )[0]?.period ?? null;
-  const period = latestLedgerPeriod ?? currentPeriod;
+      GROUP BY period_month, asset_id, booking_state, currency`,
+    [monthDate(currentPeriod)],
+  ));
+  const period = rows[0]?.period ?? currentPeriod;
   const periodIsCurrent = period === currentPeriod;
-
-  const ledgerRows: LedgerStateRow[] = (
-    await store.read((tx) =>
-      tx.query<Omit<LedgerStateRow, 'revenueMinor' | 'costMinor'> & { revenueMinor: bigint; costMinor: bigint }>(
-        `SELECT asset_id AS asset, booking_state AS "bookingState", currency,
-                BOOL_OR(kind = 'revenue') AS "revenueRecorded",
-                ARRAY_AGG(DISTINCT source) FILTER (WHERE entry_id < 0) AS "dailySources",
-                COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE 0 END), 0)::bigint AS "revenueMinor",
-                COALESCE(SUM(CASE WHEN kind='cost'    THEN amount_minor ELSE 0 END), 0)::bigint AS "costMinor"
-           FROM noticeos.financial_ledger
-          WHERE period_month = $1::date
-          GROUP BY asset_id, booking_state, currency`,
-        [monthDate(period)],
-      ),
-    )
-  ).map((row) => ({ ...row, revenueMinor: cents(row.revenueMinor), costMinor: cents(row.costMinor) }));
+  const ledgerRows = rows.map(({ period: _period, ...row }) => ({
+    ...row, revenueMinor: cents(row.revenueMinor), costMinor: cents(row.costMinor),
+  }));
 
   const portfolioFigure = (bookingState: string): LedgerFigure =>
     moneyFigure(ledgerRows.filter(row => row.bookingState === bookingState),

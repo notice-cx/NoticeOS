@@ -195,6 +195,31 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.projected).toBe(275);
   });
 
+  it("keeps offsetting dated receipts separate from undated ledger differences", () => {
+    const model = monthRevenue(portfolio(185), [
+      { revenueProjection: ready(1_000, 1_000, null) },
+      { revenueProjection: learning, revenueProjectionSources: [
+        { source: "stripe", displayName: "Stripe", days: [
+          { date: "2026-09-22", amountMinor: 2_500 },
+          { date: "2026-09-23", amountMinor: -2_500 },
+        ] },
+      ] },
+    ]);
+    expect(model?.pace?.points[21]).toMatchObject({ observed: 235, cumulative: 245 });
+    expect(model?.pace?.points.at(-1)).toMatchObject({ observed: 210, cumulative: 300 });
+    expect(model?.pace?.projected).toBe(300);
+  });
+
+  it("shows the current projection when an older ledger month only has costs", () => {
+    const costOnly = portfolio(0, {
+      period: "2026-08", periodIsCurrent: false,
+      forecast: { currency: 'USD', revenue: 0, cost: 35, net: -35 },
+      wallRevenueUsd: { period: "2026-08", periodIsCurrent: false, booked: null, forecast: null },
+    });
+    const model = monthRevenue(costOnly, [{ revenueProjection: ready(1_000, 1_000, null) }]);
+    expect(model).toMatchObject({ period: "2026-09", periodIsCurrent: true, revenue: 210, pace: { projected: 300 } });
+  });
+
   it("does not pace an older ledger month with this month's projections", () => {
     const model = monthRevenue(portfolio(900, { period: "2026-08", periodIsCurrent: false }), [
       { revenueProjection: ready(1_000, 1_000, null) },
