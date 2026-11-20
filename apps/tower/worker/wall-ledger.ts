@@ -25,16 +25,19 @@ export async function loadWallLedger(store: WorkspaceStore, currentPeriod: strin
   const rows = await store.read(tx => tx.query<Omit<LedgerStateRow, 'revenueMinor' | 'costMinor'> & {
     period: string; revenueMinor: bigint; costMinor: bigint;
   }>(
-    `SELECT to_char(period_month, 'YYYY-MM') AS period,
+    `WITH latest_period_rows AS (
+       SELECT period_month, asset_id, booking_state, currency, kind, source, entry_id, amount_minor
+         FROM noticeos.financial_ledger
+        WHERE period_month <= $1::date
+        ORDER BY period_month DESC FETCH FIRST 1 ROW WITH TIES
+     )
+     SELECT to_char(period_month, 'YYYY-MM') AS period,
             asset_id AS asset, booking_state AS "bookingState", currency,
             BOOL_OR(kind = 'revenue') AS "revenueRecorded",
             ARRAY_AGG(DISTINCT source) FILTER (WHERE entry_id < 0) AS "dailySources",
             COALESCE(SUM(CASE WHEN kind='revenue' THEN amount_minor ELSE 0 END), 0)::bigint AS "revenueMinor",
             COALESCE(SUM(CASE WHEN kind='cost'    THEN amount_minor ELSE 0 END), 0)::bigint AS "costMinor"
-       FROM noticeos.financial_ledger
-      WHERE period_month = (
-        SELECT MAX(period_month) FROM noticeos.financial_ledger WHERE period_month <= $1::date
-      )
+       FROM latest_period_rows
       GROUP BY period_month, asset_id, booking_state, currency`,
     [monthDate(currentPeriod)],
   ));
