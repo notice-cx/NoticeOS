@@ -1,6 +1,7 @@
 import { cloudflareTest } from '@cloudflare/vitest-pool-workers';
 import { generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
@@ -162,9 +163,17 @@ const WRANGLER_BINDINGS: string[] = [
   ...Object.keys(wranglerConfig.vars ?? {}),
 ];
 
+// The Worker's CommonJS fallback uses the import condition for require().
+const fromTower = createRequire(new URL('../../apps/tower/package.json', import.meta.url));
+const fromHolidays = createRequire(fromTower.resolve('date-holidays'));
+const fromHolidayParser = createRequire(fromHolidays.resolve('date-holidays-parser'));
+const fromMomentTimezone = createRequire(fromHolidayParser.resolve('moment-timezone'));
+
 export default defineConfig({
-  // node-postgres, as this pool must load it (scripts/postgres-test-cluster.mts says why).
-  resolve: { alias: workersPoolDriverAliases() },
+  resolve: { alias: [
+    ...workersPoolDriverAliases(),
+    { find: /^moment$/u, replacement: fromMomentTimezone.resolve('moment') },
+  ] },
   plugins: [
     // The suite never reads the checkout's own config/: the copies this Worker
     // compiles in as its fallback are answered with test/fixture-config/'s

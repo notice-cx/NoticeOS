@@ -17,7 +17,8 @@ interface DailyRevenueRun {
   batchId: string | null;
 }
 
-/** Snapshot the first daily USD amount and its comparison after the run has been written. */
+/** Snapshot the first daily USD amount and its comparison after the run has been written.
+ * Keep the reported-day count readable by previous versions during rollback. */
 export async function enqueueRevenueNotifications(tx: Transaction, run: DailyRevenueRun): Promise<void> {
   const { asset, source, accountRef, runId, start, end, batchId } = run;
   await tx.execute(`INSERT INTO noticeos.notification_events
@@ -57,15 +58,4 @@ export interface RevenueNotification {
   amountMinor: bigint;
   previousMinor: bigint | null;
   monthMinor: bigint;
-  projectedMinor: bigint | null;
-}
-
-/** A pace estimate requires revenue for every elapsed reporting day. */
-export function projectRevenueMonth(date: string, total: bigint, reportedDays: number): bigint | null {
-  const [year, month, day] = date.split('-').map(Number);
-  if (reportedDays !== day) return null;
-  const daysInMonth = new Date(Date.UTC(year!, month!, 0)).getUTCDate();
-  const divisor = BigInt(reportedDays);
-  const scaled = total * BigInt(daysInMonth);
-  return (scaled + (scaled < 0n ? -1n : 1n) * (divisor / 2n)) / divisor;
 }
