@@ -8,7 +8,8 @@ import {
 import { listCredentialSummaries, recordCredentialOutcome, resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { javascriptInstant } from '@noticeos/postgres';
-import { REVENUE_NOTIFICATIONS_ENABLED, projectRevenueMonth, type RevenueNotification } from './revenue-notifications.js';
+import { REVENUE_NOTIFICATIONS_ENABLED, type RevenueNotification } from './revenue-notifications.js';
+import { loadDiscordRevenueForecast, type DiscordRevenueForecast } from './discord-revenue-forecast.js';
 import { DISCORD_WEBHOOK_FIELD, discordWebhookAnswer, postDiscordWebhook, type DiscordMessage } from './discord-webhook.js';
 
 const NOTIFICATION_PROVIDER = 'discord';
@@ -55,7 +56,7 @@ async function claim(env: IngestEnv, now: string, lease: string, revenueOnly: bo
     const rows = await tx.query<{
       eventId: string; type: NotifiedCondition; sourceRef: string; occurrence: string; attempts: number;
       collectedAt: string; revenueMinor: bigint | null; previousRevenueMinor: bigint | null;
-      monthMinor: string | null; monthReportedDays: number | null;
+      monthMinor: string | null;
       asset: string | null; displayName: string | null; isOs: boolean | null;
       metric: string | null; message: string | null; ruleId: string | null; error: string | null;
     }>(`WITH ready AS NOT MATERIALIZED (
@@ -77,7 +78,7 @@ async function claim(env: IngestEnv, now: string, lease: string, revenueOnly: bo
     ) SELECT q.event_id::text AS "eventId", q.notification_type AS type, q.source_ref AS "sourceRef", q.occurrence, q.attempts,
       q.occurred_at AS "collectedAt", (q.payload ->> 'amount_minor')::bigint AS "revenueMinor",
       (q.payload ->> 'previous_minor')::bigint AS "previousRevenueMinor",
-      q.payload ->> 'month_minor' AS "monthMinor", (q.payload ->> 'month_reported_days')::integer AS "monthReportedDays",
+      q.payload ->> 'month_minor' AS "monthMinor",
       a.asset_id AS asset, a.display_name AS "displayName", a.is_os AS "isOs",
       f.metric, f.message, f.rule_id AS "ruleId", c.last_error AS error
       FROM claimed q
@@ -92,14 +93,12 @@ async function claim(env: IngestEnv, now: string, lease: string, revenueOnly: bo
         line: `${asset} — ${row.metric ?? row.ruleId}: ${row.message ?? row.ruleId}` };
       if (row.type === 'source-failing') return { ...row, type: row.type,
         line: `${row.sourceRef} stopped working — ${row.error ?? 'no reason recorded'}` };
-      if (row.revenueMinor === null || row.monthMinor === null || row.monthReportedDays === null) {
+      if (row.revenueMinor === null || row.monthMinor === null) {
         throw new Error('Daily revenue notification is missing its figures.');
       }
-      const monthMinor = BigInt(row.monthMinor);
       return { ...row, type: row.type, revenue: {
         asset: asset ?? row.sourceRef, date: row.occurrence, collectedAt: row.collectedAt,
-        amountMinor: row.revenueMinor, previousMinor: row.previousRevenueMinor, monthMinor,
-        projectedMinor: projectRevenueMonth(row.occurrence, monthMinor, row.monthReportedDays),
+        amountMinor: row.revenueMinor, previousMinor: row.previousRevenueMinor, monthMinor: BigInt(row.monthMinor),
       } };
     });
   });
@@ -173,7 +172,11 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
     return { found: count, fresh: count, sent: 0, skipped: 'no-credential' };
   }
   const health = await tryHealthConnection(env, 'discord', credential);
-  // Credentials and monitoring can take time. Revalidate immediately before
+  // A forecast read failure still permits delivery of the saved daily figures.
+  const forecast = candidates.some(candidate => candidate.type === DAILY_REVENUE)
+    ? await loadDiscordRevenueForecast(env, new Date(nowMs)).catch(() => null)
+    : null;
+  // Credentials, monitoring and forecasts can take time. Revalidate immediately before
   // sending, and renew only a lease this consumer still owns and has not lost.
   const sendingAt = new Date(nowMs + Date.now() - beganAt).toISOString();
   try {
@@ -191,7 +194,7 @@ export async function runNotifier(env: IngestEnv, options: NotifierOptions = {})
     count = candidates.length;
   } catch { return { found: count, fresh: count, sent: 0, skipped: 'store-unavailable' }; }
   if (!count) return { found: 0, fresh: 0, sent: 0, skipped: 'nothing-to-say' };
-  const delivered = await post(webhook, discordMessage(candidates), options.fetchImpl ?? fetch);
+  const delivered = await post(webhook, discordMessage(candidates, forecast), options.fetchImpl ?? fetch);
   // A failed health update cannot erase a successful delivery.
   if (delivered.ok) {
     await env.STORE.write(async tx => {
@@ -223,16 +226,25 @@ export function composeMessage(fresh: readonly { line: string }[], carried: read
   return [head, ...lines].join('\n');
 }
 
-function discordMessage(candidates: readonly Candidate[]): DiscordMessage {
+function discordMessage(candidates: readonly Candidate[], forecast: DiscordRevenueForecast | null): DiscordMessage {
   const alerts = candidates.filter(candidate => candidate.type !== DAILY_REVENUE);
   const revenue = candidates.filter(candidate => candidate.type === DAILY_REVENUE);
   if (revenue.length === 0) return { content: composeMessage(alerts) };
+  const heading = forecast?.total == null ? 'Monthly projection pending'
+    : `${projectedDollars.format(forecast.total)} projected for ${projectedMonth.format(new Date(forecast.period + '-01'))}`;
+  const content = `**NoticeOS · Revenue · ${heading}**`;
   return {
-    content: alerts.length > 0 ? composeMessage(alerts) : '**NoticeOS · Revenue**',
-    embeds: revenue.map(candidate => discordRevenue(candidate.revenue)),
+    content: alerts.length > 0 ? `${content}\n\n${composeMessage(alerts)}` : content,
+    embeds: revenue.map(candidate => {
+      const site = forecast?.byAsset.get(candidate.sourceRef);
+      const projectedMinor = site?.period === candidate.revenue.date.slice(0, 7) ? site.projectedMinor : null;
+      return discordRevenue(candidate.revenue, projectedMinor);
+    }),
   };
 }
 
+const projectedMonth = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' });
+const projectedDollars = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const wholeDollars = new Intl.NumberFormat('en-US');
 const percent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1, signDisplay: 'exceptZero' });
 
@@ -248,14 +260,14 @@ function weekOverWeek(amount: bigint, previous: bigint | null): string {
   return `${direction} ${percent.format(Number(amount - previous) / Math.abs(Number(previous)))} vs last week`;
 }
 
-function discordRevenue(revenue: RevenueNotification): NonNullable<DiscordMessage['embeds']>[number] {
-  const { asset, date, collectedAt, amountMinor, previousMinor, monthMinor, projectedMinor } = revenue;
+function discordRevenue(revenue: RevenueNotification, projectedMinor: number | null): NonNullable<DiscordMessage['embeds']>[number] {
+  const { asset, date, collectedAt, amountMinor, previousMinor, monthMinor } = revenue;
   const collected = Math.floor(Date.parse(javascriptInstant(collectedAt)) / 1000);
-  const projection = projectedMinor === null ? 'Pending' : usd(projectedMinor);
+  const projection = projectedMinor === null ? 'Pending' : usd(BigInt(projectedMinor));
   return {
     title: asset.replace(/[\r\n]+/g, ' ').slice(0, 200),
     description: `${date} · **${usd(amountMinor)}** · ${weekOverWeek(amountMinor, previousMinor)} · Collected <t:${collected}:f>\n`
-      + `Month to date **${usd(monthMinor)}** · Projected at current pace **${projection}**`,
+      + `Month to date **${usd(monthMinor)}** · Projected month **${projection}**`,
   };
 }
 

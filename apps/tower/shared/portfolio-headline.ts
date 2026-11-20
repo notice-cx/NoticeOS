@@ -6,7 +6,7 @@ import {
   portfolioHasData,
   type LedgerFigure,
   type PortfolioBand as PortfolioData,
-} from "@shared/wall";
+} from "./wall";
 
 /**
  * WHICH figure leads, and what to call it.
@@ -20,7 +20,7 @@ import {
  * estimates already carry money is the worse headline.
  */
 export function portfolioHeadline(
-  band: PortfolioData,
+  band: Pick<PortfolioData, "booked" | "forecast" | "firstRun" | "netTrend">,
 ): { figure: LedgerFigure; state: "booked" | "forecast" } | null {
   if (!portfolioHasData(band)) return null;
   return figureHasMoney(band.forecast)

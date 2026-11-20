@@ -140,7 +140,7 @@ export function figureHasMoney(figure: LedgerFigure): boolean {
  * confirmed zero is a fact. Nor does an empty current month, since `period`
  * falls back to the latest month that has rows.
  */
-export function portfolioHasData(band: PortfolioBand): boolean {
+export function portfolioHasData(band: Pick<PortfolioBand, "booked" | "forecast" | "firstRun" | "netTrend">): boolean {
   if (!band.firstRun) return true;
   return (
     figureHasMoney(band.booked) ||

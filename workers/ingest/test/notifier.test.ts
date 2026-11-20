@@ -25,7 +25,7 @@ import { putCredential } from '../src/credentials.js';
 import { runScheduledCron } from '../src/dispatch.js';
 import { applyConfigOps, forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import constantsJson from './fixture-config/constants.json';
-import { asOwner, credentialVerdict, emptyTables, forgetCredentials, insertFlag as storeFlag, insertPulse, pgRows, refuseHealthStates, reset, setConnection } from './helpers.js';
+import { asOwner, credentialVerdict, emptyTables, forgetCredentials, insertFlag as storeFlag, insertPulse, pgRows, refuseHealthStates, reset, setConnection, storeSignalRun } from './helpers.js';
 import { changeSites, storeSites } from './sites';
 
 const NOW = Date.parse('2026-09-05T13:05:00.000Z');
@@ -137,9 +137,9 @@ describe('first daily revenue notifications', () => {
     const discord = discordFetch();
     expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 2 });
     expect(discord.posts[0]?.embeds).toEqual(expect.arrayContaining([
-      { title: 'Meadow Board', description: `2026-09-08 · **$6.00** · ↑ +50% vs last week · Collected <t:${collected / 1000}:f>\nMonth to date **$56.00** · Projected at current pace **$210.00**` },
+      { title: 'Meadow Board', description: `2026-09-08 · **$6.00** · ↑ +50% vs last week · Collected <t:${collected / 1000}:f>\nMonth to date **$56.00** · Projected month **Pending**` },
       expect.objectContaining({ description: expect.stringContaining('**$4.00** · ↓ -50% vs last week') }),
-      expect.objectContaining({ description: expect.stringContaining('Month to date **$12.00** · Projected at current pace **Pending**') }),
+      expect.objectContaining({ description: expect.stringContaining('Month to date **$12.00** · Projected month **Pending**') }),
     ]));
     expect(await notified()).toEqual(expect.arrayContaining([
       { subject: 'asset', ref: 'meadow.example', condition: 'daily-mediavine-revenue' },
@@ -147,6 +147,32 @@ describe('first daily revenue notifications', () => {
     ]));
     expect(await runNotifier(env, { nowMs: collected + HOUR, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
     expect(discord.posts).toHaveLength(1);
+  });
+
+  it('shows the traffic-based site forecast and the total for the entire portfolio', async () => {
+    await connectDiscord();
+    const start = '2026-07-28';
+    await revenue('meadow.example', start, Array<number>(42).fill(10));
+    await revenue('northwind.example', start, Array<number>(43).fill(2));
+    for (const asset of ['meadow.example', 'northwind.example']) {
+      await storeSignalRun({
+        id: 'forecast-' + asset, asset, integration: 'ga4', finished_at: new Date(collected).toISOString(),
+        time_zone: 'America/Los_Angeles', window_start: start, window_end: '2026-09-08',
+      }, Array.from({ length: 43 }, (_, index) => ({
+        metric: 'sessions', value: 100,
+        date: new Date(Date.parse(start) + index * 86_400_000).toISOString().slice(0, 10),
+      })));
+    }
+    await enable();
+    await revenue('meadow.example', '2026-09-08', [20]);
+
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: collected, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect(discord.posts[0]?.content).toContain('$370');
+    expect(discord.posts[0]?.embeds).toMatchObject([{
+      title: 'Meadow Board',
+      description: expect.stringContaining('**$310.00**'),
+    }]);
   });
 
   it('uses the source passed by the collector and keeps comparisons in the same currency', async () => {

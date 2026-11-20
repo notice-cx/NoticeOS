@@ -10,7 +10,7 @@ import { buildAssetDetailPayload, type AssetDetailDeps } from '../worker/asset-d
 import { loadSignalTrends } from '../worker/signal-trends';
 import { monthRevenue } from '../src/lib/wall-revenue';
 import { homeMoney } from '../src/lib/home-money';
-import { portfolioHeadline } from '../src/lib/portfolio-headline';
+import { portfolioHeadline } from '../shared/portfolio-headline';
 import { createTestStore, type TestStore } from './postgres-store';
 import { createDemoActivity } from '../../../scripts/demo-activity.mjs';
 import { generateDemoDisplay, demoIntegrationAssets } from '../../../scripts/demo-display.mjs';
