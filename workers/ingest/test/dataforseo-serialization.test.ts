@@ -359,6 +359,14 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(staleRun.result).toBeNull();
     expect(staleRun.error).toMatchObject({ code: 'collection_superseded' });
     expect(abandoned.calls).toHaveLength(1);
+    // It wrote no manifest on its way out, and the call it had paid for stays
+    // counted: the request charge the monthly meter reads is settled.
+    expect(await pgCount(DUMP_ROWS)).toBe(0);
+    expect(await pgCount(
+      `SELECT count(*) AS n FROM noticeos.dataforseo_request_charges
+        WHERE asset_id = $1 AND provider_completed AND provider_cost_usd = 0.011`,
+      ['northwind.example'],
+    )).toBe(1);
 
     const third = await collect(
       { asset: 'northwind.example', families: ['backlinks-summary'] },
@@ -374,7 +382,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     const takenResult = await taken;
     expect(takenResult.refused).toBeUndefined();
     expect(takenResult.attempted).toBe(1);
-    expect(await pgCount(DUMP_ROWS)).toBe(2);
+    expect(await pgCount(DUMP_ROWS)).toBe(1);
   });
 
   /** The lease measures silence, not age: a sweep of many slow calls is working

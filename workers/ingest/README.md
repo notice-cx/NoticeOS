@@ -1284,7 +1284,9 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-asse
   long the sweep takes; a run that never returns frees it 15 minutes after its
   last call began — the Monday cron runs next Monday whatever happened before it.
   A run that stalled, lost the lane and then resumed ends with
-  `collection_superseded` before its next provider call or archive write.
+  `collection_superseded` before its next provider call or manifest row, the
+  failure row included. The calls it completed stay counted through their
+  settled rows in `dataforseo_request_charges`.
   It is not a distributed lock; it serializes because the ingest runs as one
   auxiliary Worker inside the Tower's single runtime. A deploy to Cloudflare
   proper would put `scheduled()` and `fetch()` in separate isolates and need a

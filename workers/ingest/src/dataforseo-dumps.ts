@@ -265,6 +265,15 @@ function releaseLane(workspaceId: string, token: number): void {
   if (lanes.get(workspaceId)?.token === token) lanes.delete(workspaceId);
 }
 
+const COLLECTION_SUPERSEDED = 'collection_superseded';
+
+/** Did this run stop because another run took its lane? Such a run writes no
+ * further manifest: its completed calls are already settled in the request
+ * charges the monthly meter reads. */
+function laneLost(signal: AbortSignal | undefined): signal is AbortSignal {
+  return signal?.aborted === true && signal.reason instanceof SignalError && signal.reason.code === COLLECTION_SUPERSEDED;
+}
+
 /** Restart the holder's lease, and report whether this run still holds the lane.
  * A run that lost it cannot renew its successor's. */
 function keepLane(workspaceId: string, token: number, nowMs: number): boolean {
@@ -762,14 +771,13 @@ async function runCollector(
   }
   // The clock the lane was claimed on: an injected `nowMs` never advances.
   const laneClock = options.nowMs === undefined ? Date.now : () => nowMs;
-  // A run that stalled past its lease and lost the lane stops as a cancelled
-  // run does, before its next purchase or archive write lands beside its
-  // successor's.
+  // A run that stalled past its lease and lost the lane stops before its next
+  // purchase or manifest write lands beside its successor's.
   const superseded = new AbortController();
   const keep = () => {
     if (keepLane(workspaceId, claim.token, laneClock())) return;
     superseded.abort(new SignalError(
-      'collection_superseded',
+      COLLECTION_SUPERSEDED,
       'Another DataForSEO collection took the lane after this run went 15 minutes without starting a provider call.',
     ));
   };
@@ -846,7 +854,7 @@ async function collectDueReports(
   const familiesFor = (asset: string) => scope?.families ?? approved?.get(asset);
   const sweep = sweepPlan(targets, panel, familiesFor);
   const recovered = repairCheckpoints && sweep.length
-    ? await recoverDataForSeoCheckpoints(env, sweep, panel, requestedAt, options.signal) : [];
+    ? await recoverDataForSeoCheckpoints(env, sweep, panel, requestedAt, keepLane, options.signal) : [];
   if (repairCheckpoints && owed === null) {
     return dumpResult(recovered);
   }
@@ -909,6 +917,8 @@ async function collectDueReports(
     );
     const outcomes: DataForSeoDumpOutcome[] = [];
     for (const { target, report } of plan) {
+      keepLane();
+      options.signal?.throwIfAborted();
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -938,6 +948,8 @@ async function collectDueReports(
     keepLane();
     options.signal?.throwIfAborted();
     if (!options.fenceUnsettled && !await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd)) {
+      keepLane();
+      options.signal?.throwIfAborted();
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -1365,6 +1377,8 @@ async function collectReport(
         `${failedRequests} of ${pages.length} calls unanswered${exhausted ? ' after 3 attempts' : ''} · ` +
           `${observed} answered · DataForSEO: ${lastTaskError.message}`,
       );
+      budget.keepLane();
+      budget.signal?.throwIfAborted();
       await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -1390,6 +1404,8 @@ async function collectReport(
     }
     return { ...outcome, costUsd: carriedCostUsd + budget.confirmedUsd, retries: budget.used };
   } catch (error) {
+    budget.keepLane();
+    if (laneLost(budget.signal)) throw budget.signal.reason;
     const spent = carriedCostUsd + budget.confirmedUsd;
     const dataForSeoCostAccountedUsd = carriedAccountedUsd + budget.confirmedUsd;
     // The uplink, not DataForSEO: `callProvider` already asked the gate, so this
@@ -1513,7 +1529,7 @@ async function repairCandidates(env: IngestEnv, plan: PlannedReport[], today: st
 }
 
 async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[], panel: SerpPanelConfig, requestedAt: string,
-  signal?: AbortSignal): Promise<DataForSeoDumpOutcome[]> {
+  keepLane: () => void, signal?: AbortSignal): Promise<DataForSeoDumpOutcome[]> {
   const objects = await signalObjectScope(env);
   const candidates = await repairCandidates(env, plan, requestedAt.slice(0, 10), objects, signal);
   const recovered: DataForSeoDumpOutcome[] = [];
@@ -1537,6 +1553,8 @@ async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[
         truncated ||= checkpoint.rankedKeywordsTruncated === true;
       }
       if (pages.length === 0) throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The original request is unavailable in the current report settings.');
+      keepLane();
+      signal?.throwIfAborted();
       const outcome = await archiveCollectedDump(env, { provider: 'dataforseo', target, report: report.name, reportDate: date,
         requestedAt, dataState: 'provider-snapshot', collected: { pages, providerRows, providerTruncated: truncated }, knownZeroCost: true });
       if (!report.independentRequests && outcome.objectKey) {
@@ -1544,6 +1562,7 @@ async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[
       }
       recovered.push({ ...outcome, costUsd: 0, retries: 0 });
     } catch (error) {
+      keepLane();
       signal?.throwIfAborted();
       const outcome = await archiveDumpFailure(env.STORE, { target, report: report.name, reportDate: date, requestedAt,
         dataState: 'provider-snapshot', error: normalizeSignalError(error, 'The saved DataForSEO response could not be archived.'), knownZeroCost: true });
