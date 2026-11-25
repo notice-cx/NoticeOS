@@ -63,7 +63,7 @@ import {
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
-import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from '../../../scripts/customer-dataforseo-egress.mjs';
+import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS, dataForSeoPaidTimeoutMs } from '../../../scripts/customer-dataforseo-egress.mjs';
 import type { DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
@@ -73,8 +73,7 @@ import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } fro
 const API_BASE = DATAFORSEO_ORIGIN + '/v3';
 const CREDENTIAL_REF = 'DATAFORSEO_LOGIN+DATAFORSEO_PASSWORD';
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 130_000;
-/** Not `REQUEST_TIMEOUT_MS`: a courtesy read must never hold a finished sweep open. */
+/** Not the paid calls' deadline: a courtesy read must never hold a finished sweep open. */
 const ACCOUNT_TIMEOUT_MS = 10_000;
 // The largest single page the provider accepts for ranked keywords.
 const RANKED_KEYWORD_LIMIT = 1_000;
@@ -105,8 +104,9 @@ const RETRY_BACKOFF_MS = [1_000, 3_000];
 /** The longest wait a `Retry-After` may buy before the family fails instead,
  * bounded so a wholly rate-limited sweep still finishes inside `LANE_LEASE_MS`. */
 const RETRY_AFTER_CAP_MS = 10_000;
-/** How long one run may hold the lane without returning: several times the
- * longest real sweep, and the longest a dead run can lock the operator out. */
+/** How long the lane stays held after its holder last started a provider call:
+ * several times the longest call, and the longest a dead run can lock the
+ * operator out. */
 const LANE_LEASE_MS = 15 * 60_000;
 
 type LlmPlatform = 'google' | 'chat_gpt';
@@ -218,7 +218,7 @@ export interface DataForSeoRunInFlight {
   scope: DataForSeoCollectScope | null;
   /** Set when the holder is re-collecting reports missed during an outage. */
   recovery?: true;
-  /** When the lane frees itself even if the holder never returns. */
+  /** When the lane frees itself if the holder starts no further provider call. */
   leaseExpiresAt: string;
 }
 
@@ -227,6 +227,9 @@ interface CollectorLane {
    * and was taken over must not free the lane its successor now holds. */
   readonly token: number;
   readonly startedAtMs: number;
+  /** The lease runs from here: the claim, then each provider call the holder
+   * starts, so a sweep longer than the lease keeps the lane while it works. */
+  activeAtMs: number;
   readonly scope: DataForSeoCollectScope | null;
   readonly recovery: boolean;
 }
@@ -250,16 +253,48 @@ function claimLane(
   preserveRecoveryLock: boolean,
 ): LaneClaim {
   const held = lanes.get(workspaceId);
-  if (held && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
+  if (held && (nowMs < held.activeAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
     return { token: null, blockedBy: laneHolder(held, nowMs) };
   }
   const token = (laneTokens += 1);
-  lanes.set(workspaceId, { token, startedAtMs: nowMs, scope, recovery });
+  lanes.set(workspaceId, { token, startedAtMs: nowMs, activeAtMs: nowMs, scope, recovery });
   return { token, blockedBy: null };
 }
 
 function releaseLane(workspaceId: string, token: number): void {
   if (lanes.get(workspaceId)?.token === token) lanes.delete(workspaceId);
+}
+
+/** One run's hold on the lane. */
+interface LaneHold {
+  /** Throws `collection_superseded` unless this run still holds the lane. A
+   * run checks before each purchase and each manifest write: one that stalled
+   * past its lease and was replaced adds nothing beside its successor. Its
+   * completed calls are already settled in the request charges the monthly
+   * meter reads. */
+  assertHeld(): void;
+  /** A provider call is starting, so the lease runs from now. Nothing else
+   * renews it: a run stalled in storage frees the lane on schedule. */
+  renew(): void;
+}
+
+function holdLane(workspaceId: string, token: number, clock: () => number): LaneHold {
+  const assertHeld = () => {
+    if (lanes.get(workspaceId)?.token === token) return;
+    throw new SignalError(
+      'collection_superseded',
+      'Another DataForSEO collection took the lane after this run went 15 minutes without starting a provider call.',
+    );
+  };
+  return {
+    assertHeld,
+    renew: () => {
+      assertHeld();
+      const held = lanes.get(workspaceId)!;
+      const nowMs = clock();
+      if (nowMs > held.activeAtMs) held.activeAtMs = nowMs;
+    },
+  };
 }
 
 function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
@@ -268,7 +303,7 @@ function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
     runningSeconds: Math.max(0, Math.round((nowMs - held.startedAtMs) / 1000)),
     scope: held.scope,
     ...(held.recovery ? { recovery: true } : {}),
-    leaseExpiresAt: new Date(held.startedAtMs + LANE_LEASE_MS).toISOString(),
+    leaseExpiresAt: new Date(held.activeAtMs + LANE_LEASE_MS).toISOString(),
   };
 }
 
@@ -510,6 +545,9 @@ const REPORTS: ReportSpec[] = [
             depth: SERP_PANEL_DEPTH,
             // Without this the AI Overview is often absent even when Google served one.
             load_async_ai_overview: true,
+            // A live call otherwise returns Google's redirect links in place of
+            // the ranked pages. Resolving them here is part of the call's price.
+            resolve_goto_urls: true,
             tag: `${target.asset}:serp-panel`,
           },
           // Omitted, not empty, when the panel labels nothing: an unlabelled
@@ -745,8 +783,10 @@ async function runCollector(
       refused: claim.blockedBy,
     };
   }
+  // The clock the lane was claimed on: an injected `nowMs` never advances.
+  const lane = holdLane(workspaceId, claim.token, options.nowMs === undefined ? Date.now : () => nowMs);
   try {
-    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints);
+    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints, lane);
   } finally {
     releaseLane(workspaceId, claim.token);
   }
@@ -766,6 +806,7 @@ async function collectDueReports(
   nowMs: number,
   owed: EgressLaneRecord | null,
   repairCheckpoints: boolean,
+  lane: LaneHold,
 ): Promise<DataForSeoDumpsResult> {
   const recovery = owed !== null || repairCheckpoints;
   const requestedAt = new Date(nowMs).toISOString();
@@ -816,7 +857,7 @@ async function collectDueReports(
   const familiesFor = (asset: string) => scope?.families ?? approved?.get(asset);
   const sweep = sweepPlan(targets, panel, familiesFor);
   const recovered = repairCheckpoints && sweep.length
-    ? await recoverDataForSeoCheckpoints(env, sweep, panel, requestedAt, options.signal) : [];
+    ? await recoverDataForSeoCheckpoints(env, sweep, panel, requestedAt, lane, options.signal) : [];
   if (repairCheckpoints && owed === null) {
     return dumpResult(recovered);
   }
@@ -879,6 +920,7 @@ async function collectDueReports(
     );
     const outcomes: DataForSeoDumpOutcome[] = [];
     for (const { target, report } of plan) {
+      lane.assertHeld();
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -905,8 +947,10 @@ async function collectDueReports(
   const outcomes: DataForSeoDumpOutcome[] = [];
   const requestClock = options.requestClock ?? (options.nowMs === undefined ? Date.now : () => nowMs);
   for (const { target, report } of plan) {
+    lane.assertHeld();
     options.signal?.throwIfAborted();
     if (!options.fenceUnsettled && !await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd)) {
+      lane.assertHeld();
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -922,7 +966,7 @@ async function collectDueReports(
     }
     const budget: RetryBudget = { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
       signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, approvedCredential: approval,
-      authorizePurchase: options.authorizePurchase, used: 0, confirmedUsd: 0, costUnconfirmed: false };
+      authorizePurchase: options.authorizePurchase, lane, used: 0, confirmedUsd: 0, costUnconfirmed: false };
     const outcome = await collectReport(
       env,
       target,
@@ -1297,7 +1341,9 @@ async function collectReport(
       // still retain every paid response, but no archive is promoted.
       throw lastTaskError;
     }
+    budget.lane.assertHeld();
     const outcome = await archiveCollectedDump(env, {
+      beforeManifest: budget.lane.assertHeld,
       monitoring,
       provider: 'dataforseo',
       target,
@@ -1332,6 +1378,7 @@ async function collectReport(
         `${failedRequests} of ${pages.length} calls unanswered${exhausted ? ' after 3 attempts' : ''} · ` +
           `${observed} answered · DataForSEO: ${lastTaskError.message}`,
       );
+      budget.lane.assertHeld();
       await archiveDumpFailure(env.STORE, {
         monitoring,
         target,
@@ -1357,6 +1404,9 @@ async function collectReport(
     }
     return { ...outcome, costUsd: carriedCostUsd + budget.confirmedUsd, retries: budget.used };
   } catch (error) {
+    // Rethrows the supersession the `try` raised, and stops a run that lost the
+    // lane while it was failing for another reason.
+    budget.lane.assertHeld();
     const spent = carriedCostUsd + budget.confirmedUsd;
     const dataForSeoCostAccountedUsd = carriedAccountedUsd + budget.confirmedUsd;
     // The uplink, not DataForSEO: `callProvider` already asked the gate, so this
@@ -1372,6 +1422,7 @@ async function collectReport(
       // Pages paid for before the uplink went must reach the monthly meter,
       // which sums manifests. No monitoring context, so no Health observation
       // blames the provider. An error row never satisfies a cadence.
+      budget.lane.assertHeld();
       const outcome = await archiveDumpFailure(env.STORE, {
         target,
         report: spec.name,
@@ -1392,6 +1443,7 @@ async function collectReport(
       error,
       `DataForSEO ${spec.name} request failed.`,
     );
+    budget.lane.assertHeld();
     const outcome = await archiveDumpFailure(env.STORE, {
       monitoring,
       target,
@@ -1480,7 +1532,7 @@ async function repairCandidates(env: IngestEnv, plan: PlannedReport[], today: st
 }
 
 async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[], panel: SerpPanelConfig, requestedAt: string,
-  signal?: AbortSignal): Promise<DataForSeoDumpOutcome[]> {
+  lane: LaneHold, signal?: AbortSignal): Promise<DataForSeoDumpOutcome[]> {
   const objects = await signalObjectScope(env);
   const candidates = await repairCandidates(env, plan, requestedAt.slice(0, 10), objects, signal);
   const recovered: DataForSeoDumpOutcome[] = [];
@@ -1504,13 +1556,15 @@ async function recoverDataForSeoCheckpoints(env: IngestEnv, plan: PlannedReport[
         truncated ||= checkpoint.rankedKeywordsTruncated === true;
       }
       if (pages.length === 0) throw new SignalError(CHECKPOINT_REPAIR_FAILED, 'The original request is unavailable in the current report settings.');
-      const outcome = await archiveCollectedDump(env, { provider: 'dataforseo', target, report: report.name, reportDate: date,
+      lane.assertHeld();
+      const outcome = await archiveCollectedDump(env, { beforeManifest: lane.assertHeld, provider: 'dataforseo', target, report: report.name, reportDate: date,
         requestedAt, dataState: 'provider-snapshot', collected: { pages, providerRows, providerTruncated: truncated }, knownZeroCost: true });
       if (!report.independentRequests && outcome.objectKey) {
         await removeRepairedCheckpoints(env, objects, outcome, keys);
       }
       recovered.push({ ...outcome, costUsd: 0, retries: 0 });
     } catch (error) {
+      lane.assertHeld();
       signal?.throwIfAborted();
       const outcome = await archiveDumpFailure(env.STORE, { target, report: report.name, reportDate: date, requestedAt,
         dataState: 'provider-snapshot', error: normalizeSignalError(error, 'The saved DataForSEO response could not be archived.'), knownZeroCost: true });
@@ -1730,6 +1784,7 @@ async function callProvider(
     }
     try {
       await budget.authorizePurchase?.();
+      budget.lane.renew();
       budget.signal?.throwIfAborted();
     } catch (error) {
       await settleDataForSeo(budget.store, reservation.attemptId, 0);
@@ -1751,7 +1806,7 @@ async function callProvider(
         },
         body: JSON.stringify([requestBody]),
         redirect: 'manual',
-        signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), ...(budget.signal ? [budget.signal] : [])]),
+        signal: AbortSignal.any([AbortSignal.timeout(dataForSeoPaidTimeoutMs(spec.path)), ...(budget.signal ? [budget.signal] : [])]),
       });
       // Read before the body, because a 429 that is about to be dropped for
       // being too far away still has to say how far away it was.
@@ -1854,6 +1909,7 @@ interface RetryBudget {
   readonly fenceUnsettled: boolean;
   readonly approvedCredential?: DataForSeoConnectionPin;
   readonly authorizePurchase?: () => Promise<void>;
+  readonly lane: LaneHold;
   confirmedUsd: number;
   costUnconfirmed: boolean;
   /** Retries already spent by this family. */
@@ -1912,7 +1968,7 @@ function isTransientResponse(status: number, body: unknown): boolean {
 }
 
 /** A call that produced no response at all: a dropped connection or our own
- * 130-second timeout. A SignalError here is `response_too_large` or
+ * timeout. A SignalError here is `response_too_large` or
  * `response_invalid_json` — facts about what DID come back, which repeating
  * cannot change. */
 function isTransientTransport(error: unknown): boolean {

@@ -14,7 +14,13 @@ export const DATAFORSEO_REPORT_PATHS = {
   llmMentions: '/ai_optimization/llm_mentions/target_metrics/live',
 } as const;
 
-const paidPaths = new Set(Object.values(DATAFORSEO_REPORT_PATHS).map(path => `/v3${path}`));
+const API_VERSION = '/v3';
+const paidPaths = new Set(Object.values(DATAFORSEO_REPORT_PATHS).map(path => `${API_VERSION}${path}`));
+/** How long a paid call may wait, by report path. The panel asks the provider
+ * to resolve Google's redirect links, which the provider allows 260 seconds;
+ * a shorter deadline abandons a call the provider still bills. */
+export const dataForSeoPaidTimeoutMs = (path: string): number =>
+  path === DATAFORSEO_REPORT_PATHS.panel ? 270_000 : 130_000;
 // Existing connection checks carry no provider credential.
 export const DATAFORSEO_EGRESS_BEACONS = [
   'https://www.cloudflare.com/cdn-cgi/trace', 'https://www.google.com/generate_204',
@@ -45,7 +51,7 @@ export function localDataForSeoOutbound({ signal, transport = fetch }: { signal?
       } catch { return refused(); }
       headers['content-type'] = 'application/json';
     }
-    const bounded = AbortSignal.any([AbortSignal.timeout(paid ? 130_000 : 10_000), request.signal, ...(signal ? [signal] : [])]);
+    const bounded = AbortSignal.any([AbortSignal.timeout(paid ? dataForSeoPaidTimeoutMs(url.pathname.slice(API_VERSION.length)) : 10_000), request.signal, ...(signal ? [signal] : [])]);
     bounded.throwIfAborted();
     const response = await transport(url.href, { method: request.method, headers, body, redirect: 'manual', signal: bounded });
     if (response.status >= 300 && response.status < 400) {

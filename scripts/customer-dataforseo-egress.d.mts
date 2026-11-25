@@ -12,6 +12,10 @@ export declare const DATAFORSEO_REPORT_PATHS: {
     readonly panel: "/serp/google/organic/live/advanced";
     readonly llmMentions: "/ai_optimization/llm_mentions/target_metrics/live";
 };
+/** How long a paid call may wait, by report path. The panel asks the provider
+ * to resolve Google's redirect links, which the provider allows 260 seconds;
+ * a shorter deadline abandons a call the provider still bills. */
+export declare const dataForSeoPaidTimeoutMs: (path: string) => number;
 export declare const DATAFORSEO_EGRESS_BEACONS: readonly ["https://www.cloudflare.com/cdn-cgi/trace", "https://www.google.com/generate_204"];
 /** Only the scheduler's paid-only Worker receives this outbound transport. */
 export declare function localDataForSeoOutbound({ signal, transport }?: {

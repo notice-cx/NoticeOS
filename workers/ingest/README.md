@@ -1279,8 +1279,18 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-asse
   rather than in any caller. A trigger that finds the lane busy spends nothing;
   the route turns that into `409 collection_in_flight` naming what is running.
   The lane cannot wedge shut: the marker is module state, so a restarted runtime
-  starts with it empty, and a run that never returns holds it for at most a
-  15-minute lease — the Monday cron runs next Monday whatever happened before it.
+  starts with it empty, and the lease is 15 minutes from the last provider call
+  the holder started. A run that is still making calls keeps the lane however
+  long the sweep takes; a run that never returns frees it 15 minutes after its
+  last call began — the Monday cron runs next Monday whatever happened before it.
+  A run that stalled, lost the lane and then resumed ends with
+  `collection_superseded` before its next provider call or manifest row, the
+  failure row included: the run checks that it holds the lane before each
+  purchase and immediately before each manifest write, after the archive object
+  is stored. The calls it completed stay counted through their settled rows in
+  `dataforseo_request_charges`. A manifest transaction that is already running
+  when the lane is taken still commits, because the lane is process memory and
+  the store holds no lease row.
   It is not a distributed lock; it serializes because the ingest runs as one
   auxiliary Worker inside the Tower's single runtime. A deploy to Cloudflare
   proper would put `scheduled()` and `fetch()` in separate isolates and need a
@@ -2507,8 +2517,9 @@ reserves its own $0.25 of the monthly cap before it is allowed to happen — a
 repair may never be the call that crosses the cap.
 
 What counts as "about the call": HTTP 5xx, DataForSEO's own 5xxxx envelope codes,
-and a call that produced no response at all (dropped connection, our 130-second
-timeout). Everything else is about what we asked for and fails immediately.
+and a call that produced no response at all (dropped connection, our timeout:
+270 seconds for a tracked-panel call, 130 seconds for every other family).
+Everything else is about what we asked for and fails immediately.
 
 **429 is the exception.** Every other 4xx would fail identically on every
 attempt; a rate limit is about *when* we asked — DataForSEO meters 2000
@@ -2577,6 +2588,16 @@ they are the only places this collector departs from "one family, one call":
   analysis layer needs to see it as *unknown*); only a panel where every query
   failed is recorded as an error rather than an empty success. Transport
   failures still fail the whole family.
+
+Every panel call sets `resolve_goto_urls`. A live call otherwise returns
+Google's `/goto` redirect links in place of the ranked pages, and the flattener
+then records no rank for the asset. The provider resolves the links inside the
+call at the call's own price and states up to 40 more seconds per call, 260
+seconds at most, so a panel call waits 270 seconds before it times out. The
+provider returns a link it cannot resolve unchanged, and
+[`serpOrganicQuality`](../../docs/20-signal-panels.md) still reports `suspect`
+when unresolved links fill the panel. The collector never calls the provider's
+separate `appendix/goto_url_converter` endpoint, which is billed per request.
 
 `provider_truncated` is set on every panel archive by design: it reads 20
 results of a list that always continues past them.

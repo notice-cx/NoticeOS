@@ -58,8 +58,8 @@ the same query/page pair exists in two retained snapshots.
 
 The weekly Monday DataForSEO collection's `serp-panel` family makes one
 `serp/google/organic/live/advanced` call per (tracked term, device) with
-`load_async_ai_overview` set, archived to the same immutable R2 + append-only
-manifest boundary as the other families (one manifest row per asset per
+`load_async_ai_overview` and `resolve_goto_urls` set, archived to the same
+immutable R2 + append-only manifest boundary as the other families (one manifest row per asset per
 run, the per-query responses as its pages). The panel itself is
 [`config/serp-panel.json`](../config/serp-panel.json) (+ README sibling); the
 flattened family is `dataforseo-serp-panel.csv`. Full collector behavior:
