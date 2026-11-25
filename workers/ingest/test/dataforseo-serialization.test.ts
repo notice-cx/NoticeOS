@@ -15,11 +15,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DATAFORSEO_DUMPS_CRON } from '../src/crons.js';
-import {
-  runDataForSeoDumps,
-  runDataForSeoRecovery,
-  type DataForSeoDumpsResult,
-} from '../src/dataforseo-dumps.js';
+import { runDataForSeoDumps, runDataForSeoRecovery } from '../src/dataforseo-dumps.js';
 import { runCron, runScheduledCron } from '../src/dispatch.js';
 import { EgressGate } from '../src/egress.js';
 import { handleSignalCollect } from '../src/routes/signal-collect.js';
@@ -331,6 +327,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       fetchImpl: abandoned.fetchImpl,
       scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
+    const staleEnd = stale.then((result) => ({ result, error: null }), (error: unknown) => ({ result: null, error }));
     await abandoned.started;
 
     const refused = await collect(
@@ -352,12 +349,16 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     });
     await successor.started;
 
-    // The run that lost the lane cannot free it on its way out — the lane now
-    // belongs to the successor, and a trigger arriving after the stale run
-    // finally returns is refused by the run that is actually working.
+    // The run that lost the lane resumes: its parked call returns, and it stops
+    // before buying the panel's next call beside its successor. It cannot free
+    // the lane on its way out either — the lane now belongs to the successor,
+    // and a trigger arriving after the stale run has ended is refused by the
+    // run that is actually working.
     abandoned.open();
-    const staleResult: DataForSeoDumpsResult = await stale;
-    expect(staleResult.refused).toBeUndefined();
+    const staleRun = await staleEnd;
+    expect(staleRun.result).toBeNull();
+    expect(staleRun.error).toMatchObject({ code: 'collection_superseded' });
+    expect(abandoned.calls).toHaveLength(1);
 
     const third = await collect(
       { asset: 'northwind.example', families: ['backlinks-summary'] },

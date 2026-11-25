@@ -265,10 +265,13 @@ function releaseLane(workspaceId: string, token: number): void {
   if (lanes.get(workspaceId)?.token === token) lanes.delete(workspaceId);
 }
 
-/** Restart the holder's lease. A run that lost the lane cannot renew its successor's. */
-function keepLane(workspaceId: string, token: number, nowMs: number): void {
+/** Restart the holder's lease, and report whether this run still holds the lane.
+ * A run that lost it cannot renew its successor's. */
+function keepLane(workspaceId: string, token: number, nowMs: number): boolean {
   const held = lanes.get(workspaceId);
-  if (held?.token === token && nowMs > held.activeAtMs) held.activeAtMs = nowMs;
+  if (held?.token !== token) return false;
+  if (nowMs > held.activeAtMs) held.activeAtMs = nowMs;
+  return true;
 }
 
 function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
@@ -759,9 +762,20 @@ async function runCollector(
   }
   // The clock the lane was claimed on: an injected `nowMs` never advances.
   const laneClock = options.nowMs === undefined ? Date.now : () => nowMs;
-  const keep = () => keepLane(workspaceId, claim.token, laneClock());
+  // A run that stalled past its lease and lost the lane stops as a cancelled
+  // run does, before its next purchase or archive write lands beside its
+  // successor's.
+  const superseded = new AbortController();
+  const keep = () => {
+    if (keepLane(workspaceId, claim.token, laneClock())) return;
+    superseded.abort(new SignalError(
+      'collection_superseded',
+      'Another DataForSEO collection took the lane after this run went 15 minutes without starting a provider call.',
+    ));
+  };
+  const signal = options.signal ? AbortSignal.any([options.signal, superseded.signal]) : superseded.signal;
   try {
-    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints, keep);
+    return await collectDueReports(env, { ...options, signal }, nowMs, owed, repairCheckpoints, keep);
   } finally {
     releaseLane(workspaceId, claim.token);
   }
@@ -921,6 +935,7 @@ async function collectDueReports(
   const outcomes: DataForSeoDumpOutcome[] = [];
   const requestClock = options.requestClock ?? (options.nowMs === undefined ? Date.now : () => nowMs);
   for (const { target, report } of plan) {
+    keepLane();
     options.signal?.throwIfAborted();
     if (!options.fenceUnsettled && !await canReserveDataForSeo(env.STORE, requestClock(), MAX_REPORT_COST_USD, monthlyCapUsd)) {
       const outcome = await archiveDumpFailure(env.STORE, {
@@ -1313,6 +1328,8 @@ async function collectReport(
       // still retain every paid response, but no archive is promoted.
       throw lastTaskError;
     }
+    budget.keepLane();
+    budget.signal?.throwIfAborted();
     const outcome = await archiveCollectedDump(env, {
       monitoring,
       provider: 'dataforseo',
@@ -1746,6 +1763,7 @@ async function callProvider(
     }
     try {
       await budget.authorizePurchase?.();
+      budget.keepLane();
       budget.signal?.throwIfAborted();
     } catch (error) {
       await settleDataForSeo(budget.store, reservation.attemptId, 0);
@@ -1757,7 +1775,6 @@ async function callProvider(
       continue;
     }
     attempts += 1;
-    budget.keepLane();
     let answer: { status: number; body: unknown; askedForMs: number | null };
     try {
       const response = await egress.transport.fetch(`${API_BASE}${spec.path}`, {
@@ -1871,7 +1888,8 @@ interface RetryBudget {
   readonly fenceUnsettled: boolean;
   readonly approvedCredential?: DataForSeoConnectionPin;
   readonly authorizePurchase?: () => Promise<void>;
-  /** Called as each provider call starts, so a working run keeps the lane. */
+  /** Called before each purchase and archive write: a working run keeps the
+   * lane, and a run that lost it aborts `signal`. */
   readonly keepLane: () => void;
   confirmedUsd: number;
   costUnconfirmed: boolean;
