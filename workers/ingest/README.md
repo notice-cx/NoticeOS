@@ -1285,8 +1285,12 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-asse
   last call began — the Monday cron runs next Monday whatever happened before it.
   A run that stalled, lost the lane and then resumed ends with
   `collection_superseded` before its next provider call or manifest row, the
-  failure row included. The calls it completed stay counted through their
-  settled rows in `dataforseo_request_charges`.
+  failure row included: the run checks that it holds the lane before each
+  purchase and immediately before each manifest write, after the archive object
+  is stored. The calls it completed stay counted through their settled rows in
+  `dataforseo_request_charges`. A manifest transaction that is already running
+  when the lane is taken still commits, because the lane is process memory and
+  the store holds no lease row.
   It is not a distributed lock; it serializes because the ingest runs as one
   auxiliary Worker inside the Tower's single runtime. A deploy to Cloudflare
   proper would put `scheduled()` and `fetch()` in separate isolates and need a

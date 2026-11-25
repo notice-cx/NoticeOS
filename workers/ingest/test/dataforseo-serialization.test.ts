@@ -25,6 +25,14 @@ import { ARCHIVE_RUNS, cutUplink, pgCount, reset } from './helpers.js';
 const NOW = Date.parse('2026-08-04T09:12:00.000Z');
 const CREDENTIALS = { login: 'operator-login', password: 'operator-password' };
 const DUMP_ROWS = `SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo'`;
+/** The completed, billed calls of one asset: the rows the monthly meter reads. */
+const SETTLED_CHARGES = `SELECT count(*) AS n FROM noticeos.dataforseo_request_charges
+  WHERE asset_id = $1 AND provider_completed AND provider_cost_usd = 0.011`;
+
+/** A run's end as a value, so a rejection that arrives early is not unhandled. */
+function settled<T>(run: Promise<T>): Promise<{ result: T | null; error: unknown }> {
+  return run.then((result) => ({ result, error: null }), (error: unknown) => ({ result: null, error }));
+}
 
 interface Provider {
   fetchImpl: typeof fetch;
@@ -327,7 +335,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       fetchImpl: abandoned.fetchImpl,
       scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
-    const staleEnd = stale.then((result) => ({ result, error: null }), (error: unknown) => ({ result: null, error }));
+    const staleEnd = settled(stale);
     await abandoned.started;
 
     const refused = await collect(
@@ -362,11 +370,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     // It wrote no manifest on its way out, and the call it had paid for stays
     // counted: the request charge the monthly meter reads is settled.
     expect(await pgCount(DUMP_ROWS)).toBe(0);
-    expect(await pgCount(
-      `SELECT count(*) AS n FROM noticeos.dataforseo_request_charges
-        WHERE asset_id = $1 AND provider_completed AND provider_cost_usd = 0.011`,
-      ['northwind.example'],
-    )).toBe(1);
+    expect(await pgCount(SETTLED_CHARGES, ['northwind.example'])).toBe(1);
 
     const third = await collect(
       { asset: 'northwind.example', families: ['backlinks-summary'] },
@@ -383,6 +387,112 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(takenResult.refused).toBeUndefined();
     expect(takenResult.attempted).toBe(1);
     expect(await pgCount(DUMP_ROWS)).toBe(1);
+  });
+
+  /** The manifest is the last thing a family writes, after its archive object.
+   * A run parked in that object write while another takes the lane has paid
+   * and stored, and must still not write the row. */
+  it('writes no manifest when the lane is taken during the archive object write', async () => {
+    const storeObject = env.RAW_SIGNALS.put.bind(env.RAW_SIGNALS);
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    let sawObjectWrite!: () => void;
+    const objectWrite = new Promise<void>((resolve) => { sawObjectWrite = resolve; });
+    let parked = false;
+    const put = vi.spyOn(env.RAW_SIGNALS, 'put').mockImplementation((async (...args: Parameters<typeof storeObject>) => {
+      if (!parked) {
+        parked = true;
+        sawObjectWrite();
+        await gate;
+      }
+      return storeObject(...args);
+    }) as typeof storeObject);
+    const former = provider();
+    const formerEnd = settled(runDataForSeoDumps(env, {
+      ...CREDENTIALS,
+      nowMs: NOW,
+      fetchImpl: former.fetchImpl,
+      scope: { asset: 'northwind.example', families: ['ranked-keywords'] },
+    }));
+    const successor = gatedProvider();
+    try {
+      await objectWrite;
+      const taken = runDataForSeoDumps(env, {
+        ...CREDENTIALS,
+        nowMs: NOW + 15 * 60_000,
+        fetchImpl: successor.fetchImpl,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
+      });
+      await successor.started;
+
+      open();
+      expect((await formerEnd).error).toMatchObject({ code: 'collection_superseded' });
+      expect(former.calls).toHaveLength(1);
+      expect(await pgCount(DUMP_ROWS)).toBe(0);
+      expect(await pgCount(SETTLED_CHARGES, ['northwind.example'])).toBe(1);
+
+      successor.open();
+      expect(await taken).toMatchObject({ attempted: 1, succeeded: 1 });
+      expect(await pgCount(DUMP_ROWS)).toBe(1);
+    } finally {
+      open();
+      successor.open();
+      await formerEnd;
+      put.mockRestore();
+    }
+  });
+
+  /** A failing family asks whether the uplink is down before it records the
+   * failure. A run that loses the lane during that wait records nothing. */
+  it('writes no failure manifest when the lane is taken during the uplink check', async () => {
+    const dropped = (async () => { throw new TypeError('Synthetic dropped connection'); }) as unknown as typeof fetch;
+    const egress = new EgressGate(env, { lane: 'dataforseo', at: new Date(NOW).toISOString(), fetchImpl: dropped });
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    let sawSecondCheck!: () => void;
+    const secondCheck = new Promise<void>((resolve) => { sawSecondCheck = resolve; });
+    let checks = 0;
+    // The uplink is up both times: the call's own check answers at once, the
+    // failure handler's check parks.
+    vi.spyOn(egress, 'isDown').mockImplementation(async () => {
+      checks += 1;
+      if (checks === 2) {
+        sawSecondCheck();
+        await gate;
+      }
+      return false;
+    });
+    const formerEnd = settled(runDataForSeoDumps(env, {
+      ...CREDENTIALS,
+      nowMs: NOW,
+      fetchImpl: dropped,
+      egress,
+      retryBackoffMs: [],
+      scope: { asset: 'northwind.example', families: ['ranked-keywords'] },
+    }));
+    const successor = gatedProvider();
+    try {
+      await secondCheck;
+      const taken = runDataForSeoDumps(env, {
+        ...CREDENTIALS,
+        nowMs: NOW + 15 * 60_000,
+        fetchImpl: successor.fetchImpl,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
+      });
+      await successor.started;
+
+      open();
+      expect((await formerEnd).error).toMatchObject({ code: 'collection_superseded' });
+      expect(await pgCount(DUMP_ROWS)).toBe(0);
+
+      successor.open();
+      expect(await taken).toMatchObject({ attempted: 1, succeeded: 1 });
+      expect(await pgCount(DUMP_ROWS)).toBe(1);
+    } finally {
+      open();
+      successor.open();
+      await formerEnd;
+    }
   });
 
   /** The lease measures silence, not age: a sweep of many slow calls is working

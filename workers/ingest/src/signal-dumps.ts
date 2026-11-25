@@ -1226,6 +1226,9 @@ export async function archiveCollectedDump(
 }
 
 interface ArchiveInput {
+  /** Called after the archive object is stored and immediately before the
+   * manifest row is written; a throw leaves the run with no manifest. */
+  beforeManifest?: () => void;
   monitoring?: CollectionMonitoring;
   provider: DumpProvider;
   target: DumpTarget;
@@ -1301,6 +1304,7 @@ async function storeCollectedDump(
     contentSha256,
   );
   if (prior && objects.canReadArchive(prior.objectKey)) {
+    input.beforeManifest?.();
     await recordDumpSuccess(env.STORE, {
       monitoring,
       target,
@@ -1364,6 +1368,7 @@ async function storeCollectedDump(
       contentSha256,
     },
   });
+  input.beforeManifest?.();
   await recordDumpSuccess(env.STORE, {
     monitoring,
     target,
