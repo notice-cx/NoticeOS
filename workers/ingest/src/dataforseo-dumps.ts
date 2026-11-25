@@ -104,8 +104,9 @@ const RETRY_BACKOFF_MS = [1_000, 3_000];
 /** The longest wait a `Retry-After` may buy before the family fails instead,
  * bounded so a wholly rate-limited sweep still finishes inside `LANE_LEASE_MS`. */
 const RETRY_AFTER_CAP_MS = 10_000;
-/** How long one run may hold the lane without returning: several times the
- * longest real sweep, and the longest a dead run can lock the operator out. */
+/** How long the lane stays held after its holder last started a provider call:
+ * several times the longest call, and the longest a dead run can lock the
+ * operator out. */
 const LANE_LEASE_MS = 15 * 60_000;
 
 type LlmPlatform = 'google' | 'chat_gpt';
@@ -217,7 +218,7 @@ export interface DataForSeoRunInFlight {
   scope: DataForSeoCollectScope | null;
   /** Set when the holder is re-collecting reports missed during an outage. */
   recovery?: true;
-  /** When the lane frees itself even if the holder never returns. */
+  /** When the lane frees itself if the holder starts no further provider call. */
   leaseExpiresAt: string;
 }
 
@@ -226,6 +227,9 @@ interface CollectorLane {
    * and was taken over must not free the lane its successor now holds. */
   readonly token: number;
   readonly startedAtMs: number;
+  /** The lease runs from here: the claim, then each provider call the holder
+   * starts, so a sweep longer than the lease keeps the lane while it works. */
+  activeAtMs: number;
   readonly scope: DataForSeoCollectScope | null;
   readonly recovery: boolean;
 }
@@ -249,16 +253,22 @@ function claimLane(
   preserveRecoveryLock: boolean,
 ): LaneClaim {
   const held = lanes.get(workspaceId);
-  if (held && (nowMs < held.startedAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
+  if (held && (nowMs < held.activeAtMs + LANE_LEASE_MS || (preserveRecoveryLock && held.recovery))) {
     return { token: null, blockedBy: laneHolder(held, nowMs) };
   }
   const token = (laneTokens += 1);
-  lanes.set(workspaceId, { token, startedAtMs: nowMs, scope, recovery });
+  lanes.set(workspaceId, { token, startedAtMs: nowMs, activeAtMs: nowMs, scope, recovery });
   return { token, blockedBy: null };
 }
 
 function releaseLane(workspaceId: string, token: number): void {
   if (lanes.get(workspaceId)?.token === token) lanes.delete(workspaceId);
+}
+
+/** Restart the holder's lease. A run that lost the lane cannot renew its successor's. */
+function keepLane(workspaceId: string, token: number, nowMs: number): void {
+  const held = lanes.get(workspaceId);
+  if (held?.token === token && nowMs > held.activeAtMs) held.activeAtMs = nowMs;
 }
 
 function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
@@ -267,7 +277,7 @@ function laneHolder(held: CollectorLane, nowMs: number): DataForSeoRunInFlight {
     runningSeconds: Math.max(0, Math.round((nowMs - held.startedAtMs) / 1000)),
     scope: held.scope,
     ...(held.recovery ? { recovery: true } : {}),
-    leaseExpiresAt: new Date(held.startedAtMs + LANE_LEASE_MS).toISOString(),
+    leaseExpiresAt: new Date(held.activeAtMs + LANE_LEASE_MS).toISOString(),
   };
 }
 
@@ -747,8 +757,11 @@ async function runCollector(
       refused: claim.blockedBy,
     };
   }
+  // The clock the lane was claimed on: an injected `nowMs` never advances.
+  const laneClock = options.nowMs === undefined ? Date.now : () => nowMs;
+  const keep = () => keepLane(workspaceId, claim.token, laneClock());
   try {
-    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints);
+    return await collectDueReports(env, options, nowMs, owed, repairCheckpoints, keep);
   } finally {
     releaseLane(workspaceId, claim.token);
   }
@@ -768,6 +781,7 @@ async function collectDueReports(
   nowMs: number,
   owed: EgressLaneRecord | null,
   repairCheckpoints: boolean,
+  keepLane: () => void,
 ): Promise<DataForSeoDumpsResult> {
   const recovery = owed !== null || repairCheckpoints;
   const requestedAt = new Date(nowMs).toISOString();
@@ -924,7 +938,7 @@ async function collectDueReports(
     }
     const budget: RetryBudget = { store: env.STORE, backoffMs: retryBackoffMs, monthlyCapUsd, requestClock,
       signal: options.signal, fenceUnsettled: options.fenceUnsettled === true, approvedCredential: approval,
-      authorizePurchase: options.authorizePurchase, used: 0, confirmedUsd: 0, costUnconfirmed: false };
+      authorizePurchase: options.authorizePurchase, keepLane, used: 0, confirmedUsd: 0, costUnconfirmed: false };
     const outcome = await collectReport(
       env,
       target,
@@ -1743,6 +1757,7 @@ async function callProvider(
       continue;
     }
     attempts += 1;
+    budget.keepLane();
     let answer: { status: number; body: unknown; askedForMs: number | null };
     try {
       const response = await egress.transport.fetch(`${API_BASE}${spec.path}`, {
@@ -1856,6 +1871,8 @@ interface RetryBudget {
   readonly fenceUnsettled: boolean;
   readonly approvedCredential?: DataForSeoConnectionPin;
   readonly authorizePurchase?: () => Promise<void>;
+  /** Called as each provider call starts, so a working run keeps the lane. */
+  readonly keepLane: () => void;
   confirmedUsd: number;
   costUnconfirmed: boolean;
   /** Retries already spent by this family. */

@@ -1279,8 +1279,10 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-asse
   rather than in any caller. A trigger that finds the lane busy spends nothing;
   the route turns that into `409 collection_in_flight` naming what is running.
   The lane cannot wedge shut: the marker is module state, so a restarted runtime
-  starts with it empty, and a run that never returns holds it for at most a
-  15-minute lease — the Monday cron runs next Monday whatever happened before it.
+  starts with it empty, and the lease is 15 minutes from the last provider call
+  the holder started. A run that is still making calls keeps the lane however
+  long the sweep takes; a run that never returns frees it 15 minutes after its
+  last call began — the Monday cron runs next Monday whatever happened before it.
   It is not a distributed lock; it serializes because the ingest runs as one
   auxiliary Worker inside the Tower's single runtime. A deploy to Cloudflare
   proper would put `scheduled()` and `fetch()` in separate isolates and need a

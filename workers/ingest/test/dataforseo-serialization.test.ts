@@ -375,4 +375,53 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(takenResult.attempted).toBe(1);
     expect(await pgCount(DUMP_ROWS)).toBe(2);
   });
+
+  /** The lease measures silence, not age: a sweep of many slow calls is working
+   * for longer than fifteen minutes, and a trigger that took its lane would buy
+   * the calls the sweep has not reached yet. */
+  it('keeps the lane for a run that is still making provider calls past the lease', async () => {
+    const later = NOW + 16 * 60_000;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const calls: string[] = [];
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => { open = resolve; });
+    let sawSecondCall!: () => void;
+    const secondCall = new Promise<void>((resolve) => { sawSecondCall = resolve; });
+    const fetchImpl = (async (input: RequestInfo | URL): Promise<Response> => {
+      calls.push(requestUrl(input));
+      if (calls.length === 1) {
+        // The first call took sixteen minutes to come back.
+        clock.mockReturnValue(later);
+        return answer();
+      }
+      sawSecondCall();
+      await gate;
+      return answer();
+    }) as typeof fetch;
+    // No injected clock: the lease is renewed on the clock the lane was claimed on.
+    const running = runDataForSeoDumps(env, {
+      ...CREDENTIALS,
+      fetchImpl,
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
+    });
+    try {
+      await secondCall;
+      const challenger = provider();
+      const { status, body } = await collect(
+        { asset: 'northwind.example', families: ['ranked-keywords'] },
+        { fetchImpl: challenger.fetchImpl },
+      );
+      expect(status).toBe(409);
+      expect(body.inFlight?.startedAt).toBe(new Date(NOW).toISOString());
+      expect(Date.parse(body.inFlight!.leaseExpiresAt) - later).toBe(15 * 60_000);
+      expect(challenger.calls).toEqual([]);
+    } finally {
+      open();
+      try {
+        await running;
+      } finally {
+        clock.mockRestore();
+      }
+    }
+  });
 });
