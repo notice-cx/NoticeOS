@@ -63,7 +63,7 @@ import {
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
-import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS } from '../../../scripts/customer-dataforseo-egress.mjs';
+import { DATAFORSEO_ORIGIN, DATAFORSEO_REPORT_PATHS, dataForSeoPaidTimeoutMs } from '../../../scripts/customer-dataforseo-egress.mjs';
 import type { DataForSeoConnectionPin } from '../../../scripts/customer-collection-policy.mjs';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
@@ -73,8 +73,7 @@ import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } fro
 const API_BASE = DATAFORSEO_ORIGIN + '/v3';
 const CREDENTIAL_REF = 'DATAFORSEO_LOGIN+DATAFORSEO_PASSWORD';
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 130_000;
-/** Not `REQUEST_TIMEOUT_MS`: a courtesy read must never hold a finished sweep open. */
+/** Not the paid calls' deadline: a courtesy read must never hold a finished sweep open. */
 const ACCOUNT_TIMEOUT_MS = 10_000;
 // The largest single page the provider accepts for ranked keywords.
 const RANKED_KEYWORD_LIMIT = 1_000;
@@ -510,6 +509,9 @@ const REPORTS: ReportSpec[] = [
             depth: SERP_PANEL_DEPTH,
             // Without this the AI Overview is often absent even when Google served one.
             load_async_ai_overview: true,
+            // A live call otherwise returns Google's redirect links in place of
+            // the ranked pages. Resolving them here is part of the call's price.
+            resolve_goto_urls: true,
             tag: `${target.asset}:serp-panel`,
           },
           // Omitted, not empty, when the panel labels nothing: an unlabelled
@@ -1751,7 +1753,7 @@ async function callProvider(
         },
         body: JSON.stringify([requestBody]),
         redirect: 'manual',
-        signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), ...(budget.signal ? [budget.signal] : [])]),
+        signal: AbortSignal.any([AbortSignal.timeout(dataForSeoPaidTimeoutMs(spec.path)), ...(budget.signal ? [budget.signal] : [])]),
       });
       // Read before the body, because a 429 that is about to be dropped for
       // being too far away still has to say how far away it was.
@@ -1912,7 +1914,7 @@ function isTransientResponse(status: number, body: unknown): boolean {
 }
 
 /** A call that produced no response at all: a dropped connection or our own
- * 130-second timeout. A SignalError here is `response_too_large` or
+ * timeout. A SignalError here is `response_too_large` or
  * `response_invalid_json` — facts about what DID come back, which repeating
  * cannot change. */
 function isTransientTransport(error: unknown): boolean {

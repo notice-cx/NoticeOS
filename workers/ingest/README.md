@@ -2507,8 +2507,9 @@ reserves its own $0.25 of the monthly cap before it is allowed to happen — a
 repair may never be the call that crosses the cap.
 
 What counts as "about the call": HTTP 5xx, DataForSEO's own 5xxxx envelope codes,
-and a call that produced no response at all (dropped connection, our 130-second
-timeout). Everything else is about what we asked for and fails immediately.
+and a call that produced no response at all (dropped connection, our timeout:
+270 seconds for a tracked-panel call, 130 seconds for every other family).
+Everything else is about what we asked for and fails immediately.
 
 **429 is the exception.** Every other 4xx would fail identically on every
 attempt; a rate limit is about *when* we asked — DataForSEO meters 2000
@@ -2577,6 +2578,16 @@ they are the only places this collector departs from "one family, one call":
   analysis layer needs to see it as *unknown*); only a panel where every query
   failed is recorded as an error rather than an empty success. Transport
   failures still fail the whole family.
+
+Every panel call sets `resolve_goto_urls`. A live call otherwise returns
+Google's `/goto` redirect links in place of the ranked pages, and the flattener
+then records no rank for the asset. The provider resolves the links inside the
+call at the call's own price and states up to 40 more seconds per call, 260
+seconds at most, so a panel call waits 270 seconds before it times out. The
+provider returns a link it cannot resolve unchanged, and
+[`serpOrganicQuality`](../../docs/20-signal-panels.md) still reports `suspect`
+when unresolved links fill the panel. The collector never calls the provider's
+separate `appendix/goto_url_converter` endpoint, which is billed per request.
 
 `provider_truncated` is set on every panel archive by design: it reads 20
 results of a list that always continues past them.

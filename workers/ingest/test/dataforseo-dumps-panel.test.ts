@@ -248,6 +248,7 @@ describe('tracked-query SERP panel', () => {
       device: 'mobile',
       depth: 20,
       load_async_ai_overview: true,
+      resolve_goto_urls: true,
     });
     // The device rides in the request body, which is archived verbatim: that is
     // how an observation records its device with no manifest column. Devices are
